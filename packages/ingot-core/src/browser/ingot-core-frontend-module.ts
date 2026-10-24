@@ -62,6 +62,8 @@ import { GitResourceResolver } from './git/git-resource-resolver';
 import { IngotGitLogWidget } from './git/git-log-widget';
 import { IngotGitContribution } from './git/git-contribution';
 import { GIT_LOG_WIDGET_ID } from './git/git.browser-consts';
+import { IngotSettingsDialog } from './settings/ingot-settings-dialog';
+import { IngotSettingsContribution } from './settings/ingot-settings-contribution';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
@@ -145,4 +147,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
 
     bind(IngotAboutDialog).toSelf().inSingletonScope();
     rebind(AboutDialog).toService(IngotAboutDialog);
+
+    bind(IngotSettingsDialog).toSelf().inSingletonScope();
+    bind(IngotSettingsContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(IngotSettingsContribution);
+    bind(MenuContribution).toService(IngotSettingsContribution);
 });

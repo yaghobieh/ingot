@@ -7,7 +7,7 @@ export const WELCOME_COMMANDS = {
     newFile: 'workbench.action.files.newUntitledFile',
     plugins: 'vsxExtensions.toggle',
     keymap: 'keymaps:open',
-    settings: 'preferences:open'
+    settings: 'ingot.settings.open'
 } as const;
 
 export const CLONE_PROMPT = 'Repository URL (https or ssh)';

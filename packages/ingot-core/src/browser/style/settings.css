@@ -1,0 +1,20 @@
+/* JetBrains-style Settings dialog (IDEA-34) */
+.ingot-settings-dialog .dialogBlock { width: min(920px, 92vw); max-width: none; height: min(620px, 86vh); }
+.ingot-settings-dialog .dialogContent { flex: 1; min-height: 0; padding: 0; }
+.ingot-settings { display: flex; height: 100%; min-height: 0; }
+.ingot-settings-side { width: 240px; display: flex; flex-direction: column; border-right: 1px solid var(--theia-panel-border); padding: 8px; gap: 6px; }
+.ingot-settings-side .theia-input { width: 100%; box-sizing: border-box; }
+.ingot-settings-tree { flex: 1; overflow: auto; }
+.ingot-settings-node { display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer; border-radius: 4px; white-space: nowrap; }
+.ingot-settings-node:hover { background: var(--theia-list-hoverBackground); }
+.ingot-settings-node.selected { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
+.ingot-settings-page { flex: 1; overflow: auto; padding: 12px 20px; min-width: 0; }
+.ingot-settings-crumbs { font-weight: 600; margin-bottom: 12px; font-size: 13px; }
+.ingot-settings-description { opacity: .8; margin: 0 0 12px; }
+.ingot-setting { display: grid; grid-template-columns: 200px 1fr; gap: 4px 12px; align-items: center; padding: 6px 0; }
+.ingot-setting.modified .ingot-setting-label { color: var(--ingot-ingot-gold, #E8A93B); }
+.ingot-setting-control .theia-input, .ingot-setting-control .theia-select { width: 100%; max-width: 320px; box-sizing: border-box; }
+.ingot-setting-description { grid-column: 2; font-size: 11px; opacity: .7; }
+.ingot-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ingot-settings-empty { opacity: .7; padding: 24px; }
+.ingot-settings-links { line-height: 1.9; }
