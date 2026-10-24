@@ -13,6 +13,10 @@ import { IngotMcpService } from './ingot-mcp-service';
 import { MCP_SERVICE_PATH } from '../common/project-config/project-config.consts';
 import { McpService } from '../common/project-config/project-config.types';
 
+import { IngotGitService } from './ingot-git-service';
+import { GIT_SERVICE_PATH } from '../common/git/git.consts';
+import { GitService } from '../common/git/git.types';
+
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
     rebind(WorkspaceFileService).toService(IngotWorkspaceFileService);
@@ -21,6 +25,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(PORTS_SERVICE_PATH, () => ctx.container.get<PortsService>(PortsService))).inSingletonScope();
     bind(IngotModelService).toSelf().inSingletonScope();
     bind(ModelService).toService(IngotModelService);
+    bind(IngotGitService).toSelf().inSingletonScope();
+    bind(GitService).toService(IngotGitService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(GIT_SERVICE_PATH, () => ctx.container.get<GitService>(GitService))).inSingletonScope();
     bind(IngotMcpService).toSelf().inSingletonScope();
     bind(McpService).toService(IngotMcpService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(MCP_SERVICE_PATH, () => ctx.container.get<McpService>(McpService))).inSingletonScope();
