@@ -83,7 +83,6 @@ export class ModelPicker extends React.Component<ModelPickerProps, { query: stri
             <span className='ingot-pick-label'>{m.label}</span>
             <span className='ingot-pick-badges'>
                 <span className={`ingot-pick-badge ingot-pick-speed-${m.speed}`} title='Speed'>{SPEED_LABEL[m.speed]}</span>
-                <span className='ingot-pick-badge' title='Cost'>{m.cost === 'free' ? 'Free' : m.cost}</span>
                 <span className='ingot-pick-badge' title='Context window'>{formatTokens(m.contextWindow)}</span>
                 {m.thinking && <span className='ingot-pick-badge ingot-pick-thinking' title='Supports extended thinking'>Thinking</span>}
             </span>

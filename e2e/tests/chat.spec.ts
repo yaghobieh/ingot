@@ -188,12 +188,8 @@ test.describe('IDEA-77 chat redesign', () => {
         await page.locator('#ingot-agents-new').click();
         await pickModel(page, 'ollama-local');
 
-        // The open file is attached automatically and can be removed or re-attached.
-        await expect(page.locator('#ingot-context-file')).toContainText('math.ts');
-        await page.locator('#ingot-context-file .ingot-chip-remove').click();
-        await expect(page.locator('#ingot-context-file')).toHaveCount(0);
-        await page.locator('#ingot-context-attach-file').click();
-        await expect(page.locator('#ingot-context-file')).toBeVisible();
+        // The open file is never attached automatically; only pasted code and @ mentions become chips.
+        await expect(page.locator('#ingot-context-file, #ingot-context-attach-file')).toHaveCount(0);
 
         await send(page, 'Please remember how we indent');
         const saved = agents(page).locator('.ingot-chat-memory');
@@ -203,7 +199,7 @@ test.describe('IDEA-77 chat redesign', () => {
         const dir = path.join(project, '.ingot', 'memories');
         expect(fs.readdirSync(dir).filter(f => f.endsWith('.md'))).toHaveLength(1);
         expect(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8')).toContain('*');
-        expect(server.requests.at(-1)?.system).toContain('src/math.ts');
+        expect(server.requests.at(-1)?.system).not.toContain('Project files for context');
         const ring = page.locator('#ingot-context-ring');
         expect(Number(await ring.getAttribute('data-ratio'))).toBeGreaterThan(0);
         await expect(ring).toHaveAttribute('title', /tokens/);
