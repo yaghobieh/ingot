@@ -1,8 +1,18 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
 import { DEFAULT_KEYCHAIN_SERVICE, PROVIDERS, REQUEST_TIMEOUT_MS } from '../common/models/models.consts';
-import type { CompletionRequest, CompletionResult, ModelService, ProviderId, ProviderSettings, ProviderStatus } from '../common/models/models.types';
-import { buildProviderRequest, findModel, findProvider, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName } from '../common/models/models.utils';
+import type { CompletionRequest, CompletionResult, ModelService, ProviderId, ProviderSettings, ProviderStatus, StreamPoll } from '../common/models/models.types';
+import { buildProviderRequest, findModel, findProvider, parseProviderError, parseProviderResponse, parseStreamLine, redactSecrets, resolveModelName } from '../common/models/models.utils';
+import type { CatalogModel, HttpRequestSpec, ProviderInfo } from '../common/models/models.types';
+
+interface StreamState {
+    chunks: string[];
+    done: boolean;
+    error?: string;
+    controller: AbortController;
+}
+
+const STREAM_TTL_MS = 120_000;
 
 /**
  * BYOK model gateway (IDEA-25/26). API keys live only in the OS keychain (via Theia's keytar-backed KeyStoreService)
@@ -14,6 +24,8 @@ export class IngotModelService implements ModelService {
     @inject(KeyStoreService) protected readonly keyStore: KeyStoreService;
 
     protected readonly service = process.env.INGOT_KEYCHAIN_SERVICE || DEFAULT_KEYCHAIN_SERVICE;
+    protected readonly streams = new Map<string, StreamState>();
+    protected streamCounter = 0;
 
     async secureStorageAvailable(): Promise<boolean> {
         try {
@@ -47,7 +59,7 @@ export class IngotModelService implements ModelService {
         await this.keyStore.deletePassword(this.service, provider);
     }
 
-    async complete(request: CompletionRequest): Promise<CompletionResult> {
+    protected async prepare(request: CompletionRequest, stream: boolean): Promise<{ model: CatalogModel; info: ProviderInfo; key?: string; name: string; spec: HttpRequestSpec }> {
         const model = findModel(request.modelId);
         if (!model) {
             throw new Error(`Unknown model "${request.modelId}".`);
@@ -58,7 +70,11 @@ export class IngotModelService implements ModelService {
             throw new Error(`No API key for ${model.label}. Add it in Settings › Models.`);
         }
         const name = resolveModelName(model, request.settings);
-        const spec = buildProviderRequest(info.id, name, request, key);
+        return { model, info, key, name, spec: buildProviderRequest(info.id, name, request, key, stream) };
+    }
+
+    async complete(request: CompletionRequest): Promise<CompletionResult> {
+        const { model, info, key, name, spec } = await this.prepare(request, false);
         try {
             const response = await fetch(spec.url, { method: 'POST', headers: spec.headers, body: JSON.stringify(spec.body), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
             const text = await response.text();
@@ -70,6 +86,73 @@ export class IngotModelService implements ModelService {
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(redactSecrets(message, [key]));
+        }
+    }
+
+    async startStream(request: CompletionRequest): Promise<string> {
+        const prepared = await this.prepare(request, true);
+        const id = `stream-${Date.now().toString(36)}-${this.streamCounter++}`;
+        const state: StreamState = { chunks: [], done: false, controller: new AbortController() };
+        this.streams.set(id, state);
+        this.pump(state, prepared).finally(() => {
+            state.done = true;
+            setTimeout(() => this.streams.delete(id), STREAM_TTL_MS);
+        });
+        return id;
+    }
+
+    async pollStream(id: string, from: number): Promise<StreamPoll> {
+        const state = this.streams.get(id);
+        if (!state) {
+            return { chunks: [], done: true, error: 'Stream not found.' };
+        }
+        return { chunks: state.chunks.slice(from), done: state.done, error: state.error };
+    }
+
+    async cancelStream(id: string): Promise<void> {
+        this.streams.get(id)?.controller.abort();
+    }
+
+    protected async pump(state: StreamState, { model, info, key, spec }: { model: CatalogModel; info: ProviderInfo; key?: string; spec: HttpRequestSpec }): Promise<void> {
+        try {
+            const signal = AbortSignal.any([state.controller.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS * 5)]);
+            const response = await fetch(spec.url, { method: 'POST', headers: spec.headers, body: JSON.stringify(spec.body), signal });
+            if (!response.ok || !response.body) {
+                const text = await response.text();
+                let detail: string | undefined;
+                try {
+                    detail = parseProviderError(JSON.parse(text));
+                } catch {
+                    detail = undefined;
+                }
+                throw new Error(`${model.label} returned ${response.status}: ${detail ?? response.statusText}`);
+            }
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const reader = response.body.getReader();
+            for (;;) {
+                const { value, done } = await reader.read();
+                if (done) {
+                    break;
+                }
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';
+                for (const line of lines) {
+                    const delta = parseStreamLine(info.id, line);
+                    if (delta) {
+                        state.chunks.push(delta);
+                    }
+                }
+            }
+            const last = parseStreamLine(info.id, buffer);
+            if (last) {
+                state.chunks.push(last);
+            }
+        } catch (error) {
+            if (!state.controller.signal.aborted) {
+                state.error = redactSecrets(error instanceof Error ? error.message : String(error), [key]);
+            }
         }
     }
 

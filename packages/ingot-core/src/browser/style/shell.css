@@ -285,3 +285,5 @@ body.ingot-has-group #theia-top-panel > .ingot-project-tabs { order: 2; height: 
 .ingot-model-result.error { color: var(--ingot-danger, #F75464); word-break: break-word; }
 .ingot-chat-action { margin-top: 6px; }
 .ingot-agents-new { white-space: nowrap; flex: none; }
+.ingot-composer-stop { background: var(--theia-errorForeground, #F75464); color: #fff; }
+.ingot-chat-editing { margin-top: 6px; font-size: 11px; opacity: .75; font-style: italic; }

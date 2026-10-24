@@ -39,6 +39,12 @@ export interface ProviderSettings {
     readonly modelOverrides?: Partial<Record<ProviderId, string>>;
 }
 
+export interface StreamPoll {
+    readonly chunks: readonly string[];
+    readonly done: boolean;
+    readonly error?: string;
+}
+
 export interface CompletionResult {
     readonly text: string;
     readonly model: string;
@@ -65,4 +71,8 @@ export interface ModelService {
     deleteKey(provider: ProviderId): Promise<void>;
     complete(request: CompletionRequest): Promise<CompletionResult>;
     test(provider: ProviderId, settings?: ProviderSettings): Promise<string>;
+    /** Starts a streaming completion; poll for chunks with `pollStream` (RPC-friendly streaming). */
+    startStream(request: CompletionRequest): Promise<string>;
+    pollStream(id: string, from: number): Promise<StreamPoll>;
+    cancelStream(id: string): Promise<void>;
 }
