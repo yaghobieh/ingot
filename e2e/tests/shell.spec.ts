@@ -62,15 +62,17 @@ test.describe('IDEA-15/16 welcome screen, brand and themes', () => {
         await expect(welcome.locator('#ingot-welcome-open-plugins')).toBeVisible();
     });
 
-    test('switches between Ingot Light and Ingot Dark from Customize', async ({ page }) => {
+    test('switches between Light, Dark and System from Customize', async ({ page }) => {
         await openIngot(page);
         await runCommand(page, 'Welcome to Ingot');
         const welcome = page.locator('#ingot-welcome');
         await welcome.locator('#ingot-welcome-tab-customize').click();
-        await welcome.locator('#ingot-theme-ingot-dark').click();
+        await welcome.locator('#ingot-theme-dark').click();
         await expect(page.locator('body')).toHaveClass(/theia-dark/);
-        await expect(welcome.locator('#ingot-theme-ingot-dark')).toHaveClass(/active/);
-        await welcome.locator('#ingot-theme-ingot-light').click();
+        await expect(welcome.locator('#ingot-theme-dark')).toHaveClass(/active/);
+        await welcome.locator('#ingot-theme-light').click();
         await expect(page.locator('body')).toHaveClass(/theia-light/);
+        await welcome.locator('#ingot-theme-system').click();
+        await expect(welcome.locator('#ingot-theme-system')).toHaveClass(/active/);
     });
 });

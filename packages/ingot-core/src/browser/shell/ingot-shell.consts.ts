@@ -21,6 +21,7 @@ export const TOOLBAR_COMMANDS = {
     debugStop: 'workbench.action.debug.stop',
     searchEverywhere: 'ingot.searchEverywhere',
     settings: 'ingot.settings.open',
+    theme: 'ingot.appearance.pick',
     plugins: 'vsxExtensions.toggle'
 } as const;
 

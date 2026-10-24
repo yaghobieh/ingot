@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { openIngot, runCommand } from '../src/app.utils';
 
 const THEMES = {
-    light: { id: 'ingot-light', editorBg: 'rgb(255, 255, 255)', keyword: 'rgb(0, 51, 179)' },
-    dark: { id: 'ingot-dark', editorBg: 'rgb(30, 31, 34)', keyword: 'rgb(207, 142, 109)' }
+    light: { id: 'light', editorBg: 'rgb(255, 255, 255)', keyword: 'rgb(0, 51, 179)' },
+    dark: { id: 'dark', editorBg: 'rgb(30, 31, 34)', keyword: 'rgb(207, 142, 109)' }
 } as const;
 
 const keywordColor = (page: Page): Promise<string> =>
