@@ -65,8 +65,6 @@ export interface AgentSession {
     open?: boolean;
     openedAt?: number;
     pinned?: boolean;
-    /** The open editor is not attached automatically (its chip was removed). */
-    detachActiveFile?: boolean;
     context?: ChatContextInfo;
     /** Multi-agent: the chat that started this sub-agent. */
     parent?: string;

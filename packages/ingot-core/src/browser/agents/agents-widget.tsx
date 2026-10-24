@@ -458,22 +458,10 @@ export class IngotAgentsWidget extends ReactWidget {
         </div>;
     }
 
-    /** Open file (auto-attached, removable), and the rules and memories the last request used (IDEA-77). */
+    /** Rules and memories the last request used (IDEA-77). Files come only from pasted code and @ mentions. */
     protected renderContextChips(): React.ReactNode {
         const current = this.store.current;
-        const uri = this.editors.currentEditor?.editor.uri;
-        const root = uri && this.workspace.tryGetRoots().find(r => r.resource.isEqualOrParent(uri));
-        const path = uri ? (root ? root.resource.relative(uri)?.toString() ?? uri.path.base : uri.path.base) : undefined;
-        const attached = this.store.activeFileAttached;
         return <>
-            {path && (attached
-                ? <span className='ingot-chip ingot-chip-file' id='ingot-context-file' data-path={path} title={`${path} (open file, attached automatically)`}>
-                    <button type='button' className='ingot-chip-remove' aria-label={`Remove ${uri!.path.base}`} onClick={() => this.store.setActiveFileAttached(false)}>✕</button>
-                    <span className='codicon codicon-file' /><span className='ingot-chip-label'>{uri!.path.base}</span>
-                </span>
-                : <button type='button' id='ingot-context-attach-file' className='ingot-chip ingot-chip-ghost' title={`Attach ${path}`} onClick={() => this.store.setActiveFileAttached(true)}>
-                    <span className='codicon codicon-add' />{uri!.path.base}
-                </button>)}
             {current?.context?.rules.map(r => <span key={`r-${r}`} className='ingot-chip ingot-chip-rule' title={`Rule applied: ${r}`}><span className='codicon codicon-law' />{r}</span>)}
             {current?.context?.memories.map(m => <span key={`m-${m.id}`} className='ingot-chip ingot-chip-memory' title={m.text}><span className='codicon codicon-lightbulb' />{m.text.length > 28 ? `${m.text.slice(0, 27)}…` : m.text}</span>)}
         </>;
@@ -501,7 +489,7 @@ export class IngotAgentsWidget extends ReactWidget {
             <button type='button' id='ingot-composer-model' className={`ingot-pill ingot-model-pill${ready ? '' : ' ingot-pill-warn'}`} data-model={model} aria-haspopup='listbox'
                 aria-expanded={this.popover === 'model'} title={ready ? this.modelLabel(resolved) : 'No key for this model yet'}
                 onClick={() => { this.popover = this.popover === 'model' ? undefined : 'model'; this.update(); }}>
-                {this.modelLabel(model)}{!ready && <span className='ingot-pill-dot' />}<span className='codicon codicon-chevron-down ingot-pill-caret' />
+                {this.modelLabel(model)}<span className='codicon codicon-chevron-down ingot-pill-caret' />
             </button>
             {this.popover === 'model' && <ModelPicker current={model} models={this.models.catalog}
                 autoResolved={resolved !== AUTO_MODEL_ID && model === AUTO_MODEL_ID ? this.modelLabel(resolved) : undefined}
