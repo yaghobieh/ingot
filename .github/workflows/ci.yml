@@ -3,8 +3,8 @@ name: CI
 on:
   push:
     branches: [master, 'release/**']
+  # All PRs, including PRs stacked on feature branches.
   pull_request:
-    branches: [master, 'release/**']
 
 concurrency:
   group: ci-${{ github.ref }}
