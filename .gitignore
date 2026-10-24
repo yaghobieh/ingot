@@ -1,0 +1,26 @@
+# secrets
+ingot.config.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# deps / build
+node_modules/
+dist/
+out/
+lib/
+build/
+.turbo/
+*.tsbuildinfo
+
+# test output
+test-results/
+playwright-report/
+coverage/
+
+# os / editor
+.DS_Store
+*.log
+.idea/

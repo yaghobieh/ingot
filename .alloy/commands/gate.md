@@ -1,0 +1,1 @@
+Run the full Ingot gate before pushing: self code review of `git diff --staged` against `.alloy/rules`, then `pnpm gate`, `pnpm e2e`, `pnpm build`, and `gitleaks protect --staged`. Report results; do not push if anything fails.
