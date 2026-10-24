@@ -6,6 +6,7 @@ import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE } from '../../common/agents/agents.consts';
 import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
 import { activeAgentCount, titleFromPrompt } from '../../common/agents/agents.utils';
+import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
 import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import { lineDiff, diffStats } from '../../common/diff/diff.utils';
@@ -140,14 +141,16 @@ export class AgentStore {
     }
 
     /** Sends a prompt. Without a connected model the agent explains how to connect one instead of pretending. */
-    send(prompt: string): AgentSession {
+    send(prompt: string, chips: readonly ContextChip[] = []): AgentSession {
         const session = this.current ?? this.create();
         if (session.title === NEW_AGENT_TITLE) {
             session.title = titleFromPrompt(prompt);
         }
         session.mode = this.mode;
         session.model = this.model;
-        session.messages.push({ role: 'user', text: prompt.trim() });
+        session.messages.push(chips.length
+            ? { role: 'user', text: prompt.trim(), expanded: expandWithChips(prompt.trim(), chips), chips: chips.map(c => ({ label: chipLabel(c), path: c.path })) }
+            : { role: 'user', text: prompt.trim() });
         if (this.commandHandlers.some(handle => handle(session, prompt.trim()))) {
             session.updatedAt = Date.now();
             this.changed();
@@ -244,7 +247,7 @@ export class AgentStore {
         if (lastUser && lastUser.m.text.startsWith('/')) {
             const expansion = expandCommand(lastUser.m.text, config.commands);
             if (expansion) {
-                session.messages[lastUser.i] = { ...lastUser.m, expanded: expansion.text };
+                session.messages[lastUser.i] = { ...lastUser.m, expanded: lastUser.m.expanded ? lastUser.m.expanded.replace(lastUser.m.text, expansion.text) : expansion.text };
                 session.steps = [{ kind: 'run', target: `/${expansion.command.name}`, done: true }];
             }
         }

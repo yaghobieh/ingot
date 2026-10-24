@@ -9,10 +9,16 @@ import { MODELS_OPEN_COMMAND } from '../models/models.browser-consts';
 import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
 import { agentSubtitle, changesSummary, stepVerb } from '../../common/agents/agents.utils';
 import { AgentStore } from './agent-store';
+import { EditorManager } from '@theia/editor/lib/browser';
+import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
+import { WorkspaceService } from '@theia/workspace/lib/browser';
+import URI from '@theia/core/lib/common/uri';
+import { chipLabel, chipPreview, composerHeight, lineCount, sameClipboardText, type ContextChip } from '../../common/agents/context-chips';
 import { AgentEditReview } from './agent-edit-review';
 import { AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
 
 type AgentsTab = 'agents' | 'history';
+const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
 /** Right tool window: agent list, conversation with plan and tool steps, composer (IDEA-27/28, design reference). */
 @injectable()
@@ -22,12 +28,20 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(AgentEditReview) protected readonly review: AgentEditReview;
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
+    @inject(EditorManager) protected readonly editors: EditorManager;
+    @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
 
     protected tab: AgentsTab = 'agents';
     protected draft = '';
     protected composer?: HTMLTextAreaElement | null;
     protected slashIndex = 0;
     protected slashDismissed = false;
+    /** Context chips waiting to be sent with the next message (IDEA-65). */
+    protected chips: ContextChip[] = [];
+    /** The last copy/cut made in an editor, so pasting it here becomes a chip. */
+    protected lastEditorCopy?: Omit<ContextChip, 'id'>;
+    /** Height set by dragging the handle (IDEA-67); persisted. */
+    protected manualHeight?: number;
 
     /** `/` menu entries matching the draft: project commands and skills (IDEA-30). */
     protected get slashItems(): { name: string; description?: string; kind: string }[] {
@@ -58,7 +72,124 @@ export class IngotAgentsWidget extends ReactWidget {
         this.toDispose.push(this.store.onDidChange(() => this.update()));
         this.toDispose.push(this.review.onDidChange(() => this.update()));
         this.toDispose.push(this.models.onDidChange(() => this.update()));
+        const stored = Number(localStorage.getItem(COMPOSER_HEIGHT_KEY));
+        this.manualHeight = stored > 0 ? stored : undefined;
+        const onCopy = () => this.trackEditorCopy();
+        document.addEventListener('copy', onCopy, true);
+        document.addEventListener('cut', onCopy, true);
+        this.toDispose.push({ dispose: () => { document.removeEventListener('copy', onCopy, true); document.removeEventListener('cut', onCopy, true); } });
         this.update();
+    }
+
+    protected override onAfterAttach(msg: Message): void {
+        super.onAfterAttach(msg);
+        const observer = new ResizeObserver(() => this.fitComposer());
+        observer.observe(this.node);
+        this.toDispose.push({ dispose: () => observer.disconnect() });
+    }
+
+    protected override onUpdateRequest(msg: Message): void {
+        super.onUpdateRequest(msg);
+        requestAnimationFrame(() => this.fitComposer());
+    }
+
+    /** Min ~4 lines, grows with content up to half the panel then scrolls; a dragged height wins (IDEA-67). */
+    protected fitComposer(): void {
+        const el = this.composer;
+        if (!el) {
+            return;
+        }
+        el.style.height = 'auto';
+        el.style.height = `${composerHeight(el.scrollHeight, this.node.clientHeight, this.manualHeight)}px`;
+    }
+
+    protected startResize(e: React.MouseEvent): void {
+        e.preventDefault();
+        const startY = e.clientY;
+        const startHeight = this.composer?.offsetHeight ?? 0;
+        const move = (ev: MouseEvent) => {
+            this.manualHeight = composerHeight(0, this.node.clientHeight, startHeight + (startY - ev.clientY));
+            this.fitComposer();
+        };
+        const up = () => {
+            document.removeEventListener('mousemove', move);
+            document.removeEventListener('mouseup', up);
+            if (this.manualHeight) {
+                localStorage.setItem(COMPOSER_HEIGHT_KEY, String(this.manualHeight));
+            }
+        };
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', up);
+    }
+
+    protected resetHeight(): void {
+        this.manualHeight = undefined;
+        localStorage.removeItem(COMPOSER_HEIGHT_KEY);
+        this.fitComposer();
+    }
+
+    /** The current editor's selection as chip data, if the editor has focus and a non-empty selection. */
+    protected editorSelection(requireFocus: boolean): Omit<ContextChip, 'id'> | undefined {
+        const editor = this.editors.currentEditor?.editor;
+        if (!(editor instanceof MonacoEditor) || (requireFocus && !editor.isFocused())) {
+            return undefined;
+        }
+        const control = editor.getControl();
+        const selection = control.getSelection();
+        const model = control.getModel();
+        if (!selection || !model || selection.isEmpty()) {
+            return undefined;
+        }
+        const text = model.getValueInRange(selection);
+        // A selection ending at column 1 of the next line does not include that line.
+        const end = selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber ? selection.endLineNumber - 1 : selection.endLineNumber;
+        const uri = new URI(model.uri.toString());
+        const root = this.workspace.tryGetRoots().find(r => r.resource.isEqualOrParent(uri));
+        const path = root ? root.resource.relative(uri)?.toString() ?? uri.path.base : uri.path.base;
+        return { path, uri: uri.toString(), start: selection.startLineNumber, end, text };
+    }
+
+    protected trackEditorCopy(): void {
+        // The copy event fires before the clipboard is written; read the editor selection it is about to copy.
+        this.lastEditorCopy = this.editorSelection(true);
+    }
+
+    /** Adds a chip (Add to Chat ⌘L, editor paste) unless the same range is already attached. */
+    addChip(data: Omit<ContextChip, 'id'>): void {
+        if (!this.chips.some(c => c.uri === data.uri && c.start === data.start && c.end === data.end)) {
+            this.chips = [...this.chips, { ...data, id: `${Date.now()}-${this.chips.length}` }];
+        }
+        this.update();
+        this.composer?.focus();
+    }
+
+    /** Add to Chat: the current editor selection becomes a chip; returns false when nothing is selected. */
+    addSelectionChip(): boolean {
+        const selection = this.editorSelection(false);
+        if (selection) {
+            this.addChip(selection);
+        }
+        return !!selection;
+    }
+
+    protected removeChip(id: string): void {
+        this.chips = this.chips.filter(c => c.id !== id);
+        this.update();
+        this.composer?.focus();
+    }
+
+    protected openChip(chip: ContextChip): void {
+        this.editors.open(new URI(chip.uri), { selection: { start: { line: chip.start - 1, character: 0 }, end: { line: chip.end - 1, character: Number.MAX_SAFE_INTEGER } } });
+    }
+
+    /** Multi-line text copied from an editor pastes as a chip; anything else pastes as plain text. */
+    protected onPaste(e: React.ClipboardEvent<HTMLTextAreaElement>): void {
+        const text = e.clipboardData.getData('text/plain');
+        const copy = this.lastEditorCopy;
+        if (copy && text && lineCount(text) > 1 && sameClipboardText(text, copy.text)) {
+            e.preventDefault();
+            this.addChip(copy);
+        }
     }
 
     protected override onActivateRequest(msg: Message): void {
@@ -74,11 +205,12 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     protected submit(): void {
-        if (!this.draft.trim()) {
+        if (!this.draft.trim() && !this.chips.length) {
             return;
         }
-        this.store.send(this.draft);
+        this.store.send(this.draft.trim() || 'Explain this code.', this.chips);
         this.draft = '';
+        this.chips = [];
         this.update();
     }
 
@@ -121,6 +253,7 @@ export class IngotAgentsWidget extends ReactWidget {
             {session.messages.map((m, i) => (
                 <div key={i} className={`ingot-chat-msg ingot-chat-${m.role}`}>
                     {m.from && <div className='ingot-chat-from'>{m.from}</div>}
+                    {m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className='ingot-chip ingot-chip-sent' title={c.path}>{c.label}</span>)}</div>}
                     {m.text || (m.role === 'agent' && this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')}
                     {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
                     {m.text === NO_MODEL_MESSAGE && <div><button type='button' id='ingot-open-models' className='ingot-btn-primary ingot-chat-action' onClick={() => this.commands.executeCommand(MODELS_OPEN_COMMAND.id)}>Open Models</button></div>}
@@ -162,6 +295,19 @@ export class IngotAgentsWidget extends ReactWidget {
     protected renderComposer(): React.ReactNode {
         const items = this.slashItems;
         return <div className='ingot-composer'>
+            <div className='ingot-composer-resize' id='ingot-composer-resize' title='Drag to resize · double-click to reset' onMouseDown={e => this.startResize(e)} onDoubleClick={() => this.resetHeight()} />
+            {this.chips.length > 0 && <div className='ingot-composer-chips' id='ingot-composer-chips'>
+                {this.chips.map(chip => (
+                    <span key={chip.id} className='ingot-chip' data-path={chip.path}>
+                        <button type='button' className='ingot-chip-remove' aria-label={`Remove ${chipLabel(chip)}`} onClick={() => this.removeChip(chip.id)}>✕</button>
+                        <button type='button' className='ingot-chip-label' onClick={() => this.openChip(chip)}>{chipLabel(chip)}</button>
+                        <span className='ingot-chip-preview' role='tooltip'>
+                            <span className='ingot-chip-preview-path'>{chip.path}:{chip.start}-{chip.end}</span>
+                            <pre>{chipPreview(chip.text)}</pre>
+                        </span>
+                    </span>
+                ))}
+            </div>}
             {items.length > 0 && <div id='ingot-slash-menu' className='ingot-slash-menu' role='listbox'>
                 {items.map((item, i) => (
                     <div key={item.name} id={`ingot-slash-item-${item.name}`} role='option' aria-selected={i === this.slashIndex}
@@ -170,7 +316,8 @@ export class IngotAgentsWidget extends ReactWidget {
                     </div>
                 ))}
             </div>}
-            <textarea id='ingot-composer-input' ref={el => { this.composer = el; }} className='ingot-composer-input' placeholder={COMPOSER_PLACEHOLDER} value={this.draft} rows={2}
+            <textarea id='ingot-composer-input' ref={el => { this.composer = el; }} className='ingot-composer-input' placeholder={COMPOSER_PLACEHOLDER} value={this.draft} rows={4}
+                onPaste={e => this.onPaste(e)}
                 onChange={e => {
                     const value = e.currentTarget.value;
                     if (value === '/' && this.draft === '') {
@@ -215,7 +362,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 <span className='ingot-flex' />
                 {this.store.isRunning(this.store.current?.id)
                     ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}>■</button>
-                    : <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' disabled={!this.draft.trim()} onClick={() => this.submit()}>↑</button>}
+                    : <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' disabled={!this.draft.trim() && !this.chips.length} onClick={() => this.submit()}>↑</button>}
             </div>
         </div>;
     }
