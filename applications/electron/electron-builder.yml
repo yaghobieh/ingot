@@ -1,0 +1,25 @@
+# Packaging config for the Ingot desktop app (IDEA-54). Unsigned builds until IDEA-39 provides certificates.
+appId: dev.ingot.ide
+productName: Ingot
+copyright: Copyright © 2026 Ingot contributors
+electronDist: ../../node_modules/electron/dist
+directories:
+  buildResources: ../../assets/brand
+  output: dist
+files:
+  - lib
+  - src-gen
+  - resources
+  - package.json
+  - "!**/node_modules/electron/**"
+mac:
+  category: public.app-category.developer-tools
+  icon: ../../assets/brand/app-icon.icns
+  target: [dmg, zip]
+win:
+  icon: ../../assets/brand/app-icon.ico
+  target: [nsis]
+linux:
+  icon: ../../assets/brand/app-icon-1024.png
+  category: Development
+  target: [AppImage, deb]
