@@ -284,3 +284,4 @@ body.ingot-has-group #theia-top-panel > .ingot-project-tabs { order: 2; height: 
 .ingot-model-result.ok { color: var(--ingot-success, #5FAD56); }
 .ingot-model-result.error { color: var(--ingot-danger, #F75464); word-break: break-word; }
 .ingot-chat-action { margin-top: 6px; }
+.ingot-agents-new { white-space: nowrap; flex: none; }
