@@ -1,0 +1,6 @@
+{
+    "name": "Dawn Dev",
+    "type": "light",
+    "colors": { "editor.background": "#FFF8EE" },
+    "tokenColors": []
+}

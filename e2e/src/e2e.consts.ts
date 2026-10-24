@@ -1,6 +1,8 @@
 import * as path from 'path';
 
 export const E2E_PORT = Number(process.env.INGOT_PORT ?? 3100);
+/** Fake Open VSX registry used instead of open-vsx.org in e2e (`VSX_REGISTRY_URL`). */
+export const E2E_OVSX_PORT = Number(process.env.INGOT_E2E_OVSX_PORT ?? 3187);
 export const E2E_BASE_URL = `http://127.0.0.1:${E2E_PORT}`;
 export const FIXTURE_WORKSPACE = path.resolve(__dirname, '..', 'fixtures', 'sample-project');
 export const FIXTURES_DIR = path.resolve(__dirname, '..', 'fixtures');

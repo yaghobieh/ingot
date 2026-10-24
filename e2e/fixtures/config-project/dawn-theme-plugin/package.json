@@ -1,0 +1,12 @@
+{
+    "name": "dawn-theme",
+    "publisher": "ingot-dev",
+    "version": "0.0.1",
+    "displayName": "Dawn Theme (dev)",
+    "description": "An unpacked theme plugin a developer installs from a folder.",
+    "engines": { "vscode": "^1.50.0" },
+    "categories": ["Themes"],
+    "contributes": {
+        "themes": [{ "label": "Dawn Dev", "uiTheme": "vs", "path": "./themes/dawn.json" }]
+    }
+}
