@@ -19,3 +19,6 @@ export const SETTINGS_ACTION_COMMANDS: Record<SettingsAction, string> = {
 export const INLINE_ACTIONS: ReadonlySet<SettingsAction> = new Set(['importTheme']);
 
 export const settingDomId = (key: string): string => `ingot-setting-${key.replace(/[^a-zA-Z0-9]+/g, '-')}`;
+
+export const SettingsDialogProvider = Symbol('SettingsDialogProvider');
+export const SettingsDialogProps = Symbol('SettingsDialogProps');

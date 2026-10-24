@@ -3,17 +3,18 @@ import type { CommandContribution, CommandRegistry } from '@theia/core/lib/commo
 import type { MenuContribution, MenuModelRegistry } from '@theia/core/lib/common/menu';
 import { CommonMenus } from '@theia/core/lib/browser';
 import { IngotSettingsDialog } from './ingot-settings-dialog';
-import { SETTINGS_OPEN_COMMAND } from './settings.browser-consts';
+import { SETTINGS_OPEN_COMMAND, SettingsDialogProvider } from './settings.browser-consts';
 
 @injectable()
 export class IngotSettingsContribution implements CommandContribution, MenuContribution {
 
-    @inject(IngotSettingsDialog)
-    protected readonly dialog: IngotSettingsDialog;
+    /** Resolved lazily: the dialog depends on services with asynchronous initialization. */
+    @inject(SettingsDialogProvider)
+    protected readonly dialog: () => Promise<IngotSettingsDialog>;
 
     registerCommands(registry: CommandRegistry): void {
         registry.registerCommand(SETTINGS_OPEN_COMMAND, {
-            execute: (pageId?: unknown) => this.dialog.show(typeof pageId === 'string' ? pageId : undefined)
+            execute: async (pageId?: unknown) => (await this.dialog()).show(typeof pageId === 'string' ? pageId : undefined)
         });
     }
 

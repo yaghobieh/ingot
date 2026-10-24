@@ -1,6 +1,8 @@
 import * as React from '@theia/core/shared/react';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog';
+import { DialogProps } from '@theia/core/lib/browser/dialogs';
+import type { Message } from '@theia/core/lib/browser/widgets';
 import { CommandService } from '@theia/core/lib/common/command';
 import { PreferenceSchemaService, PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { ThemeService } from '@theia/core/lib/browser/theming';
@@ -8,7 +10,7 @@ import { IconThemeService } from '@theia/core/lib/browser/icon-theme-service';
 import { SETTINGS_PREFS, SETTINGS_TREE } from '../../common/settings/settings.consts';
 import type { SettingInfo, SettingsAction, SettingsPage } from '../../common/settings/settings.types';
 import { coerceSetting, flattenPages, searchPages, settingLabel, visiblePreferences } from '../../common/settings/settings.utils';
-import { INLINE_ACTIONS, SETTINGS_ACTION_COMMANDS, settingDomId } from './settings.browser-consts';
+import { INLINE_ACTIONS, SETTINGS_ACTION_COMMANDS, SettingsDialogProps, settingDomId } from './settings.browser-consts';
 
 interface Option { readonly value: string; readonly label: string }
 
@@ -29,22 +31,26 @@ export class IngotSettingsDialog extends ReactDialog<void> {
     protected applyButton: HTMLButtonElement;
     protected afterClose: string | undefined;
 
-    constructor() {
-        super({ title: 'Settings' });
+    constructor(@inject(SettingsDialogProps) props: DialogProps) {
+        super(props);
     }
 
     @postConstruct()
     protected init(): void {
         this.node.classList.add('ingot-settings-dialog');
-        this.node.id = 'ingot-settings';
         this.appendCloseButton('Cancel');
         this.applyButton = this.appendButton('Apply', false);
         this.applyButton.id = 'ingot-settings-apply';
-        this.addAction(this.applyButton, () => { this.apply(); }, 'click');
         this.appendAcceptButton('OK');
         this.acceptButton!.id = 'ingot-settings-ok';
         this.closeButton!.id = 'ingot-settings-cancel';
         this.toDispose.push(this.themes.onDidColorThemeChange(() => this.update()));
+    }
+
+    protected override onAfterAttach(msg: Message): void {
+        super.onAfterAttach(msg);
+        // Listeners added here are disposed on detach, so re-add them for every opening.
+        this.addAction(this.applyButton, () => { this.apply(); }, 'click');
     }
 
     get value(): void {
@@ -53,6 +59,10 @@ export class IngotSettingsDialog extends ReactDialog<void> {
 
     /** Opens fresh (pending edits from a cancelled session are dropped), optionally on a page. */
     async show(pageId?: string): Promise<void> {
+        if (this.isAttached) {
+            this.activate();
+            return;
+        }
         this.pending.clear();
         this.query = '';
         this.afterClose = undefined;
@@ -140,7 +150,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
         const visible = searchPages(SETTINGS_TREE, this.query, this.describe);
         const all = flattenPages(SETTINGS_TREE);
         const current = all.find(p => p.page.id === this.selected && visible.has(p.page.id)) ?? all.find(p => visible.has(p.page.id));
-        return <div className='ingot-settings'>
+        return <div className='ingot-settings' id='ingot-settings'>
             <div className='ingot-settings-side'>
                 <input id='ingot-settings-search' className='theia-input' placeholder='Search settings' value={this.query} autoFocus spellCheck={false}
                     onChange={e => { this.query = e.currentTarget.value; this.update(); }} />
