@@ -33,12 +33,13 @@ test.describe('IDEA-65 / IDEA-67 agent composer', () => {
     test.beforeEach(() => { dir = makeProject(); });
     test.afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 
-    test('composer is ~4 lines, grows to half the panel and resizes by drag', async ({ page }) => {
+    test('composer is compact (2 lines, per reference), grows to half the panel and resizes by drag', async ({ page }) => {
         await openIngot(page, dir);
         await dismissNotifications(page);
         await openAgents(page);
         const box = async () => (await composer(page).boundingBox())!.height;
-        expect(await box()).toBeGreaterThanOrEqual(80);
+        expect(await box()).toBeGreaterThanOrEqual(36);
+        expect(await box()).toBeLessThan(60);
 
         await composer(page).fill(Array.from({ length: 80 }, (_, i) => `line ${i}`).join('\n'));
         const panel = (await page.locator('#ingot-agents').boundingBox())!.height;
@@ -52,7 +53,7 @@ test.describe('IDEA-65 / IDEA-67 agent composer', () => {
         await page.mouse.down();
         await page.mouse.move(handle.x + handle.width / 2, handle.y - 120, { steps: 5 });
         await page.mouse.up();
-        await expect.poll(box).toBeGreaterThan(180);
+        await expect.poll(box).toBeGreaterThan(140);
 
         // Shift+Enter inserts a newline instead of sending.
         await composer(page).fill('first');

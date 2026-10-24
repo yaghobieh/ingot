@@ -21,6 +21,7 @@ import { EditorManager } from '@theia/editor/lib/browser';
 import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import URI from '@theia/core/lib/common/uri';
+import { agentSubtitle } from '../../common/agents/chat-history';
 import { chipLabel, chipPreview, composerHeight, lineCount, sameClipboardText, type ContextChip } from '../../common/agents/context-chips';
 import { AgentEditReview } from './agent-edit-review';
 import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
@@ -288,14 +289,30 @@ export class IngotAgentsWidget extends ReactWidget {
         const tabs = this.store.tabs;
         return <div className='ingot-agents-root'>
             <div className='ingot-agents-header'>
-                <div className='ingot-chat-tabs' role='tablist'>
-                    {tabs.map(t => (
-                        <div key={t.id} role='tab' aria-selected={current?.id === t.id} data-id={t.id} title={t.title}
-                            className={`ingot-chat-tab${current?.id === t.id ? ' active' : ''}`}
-                            onClick={() => this.store.select(t.id)}
-                            onMouseDown={e => { if (e.button === 1) { e.preventDefault(); this.store.closeTab(t.id); } }}
-                            onDoubleClick={() => { this.renamingTab = t.id; this.update(); }}>
-                            <span className={`ingot-agent-status ingot-status-${t.status}`} />
+                <button type='button' className={`ingot-agents-tab${this.popover !== 'history' ? ' active' : ''}`} id='ingot-agents-tab-agents'
+                    onClick={() => { this.popover = undefined; this.showMemories = false; this.update(); }}>Agents</button>
+                <button type='button' className={`ingot-agents-tab${this.popover === 'history' ? ' active' : ''}`} id='ingot-agents-tab-history'
+                    onClick={() => this.toggleHistory()}>History</button>
+                <span className='ingot-flex' />
+                <button type='button' id='ingot-agents-new' className='ingot-icon-button codicon codicon-add' aria-label='New chat'
+                    title={`New chat${this.shortcut(AGENT_COMMANDS.newAgent.id) ? ` (${this.shortcut(AGENT_COMMANDS.newAgent.id)})` : ''}`} onClick={() => this.newChat()} />
+                <button type='button' id='ingot-agents-history' className={`ingot-icon-button codicon codicon-history${this.popover === 'history' ? ' active' : ''}`} aria-label='Chat history'
+                    title={`Chat history${this.shortcut(AGENT_COMMANDS.history.id) ? ` (${this.shortcut(AGENT_COMMANDS.history.id)})` : ''}`} onClick={() => this.toggleHistory()} />
+                {this.popover === 'history' && <ChatHistory chats={this.store.sessions} current={current?.id}
+                    onOpen={id => { this.store.reopen(id); this.popover = undefined; this.update(); }}
+                    onRename={(id, title) => this.store.rename(id, title)} onDelete={id => this.store.remove(id)} onPin={id => this.store.togglePin(id)}
+                    onMemories={() => this.toggleMemories()}
+                    onClose={() => this.closePopover()} />}
+            </div>
+            {tabs.length > 0 && <div className='ingot-agents-list ingot-chat-tabs' role='tablist'>
+                {tabs.map(t => (
+                    <div key={t.id} role='tab' aria-selected={current?.id === t.id} data-id={t.id} title={t.title}
+                        className={`ingot-agent-item ingot-chat-tab${current?.id === t.id ? ' active selected' : ''}`}
+                        onClick={() => this.store.select(t.id)}
+                        onMouseDown={e => { if (e.button === 1) { e.preventDefault(); this.store.closeTab(t.id); } }}
+                        onDoubleClick={() => { this.renamingTab = t.id; this.update(); }}>
+                        <span className={`ingot-agent-status ingot-status-${t.status}`} />
+                        <span className='ingot-agent-item-text'>
                             {this.renamingTab === t.id
                                 ? <input className='ingot-input ingot-chat-tab-rename' autoFocus defaultValue={t.title} aria-label='Chat title'
                                     onBlur={e => { this.store.rename(t.id, e.currentTarget.value); this.renamingTab = undefined; this.update(); }}
@@ -303,23 +320,14 @@ export class IngotAgentsWidget extends ReactWidget {
                                         if (e.key === 'Enter') { e.currentTarget.blur(); }
                                         if (e.key === 'Escape') { this.renamingTab = undefined; this.update(); }
                                     }} />
-                                : <span className='ingot-chat-tab-title'>{t.title}</span>}
-                            <button type='button' className='ingot-chat-tab-close codicon codicon-close' aria-label={`Close ${t.title}`}
-                                onClick={e => { e.stopPropagation(); this.store.closeTab(t.id); }} />
-                        </div>
-                    ))}
-                </div>
-                <button type='button' id='ingot-agents-new' className='ingot-icon-button codicon codicon-add' aria-label='New chat'
-                    title={`New chat${this.shortcut(AGENT_COMMANDS.newAgent.id) ? ` (${this.shortcut(AGENT_COMMANDS.newAgent.id)})` : ''}`} onClick={() => this.newChat()} />
-                <button type='button' id='ingot-agents-history' className={`ingot-icon-button codicon codicon-history${this.popover === 'history' ? ' active' : ''}`} aria-label='Chat history'
-                    title={`Chat history${this.shortcut(AGENT_COMMANDS.history.id) ? ` (${this.shortcut(AGENT_COMMANDS.history.id)})` : ''}`} onClick={() => this.toggleHistory()} />
-                <button type='button' id='ingot-agents-memories' className={`ingot-icon-button codicon codicon-lightbulb${this.showMemories ? ' active' : ''}`} aria-label='Memories'
-                    title='Memories' onClick={() => this.toggleMemories()} />
-                {this.popover === 'history' && <ChatHistory chats={this.store.sessions} current={current?.id}
-                    onOpen={id => { this.store.reopen(id); this.popover = undefined; this.update(); }}
-                    onRename={(id, title) => this.store.rename(id, title)} onDelete={id => this.store.remove(id)} onPin={id => this.store.togglePin(id)}
-                    onClose={() => this.closePopover()} />}
-            </div>
+                                : <span className='ingot-agent-item-title ingot-chat-tab-title'>{t.title}</span>}
+                            <span className='ingot-agent-item-sub'>{agentSubtitle(t, Date.now(), current?.id === t.id && this.review.pending ? this.review.queued + 1 : 0)}</span>
+                        </span>
+                        <button type='button' className='ingot-chat-tab-close codicon codicon-close' aria-label={`Close ${t.title}`}
+                            onClick={e => { e.stopPropagation(); this.store.closeTab(t.id); }} />
+                    </div>
+                ))}
+            </div>}
             {this.showMemories
                 ? <div className='ingot-agents-chat ingot-agents-memories-pane'><MemoriesManager store={this.memoryStore} onClose={() => this.toggleMemories()} /></div>
                 : <div className='ingot-agents-chat'>{current && current.messages.length ? this.renderSession(current)
@@ -367,8 +375,10 @@ export class IngotAgentsWidget extends ReactWidget {
             {(reviewing > 0 || session.changes.length > 0) && <div className='ingot-chat-changes'>
                 <span>{changesSummary(reviewing || session.changes.length)}</span>
                 <span className='ingot-flex' />
-                <button type='button' id='ingot-agents-undo' className='ingot-btn-ghost' disabled={!pending} onClick={() => this.review.reject()}>Undo</button>
-                <button type='button' id='ingot-agents-keep' className='ingot-btn-primary' disabled={!pending} onClick={() => this.keepAll()}>Keep all</button>
+                {pending ? <>
+                    <button type='button' id='ingot-agents-undo' className='ingot-btn-ghost' onClick={() => this.review.reject()}>Undo</button>
+                    <button type='button' id='ingot-agents-keep' className='ingot-btn-primary' onClick={() => this.keepAll()}>Keep all</button>
+                </> : <span className='ingot-dim'>Kept</span>}
             </div>}
         </>;
     }
@@ -410,7 +420,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     </div>
                 ))}
             </div>}
-            <textarea id='ingot-composer-input' ref={el => { this.composer = el; }} className='ingot-composer-input' placeholder={COMPOSER_PLACEHOLDER} value={this.draft} rows={4}
+            <textarea id='ingot-composer-input' ref={el => { this.composer = el; }} className='ingot-composer-input' placeholder={COMPOSER_PLACEHOLDER} value={this.draft} rows={2}
                 onPaste={e => this.onPaste(e)}
                 onChange={e => {
                     const value = e.currentTarget.value;

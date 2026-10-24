@@ -139,6 +139,7 @@ export interface HistoryProps {
     readonly onRename: (id: string, title: string) => void;
     readonly onDelete: (id: string) => void;
     readonly onPin: (id: string) => void;
+    readonly onMemories?: () => void;
     readonly onClose: () => void;
 }
 
@@ -179,6 +180,8 @@ export class ChatHistory extends React.Component<HistoryProps, { query: string; 
                         </div>;
                     })}
                 </div>
+                {this.props.onMemories && <button type='button' id='ingot-agents-memories' className='ingot-popover-footer' onClick={this.props.onMemories}>
+                    <span className='codicon codicon-lightbulb' />Manage memories…</button>}
             </div>
         </>;
     }
