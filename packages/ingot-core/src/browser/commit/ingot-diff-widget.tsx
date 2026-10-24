@@ -7,10 +7,11 @@ import { CommandRegistry } from '@theia/core/lib/common/command';
 import { DisposableCollection, type Disposable } from '@theia/core/lib/common/disposable';
 import URI from '@theia/core/lib/common/uri';
 import { MonacoTextModelService } from '@theia/monaco/lib/browser/monaco-text-model-service';
-import { changeHunks, type ChangeHunk } from '../../common/git/changes';
+import { changeHunks, revertHunk, type ChangeHunk } from '../../common/git/changes';
+import { ContextKeyService, type ContextKey } from '@theia/core/lib/browser/context-key-service';
 import { GitService } from '../../common/git/git.types';
 import { LocalChangesModel } from './local-changes-model';
-import { COMMIT_COMMANDS, DIFF_WIDGET_ID } from './commit.consts';
+import { COMMIT_COMMANDS, DIFF_FOCUS, DIFF_WIDGET_ID } from './commit.consts';
 
 export interface DiffWidgetOptions {
     readonly path: string;
@@ -24,6 +25,7 @@ type Highlight = 'words' | 'lines';
  * Diff editor tab for one local change (IDEA-74): HEAD (read-only) on the left, "Your version" (editable, the
  * real file) on the right; change and file navigation, viewer / whitespace / highlight options, collapse
  * unchanged, and a per-chunk checkbox in the gutter that picks the chunks to commit.
+ * IDEA-78: per-chunk revert arrows (‹, back to HEAD, undoable), per-chunk exclude (×) and Revert File.
  */
 @injectable()
 export class IngotDiffWidget extends BaseWidget implements Navigatable, StatefulWidget {
@@ -36,6 +38,11 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
     @inject(MonacoTextModelService) protected readonly textModels: MonacoTextModelService;
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
     @inject(GitService) protected readonly git: GitService;
+    @inject(ContextKeyService) protected readonly contextKeys: ContextKeyService;
+    protected focusKey?: ContextKey<boolean>;
+    /** The real file's model behind "Your version" (saved after a chunk revert). */
+    protected fileModel?: { save(): Promise<void> };
+    protected originalDecorations: monaco.editor.IEditorDecorationsCollection | undefined;
 
     path = '';
     protected toolbarRoot: Root;
@@ -69,6 +76,42 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
         this.toDispose.push(this.fileDisposables);
         this.toDispose.push(this.model.onDidChange(() => { this.renderToolbar(); this.decorate(); }));
         this.path = options.path;
+        this.focusKey = this.contextKeys.createKey<boolean>(DIFF_FOCUS, false);
+        this.node.addEventListener('focusin', () => this.focusKey?.set(true));
+        this.node.addEventListener('focusout', e => { if (!this.node.contains(e.relatedTarget as Node | null)) { this.focusKey?.set(false); } });
+    }
+
+    protected get tracked(): boolean {
+        return this.model.entries.find(e => e.path === this.path)?.status === 'modified';
+    }
+
+    /** Puts one chunk back to its HEAD content in the editable side (one undo step). */
+    revertChunk(index?: number): void {
+        const editor = this.editor;
+        const modified = editor?.getModifiedEditor().getModel();
+        const original = editor?.getOriginalEditor().getModel();
+        const hunk = index !== undefined ? this.hunks.find(h => h.index === index) : this.hunkAtCaret();
+        if (!editor || !modified || !original || !hunk || editor.getModifiedEditor().getOption(monaco.editor.EditorOption.readOnly)) {
+            return;
+        }
+        const next = revertHunk(original.getValue(), modified.getValue(), hunk.index);
+        editor.getModifiedEditor().pushUndoStop();
+        modified.pushEditOperations([], [{ range: modified.getFullModelRange(), text: next }], () => null);
+        editor.getModifiedEditor().pushUndoStop();
+        this.fileModel?.save().catch(() => undefined);
+    }
+
+    /** × on a chunk: exclude it from the commit (click again to include); the file is not changed. */
+    ignoreChunk(index?: number): void {
+        const hunk = index !== undefined ? this.hunks.find(h => h.index === index) : this.hunkAtCaret();
+        if (hunk && this.tracked) {
+            this.model.toggleHunk(this.path, hunk.index);
+        }
+    }
+
+    protected hunkAtCaret(): ChangeHunk | undefined {
+        const line = this.editor?.getModifiedEditor().getPosition()?.lineNumber;
+        return line ? this.hunkAtLine(line) ?? this.hunks[0] : this.hunks[0];
     }
 
     getResourceUri(): URI | undefined {
@@ -96,18 +139,36 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
                 originalEditable: false,
                 readOnly: false,
                 glyphMargin: true,
-                renderMarginRevertIcon: true,
+                lineDecorationsWidth: 18,
+                // Ingot draws its own ‹ revert arrows per chunk (IDEA-78); keep side-by-side unless the user picks Unified.
+                renderMarginRevertIcon: false,
+                useInlineViewWhenSpaceIsLimited: false,
                 ignoreTrimWhitespace: false,
-                renderIndicators: true,
+                // The +/- indicators share the line-decoration lane with the ‹ revert arrows.
+                renderIndicators: false,
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false
             });
             this.toDispose.push({ dispose: () => this.editor?.dispose() });
+            this.editor.getOriginalEditor().updateOptions({ glyphMargin: true });
             this.toDispose.push(this.editor.getModifiedEditor().onMouseDown(e => {
-                if (e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN && e.target.position) {
-                    const hunk = this.hunkAtLine(e.target.position.lineNumber);
+                const line = e.target.position?.lineNumber;
+                const hunk = line !== undefined ? this.hunks.find(h => this.markerLine(h) === line) ?? this.hunkAtLine(line) : undefined;
+                if (!hunk) {
+                    return;
+                }
+                if (e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) {
+                    this.model.toggleHunk(this.path, hunk.index);
+                } else if (e.target.type === monaco.editor.MouseTargetType.GUTTER_LINE_DECORATIONS && this.markerLine(hunk) === line) {
+                    this.revertChunk(hunk.index);
+                }
+            }));
+            this.toDispose.push(this.editor.getOriginalEditor().onMouseDown(e => {
+                const line = e.target.position?.lineNumber;
+                if (e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN && line !== undefined) {
+                    const hunk = this.hunks.find(h => this.baseMarkerLine(h) === line);
                     if (hunk) {
-                        this.model.toggleHunk(this.path, hunk.index);
+                        this.ignoreChunk(hunk.index);
                     }
                 }
             }));
@@ -133,8 +194,10 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
         if (uri && entry?.status !== 'deleted') {
             const reference = await this.textModels.createModelReference(uri);
             this.fileDisposables.push(reference as Disposable);
+            this.fileModel = reference.object;
             modified = reference.object.textEditorModel;
         } else {
+            this.fileModel = undefined;
             modified = monaco.editor.createModel('', undefined);
             this.fileDisposables.push(modified);
         }
@@ -187,23 +250,55 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
         return Math.min(Math.max(1, h.workCount ? h.workStart : h.workStart - 1), lines);
     }
 
+    /** The base-side line that carries the × (exclude) marker. */
+    protected baseMarkerLine(h: ChangeHunk): number {
+        const lines = this.editor?.getOriginalEditor().getModel()?.getLineCount() ?? 1;
+        return Math.min(Math.max(1, h.baseCount ? h.baseStart : h.baseStart - 1), lines);
+    }
+
     protected decorate(): void {
         const modified = this.editor?.getModifiedEditor();
-        if (!modified) {
+        const original = this.editor?.getOriginalEditor();
+        if (!modified || !original) {
             return;
         }
-        const tracked = this.model.entries.find(e => e.path === this.path)?.status === 'modified';
-        const decorations: monaco.editor.IModelDeltaDecoration[] = tracked ? this.hunks.map(h => ({
-            range: new monaco.Range(this.markerLine(h), 1, this.markerLine(h), 1),
+        const tracked = this.tracked;
+        const editable = !modified.getOption(monaco.editor.EditorOption.readOnly);
+        const decorations: monaco.editor.IModelDeltaDecoration[] = this.hunks.flatMap(h => {
+            const included = this.model.isHunkIncluded(this.path, h.index);
+            const line = this.markerLine(h);
+            const out: monaco.editor.IModelDeltaDecoration[] = [];
+            out.push({
+                range: new monaco.Range(line, 1, line, 1),
+                options: {
+                    ...(tracked ? {
+                        glyphMarginClassName: `ingot-hunk-check codicon ${included ? 'codicon-pass-filled checked' : 'codicon-circle-large-outline'}`,
+                        glyphMarginHoverMessage: { value: included ? 'Included in commit — click to exclude this chunk' : 'Excluded from commit — click to include this chunk' }
+                    } : {}),
+                    ...(editable ? { linesDecorationsClassName: 'ingot-hunk-revert codicon codicon-chevron-left' } : {})
+                }
+            });
+            if (!included && h.workCount) {
+                out.push({ range: new monaco.Range(h.workStart, 1, h.workStart + h.workCount - 1, 1), options: { isWholeLine: true, className: 'ingot-hunk-ignored' } });
+            }
+            return out;
+        });
+        const baseDecorations: monaco.editor.IModelDeltaDecoration[] = tracked ? this.hunks.map(h => ({
+            range: new monaco.Range(this.baseMarkerLine(h), 1, this.baseMarkerLine(h), 1),
             options: {
-                glyphMarginClassName: `ingot-hunk-check codicon ${this.model.isHunkIncluded(this.path, h.index) ? 'codicon-pass-filled checked' : 'codicon-circle-large-outline'}`,
-                glyphMarginHoverMessage: { value: this.model.isHunkIncluded(this.path, h.index) ? 'Included in commit — click to exclude this chunk' : 'Excluded from commit — click to include this chunk' }
+                glyphMarginClassName: `ingot-hunk-ignore codicon codicon-close${this.model.isHunkIncluded(this.path, h.index) ? '' : ' active'}`,
+                glyphMarginHoverMessage: { value: this.model.isHunkIncluded(this.path, h.index) ? 'Exclude this chunk from the commit (the file is not changed)' : 'Excluded — click to include this chunk again' }
             }
         })) : [];
         if (this.decorations) {
             this.decorations.set(decorations);
         } else {
             this.decorations = modified.createDecorationsCollection(decorations);
+        }
+        if (this.originalDecorations) {
+            this.originalDecorations.set(baseDecorations);
+        } else {
+            this.originalDecorations = original.createDecorationsCollection(baseDecorations);
         }
         this.node.dataset.hunks = String(this.hunks.length);
         this.node.dataset.included = String(this.hunks.filter(h => this.model.isHunkIncluded(this.path, h.index)).length);
@@ -239,6 +334,9 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
         this.toolbarRoot.render(<div className='ingot-diff-tools' role='toolbar'>
             {tool('prev-change', 'arrow-up', 'Previous Difference (⇧F7)', () => this.editor?.goToDiff('previous'))}
             {tool('next-change', 'arrow-down', 'Next Difference (F7)', () => this.editor?.goToDiff('next'))}
+            {tool('revert-chunk', 'discard', 'Revert Chunk at Caret (⌘⌥Z)', () => this.revertChunk(), !this.hunks.length)}
+            {tool('ignore-chunk', 'close', 'Exclude Chunk at Caret from Commit', () => this.ignoreChunk(), !this.hunks.length || !this.tracked)}
+            {tool('revert-file', 'history', 'Revert File…', () => this.commands.executeCommand(COMMIT_COMMANDS.rollback.id, [this.path]))}
             {tool('edit', 'edit', 'Jump to Source (F4)', () => this.commands.executeCommand(COMMIT_COMMANDS.jumpToSource.id, [this.path]))}
             <span className='ingot-lc-sep' />
             {tool('prev-file', 'arrow-left', `Previous File${prev ? `: ${prev}` : ''}`, () => prev && this.showFile(prev), !prev)}

@@ -132,4 +132,38 @@ test.describe('IDEA-74 commit tool window', () => {
         await expect(dialog.locator('.ingot-lc-empty', { hasText: 'Nothing to push.' })).toBeVisible();
         await dialog.locator('#ingot-push-cancel').click();
     });
+
+    test('IDEA-78: revert arrows put a chunk back to HEAD (undoable), × excludes a chunk, Revert File restores it', async ({ page }) => {
+        await openIngot(page, repo);
+        await dismissNotifications(page);
+        await openCommit(page);
+        await row(page, 'a.ts').dblclick();
+        const diff = page.locator('.ingot-diff');
+        await expect(diff.locator('#ingot-diff-summary')).toHaveText('2 changes · 2 included');
+        await expect(diff.locator('.ingot-hunk-revert')).toHaveCount(2, { timeout: 15_000 });
+        await expect(diff.locator('.ingot-hunk-ignore')).toHaveCount(2);
+
+        // × on the HEAD side excludes the second chunk without changing the file; click again to include.
+        await diff.locator('.ingot-hunk-ignore').nth(1).click();
+        await expect(diff.locator('#ingot-diff-summary')).toHaveText('2 changes · 1 included');
+        await expect(diff.locator('.ingot-hunk-ignored').first()).toBeVisible();
+        expect(fs.readFileSync(path.join(repo, 'a.ts'), 'utf8')).toBe(A_WORK);
+        await diff.locator('.ingot-hunk-ignore').nth(1).click();
+        await expect(diff.locator('#ingot-diff-summary')).toHaveText('2 changes · 2 included');
+
+        // ‹ reverts the first chunk to HEAD (saved by auto-save); undo brings it back.
+        await diff.locator('.ingot-hunk-revert').first().click();
+        await expect(diff.locator('#ingot-diff-summary')).toHaveText('1 change · 1 included');
+        await expect.poll(() => fs.readFileSync(path.join(repo, 'a.ts'), 'utf8'), { timeout: 10_000 }).toBe(A_WORK.replace('line 2 changed\n', 'line 2\n'));
+        await diff.locator('.editor.modified .view-lines').click();
+        await page.keyboard.press('Control+z');
+        await expect(diff.locator('#ingot-diff-summary')).toHaveText('2 changes · 2 included');
+
+        // Toolbar: revert the chunk at the caret, then Revert File… restores HEAD after confirmation.
+        await diff.locator('#ingot-diff-revert-chunk').click();
+        await expect(diff.locator('#ingot-diff-summary')).toHaveText('1 change · 1 included');
+        await diff.locator('#ingot-diff-revert-file').click();
+        await page.locator('.dialogBlock').getByRole('button', { name: 'Rollback' }).click();
+        await expect.poll(() => fs.readFileSync(path.join(repo, 'a.ts'), 'utf8'), { timeout: 10_000 }).toBe(A_BASE);
+    });
 });
