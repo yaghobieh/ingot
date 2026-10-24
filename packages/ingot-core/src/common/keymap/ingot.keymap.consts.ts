@@ -86,7 +86,13 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Stop', command: INGOT_RUN_COMMANDS.stop.id, mac: 'ctrlcmd+f2', other: 'ctrl+f2' },
     // Settings
     { action: 'Settings', command: 'ingot.settings.open', mac: 'ctrlcmd+,', other: 'ctrl+alt+s' },
-    { action: 'Keymap', command: 'keymaps:open', mac: 'ctrlcmd+k ctrlcmd+s', other: 'ctrl+k ctrl+s' }
+    { action: 'Keymap', command: 'keymaps:open', mac: 'ctrlcmd+alt+k', other: 'ctrl+alt+k' },
+    // Version control (IDEA-74)
+    { action: 'Commit…', command: 'ingot.commit.open', mac: 'ctrlcmd+k', other: 'ctrl+k' },
+    { action: 'Push…', command: 'ingot.commit.push', mac: 'ctrlcmd+shift+k', other: 'ctrl+shift+k' },
+    { action: 'Commit Message History', command: 'ingot.commit.messageHistory', mac: 'ctrlcmd+alt+h', other: 'ctrl+alt+h', when: 'ingotLocalChangesFocus' },
+    // Agent chat (IDEA-65)
+    { action: 'Add Selection to Agent Chat', command: 'ingot.agents.addSelectionToChat', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: EDITOR }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';
