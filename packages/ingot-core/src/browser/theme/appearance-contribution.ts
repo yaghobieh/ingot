@@ -33,6 +33,7 @@ export class AppearanceContribution implements FrontendApplicationContribution, 
 
     protected media: MediaQueryList | undefined;
     protected applying = false;
+    protected lastApplied: string | undefined;
 
     get mode(): AppearanceMode {
         return toAppearanceMode(this.preferences.get(APPEARANCE_PREFERENCE, DEFAULT_APPEARANCE));
@@ -46,7 +47,7 @@ export class AppearanceContribution implements FrontendApplicationContribution, 
             if (event.preferenceName === APPEARANCE_PREFERENCE) {
                 this.apply();
             } else if (event.preferenceName === SETTINGS_PREFS.colorTheme && !this.applying) {
-                this.onColorThemeChosen(String(this.preferences.get(SETTINGS_PREFS.colorTheme) ?? ''));
+                this.onColorThemeChosen(this.preferences.inspect<string>(SETTINGS_PREFS.colorTheme)?.globalValue);
             }
         });
         this.apply();
@@ -73,9 +74,10 @@ export class AppearanceContribution implements FrontendApplicationContribution, 
     }
 
     /** A theme picked elsewhere (Settings, theme import, plugin) that isn't the Light/Dark/System one switches to Custom. */
-    protected onColorThemeChosen(themeId: string): void {
+    protected onColorThemeChosen(themeId: string | undefined): void {
+        // A removed/reset value is not a choice; neither is the echo of a theme we applied ourselves.
         const expected = themeForAppearance(this.mode, !!this.media?.matches);
-        if (expected && themeId && themeId !== expected) {
+        if (expected && themeId && themeId !== expected && themeId !== this.lastApplied) {
             this.preferences.set(APPEARANCE_PREFERENCE, 'custom', PreferenceScope.User);
         }
     }
@@ -85,6 +87,7 @@ export class AppearanceContribution implements FrontendApplicationContribution, 
         const target = themeForAppearance(mode, !!this.media?.matches);
         if (target && this.themes.getCurrentTheme().id !== target) {
             this.applying = true;
+            this.lastApplied = target;
             try {
                 this.themes.setCurrentTheme(target, false);
                 if (this.preferences.get(SETTINGS_PREFS.colorTheme) !== target) {
