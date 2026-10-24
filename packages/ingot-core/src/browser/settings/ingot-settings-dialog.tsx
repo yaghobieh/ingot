@@ -151,18 +151,24 @@ export class IngotSettingsDialog extends ReactDialog<void> {
         const all = flattenPages(SETTINGS_TREE);
         const current = all.find(p => p.page.id === this.selected && visible.has(p.page.id)) ?? all.find(p => visible.has(p.page.id));
         return <div className='ingot-settings' id='ingot-settings'>
-            <div className='ingot-settings-side'>
-                <input id='ingot-settings-search' className='theia-input' placeholder='Search settings' value={this.query} autoFocus spellCheck={false}
+            <div className='ingot-settings-top'>
+                <span className='codicon codicon-search' />
+                <input id='ingot-settings-search' className='ingot-settings-search' placeholder='Search settings' value={this.query} autoFocus spellCheck={false}
                     onChange={e => { this.query = e.currentTarget.value; this.update(); }} />
-                <div className='ingot-settings-tree' role='tree'>{this.renderTree(SETTINGS_TREE, visible, 0, current?.page.id)}</div>
             </div>
-            <div className='ingot-settings-page'>
-                {current
-                    ? <>
-                        <div className='ingot-settings-crumbs' id='ingot-settings-crumbs'>{current.path.join(' › ')}</div>
-                        {this.renderPage(current.page)}
-                    </>
-                    : <div className='ingot-settings-empty'>Nothing found.</div>}
+            <div className='ingot-settings-main'>
+                <div className='ingot-settings-side'>
+                    <div className='ingot-settings-tree' role='tree'>{this.renderTree(SETTINGS_TREE, visible, 0, current?.page.id)}</div>
+                </div>
+                <div className='ingot-settings-page'>
+                    {current
+                        ? <>
+                            <div className='ingot-settings-crumbs' id='ingot-settings-crumbs'>{current.path.join(' › ')}</div>
+                            <h2 className='ingot-settings-title'>{current.page.label}</h2>
+                            {this.renderPage(current.page)}
+                        </>
+                        : <div className='ingot-settings-empty'>No settings match “{this.query}”.</div>}
+                </div>
             </div>
         </div>;
     }
@@ -172,7 +178,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
             const open = !this.collapsed.has(page.id) || !!this.query;
             return <React.Fragment key={page.id}>
                 <div id={`ingot-settings-node-${page.id}`} role='treeitem' aria-selected={selected === page.id}
-                    className={`ingot-settings-node${selected === page.id ? ' selected' : ''}`} style={{ paddingLeft: 8 + depth * 14 }}
+                    className={`ingot-settings-node${selected === page.id ? ' selected' : ''}`} style={{ paddingLeft: 6 + depth * 16 }}
                     onClick={() => {
                         if (page.children && selected === page.id) {
                             if (open) {
@@ -184,8 +190,9 @@ export class IngotSettingsDialog extends ReactDialog<void> {
                         this.selected = page.id;
                         this.update();
                     }}>
-                    <span className={`codicon ${page.children ? (open ? 'codicon-chevron-down' : 'codicon-chevron-right') : 'codicon-blank'}`} />
-                    {page.label}
+                    <span className={`codicon ingot-settings-caret ${page.children ? (open ? 'codicon-chevron-down' : 'codicon-chevron-right') : 'codicon-blank'}`} />
+                    {depth === 0 && <span className={`codicon codicon-${page.icon ?? 'circle-small'} ingot-settings-icon`} />}
+                    <span className='ingot-settings-node-label'>{page.label}</span>
                 </div>
                 {page.children && open && this.renderTree(page.children, visible, depth + 1, selected)}
             </React.Fragment>;
@@ -197,13 +204,18 @@ export class IngotSettingsDialog extends ReactDialog<void> {
         const children = page.children ?? [];
         return <div className='ingot-settings-body' id={`ingot-settings-page-${page.id}`}>
             {page.description && <p className='ingot-settings-description'>{page.description}</p>}
-            {keys.map(key => this.renderSetting(key))}
-            {page.actions && <div className='ingot-settings-actions'>
+            {this.groupsFor(page, keys).map(group => <section key={group.label} className='ingot-settings-card'>
+                <h3 className='ingot-settings-card-title'>{group.label}</h3>
+                {group.preferences.map(key => this.renderSetting(key))}
+            </section>)}
+            {page.actions && <section className='ingot-settings-card ingot-settings-actions'>
                 {page.actions.map(a => <button key={a.id} id={`ingot-settings-action-${a.id}`} className='theia-button secondary' onClick={() => this.runAction(a.id)}>{a.label}</button>)}
-            </div>}
-            {!keys.length && !page.actions && children.length > 0 && <ul className='ingot-settings-links'>
-                {children.map(c => <li key={c.id}><a href='#' onClick={e => { e.preventDefault(); this.selected = c.id; this.update(); }}>{c.label}</a></li>)}
-            </ul>}
+            </section>}
+            {!keys.length && !page.actions && children.length > 0 && <section className='ingot-settings-card ingot-settings-links'>
+                {children.map(c => <a key={c.id} href='#' className='ingot-settings-link' onClick={e => { e.preventDefault(); this.selected = c.id; this.update(); }}>
+                    <span>{c.label}</span><span className='codicon codicon-chevron-right' />
+                </a>)}
+            </section>}
         </div>;
     }
 
@@ -228,9 +240,19 @@ export class IngotSettingsDialog extends ReactDialog<void> {
                 onChange={e => this.change(key, coerceSetting(e.currentTarget.value, type as string | undefined))} />;
         }
         return <div key={key} className={`ingot-setting${modified ? ' modified' : ''}`} data-key={key}>
-            <label htmlFor={id} className='ingot-setting-label'>{settingLabel(key)}</label>
+            <div className='ingot-setting-text'>
+                <label htmlFor={id} className='ingot-setting-label'>{settingLabel(key)}</label>
+                {info?.description && <div className='ingot-setting-description'>{info.description}</div>}
+            </div>
             <div className='ingot-setting-control'>{control}</div>
-            {info?.description && <div className='ingot-setting-description'>{info.description}</div>}
         </div>;
+    }
+
+    protected groupsFor(page: SettingsPage, keys: readonly string[]): { label: string; preferences: string[] }[] {
+        const shown = new Set(keys);
+        const groups = (page.groups ?? []).map(g => ({ label: g.label, preferences: g.preferences.filter(k => shown.has(k)) }));
+        const grouped = new Set(groups.flatMap(g => g.preferences));
+        const rest = keys.filter(k => !grouped.has(k));
+        return [...groups, ...(rest.length ? [{ label: groups.length ? 'Other' : 'General', preferences: rest }] : [])].filter(g => g.preferences.length);
     }
 }

@@ -1,23 +1,44 @@
-/* IDE-style Settings dialog (IDEA-34) */
-.ingot-settings-dialog .dialogBlock { width: min(920px, 92vw); max-width: none; height: min(620px, 86vh); }
+/* Ingot Settings (IDEA-34): search on top, category tree left, grouped cards right. */
+.ingot-settings-dialog .dialogBlock { width: min(960px, 92vw); max-width: none; height: min(640px, 86vh); border-radius: 10px; overflow: hidden; }
+.ingot-settings-dialog .dialogTitle { font-size: 13px; font-weight: 600; }
 .ingot-settings-dialog .dialogContent { flex: 1; min-height: 0; padding: 0; }
-.ingot-settings { display: flex; height: 100%; min-height: 0; }
-.ingot-settings-side { width: 240px; display: flex; flex-direction: column; border-right: 1px solid var(--theia-panel-border); padding: 8px; gap: 6px; }
-.ingot-settings-side .theia-input { width: 100%; box-sizing: border-box; }
-.ingot-settings-tree { flex: 1; overflow: auto; }
-.ingot-settings-node { display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer; border-radius: 4px; white-space: nowrap; }
+.ingot-settings { --ingot-settings-accent: var(--ingot-accent-blue, #3574F0); display: flex; flex-direction: column; height: 100%; min-height: 0; font-size: 13px; }
+.ingot-settings-top { display: flex; align-items: center; gap: 8px; margin: 10px 14px; padding: 0 10px; height: 32px; border: 1px solid var(--theia-input-border, var(--theia-panel-border)); border-radius: 8px; background: var(--theia-input-background); }
+.ingot-settings-top:focus-within { border-color: var(--ingot-settings-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ingot-settings-accent) 25%, transparent); }
+.ingot-settings-top .codicon { opacity: .6; }
+.ingot-settings-search { flex: 1; border: 0; outline: 0; background: transparent; color: var(--theia-input-foreground); font: inherit; height: 100%; }
+.ingot-settings-main { display: flex; flex: 1; min-height: 0; border-top: 1px solid var(--theia-panel-border); }
+.ingot-settings-side { width: 232px; flex-shrink: 0; overflow: auto; padding: 8px; border-right: 1px solid var(--theia-panel-border); background: var(--theia-sideBar-background); }
+.ingot-settings-node { display: flex; align-items: center; gap: 6px; height: 28px; padding-right: 8px; cursor: pointer; border-radius: 6px; white-space: nowrap; color: var(--theia-foreground); }
 .ingot-settings-node:hover { background: var(--theia-list-hoverBackground); }
-.ingot-settings-node.selected { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
-.ingot-settings-page { flex: 1; overflow: auto; padding: 12px 20px; min-width: 0; }
-.ingot-settings-crumbs { font-weight: 600; margin-bottom: 12px; font-size: 13px; }
-.ingot-settings-description { opacity: .8; margin: 0 0 12px; }
-.ingot-setting { display: grid; grid-template-columns: 200px 1fr; gap: 4px 12px; align-items: center; padding: 6px 0; }
-.ingot-setting.modified .ingot-setting-label { color: var(--ingot-ingot-gold, #E8A93B); }
-.ingot-setting-control .theia-input, .ingot-setting-control .theia-select { width: 100%; max-width: 320px; box-sizing: border-box; }
-.ingot-setting-description { grid-column: 2; font-size: 11px; opacity: .7; }
-.ingot-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.ingot-settings-empty { opacity: .7; padding: 24px; }
-.ingot-settings-links { line-height: 1.9; }
+.ingot-settings-node.selected { background: color-mix(in srgb, var(--ingot-settings-accent) 16%, transparent); color: var(--theia-foreground); font-weight: 500; }
+.ingot-settings-caret { font-size: 12px !important; opacity: .55; width: 12px; }
+.ingot-settings-icon { font-size: 14px !important; opacity: .75; }
+.ingot-settings-node.selected .ingot-settings-icon { color: var(--ingot-settings-accent); opacity: 1; }
+.ingot-settings-node-label { overflow: hidden; text-overflow: ellipsis; }
+.ingot-settings-page { flex: 1; overflow: auto; padding: 18px 28px 28px; min-width: 0; }
+.ingot-settings-crumbs { font-size: 11px; opacity: .6; margin-bottom: 2px; }
+.ingot-settings-title { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
+.ingot-settings-description { opacity: .7; margin: 0 0 16px; line-height: 1.5; }
+.ingot-settings-card { border: 1px solid var(--theia-panel-border); border-radius: 10px; padding: 4px 16px; margin-bottom: 14px; background: color-mix(in srgb, var(--theia-editor-background) 70%, var(--theia-sideBar-background)); }
+.ingot-settings-card-title { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .55; margin: 10px 0 2px; }
+.ingot-setting { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 10px 0; border-top: 1px solid color-mix(in srgb, var(--theia-panel-border) 60%, transparent); }
+.ingot-settings-card-title + .ingot-setting { border-top: 0; }
+.ingot-setting-text { min-width: 0; flex: 1; }
+.ingot-setting-label { display: block; font-weight: 500; }
+.ingot-setting.modified .ingot-setting-label::after { content: ' •'; color: var(--ingot-settings-accent); }
+.ingot-setting-description { font-size: 12px; opacity: .6; margin-top: 2px; line-height: 1.4; }
+.ingot-setting-control { flex-shrink: 0; width: 260px; display: flex; justify-content: flex-end; }
+.ingot-setting-control .theia-input, .ingot-setting-control .theia-select { width: 100%; box-sizing: border-box; height: 28px; border-radius: 6px; }
+.ingot-setting-control input[type='checkbox'] { accent-color: var(--ingot-settings-accent); width: 16px; height: 16px; }
+.ingot-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; }
+.ingot-settings-actions .theia-button { margin: 0; border-radius: 6px; }
+.ingot-settings-links { padding: 4px 0; }
+.ingot-settings-link { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; color: inherit; text-decoration: none; border-top: 1px solid color-mix(in srgb, var(--theia-panel-border) 60%, transparent); }
+.ingot-settings-link:first-child { border-top: 0; }
+.ingot-settings-link:hover { background: var(--theia-list-hoverBackground); }
+.ingot-settings-empty { opacity: .6; padding: 32px; text-align: center; }
+.ingot-settings-dialog .dialogControl .theia-button.main { background: var(--ingot-settings-accent, #3574F0); }
 
 /* Ingot icon theme (IDEA-36) */
 .ingot-fi { font-size: 14px; }

@@ -8,6 +8,15 @@ export interface SettingsPage {
     readonly preferences?: readonly string[];
     readonly actions?: readonly { readonly id: SettingsAction; readonly label: string }[];
     readonly description?: string;
+    /** Codicon shown next to top-level categories. */
+    readonly icon?: string;
+    /** Optional card grouping of `preferences`; ungrouped keys go to a 'General' card. */
+    readonly groups?: readonly SettingsGroup[];
+}
+
+export interface SettingsGroup {
+    readonly label: string;
+    readonly preferences: readonly string[];
 }
 
 export interface SettingInfo {
