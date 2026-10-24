@@ -11,6 +11,8 @@
     "src"
   ],
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
     "@theia/core": "1.76.0",
     "@theia/editor": "1.76.0",
     "@theia/filesystem": "1.76.0",
@@ -37,7 +39,8 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/ingot-core-frontend-module"
+      "frontend": "lib/browser/ingot-core-frontend-module",
+      "backend": "lib/node/ingot-core-backend-module"
     }
   ]
 }
