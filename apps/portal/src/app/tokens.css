@@ -1,0 +1,52 @@
+/* Ingot design tokens - generated from palette.json */
+:root {
+  --ingot-ingot-gold: #D9A04E;
+  --ingot-ingot-gold-deep: #B9772A;
+  --ingot-ingot-gold-light: #F3D29A;
+  --ingot-forge-blue: #3B6FD9;
+  --ingot-forge-navy: #1B2647;
+  --ingot-caret-ink: #1C2440;
+  --ingot-bg: #F7F8FA;
+  --ingot-surface: #FFFFFF;
+  --ingot-panel: #EEF0F4;
+  --ingot-toolbar: #F2F3F6;
+  --ingot-border: #DCDFE6;
+  --ingot-text: #1F2329;
+  --ingot-text-muted: #5E6673;
+  --ingot-primary: #3B6FD9;
+  --ingot-primary-hover: #2F5DBF;
+  --ingot-primary-text: #FFFFFF;
+  --ingot-selection: #DCE6FA;
+  --ingot-focus-ring: #8FB0F0;
+  --ingot-accent: #C9822E;
+  --ingot-success: #2F8F5B;
+  --ingot-warning: #B7791F;
+  --ingot-danger: #C9423D;
+  --ingot-info: #2F7FB8;
+  --ingot-editor-bg: #FFFFFF;
+  --ingot-editor-line-highlight: #F3F5F9;
+  --ingot-editor-gutter: #9AA0AB;
+}
+
+[data-theme='dark'] {
+  --ingot-bg: #1C1E24;
+  --ingot-surface: #23262E;
+  --ingot-panel: #2A2D36;
+  --ingot-toolbar: #202229;
+  --ingot-border: #3A3E49;
+  --ingot-text: #DFE1E5;
+  --ingot-text-muted: #9AA0AB;
+  --ingot-primary: #5B8DEF;
+  --ingot-primary-hover: #7AA3F3;
+  --ingot-primary-text: #0F1420;
+  --ingot-selection: #2E3E5E;
+  --ingot-focus-ring: #4E77C9;
+  --ingot-accent: #E0A458;
+  --ingot-success: #5FB884;
+  --ingot-warning: #D9A23B;
+  --ingot-danger: #E06C66;
+  --ingot-info: #5AA9DE;
+  --ingot-editor-bg: #1E2027;
+  --ingot-editor-line-highlight: #262932;
+  --ingot-editor-gutter: #5E6673;
+}

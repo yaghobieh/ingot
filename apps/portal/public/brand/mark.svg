@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Ingot mark</title>
+  <defs>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D9A04E"/><stop offset="1" stop-color="#B9772A"/></linearGradient>
+    <linearGradient id="top" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F3D29A"/><stop offset="1" stop-color="#E4B66E"/></linearGradient>
+  </defs>
+  <polygon points="88,76 168,76 186,110 70,110" fill="url(#top)"/>
+  <polygon points="70,110 186,110 210,190 46,190" fill="url(#front)"/>
+  <rect x="121" y="126" width="14" height="48" rx="3" fill="#1C2440"/>
+</svg>

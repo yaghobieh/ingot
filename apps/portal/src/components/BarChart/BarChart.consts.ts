@@ -1,0 +1,9 @@
+export const CHART_WIDTH = 720;
+export const CHART_HEIGHT = 180;
+export const CHART_PAD_X = 36;
+export const CHART_PAD_TOP = 10;
+export const CHART_PAD_BOTTOM = 22;
+export const CHART_GRID_LINES = 3;
+export const CHART_BAR_GAP = 0.25;
+export const CHART_LABEL_EVERY_MAX = 8;
+export const CHART_HALF_WIDTH = 420;

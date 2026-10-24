@@ -1,0 +1,48 @@
+{
+  "name": "@ingot/portal",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Ingot web portal: account, usage, billing, keys, team and IDE device sign-in",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev -p 3200",
+    "build": "next build",
+    "start": "next start -p 3200",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "gate": "npm run lint && npm run typecheck && npm run test",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:test:reset": "node scripts/reset-test-db.mjs",
+    "e2e": "playwright test",
+    "secret-scan": "cd ../.. && node scripts/secret-scan.mjs"
+  },
+  "dependencies": {
+    "@forgedevstack/bear": "^1.3.5",
+    "@forgedevstack/bear-icons": "^1.0.3",
+    "next": "^16.4.3",
+    "pg": "^8.23.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1",
+    "vue": "^3.5.44"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@next/eslint-plugin-next": "^16.4.3",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "typescript": "~5.9",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}

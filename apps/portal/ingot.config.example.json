@@ -1,0 +1,32 @@
+{
+  "appUrl": "http://localhost:3200",
+  "database": {
+    "url": "",
+    "testUrl": ""
+  },
+  "security": {
+    "encryptionKey": ""
+  },
+  "email": {
+    "provider": "outbox",
+    "from": "Ingot <no-reply@example.com>",
+    "resendApiKey": ""
+  },
+  "oauth": {
+    "github": { "clientId": "", "clientSecret": "" },
+    "google": { "clientId": "", "clientSecret": "" }
+  },
+  "billing": {
+    "provider": "stub",
+    "lemonSqueezy": {
+      "apiKey": "",
+      "storeId": "",
+      "webhookSecret": "",
+      "variants": { "pro": "", "team": "" }
+    }
+  },
+  "features": {
+    "devOutbox": false,
+    "sampleData": false
+  }
+}
