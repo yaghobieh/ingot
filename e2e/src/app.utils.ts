@@ -40,3 +40,11 @@ export const actUntilHidden = async (action: () => Promise<void>, target: Locato
         await expect(target).toBeHidden({ timeout: 2_000 });
     }).toPass({ timeout: timeoutMs });
 };
+
+/** Closes toasts (e.g. the Git "repository found in parent folders" prompt) that can cover bottom-right controls. */
+export const dismissNotifications = async (page: Page): Promise<void> => {
+    const close = page.locator('.theia-notification-list-item .codicon-close, .theia-notification-list-item [title="Close"]');
+    while (await close.first().isVisible().catch(() => false)) {
+        await close.first().click();
+    }
+};

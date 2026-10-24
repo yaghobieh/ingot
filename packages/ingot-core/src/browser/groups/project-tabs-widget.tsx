@@ -22,7 +22,12 @@ export class IngotProjectTabsWidget extends ReactWidget {
     }
 
     protected sync(): void {
-        this.setHidden(!this.groups.isGroup);
+        const group = this.groups.isGroup;
+        this.setHidden(!group);
+        // The top panel grows by one row for the tabs; Lumino re-reads its min-height on fit().
+        document.body.classList.toggle('ingot-has-group', group);
+        this.parent?.fit();
+        this.parent?.parent?.fit();
         this.update();
     }
 
