@@ -65,6 +65,10 @@ import { GIT_LOG_WIDGET_ID } from './git/git.browser-consts';
 import { IngotSettingsDialog } from './settings/ingot-settings-dialog';
 import { IngotSettingsContribution } from './settings/ingot-settings-contribution';
 import { SettingsDialogProps, SettingsDialogProvider } from './settings/settings.browser-consts';
+import { UserThemeContribution } from './theme/user-theme-contribution';
+import { IngotIconTheme } from './icons/ingot-icon-theme';
+import { IconThemeContribution } from '@theia/core/lib/browser/icon-theme-contribution';
+import { LabelProviderContribution } from '@theia/core/lib/browser/label-provider';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
@@ -155,4 +159,11 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotSettingsContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(IngotSettingsContribution);
     bind(MenuContribution).toService(IngotSettingsContribution);
+
+    bind(UserThemeContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(UserThemeContribution);
+    bind(CommandContribution).toService(UserThemeContribution);
+    bind(IngotIconTheme).toSelf().inSingletonScope();
+    bind(IconThemeContribution).toService(IngotIconTheme);
+    bind(LabelProviderContribution).toService(IngotIconTheme);
 });

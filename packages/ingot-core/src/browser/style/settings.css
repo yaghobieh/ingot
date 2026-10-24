@@ -18,3 +18,22 @@
 .ingot-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .ingot-settings-empty { opacity: .7; padding: 24px; }
 .ingot-settings-links { line-height: 1.9; }
+
+/* Ingot icon theme (IDEA-36) */
+.ingot-fi { font-size: 14px; }
+.ingot-fi-ts { color: #3178C6; }
+.ingot-fi-js { color: #D4B106; }
+.ingot-fi-json, .ingot-fi-config { color: #C9A13B; }
+.ingot-fi-doc { color: #6E9BD1; }
+.ingot-fi-style { color: #C77DBB; }
+.ingot-fi-html { color: #E37933; }
+.ingot-fi-media { color: #4FA88F; }
+.ingot-fi-npm { color: #CB3837; }
+.ingot-fi-git { color: #F05133; }
+.ingot-fi-secret { color: #E5534B; }
+.ingot-fi-agent { color: var(--ingot-ingot-gold, #E8A93B); }
+.ingot-fi-folder, .ingot-fi-vendor { color: #8B9AAE; }
+.ingot-fi-src { color: #5B8DEF; }
+.ingot-fi-test { color: #4FA84F; }
+.ingot-fi-py { color: #3776AB; } .ingot-fi-go { color: #00ADD8; } .ingot-fi-rs { color: #CE422B; } .ingot-fi-java { color: #E76F00; }
+.ingot-fi-shell { color: #89E051; }

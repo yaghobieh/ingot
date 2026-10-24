@@ -11,7 +11,7 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
         id: 'appearance-behavior', label: 'Appearance & Behavior', children: [
             {
                 id: 'appearance', label: 'Appearance', preferences: [SETTINGS_PREFS.colorTheme, SETTINGS_PREFS.iconTheme, 'window.zoomLevel', 'workbench.tree.indent'],
-                actions: [{ id: 'importTheme', label: 'Import VS Code Theme…' }],
+                actions: [{ id: 'importTheme', label: 'Import VS Code Theme…' }, { id: 'removeTheme', label: 'Remove Imported Theme…' }],
                 description: 'Color themes include Ingot Light, Ingot Dark, Ingot Darcula, high contrast, themes from plugins and imported VS Code themes.'
             },
             { id: 'system', label: 'System Settings', preferences: ['files.autoSave', 'files.autoSaveDelay', 'window.title'] }
