@@ -15,3 +15,12 @@ Switch the app icon to another concept:
 node scripts/icon-concepts.mjs --pick a-stamped-code   # or b-prompt / c-molten
 npm run brand:app-icon && node scripts/build-icons.mjs
 ```
+
+## v3 (current default): the standalone `</>` mark
+
+`d-mark.svg` / `d-mark-small.svg` are the master icon: just the `</>` glyph in gold with a navy keyline and a
+soft glow, no tile. `scripts/icon-mark.mjs` renders any frame of the motion (brackets open apart, `...` types
+in, the slash drops in, a gold shimmer sweeps across); `node scripts/build-icon-v3.mjs` writes the master SVGs,
+the 30 Dock launch frames (`packages/ingot-core/resources/dock-anim`) and `v3-preview/icon-v3-preview.png`.
+In the app the same motion is CSS (`AnimatedMark`, `style/brand.css`) on Welcome and About, and the Dock plays
+the frames once on launch. Both honour Reduce Motion. Concepts A/B/C above stay available via `--pick`.
