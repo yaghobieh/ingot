@@ -1,0 +1,15 @@
+{
+    // A small VS Code color theme used by the theme import e2e test.
+    "name": "Sample Night",
+    "type": "dark",
+    "colors": {
+        "editor.background": "#011627",
+        "editor.foreground": "#D6DEEB",
+        "sideBar.background": "#011627",
+        "activityBar.background": "#011627",
+    },
+    "tokenColors": [
+        { "scope": "comment", "settings": { "foreground": "#637777", "fontStyle": "italic" } },
+        { "scope": "keyword", "settings": { "foreground": "#C792EA" } },
+    ],
+}
