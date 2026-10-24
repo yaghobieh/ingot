@@ -14,6 +14,7 @@ import { WELCOME_TABS } from '../../common/welcome/welcome.consts';
 import type { RecentProject, WelcomeTab } from '../../common/welcome/welcome.types';
 import { repoNameFromUrl, toRecentProjects } from '../../common/welcome/welcome.utils';
 import { PRODUCT } from '../../common/product.consts';
+import { AnimatedMark } from '../brand/animated-mark';
 import { CLONE_PROMPT, CLONE_TERMINAL_TITLE, LEARN_LINKS, WELCOME_COMMANDS, WELCOME_WIDGET_ID, WELCOME_WIDGET_LABEL } from './ingot-welcome.consts';
 
 const THEME_CHOICES = [
@@ -90,7 +91,7 @@ export class IngotWelcomeWidget extends ReactWidget {
         return <div className='ingot-welcome-root'>
             <nav className='ingot-welcome-nav'>
                 <div className='ingot-welcome-brand'>
-                    <span className='ingot-welcome-logo ingot-app-icon' />
+                    <span className='ingot-welcome-logo ingot-app-icon ingot-mark-host'><AnimatedMark size={48} /></span>
                     <div>
                         <div className='ingot-welcome-name'>{PRODUCT.name}</div>
                         <div className='ingot-welcome-version'>{PRODUCT.version}</div>

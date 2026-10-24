@@ -1,0 +1,2 @@
+# Review-only frames; regenerate with node scripts/build-icon-v3.mjs
+*-frame-*.png
