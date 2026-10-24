@@ -1,0 +1,30 @@
+import type { Command } from '@theia/core/lib/common/command';
+
+export const INGOT_SHELL_COMMANDS = {
+    hideAllToolWindows: { id: 'ingot.hideAllToolWindows', label: 'Hide All Tool Windows', category: 'View' },
+    focusEditor: { id: 'ingot.focusEditor', label: 'Jump to Editor', category: 'View' },
+    showWelcome: { id: 'ingot.showWelcome', label: 'Welcome to Ingot', category: 'Ingot' }
+} as const satisfies Record<string, Command>;
+
+export const MAIN_TOOLBAR_ID = 'ingot-main-toolbar';
+export const MAIN_TOOLBAR_CLASS = 'ingot-main-toolbar';
+
+/** Commands the main toolbar buttons run (resolved lazily so missing ones are disabled). */
+export const TOOLBAR_COMMANDS = {
+    openRecent: 'workspace:openRecent',
+    openFolder: 'workspace:openFolder',
+    git: 'scmView:toggle',
+    runTask: 'task:run',
+    debugStart: 'workbench.action.debug.start',
+    debugStop: 'workbench.action.debug.stop',
+    searchEverywhere: 'file-search.openFile',
+    settings: 'preferences:open',
+    plugins: 'vsxExtensions.toggle'
+} as const;
+
+export const NO_PROJECT_LABEL = 'Open Project';
+export const NO_VCS_LABEL = 'Version Control';
+export const RUN_CONFIGURATION_LABEL = 'Current File';
+
+/** Views opened in the default JetBrains-style layout on first start. */
+export const DEFAULT_LAYOUT_COMMANDS = ['fileNavigator:toggle'] as const;
