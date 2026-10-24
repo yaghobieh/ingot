@@ -28,6 +28,8 @@ export interface McpServerConfig {
     readonly env?: Readonly<Record<string, string>>;
     readonly url?: string;
     readonly headers?: Readonly<Record<string, string>>;
+    /** Env vars whose values live in the OS keychain (written as `"${keychain}"` in mcp.json). */
+    readonly secretEnv?: readonly string[];
 }
 
 export interface ProjectConfig {
@@ -36,7 +38,7 @@ export interface ProjectConfig {
     readonly mcpServers: readonly McpServerConfig[];
 }
 
-export type McpState = 'disabled' | 'starting' | 'connected' | 'error';
+export type McpState = 'disabled' | 'starting' | 'connected' | 'error' | 'needs-auth';
 
 export interface McpTool {
     readonly name: string;
@@ -49,6 +51,12 @@ export interface McpServerStatus {
     readonly state: McpState;
     readonly tools: readonly McpTool[];
     readonly error?: string;
+    /** Number of resources the server exposes (0 when it has none or does not support resources). */
+    readonly resources?: number;
+    /** Keychain-backed env vars that have no value yet (state `needs-auth`). */
+    readonly missingSecrets?: readonly string[];
+    /** Recent server stderr / connection log, secrets redacted (for "Show Output"). */
+    readonly output?: string;
 }
 
 export interface McpToolResult {
@@ -62,4 +70,8 @@ export interface McpService {
     sync(servers: McpServerConfig[], cwd: string): Promise<McpServerStatus[]>;
     status(): Promise<McpServerStatus[]>;
     callTool(server: string, tool: string, args: Record<string, unknown>): Promise<McpToolResult>;
+    /** Stores an MCP secret in the OS keychain. Values never go to files or back to the frontend. */
+    setSecret(server: string, name: string, value: string): Promise<void>;
+    /** Removes all keychain secrets of a server. */
+    deleteSecrets(server: string, names: string[]): Promise<void>;
 }

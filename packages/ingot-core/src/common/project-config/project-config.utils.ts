@@ -111,6 +111,35 @@ export const expandCommand = (prompt: string, commands: readonly ProjectCommand[
     return { command, text };
 };
 
+/** Marks an env value that Ingot keeps in the OS keychain instead of the file. */
+export const KEYCHAIN_PLACEHOLDER = '${keychain}';
+
+const splitSecretEnv = (env: Record<string, string> | undefined): { env?: Record<string, string>; secretEnv?: string[] } => {
+    if (!env) {
+        return {};
+    }
+    const secretEnv = Object.keys(env).filter(k => env[k] === KEYCHAIN_PLACEHOLDER);
+    const plain = Object.fromEntries(Object.entries(env).filter(([, v]) => v !== KEYCHAIN_PLACEHOLDER));
+    return { ...(Object.keys(plain).length ? { env: plain } : {}), ...(secretEnv.length ? { secretEnv } : {}) };
+};
+
+/** Keychain account for one MCP secret. */
+export const mcpSecretKey = (server: string, name: string): string => `mcp:${server}:${name}`;
+
+/** Replaces `${VAR}` in args with env values (used for connection strings passed as arguments). */
+export const expandArgs = (args: readonly string[], env: Readonly<Record<string, string>>): string[] =>
+    args.map(a => a.replace(/\$\{([A-Z0-9_]+)\}/g, (m, name: string) => env[name] ?? m));
+
+/** Serializes servers back to the common `mcp.json` shape; keychain vars are written as placeholders, never values. */
+export const toMcpJson = (servers: readonly McpServerConfig[]): string => JSON.stringify({
+    mcpServers: Object.fromEntries(servers.map(s => [s.name, {
+        ...(s.command ? { command: s.command, args: [...(s.args ?? [])] } : {}),
+        ...(s.url ? { url: s.url } : {}),
+        ...(s.env || s.secretEnv ? { env: { ...(s.env ?? {}), ...Object.fromEntries((s.secretEnv ?? []).map(k => [k, KEYCHAIN_PLACEHOLDER])) } } : {}),
+        ...(s.headers ? { headers: { ...s.headers } } : {})
+    }]))
+}, undefined, 2) + '\n';
+
 /** `{ "mcpServers": { name: { command, args, env } | { url, headers } } }` (common MCP format). */
 export const parseMcpJson = (text: string, source: McpServerConfig['source']): McpServerConfig[] => {
     let json: unknown;
@@ -138,7 +167,7 @@ export const parseMcpJson = (text: string, source: McpServerConfig['source']): M
             name, source,
             ...(command ? { command, args: Array.isArray(raw.args) ? raw.args.map(String) : [] } : {}),
             ...(url ? { url } : {}),
-            ...(strings(raw.env) ? { env: strings(raw.env) } : {}),
+            ...splitSecretEnv(strings(raw.env)),
             ...(strings(raw.headers) ? { headers: strings(raw.headers) } : {})
         };
         return [config];
