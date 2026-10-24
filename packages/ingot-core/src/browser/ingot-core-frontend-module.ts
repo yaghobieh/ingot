@@ -83,6 +83,7 @@ import { IngotBreadcrumbRenderer } from './breadcrumbs/ingot-breadcrumb-renderer
 import { IngotWorkspaceBreadcrumbs } from './breadcrumbs/ingot-workspace-breadcrumbs';
 import { IngotOutlineBreadcrumbs } from './breadcrumbs/ingot-outline-breadcrumbs';
 import { IngotMergeContribution, createMergeWidgetFactory } from './merge/merge-contribution';
+import { IngotAnnotateContribution } from './annotate/annotate-contribution';
 import { LOCAL_CHANGES_WIDGET_ID } from './commit/commit.consts';
 import { GIT_LOG_WIDGET_ID } from './git/git.browser-consts';
 import { IngotSettingsDialog } from './settings/ingot-settings-dialog';
@@ -150,6 +151,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     });
     rebind(FilepathBreadcrumbsContribution).to(IngotWorkspaceBreadcrumbs).inSingletonScope();
     rebind(OutlineBreadcrumbsContribution).to(IngotOutlineBreadcrumbs).inSingletonScope();
+    bind(IngotAnnotateContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(IngotAnnotateContribution);
+    bind(CommandContribution).toService(IngotAnnotateContribution);
+    bind(MenuContribution).toService(IngotAnnotateContribution);
     bind(IngotMergeContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(IngotMergeContribution);
     bind(KeybindingContribution).toService(IngotMergeContribution);

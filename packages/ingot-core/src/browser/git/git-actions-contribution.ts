@@ -1,3 +1,4 @@
+import { ANNOTATE_COMMANDS } from '../annotate/annotate.consts';
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { ApplicationShell, ConfirmDialog, KeybindingRegistry, NavigatableWidget, OpenerService, QuickInputService, open, type KeybindingContribution, type QuickPickItem } from '@theia/core/lib/browser';
 import { ClipboardService } from '@theia/core/lib/browser/clipboard-service';
@@ -295,7 +296,7 @@ export class IngotGitActionsContribution implements CommandContribution, MenuCon
         });
         file(F.annotate, async t => {
             await open(this.opener, t.uri);
-            await this.commands.executeCommand(EDITOR_COMMANDS.toggleBlame.id);
+            await this.commands.executeCommand(ANNOTATE_COMMANDS.toggle.id);
         });
         file(F.showCurrentRevision, async t => {
             const row = (await this.run(t, { kind: 'lastCommit', path: t.relative }))?.trim();
