@@ -68,7 +68,7 @@
 .ingot-fbadge-js::before { content: "JS"; }
 .ingot-fbadge-jsx::before { content: "JSX"; }
 .ingot-fbadge-json::before { content: "{ }"; }
-.ingot-fbadge-md::before { content: "M\u2193"; }
+.ingot-fbadge-md::before { content: "M\2193"; }
 .ingot-fbadge-css::before { content: "#"; }
 .ingot-fbadge-html::before { content: "<>"; }
 .ingot-fbadge-py::before { content: "PY"; }
@@ -82,7 +82,7 @@
 .ingot-fbadge-npm::before { content: "{ }"; }
 .ingot-fbadge-git::before { content: "G"; }
 .ingot-fbadge-media::before { content: "\u25a3"; }
-.ingot-fbadge-lock::before { content: "\u26bf"; }
-.ingot-fbadge-file::before { content: "\u00b7"; }
+.ingot-fbadge-lock::before { content: "\26bf"; }
+.ingot-fbadge-file::before { content: "\00b7"; }
 .ingot-fbadge-ts { color: #3178C6; } .ingot-fbadge-js { color: #C9A40A; } .ingot-fbadge-npm, .ingot-fbadge-json { color: #C9A13B; }
 .ingot-fbadge-agent { color: var(--ingot-primary); }
