@@ -70,10 +70,17 @@ button.ingot-tb-logo:hover { background: var(--ingot-primary-hover); }
 .ingot-shell .lm-TabBar.theia-app-centers .lm-TabBar-tab.theia-mod-dirty:not(:hover) .lm-TabBar-tabCloseIcon::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ingot-primary); }
 .ingot-shell .lm-TabBar.theia-app-centers .lm-TabBar-tab.lm-mod-current { background: var(--theia-editor-background); }
 
-/* Breadcrumbs row: plain path, no icons, quiet separators. */
-.ingot-shell .theia-breadcrumbs { height: 24px; font-size: 12px; padding-left: 12px; color: var(--theia-descriptionForeground); }
-.ingot-shell .theia-breadcrumbs .file-icon, .ingot-shell .theia-breadcrumbs .theia-breadcrumb-item [class*="-icon"]:not(.theia-breadcrumb-item-haspopup) { display: none; }
-.ingot-shell .theia-breadcrumbs .theia-breadcrumb-item::before { opacity: .5; }
+/* Breadcrumbs row (IDEA-76, docs/design/breadcrumbs-*-reference.png): root folder › folders › file icon › symbol chain. */
+.ingot-shell .lm-TabBar.theia-app-centers.theia-tabBar-multirow { min-height: 62px; }
+.ingot-shell .theia-breadcrumbs { height: 26px; font-size: 12.5px; padding-left: 10px; color: var(--theia-descriptionForeground); background: var(--theia-editor-background); border-bottom: 1px solid color-mix(in srgb, var(--theia-panel-border) 60%, transparent); }
+.ingot-shell .theia-breadcrumbs .theia-breadcrumb-item { gap: 4px; padding: 0 1px; color: var(--theia-breadcrumb-foreground, var(--theia-descriptionForeground)); }
+.ingot-shell .theia-breadcrumbs .theia-breadcrumb-item:hover { color: var(--theia-breadcrumb-focusForeground, var(--theia-foreground)); }
+.ingot-shell .theia-breadcrumbs .theia-breadcrumb-item:last-of-type { color: var(--theia-foreground); }
+.ingot-shell .theia-breadcrumbs .theia-breadcrumb-item::before { opacity: .55; }
+.ingot-shell .theia-breadcrumbs .theia-breadcrumb-item:not(:last-of-type)::after { opacity: .6; padding: 0 3px; }
+.ingot-shell .theia-breadcrumbs .file-icon { margin-right: 1px; }
+.ingot-shell .theia-breadcrumbs .ingot-bc-root-icon { font-size: 14px; opacity: .8; }
+.ingot-shell .theia-breadcrumbs [class*="codicon-symbol-"] { font-size: 14px; }
 
 /* Line numbers dim, current line bright. */
 .ingot-shell .monaco-editor .line-numbers { color: var(--ingot-editor-gutter); }
