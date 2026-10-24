@@ -137,7 +137,7 @@ export class PushDialog extends ReactDialog<PushRequest | undefined> {
                         {this.editingTarget
                             ? <input id='ingot-push-target-input' className='ingot-input ingot-push-target-input' autoFocus defaultValue={this.remoteBranch}
                                 onBlur={e => this.setTarget(e.currentTarget.value)}
-                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); this.setTarget(e.currentTarget.value); } if (e.key === 'Escape') { e.stopPropagation(); this.editingTarget = false; this.update(); } }} />
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); this.setTarget(e.currentTarget.value); } if (e.key === 'Escape') { e.stopPropagation(); this.editingTarget = false; this.update(); } }} />
                             : <button type='button' id='ingot-push-target' className='ingot-push-target' title='Click to edit the target branch'
                                 onClick={() => { this.editingTarget = true; this.update(); }}>{this.remoteBranch || '…'}</button>}
                         {!this.remoteExists && !this.loading && <span className='ingot-push-new' id='ingot-push-new'>New</span>}
