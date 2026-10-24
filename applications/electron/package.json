@@ -58,14 +58,14 @@
       "config": {
         "applicationName": "Ingot",
         "defaultTheme": {
-          "light": "light",
-          "dark": "dark"
+          "light": "ingot-light",
+          "dark": "ingot-dark"
         },
         "defaultIconTheme": "none",
         "reloadOnReconnect": true,
         "preferences": {
           "security.workspace.trust.enabled": false,
-          "workbench.colorTheme": "light",
+          "workbench.colorTheme": "ingot-light",
           "window.titleBarStyle": "custom",
           "files.enableTrash": false
         },
