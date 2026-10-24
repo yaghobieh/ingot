@@ -35,3 +35,4 @@ plugins/*
 !plugins/.gitkeep
 dist-electron/
 .browser_modules/
+applications/*/gen-esbuild*.mjs
