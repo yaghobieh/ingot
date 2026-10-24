@@ -5,6 +5,8 @@ import { ApplicationShell, CommonCommands, CommonMenus, type FrontendApplication
 import { IngotSettingsDialog } from './ingot-settings-dialog';
 import { ADVANCED_SETTINGS_COMMAND, LEGACY_SETTINGS_WIDGET_ID, SETTINGS_OPEN_COMMAND, SettingsDialogProvider } from './settings.browser-consts';
 
+const LEGACY_REPLACED_KEY = 'ingot.settings.legacyReplaced';
+
 @injectable()
 export class IngotSettingsContribution implements CommandContribution, MenuContribution, FrontendApplicationContribution {
 
@@ -46,7 +48,10 @@ export class IngotSettingsContribution implements CommandContribution, MenuContr
     onDidInitializeLayout(): void {
         const legacy = this.shell.widgets.filter(w => w.id === LEGACY_SETTINGS_WIDGET_ID);
         legacy.forEach(w => w.close());
-        if (legacy.length) {
+        // A restored legacy tab is replaced by Ingot Settings once; after that it is closed silently
+        // (a session saved before the close, e.g. after a crash, would otherwise reopen the dialog on every start).
+        if (legacy.length && !localStorage.getItem(LEGACY_REPLACED_KEY)) {
+            localStorage.setItem(LEGACY_REPLACED_KEY, '1');
             this.dialog().then(d => d.show());
         }
         this.shell.onDidAddWidget((w: Widget) => {
