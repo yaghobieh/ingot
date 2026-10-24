@@ -19,6 +19,8 @@ describe('vcs utils', () => {
     it('picks the dev/start script as run configuration', () => {
         expect(pickRunScript('{"scripts":{"build":"x","dev":"y"}}')).toBe('dev');
         expect(pickRunScript('{"scripts":{"build":"x"}}')).toBe('build');
+        expect(pickRunScript('{"scripts":{"postinstall":"x","build":"y","start:electron":"z"}}')).toBe('start:electron');
+        expect(pickRunScript('{"scripts":{"prepare":"x","postinstall":"y"}}')).toBeUndefined();
         expect(pickRunScript('not json')).toBeUndefined();
     });
 });
