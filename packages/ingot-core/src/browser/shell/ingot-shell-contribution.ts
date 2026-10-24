@@ -12,6 +12,7 @@ import { IngotStripeWidget } from '../stripe/ingot-stripe-widget';
 import { IngotAgentsContribution } from '../agents/agents-contribution';
 import { WidgetManager } from '@theia/core/lib/browser/widget-manager';
 import { ViewContainer } from '@theia/core/lib/browser/view-container';
+import { IngotProjectTabsWidget } from '../groups/project-tabs-widget';
 import { pinProjectLabel } from '../navigator/project-label';
 import { DEFAULT_LAYOUT_COMMANDS, INGOT_SHELL_COMMANDS } from './ingot-shell.consts';
 
@@ -48,8 +49,12 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     @inject(WidgetManager)
     protected readonly widgets: WidgetManager;
 
+    @inject(IngotProjectTabsWidget)
+    protected readonly projectTabs: IngotProjectTabsWidget;
+
     onStart(_app: FrontendApplication): void {
         this.shell.addWidget(this.toolbar, { area: 'top' });
+        this.shell.addWidget(this.projectTabs, { area: 'top' });
         document.body.classList.add('ingot-shell');
     }
 

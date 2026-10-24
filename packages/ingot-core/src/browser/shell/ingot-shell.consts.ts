@@ -37,5 +37,6 @@ export const PROJECT_POPUP_ACTIONS = [
     { id: 'open', label: 'Open…', command: WORKSPACE_COMMANDS.openFolder, requiresWorkspace: false },
     { id: 'open-workspace', label: 'Open Workspace…', command: WORKSPACE_COMMANDS.openWorkspace, requiresWorkspace: false },
     { id: 'add-folder', label: 'Add Folder to Workspace…', command: WORKSPACE_COMMANDS.addFolder, requiresWorkspace: true },
-    { id: 'save-workspace', label: 'Save Workspace As…', command: WORKSPACE_COMMANDS.saveWorkspaceAs, requiresWorkspace: true }
+    { id: 'save-workspace', label: 'Save Workspace As…', command: WORKSPACE_COMMANDS.saveWorkspaceAs, requiresWorkspace: true },
+    { id: 'new-group', label: 'New Project Group…', command: 'ingot.group.new', requiresWorkspace: true }
 ] as const;

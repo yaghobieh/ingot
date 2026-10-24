@@ -228,3 +228,15 @@ body.ingot-shell #theia-statusBar .ingot-status-branch { color: var(--theia-fore
 .ingot-project-popup-path { font-size: 11px; color: var(--theia-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ingot-project-popup-separator { height: 1px; margin: 4px 2px; background: var(--theia-menu-separatorBackground, var(--theia-panel-border)); }
 .ingot-badge { margin-left: 6px; padding: 0 5px; border-radius: 4px; font-size: 10px; font-weight: 500; line-height: 16px; color: var(--theia-badge-foreground); background: var(--theia-badge-background); vertical-align: 1px; }
+
+/* IDEA-52 project tabs */
+.ingot-project-tabs { flex: none; border-bottom: 1px solid var(--theia-panel-border); background: var(--theia-titleBar-activeBackground, var(--theia-editorGroupHeader-tabsBackground)); }
+.ingot-project-tabs.lm-mod-hidden { display: none !important; }
+.ingot-project-tabs-row { display: flex; align-items: stretch; height: 30px; padding: 0 6px; gap: 2px; overflow-x: auto; }
+.ingot-project-tab { display: flex; align-items: center; gap: 6px; padding: 0 8px 0 10px; font-size: 12.5px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--theia-descriptionForeground); user-select: none; }
+.ingot-project-tab:hover { background: var(--theia-list-hoverBackground); }
+.ingot-project-tab.active { color: var(--theia-foreground); border-bottom-color: var(--theia-focusBorder); font-weight: 500; }
+.ingot-project-tab:focus-visible { outline: 2px solid var(--theia-focusBorder); outline-offset: -2px; }
+.ingot-project-tab-initials { width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; font-size: 8.5px; font-weight: 700; color: #fff; background: linear-gradient(135deg, var(--ingot-ingot-gold), var(--ingot-ingot-gold-deep)); }
+.ingot-project-tab-close, .ingot-project-tabs-add { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; border-radius: 4px; opacity: .7; }
+.ingot-project-tab-close:hover, .ingot-project-tabs-add:hover { opacity: 1; background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); }

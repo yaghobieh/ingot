@@ -3,8 +3,8 @@ export interface RecentProject {
     readonly name: string;
     readonly path: string;
     readonly initials: string;
-    /** `workspace` for `.ingot-workspace` / `.code-workspace` files, otherwise a folder. */
-    readonly kind: 'folder' | 'workspace';
+    /** `group` for `.ingot-group`, `workspace` for `.ingot-workspace` / `.code-workspace` files, otherwise a folder. */
+    readonly kind: 'folder' | 'workspace' | 'group';
 }
 
 export type WelcomeTab = 'projects' | 'customize' | 'plugins' | 'learn';

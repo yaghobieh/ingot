@@ -1,6 +1,7 @@
 import { FILE_SCHEME_PREFIX, HOME_TILDE, MAX_INITIALS, MAX_RECENT_PROJECTS } from './welcome.consts';
 import type { RecentProject } from './welcome.types';
 import { isWorkspaceFileName, projectDisplayName } from '../workspace/workspace.utils';
+import { isGroupFileName } from '../groups/groups.utils';
 
 const stripScheme = (uri: string): string => decodeURIComponent(uri.startsWith(FILE_SCHEME_PREFIX) ? uri.slice(FILE_SCHEME_PREFIX.length) : uri);
 
@@ -14,7 +15,7 @@ export const toRecentProject = (uri: string, home?: string): RecentProject => {
     const fsPath = stripScheme(uri).replace(/\/+$/, '');
     const name = projectDisplayName(fsPath);
     const path = home && fsPath.startsWith(home) ? `${HOME_TILDE}${fsPath.slice(home.length)}` : fsPath;
-    return { uri, name, path, initials: projectInitials(name), kind: isWorkspaceFileName(fsPath) ? 'workspace' : 'folder' };
+    return { uri, name, path, initials: projectInitials(name), kind: isGroupFileName(fsPath) ? 'group' : isWorkspaceFileName(fsPath) ? 'workspace' : 'folder' };
 };
 
 export const toRecentProjects = (uris: readonly string[], home?: string, filter = ''): RecentProject[] => {

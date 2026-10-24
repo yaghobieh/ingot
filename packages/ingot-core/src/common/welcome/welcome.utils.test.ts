@@ -10,6 +10,7 @@ describe('welcome utils', () => {
     it('shortens paths under the home folder', () => {
         expect(toRecentProject('file:///Users/john/Projects/alloy', '/Users/john')).toMatchObject({ name: 'alloy', path: '~/Projects/alloy', kind: 'folder' });
         expect(toRecentProject('file:///Users/john/team.ingot-workspace', '/Users/john')).toMatchObject({ name: 'team', path: '~/team.ingot-workspace', kind: 'workspace' });
+        expect(toRecentProject('file:///Users/john/fullstack.ingot-group')).toMatchObject({ name: 'fullstack', kind: 'group' });
     });
 
     it('dedupes and filters recent projects', () => {
