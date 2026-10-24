@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ROUTES } from '@/constants/app.consts';
-import { api, errorCode } from '@/lib/api';
+import { api, errorCode } from '@/client/api';
 import { usePortal } from '@components/Providers';
 import type { InviteViewProps } from '@/views/views.types';
 

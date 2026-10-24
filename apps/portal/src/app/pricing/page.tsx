@@ -5,7 +5,7 @@ import { PLANS } from '@/constants/plans.consts';
 import { SiteHeader } from '@components/SiteHeader';
 import { getLocale, getT } from '@i18n/server';
 import { getCurrentUser } from '@server/http/auth';
-import { formatUsd } from '@/lib/format';
+import { formatUsd } from '@/client/format';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Pricing' };

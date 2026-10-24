@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { ROUTES } from '@/constants/app.consts';
-import { api, errorCode } from '@/lib/api';
+import { api, errorCode } from '@/client/api';
 import { usePortal } from '@components/Providers';
 import type { VerifyFormProps } from '@components/VerifyForm/VerifyForm.types';
 

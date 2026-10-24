@@ -2,8 +2,8 @@
 
 import { Badge, Button, Switch } from '@forgedevstack/bear';
 import { DEFAULT_MODEL_ID, MODELS } from '@/constants/models.consts';
-import { api } from '@/lib/api';
-import { useApi } from '@/lib/useApi';
+import { api } from '@/client/api';
+import { useApi } from '@/client/useApi';
 import type { SyncedSettings } from '@/types/domain.types';
 import { PageHeader } from '@components/PageHeader';
 import { usePortal } from '@components/Providers';

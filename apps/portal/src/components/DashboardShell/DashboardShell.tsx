@@ -4,7 +4,7 @@ import { Badge, Button } from '@forgedevstack/bear';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ROUTES } from '@/constants/app.consts';
-import { api } from '@/lib/api';
+import { api } from '@/client/api';
 import { DASHBOARD_NAV } from '@components/DashboardShell/DashboardShell.consts';
 import type { DashboardShellProps } from '@components/DashboardShell/DashboardShell.types';
 import { LocaleSelect } from '@components/LocaleSelect';

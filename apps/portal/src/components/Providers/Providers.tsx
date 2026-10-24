@@ -4,7 +4,7 @@ import { BearProvider } from '@forgedevstack/bear';
 import { useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { COOKIE_MAX_AGE_YEAR, LOCALE_COOKIE, THEME_COOKIE } from '@/constants/app.consts';
-import { api } from '@/lib/api';
+import { api } from '@/client/api';
 import type { Locale, ThemePreference } from '@/types/domain.types';
 import type { PortalContextValue, ProvidersProps, ResolvedTheme } from '@components/Providers/Providers.types';
 import { directionFor, translate } from '@i18n/i18n.utils';

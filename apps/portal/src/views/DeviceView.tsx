@@ -3,7 +3,7 @@
 import { Alert, Button } from '@forgedevstack/bear';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { api } from '@/lib/api';
+import { api } from '@/client/api';
 import { usePortal } from '@components/Providers';
 import type { DeviceViewProps } from '@/views/views.types';
 
