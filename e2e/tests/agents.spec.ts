@@ -30,7 +30,7 @@ test.describe('IDEA-27/28 Agents tool window', () => {
         await page.keyboard.press('Enter');
         await expect(panel.locator('.ingot-chat-user')).toHaveText('make addItem optimistic and add qty support');
         await expect(panel.locator('.ingot-agent-item-title').first()).toHaveText('Make addItem optimistic and add qty support');
-        await expect(panel.locator('.ingot-chat-system')).toContainText('No model is connected');
+        await expect(panel.locator('.ingot-chat-system')).toContainText('not connected yet');
     });
 
     test('toolbar Agents button toggles the panel', async ({ page }) => {
