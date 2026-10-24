@@ -51,7 +51,7 @@ test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
         await openIngot(page);
         await connectOllama(page, server);
         await models(page).locator('#ingot-autocomplete-model').selectOption('ollama-local');
-        await expect(page.locator('#ingot-autocomplete-status')).toContainText('Ollama (local)');
+        await expect(page.locator('#theia-statusBar [id$="ingot-autocomplete-status"]')).toContainText('Ollama (local)');
 
         await page.locator('#files').getByText('src', { exact: true }).click();
         await page.locator('#files').getByText('math.ts', { exact: true }).dblclick();

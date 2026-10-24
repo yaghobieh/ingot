@@ -17,6 +17,8 @@ export class IngotModelsWidget extends ReactWidget {
     protected readonly drafts = new Map<ProviderId, string>();
     protected readonly results = new Map<ProviderId, { ok: boolean; text: string }>();
     protected readonly busy = new Set<ProviderId>();
+    /** Preference writes still in flight; Test waits for them so it uses the values just typed. */
+    protected saving: Promise<unknown> = Promise.resolve();
 
     @postConstruct()
     protected init(): void {
@@ -36,6 +38,7 @@ export class IngotModelsWidget extends ReactWidget {
         this.busy.add(provider);
         this.update();
         try {
+            await this.saving;
             this.results.set(provider, { ok: true, text: await action() });
         } catch (error) {
             this.results.set(provider, { ok: false, text: error instanceof Error ? error.message : String(error) });
@@ -58,7 +61,7 @@ export class IngotModelsWidget extends ReactWidget {
     }
 
     protected setPreference(name: string, value: unknown): void {
-        this.preferences.set(name, value, PreferenceScope.User);
+        this.saving = Promise.all([this.saving, this.preferences.set(name, value, PreferenceScope.User)]);
     }
 
     protected setOverride(provider: ProviderId, value: string): void {
