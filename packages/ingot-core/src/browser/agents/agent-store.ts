@@ -51,7 +51,6 @@ export class AgentStore {
     @inject(TerminalService) protected readonly terminals: TerminalService;
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
-    pendingDetach = false;
 
     @postConstruct()
     protected restore(): void {
@@ -171,20 +170,6 @@ export class AgentStore {
         this.changed();
     }
 
-    /** Removes or restores the auto-attached open file for the current (or next) chat. */
-    setActiveFileAttached(attached: boolean): void {
-        if (this.current) {
-            this.current.detachActiveFile = !attached;
-        } else {
-            this.pendingDetach = !attached;
-        }
-        this.changed();
-    }
-
-    get activeFileAttached(): boolean {
-        return !(this.current ? this.current.detachActiveFile : this.pendingDetach);
-    }
-
     /** Sessions of the active project tab (all sessions outside project groups). */
     get sessions(): readonly AgentSession[] {
         return this.projectScope ? this.items.filter(s => s.project === this.projectScope) : this.items;
@@ -219,10 +204,8 @@ export class AgentStore {
     create(title = NEW_AGENT_TITLE): AgentSession {
         const session: AgentSession = {
             id: newChatId(), title, status: 'idle', updatedAt: Date.now(), mode: this.mode, model: this.model,
-            messages: [], plan: [], steps: [], changes: [], project: this.projectScope, open: true, openedAt: Date.now(),
-            detachActiveFile: this.current ? false : this.pendingDetach
+            messages: [], plan: [], steps: [], changes: [], project: this.projectScope, open: true, openedAt: Date.now()
         };
-        this.pendingDetach = false;
         this.items = [session, ...this.items];
         this.selected = session.id;
         this.changed();
@@ -336,10 +319,6 @@ export class AgentStore {
                 // unreadable (binary, missing): skip
             }
         };
-        const active = this.editors.currentEditor?.editor.uri;
-        if (active && !session.detachActiveFile && (!root || root.isEqualOrParent(active))) {
-            await add(active);
-        }
         if (root) {
             for (const mention of parseMentions(prompt).filter(isSafeRelativePath)) {
                 await add(root.resolve(mention));
@@ -405,7 +384,10 @@ export class AgentStore {
         }
         const prompt = lastUser ? (session.messages[lastUser.i].expanded ?? lastUser.m.text) : '';
         const context = await this.readContext(session, prompt, root);
-        const rules = applicableRules(config.rules, context.paths);
+        // Glob rules still match the file open in the editor; its content is not attached (the agent reads files via tools).
+        const active = this.editors.currentEditor?.editor.uri;
+        const activePath = active && root?.isEqualOrParent(active) ? root.relative(active)?.toString() : undefined;
+        const rules = applicableRules(config.rules, activePath ? [...context.paths, activePath] : context.paths);
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
@@ -610,8 +592,7 @@ export class AgentStore {
             const child: AgentSession = {
                 id: newChatId(), title: titleFromPrompt(task), status: 'thinking', updatedAt: Date.now(), mode: 'agent', model: lead.model,
                 messages: [{ role: 'user', text: task, expanded: `${task}\n\nThis is subtask ${i + 1} of ${subtasks.length} for: ${goal}\nOnly do this subtask.` }],
-                plan: [], steps: [], changes: [], project: lead.project, open: true, openedAt: Date.now() + i + 1, parent: lead.id,
-                detachActiveFile: lead.detachActiveFile
+                plan: [], steps: [], changes: [], project: lead.project, open: true, openedAt: Date.now() + i + 1, parent: lead.id
             };
             return child;
         });
