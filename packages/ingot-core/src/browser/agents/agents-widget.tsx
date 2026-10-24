@@ -26,6 +26,26 @@ export class IngotAgentsWidget extends ReactWidget {
     protected tab: AgentsTab = 'agents';
     protected draft = '';
     protected composer?: HTMLTextAreaElement | null;
+    protected slashIndex = 0;
+    protected slashDismissed = false;
+
+    /** `/` menu entries matching the draft: project commands and skills (IDEA-30). */
+    protected get slashItems(): { name: string; description?: string; kind: string }[] {
+        const match = /^\/([\w-]*)$/.exec(this.draft);
+        if (!match || this.slashDismissed) {
+            return [];
+        }
+        return this.store.projectCommands
+            .filter(c => c.name.startsWith(match[1].toLowerCase()))
+            .map(c => ({ name: c.name, description: c.description, kind: c.kind === 'skill' ? 'skill' : c.source }));
+    }
+
+    protected acceptSlash(name: string): void {
+        this.draft = `/${name} `;
+        this.slashIndex = 0;
+        this.update();
+        this.composer?.focus();
+    }
 
     @postConstruct()
     protected init(): void {
@@ -120,10 +140,48 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     protected renderComposer(): React.ReactNode {
+        const items = this.slashItems;
         return <div className='ingot-composer'>
+            {items.length > 0 && <div id='ingot-slash-menu' className='ingot-slash-menu' role='listbox'>
+                {items.map((item, i) => (
+                    <div key={item.name} id={`ingot-slash-item-${item.name}`} role='option' aria-selected={i === this.slashIndex}
+                        className={`ingot-slash-item${i === this.slashIndex ? ' selected' : ''}`} onMouseDown={e => { e.preventDefault(); this.acceptSlash(item.name); }}>
+                        <code>/{item.name}</code><span className='ingot-badge'>{item.kind}</span><span className='ingot-slash-desc'>{item.description}</span>
+                    </div>
+                ))}
+            </div>}
             <textarea id='ingot-composer-input' ref={el => { this.composer = el; }} className='ingot-composer-input' placeholder={COMPOSER_PLACEHOLDER} value={this.draft} rows={2}
-                onChange={e => { this.draft = e.currentTarget.value; this.update(); }}
+                onChange={e => {
+                    const value = e.currentTarget.value;
+                    if (value === '/' && this.draft === '') {
+                        this.slashDismissed = false;
+                        this.slashIndex = 0;
+                        this.store.loadCommands();
+                    }
+                    this.draft = value;
+                    this.update();
+                }}
                 onKeyDown={e => {
+                    const items = this.slashItems;
+                    if (items.length) {
+                        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            this.slashIndex = (this.slashIndex + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length;
+                            this.update();
+                            return;
+                        }
+                        if (e.key === 'Enter' || e.key === 'Tab') {
+                            e.preventDefault();
+                            this.acceptSlash(items[Math.min(this.slashIndex, items.length - 1)].name);
+                            return;
+                        }
+                        if (e.key === 'Escape') {
+                            e.preventDefault();
+                            this.slashDismissed = true;
+                            this.update();
+                            return;
+                        }
+                    }
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.submit(); }
                     if (e.key === 'Escape' && this.store.current && this.store.isRunning(this.store.current.id)) { e.preventDefault(); this.store.stop(this.store.current.id); }
                 }} />

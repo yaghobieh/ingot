@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatContextFiles, parseAgentOutput, parseMentions } from './agent-protocol';
+import { formatContextFiles, parseAgentOutput, parseMentions, toolProtocol } from './agent-protocol';
 
 const OUTPUT = [
     'PLAN:',
@@ -39,5 +39,14 @@ describe('agent protocol', () => {
     it('finds @file mentions and formats context with a budget', () => {
         expect(parseMentions('fix @src/math.ts and @README.md, not me@x')).toEqual(['src/math.ts', 'README.md']);
         expect(formatContextFiles([{ path: 'a.ts', content: 'abcdef' }], 3)).toBe('File: a.ts\n```\nabc\n… (truncated)\n```');
+    });
+
+    it('parses tool calls and describes tools', () => {
+        const parsed = parseAgentOutput('Let me add.\n<<<TOOL calc/add\n{"a": 2, "b": 3}\n>>>END');
+        expect(parsed.toolCalls).toEqual([{ server: 'calc', tool: 'add', args: { a: 2, b: 3 } }]);
+        expect(parsed.display).toBe('Let me add.');
+        expect(parseAgentOutput('<<<TOOL calc/add\nnot json\n>>>END').toolCalls[0].args).toEqual({});
+        expect(toolProtocol([{ server: 'calc', name: 'add', description: 'Adds' }])).toContain('- calc/add: Adds');
+        expect(toolProtocol([])).toBe('');
     });
 });

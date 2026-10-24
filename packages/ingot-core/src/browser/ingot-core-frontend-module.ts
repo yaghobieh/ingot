@@ -48,6 +48,13 @@ import { NavigationHistory } from './keymap/navigation-history';
 import { IngotKeymapContribution, keymapPreferenceSchema } from './keymap/ingot-keymap-contribution';
 import { IngotRunContribution } from './run/ingot-run-contribution';
 import { PreferenceContribution } from '@theia/core/lib/common/preferences';
+import { ProjectConfigService } from './project-config/project-config-service';
+import { IngotMcpClient } from './project-config/mcp-client';
+import { IngotAgentConfigWidget } from './project-config/agent-config-widget';
+import { IngotAgentConfigContribution } from './project-config/agent-config-contribution';
+import { AGENT_CONFIG_WIDGET_ID } from './project-config/project-config.browser-consts';
+import { MCP_SERVICE_PATH } from '../common/project-config/project-config.consts';
+import { McpService } from '../common/project-config/project-config.types';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
@@ -62,6 +69,13 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bindModelPreferences(bind);
     bind(PreferenceContribution).toConstantValue({ schema: keymapPreferenceSchema });
     bind(NavigationHistory).toSelf().inSingletonScope();
+    bind(ProjectConfigService).toSelf().inSingletonScope();
+    bind(McpService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<McpService>(ctx.container, MCP_SERVICE_PATH)).inSingletonScope();
+    bind(IngotMcpClient).toSelf().inSingletonScope();
+    bind(IngotAgentConfigWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENT_CONFIG_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentConfigWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotAgentConfigContribution);
+    bind(FrontendApplicationContribution).toService(IngotAgentConfigContribution);
     bind(IngotKeymapContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(IngotKeymapContribution);
     bind(CommandContribution).toService(IngotKeymapContribution);

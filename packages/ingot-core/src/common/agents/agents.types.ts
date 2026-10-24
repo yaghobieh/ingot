@@ -18,9 +18,11 @@ export interface AgentStep {
 
 export interface AgentMessage {
     /** `peer` messages come from an agent in another project of the group (IDEA-53). */
-    readonly role: 'user' | 'agent' | 'system' | 'peer';
+    readonly role: 'user' | 'agent' | 'system' | 'peer' | 'tool';
     readonly text: string;
     readonly from?: string;
+    /** What the model sees when it differs from the visible text (an expanded /command). */
+    readonly expanded?: string;
 }
 
 export interface FileChange {
