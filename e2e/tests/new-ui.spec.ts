@@ -11,6 +11,13 @@ test.describe('IDEA-13/14 JetBrains New UI shell', () => {
         await expect(terminalPanel(page)).toBeVisible({ timeout: 30_000 });
     });
 
+    test('names the window Ingot and the file tree Project', async ({ page }) => {
+        await openIngot(page);
+        await expect(page).toHaveTitle(/^Ingot/);
+        await expect(page.locator('#theia-left-content-panel .theia-sidepanel-title')).toHaveText(/project/i);
+        await expect(page.locator('#theia-left-content-panel .theia-sidepanel-title')).not.toHaveText(/explorer/i);
+    });
+
     test('shows the bottom tool window stripe and toggles tool windows from it', async ({ page }) => {
         await openIngot(page);
         for (const id of ['terminal', 'run', 'problems', 'ports']) {

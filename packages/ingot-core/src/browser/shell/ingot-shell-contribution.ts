@@ -12,10 +12,10 @@ import { IngotStripeWidget } from '../stripe/ingot-stripe-widget';
 import { IngotAgentsContribution } from '../agents/agents-contribution';
 import { WidgetManager } from '@theia/core/lib/browser/widget-manager';
 import { ViewContainer } from '@theia/core/lib/browser/view-container';
+import { pinProjectLabel } from '../navigator/project-label';
 import { DEFAULT_LAYOUT_COMMANDS, INGOT_SHELL_COMMANDS } from './ingot-shell.consts';
 
 const EXPLORER_CONTAINER_ID = 'explorer-view-container';
-const PROJECT_VIEW_LABEL = 'Project';
 
 type SideArea = 'left' | 'right' | 'bottom';
 const SIDE_AREAS: readonly SideArea[] = ['left', 'right', 'bottom'];
@@ -69,8 +69,7 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     protected async renameProjectView(): Promise<void> {
         const explorer = await this.widgets.getWidget(EXPLORER_CONTAINER_ID);
         if (explorer instanceof ViewContainer) {
-            explorer.setTitleOptions({ label: PROJECT_VIEW_LABEL, iconClass: explorer.title.iconClass, closeable: true });
-            explorer.title.label = PROJECT_VIEW_LABEL;
+            pinProjectLabel(explorer);
         }
     }
 
