@@ -1,4 +1,4 @@
-export type ConfigSource = 'alloy' | 'cursor' | 'agents';
+export type ConfigSource = 'ingot' | 'legacy' | 'external' | 'agents';
 
 export interface ProjectRule {
     readonly name: string;

@@ -1,7 +1,20 @@
-/** Project configuration locations (IDEA-30). `.alloy` is Ingot's own; `.cursor` and AGENTS.md are read for compatibility. */
+/**
+ * Project configuration locations (IDEA-30). `.ingot` is Ingot's own folder. Existing rule folders
+ * (`.cursor`), the legacy `.alloy` folder and AGENTS.md are also read so projects work unchanged.
+ */
 export const CONFIG_DIRS = {
-    alloy: '.alloy',
-    cursor: '.cursor'
+    ingot: '.ingot',
+    legacy: '.alloy',
+    external: '.cursor'
+} as const;
+
+/** Badge shown next to rules/commands/servers in the UI, per source. */
+export const SOURCE_LABELS = {
+    ingot: '.ingot',
+    legacy: 'legacy',
+    external: 'imported',
+    agents: 'AGENTS.md',
+    user: 'user'
 } as const;
 
 export const RULES_DIR = 'rules';

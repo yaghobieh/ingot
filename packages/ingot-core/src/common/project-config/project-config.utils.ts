@@ -145,7 +145,7 @@ export const parseMcpJson = (text: string, source: McpServerConfig['source']): M
     });
 };
 
-/** Later sources win: `.cursor` < `.alloy`, so Ingot's own config overrides compatibility files. */
+/** Later sources win: imported folders < legacy `.alloy` < `.ingot`, so Ingot's own config overrides the rest. */
 export const mergeByName = <T extends { name: string }>(...lists: (readonly T[])[]): T[] => {
     const byName = new Map<string, T>();
     for (const list of lists) {

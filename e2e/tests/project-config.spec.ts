@@ -28,7 +28,7 @@ test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => 
     });
     test.afterEach(async () => { await server.close(); });
 
-    test('applies .alloy/.cursor rules and AGENTS.md, and expands / commands from the menu', async ({ page }) => {
+    test('applies .ingot rules, existing rule folders and AGENTS.md, and expands / commands from the menu', async ({ page }) => {
         await openIngot(page, CONFIG_PROJECT);
         await connectOllama(page, server);
         await page.locator('#files').getByText('src', { exact: true }).click();
@@ -55,7 +55,7 @@ test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => 
         const request = server.requests.at(-1)!;
         expect(request.user).toContain('Explain the total function in two sentences. EXPLAIN-MARKER');
         expect(request.system).toContain('AGENTS-MARKER');
-        expect(request.system).toContain('ALLOY-RULE-MARKER');
+        expect(request.system).toContain('INGOT-RULE-MARKER');
         // Glob rule (**/*.ts) applies because index.ts is the active file.
         expect(request.system).toContain('CURSOR-TS-MARKER');
     });

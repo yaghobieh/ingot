@@ -1,1 +1,0 @@
-Run the full Ingot gate before pushing: self code review of `git diff --staged` against `.alloy/rules`, then `npm run gate`, `npm run e2e`, `npm run build`, and `npm run secret-scan`. Report results; do not push if anything fails.

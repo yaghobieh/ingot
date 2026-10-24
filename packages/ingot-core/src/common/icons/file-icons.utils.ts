@@ -29,7 +29,7 @@ const BY_EXT: Record<string, FileIcon> = {
 
 const DEFAULT_FILE: FileIcon = { codicon: 'file', kind: 'default' };
 const FOLDER: FileIcon = { codicon: 'folder', kind: 'folder' };
-const SPECIAL_FOLDERS: Record<string, string> = { src: 'src', test: 'test', tests: 'test', e2e: 'test', node_modules: 'vendor', '.git': 'git', '.alloy': 'agent', '.cursor': 'agent', '.github': 'git' };
+const SPECIAL_FOLDERS: Record<string, string> = { src: 'src', test: 'test', tests: 'test', e2e: 'test', node_modules: 'vendor', '.git': 'git', '.ingot': 'agent', '.alloy': 'agent', '.cursor': 'agent', '.github': 'git' };
 
 export const fileIconFor = (name: string, isDirectory: boolean): FileIcon => {
     const lower = name.toLowerCase();

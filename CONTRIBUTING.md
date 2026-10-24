@@ -20,7 +20,7 @@ Thanks for helping build Ingot. These rules apply to humans and AI agents alike.
 
 ## Gate before every push
 
-1. **Code review** — self-review `git diff --staged` against every rule in `.alloy/rules` (same as `.cursor/rules`). Fix findings and list them in the PR body.
+1. **Code review** — self-review `git diff --staged` against every rule in `.ingot/rules`. Fix findings and list them in the PR body.
 2. **Gate** — `npm run gate` (lint + typecheck + unit tests) is green.
 3. **E2E** — `npm run e2e` (Playwright for Electron, real clicks and shortcuts against fixture repos with mock AI). Add or extend specs for every user-facing change.
 4. **Build** — `npm run build` is green for desktop and browser targets.

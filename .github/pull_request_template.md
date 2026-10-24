@@ -4,7 +4,7 @@ Jira: https://yaghobieh.atlassian.net/browse/IDEA-<n>
 
 ### What changed
 
-### Review notes (self code review against .alloy/rules)
+### Review notes (self code review against .ingot/rules)
 
 ### Gate
 - [ ] `npm run gate`
