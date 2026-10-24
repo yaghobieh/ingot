@@ -85,3 +85,28 @@ export const rowSummary = (enabled: boolean, status: McpServerStatus | undefined
         default: return 'Connecting…';
     }
 };
+
+/** The catalog entry a configured server was created from (same command and package args), if any. */
+export const catalogEntryFor = (config: Pick<McpServerConfig, 'name' | 'command' | 'args'>): McpCatalogEntry | undefined =>
+    MCP_CATALOG.find(e => e.id === config.name)
+    ?? MCP_CATALOG.find(e => e.command === config.command && e.args.filter(a => !a.startsWith('$') && a !== '-y').every(a => (config.args ?? []).includes(a)));
+
+/** Case-insensitive match of a search query against any of the given texts. */
+export const matchesQuery = (query: string, ...texts: (string | undefined)[]): boolean => {
+    const q = query.trim().toLowerCase();
+    return !q || texts.some(t => t?.toLowerCase().includes(q));
+};
+
+export const CUSTOMIZE_TABS = [
+    { id: 'plugins', label: 'Plugins' },
+    { id: 'mcps', label: 'MCPs' },
+    { id: 'skills', label: 'Skills', dir: 'skills' },
+    { id: 'subagents', label: 'Subagents', dir: 'agents' },
+    { id: 'rules', label: 'Rules', dir: 'rules' },
+    { id: 'commands', label: 'Commands', dir: 'commands' },
+    { id: 'hooks', label: 'Hooks', dir: 'hooks' }
+] as const;
+export type CustomizeTab = typeof CUSTOMIZE_TABS[number]['id'];
+
+/** Rows shown before "Show N more" in the Needs Attention section. */
+export const ATTENTION_PREVIEW = 5;

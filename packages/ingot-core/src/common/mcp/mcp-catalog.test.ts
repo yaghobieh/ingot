@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MCP_CATALOG, catalogToConfig, isValidServerName, rowGroup, rowSummary } from './mcp-catalog';
+import { MCP_CATALOG, catalogEntryFor, catalogToConfig, isValidServerName, matchesQuery, rowGroup, rowSummary } from './mcp-catalog';
 import { expandArgs, parseMcpJson, toMcpJson } from '../project-config/project-config.utils';
 
 describe('MCP catalog', () => {
@@ -42,5 +42,18 @@ describe('MCP catalog', () => {
         expect(isValidServerName('jira-api')).toBe(true);
         expect(isValidServerName('../x')).toBe(false);
         expect(isValidServerName('')).toBe(false);
+    });
+});
+
+describe('catalogEntryFor / matchesQuery', () => {
+    it('finds the catalog entry by id or by command + package', () => {
+        expect(catalogEntryFor({ name: 'gh', command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'] })?.id).toBe('github');
+        expect(catalogEntryFor({ name: 'postgres', command: 'node', args: [] })?.id).toBe('postgres');
+        expect(catalogEntryFor({ name: 'mine', command: 'node', args: ['server.js'] })).toBeUndefined();
+    });
+    it('matches queries case-insensitively, empty matches all', () => {
+        expect(matchesQuery('', 'x')).toBe(true);
+        expect(matchesQuery('GIT', 'github')).toBe(true);
+        expect(matchesQuery('slack', 'github', undefined)).toBe(false);
     });
 });

@@ -21,7 +21,7 @@ export class IngotDatabaseContribution extends AbstractViewContribution<IngotDat
 @injectable()
 export class IngotMcpContribution extends AbstractViewContribution<IngotMcpWidget> {
     constructor() {
-        super({ widgetId: MCP_WIDGET_ID, widgetName: 'MCP Servers', defaultWidgetOptions: { area: 'right', rank: 300 }, toggleCommandId: TOOL_WINDOW_COMMANDS.mcp.id });
+        super({ widgetId: MCP_WIDGET_ID, widgetName: 'Plugins & MCP', defaultWidgetOptions: { area: 'main' }, toggleCommandId: TOOL_WINDOW_COMMANDS.mcp.id });
     }
 }
 
