@@ -11,9 +11,9 @@ export const BRAND = {
 export const LIGHT_TOKENS = {
     'bg': '#F7F8FA',
     'surface': '#FFFFFF',
-    'panel': '#EBECF0',
-    'toolbar': '#ECEDF1',
-    'border': '#E3E4E8',
+    'panel': '#DFE1E5',
+    'toolbar': '#F7F8FA',
+    'border': '#EBECF0',
     'text': '#1E1F22',
     'textMuted': '#6C707E',
     'primary': '#3B6FD9',
@@ -23,7 +23,7 @@ export const LIGHT_TOKENS = {
     'focusRing': '#8FB0F0',
     'accent': '#C9822E',
     'success': '#208A3C',
-    'warning': '#B7791F',
+    'warning': '#C27D04',
     'danger': '#DB3B4B',
     'info': '#2F7FB8',
     'editorBg': '#FFFFFF',
@@ -32,26 +32,26 @@ export const LIGHT_TOKENS = {
 } as const;
 
 export const DARK_TOKENS = {
-    'bg': '#222327',
+    'bg': '#2B2D30',
     'surface': '#2B2D30',
-    'panel': '#2B2D30',
-    'toolbar': '#191A1C',
-    'border': '#2E3034',
+    'panel': '#34363A',
+    'toolbar': '#2B2D30',
+    'border': '#393B40',
     'text': '#DFE1E5',
-    'textMuted': '#868A91',
-    'primary': '#548AF7',
-    'primaryHover': '#7AA3F3',
+    'textMuted': '#9DA0A8',
+    'primary': '#3574F0',
+    'primaryHover': '#548AF7',
     'primaryText': '#FFFFFF',
     'selection': '#2E436E',
     'focusRing': '#3574F0',
     'accent': '#E0A458',
-    'success': '#5FB865',
-    'warning': '#D9A23B',
-    'danger': '#E55765',
-    'info': '#5AA9DE',
+    'success': '#5FAD56',
+    'warning': '#E8A93B',
+    'danger': '#F75464',
+    'info': '#56A8F5',
     'editorBg': '#1E1F22',
     'editorLineHighlight': '#26282E',
-    'editorGutter': '#4B5059'
+    'editorGutter': '#8C9096'
 } as const;
 
 /** Darcula-like variant: warmer greys, classic JetBrains feel. */

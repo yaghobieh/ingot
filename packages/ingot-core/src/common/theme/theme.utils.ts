@@ -1,4 +1,4 @@
-import { ALPHA } from './theme.consts';
+import { ALPHA, DIFF } from './theme.consts';
 import type { IngotThemeDefinition, TokenColorRule, VsCodeThemeJson } from './theme.types';
 
 const rule = (scope: string[], foreground: string, fontStyle?: string): TokenColorRule => ({ scope, settings: fontStyle ? { foreground, fontStyle } : { foreground } });
@@ -159,7 +159,23 @@ export const buildWorkbenchColors = ({ tokens: t }: IngotThemeDefinition): Recor
     'gitDecoration.modifiedResourceForeground': t.info,
     'gitDecoration.untrackedResourceForeground': t.danger,
     'gitDecoration.addedResourceForeground': t.success,
-    'gitDecoration.ignoredResourceForeground': t.textMuted
+    'gitDecoration.ignoredResourceForeground': t.textMuted,
+
+    'editor.selectionHighlightBackground': `${t.primary}${ALPHA.hover}`,
+    'editor.wordHighlightBackground': `${t.primary}${ALPHA.hover}`,
+    'editorBracketMatch.background': `${t.primary}${ALPHA.strong}`,
+    'editorBracketMatch.border': t.focusRing,
+    'diffEditor.insertedLineBackground': DIFF.added,
+    'diffEditor.insertedTextBackground': DIFF.addedText,
+    'diffEditor.removedLineBackground': DIFF.removed,
+    'diffEditor.removedTextBackground': DIFF.removedText,
+    'editorGutter.addedBackground': t.success,
+    'editorGutter.modifiedBackground': t.info,
+    'editorGutter.deletedBackground': t.danger,
+    'editorOverviewRuler.border': t.border,
+    'breadcrumb.foreground': t.textMuted,
+    'breadcrumb.focusForeground': t.text,
+    'breadcrumb.background': t.editorBg
 });
 
 export const buildTokenColors = ({ syntax: s }: IngotThemeDefinition): TokenColorRule[] => [
@@ -173,12 +189,44 @@ export const buildTokenColors = ({ syntax: s }: IngotThemeDefinition): TokenColo
     rule(['variable.other.property', 'variable.other.object.property', 'support.variable.property', 'meta.object-literal.key'], s.property),
     rule(['variable', 'variable.parameter'], s.variable),
     rule(['entity.name.tag'], s.tag),
-    rule(['entity.other.attribute-name'], s.attribute)
+    rule(['entity.other.attribute-name'], s.attribute),
+    // Monaco's built-in (Monarch) tokenizers emit short token names; map them too so files are
+    // coloured even before TextMate grammars from plugins are loaded.
+    rule(['number', 'number.hex', 'number.float'], s.number),
+    rule(['type', 'type.identifier'], s.type),
+    rule(['identifier'], s.variable),
+    rule(['regexp'], s.string),
+    rule(['annotation', 'metatag'], s.attribute),
+    rule(['attribute.name'], s.attribute),
+    rule(['attribute.value'], s.string),
+    rule(['delimiter', 'operator'], s.variable)
 ];
+
+/** Semantic token colours (TypeScript/JS language server) aligned with the TextMate palette. */
+export const buildSemanticTokenColors = ({ syntax: s }: IngotThemeDefinition): Record<string, string> => ({
+    'class': s.type,
+    'interface': s.type,
+    'enum': s.type,
+    'type': s.type,
+    'typeParameter': s.type,
+    'function': s.function,
+    'method': s.function,
+    'property': s.property,
+    'enumMember': s.constant,
+    'variable': s.variable,
+    'variable.readonly': s.constant,
+    'parameter': s.variable,
+    'keyword': s.keyword,
+    'string': s.string,
+    'number': s.number,
+    'namespace': s.type
+});
 
 export const buildThemeJson = (theme: IngotThemeDefinition): VsCodeThemeJson => ({
     name: theme.label,
     type: theme.uiTheme === 'vs' ? 'light' : 'dark',
     colors: buildWorkbenchColors(theme),
-    tokenColors: buildTokenColors(theme)
+    tokenColors: buildTokenColors(theme),
+    semanticHighlighting: true,
+    semanticTokenColors: buildSemanticTokenColors(theme)
 });
