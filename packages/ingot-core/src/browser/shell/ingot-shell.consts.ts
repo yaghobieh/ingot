@@ -21,7 +21,7 @@ export const TOOLBAR_COMMANDS = {
     debugStop: 'workbench.action.debug.stop',
     searchEverywhere: 'ingot.searchEverywhere',
     settings: 'ingot.settings.open',
-    plugins: 'vsxExtensions.toggle'
+    plugins: 'ingot.plugins.open'
 } as const;
 
 export const NO_PROJECT_LABEL = 'Open Project';

@@ -3,7 +3,7 @@ import type { SettingsAction } from '../../common/settings/settings.types';
 export const SETTINGS_OPEN_COMMAND = { id: 'ingot.settings.open', label: 'Settings…', category: 'Ingot' } as const;
 export const THEME_IMPORT_COMMAND = { id: 'ingot.theme.import', label: 'Import VS Code Color Theme…', category: 'Ingot' } as const;
 export const THEME_REMOVE_COMMAND = { id: 'ingot.theme.remove', label: 'Remove Imported Color Theme…', category: 'Ingot' } as const;
-export const PLUGINS_OPEN_COMMAND = 'vsxExtensions.toggle';
+export const PLUGINS_OPEN_COMMAND = 'ingot.plugins.open';
 
 /** Settings page buttons → commands they run after the dialog closes. */
 export const SETTINGS_ACTION_COMMANDS: Record<SettingsAction, string> = {

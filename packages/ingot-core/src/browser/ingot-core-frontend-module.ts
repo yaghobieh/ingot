@@ -69,6 +69,9 @@ import { UserThemeContribution } from './theme/user-theme-contribution';
 import { IngotIconTheme } from './icons/ingot-icon-theme';
 import { IconThemeContribution } from '@theia/core/lib/browser/icon-theme-contribution';
 import { LabelProviderContribution } from '@theia/core/lib/browser/label-provider';
+import { IngotPluginsWidget } from './plugins/ingot-plugins-widget';
+import { IngotPluginsContribution } from './plugins/ingot-plugins-contribution';
+import { PLUGINS_WIDGET_ID } from './plugins/plugins.browser-consts';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
@@ -166,4 +169,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotIconTheme).toSelf().inSingletonScope();
     bind(IconThemeContribution).toService(IngotIconTheme);
     bind(LabelProviderContribution).toService(IngotIconTheme);
+
+    bind(IngotPluginsWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: PLUGINS_WIDGET_ID, createWidget: () => ctx.container.get(IngotPluginsWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotPluginsContribution);
 });
