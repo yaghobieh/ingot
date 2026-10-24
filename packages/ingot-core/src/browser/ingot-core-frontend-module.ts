@@ -44,6 +44,10 @@ import { IngotModelsContribution } from './models/models-contribution';
 import { IngotInlineCompletions } from './models/inline-completions';
 import { bindModelPreferences } from './models/model-preferences';
 import { MODELS_WIDGET_ID } from './models/models.browser-consts';
+import { NavigationHistory } from './keymap/navigation-history';
+import { IngotKeymapContribution, keymapPreferenceSchema } from './keymap/ingot-keymap-contribution';
+import { IngotRunContribution } from './run/ingot-run-contribution';
+import { PreferenceContribution } from '@theia/core/lib/common/preferences';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
@@ -56,6 +60,13 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         bind(id).toService(IngotGroupsContribution);
     }
     bindModelPreferences(bind);
+    bind(PreferenceContribution).toConstantValue({ schema: keymapPreferenceSchema });
+    bind(NavigationHistory).toSelf().inSingletonScope();
+    bind(IngotKeymapContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(IngotKeymapContribution);
+    bind(CommandContribution).toService(IngotKeymapContribution);
+    bind(IngotRunContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(IngotRunContribution);
     bind(ModelService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ModelService>(ctx.container, MODEL_SERVICE_PATH)).inSingletonScope();
     bind(IngotModelClient).toSelf().inSingletonScope();
     bind(IngotInlineCompletions).toSelf().inSingletonScope();

@@ -15,10 +15,10 @@ export const TOOLBAR_COMMANDS = {
     openRecent: 'workspace:openRecent',
     openFolder: 'workspace:openFolder',
     git: 'scmView:toggle',
-    runTask: 'task:run',
+    runTask: 'ingot.run',
     debugStart: 'workbench.action.debug.start',
     debugStop: 'workbench.action.debug.stop',
-    searchEverywhere: 'file-search.openFile',
+    searchEverywhere: 'ingot.searchEverywhere',
     settings: 'preferences:open',
     plugins: 'vsxExtensions.toggle'
 } as const;
