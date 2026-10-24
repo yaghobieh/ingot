@@ -6,7 +6,7 @@ Ingot is an open-source AI IDE with a WebStorm (JetBrains) look and feel. Read `
 
 - Follow every rule in `.alloy/rules/` (mirrored in `.cursor/rules/`).
 - Work only on a `feature/IDEA-<n>` or `bug/IDEA-<n>` branch cut from the current `release/<version>` branch. Commit as `IDEA-<n>: <summary>`. One PR per ticket into `release/<version>`.
-- Before pushing: self code review, `pnpm gate`, `pnpm e2e`, `pnpm build`, secret scan. All green or don't push.
+- Before pushing: self code review, `npm run gate`, `npm run e2e`, `npm run build`, secret scan. All green or don't push.
 - Never commit secrets. Config with secrets lives in gitignored `ingot.config.json`.
 - Never touch `master` directly. Never force-push shared branches.
 - Types in `*.types.ts`, constants in `*.consts.ts`, path aliases, no magic strings/numbers, named exports.

@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": { "@e2e/*": ["./src/*"] }
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "fixtures"]
+}

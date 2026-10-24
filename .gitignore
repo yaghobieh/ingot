@@ -24,3 +24,14 @@ coverage/
 .DS_Store
 *.log
 .idea/
+
+# theia generated
+applications/*/lib/
+applications/*/src-gen/
+applications/*/gen-webpack*.js
+applications/*/webpack.config.js
+applications/*/.browser_modules/
+plugins/*
+!plugins/.gitkeep
+dist-electron/
+.browser_modules/
