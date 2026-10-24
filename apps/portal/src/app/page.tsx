@@ -34,7 +34,7 @@ export default async function LandingPage() {
                     <div className="hero-shot" aria-hidden>
                         <div className="hero-shot-inner" dir="ltr">
                             <div className="strip" />
-                            <div className="tree">▾ ingot<br />&nbsp;&nbsp;▾ src<br />&nbsp;&nbsp;&nbsp;&nbsp;app.ts<br />&nbsp;&nbsp;&nbsp;&nbsp;agent.ts<br />&nbsp;&nbsp;.alloy<br />&nbsp;&nbsp;package.json</div>
+                            <div className="tree">▾ ingot<br />&nbsp;&nbsp;▾ src<br />&nbsp;&nbsp;&nbsp;&nbsp;app.ts<br />&nbsp;&nbsp;&nbsp;&nbsp;agent.ts<br />&nbsp;&nbsp;.ingot<br />&nbsp;&nbsp;package.json</div>
                             <div className="editor">
                                 <span className="tok-c">{'// agent.ts'}</span><br />
                                 <span className="tok-k">export async function</span> <span className="tok-f">plan</span>(goal: <span className="tok-k">string</span>) {'{'}<br />

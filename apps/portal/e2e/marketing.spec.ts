@@ -5,7 +5,7 @@ test.describe('marketing pages', () => {
     test('landing → pricing → sign up by clicks, with TBD prices', async ({ page }, testInfo) => {
         await page.goto('/');
         await expectTheme(page, testInfo);
-        await expect(page.getByTestId('hero-title')).toContainText('WebStorm');
+        await expect(page.getByTestId('hero-title')).toContainText('open-source AI IDE');
         await expect(page.getByTestId('feature-agents')).toBeVisible();
         await shot(page, testInfo, '01-landing');
 

@@ -7,16 +7,16 @@ export const en = {
     },
     landing: {
         badge: 'Open-source AI IDE',
-        title: 'The AI IDE with the soul of WebStorm',
-        subtitle: 'Agents, every model, the IntelliJ keymap you already know, and plugins from Open VSX. Bring your own key or use ours.',
+        title: 'The calm, open-source AI IDE',
+        subtitle: 'Agents, every model, IDE-style shortcuts and plugins from Open VSX. Bring your own key or use ours.',
         ctaPrimary: 'Get started free', ctaSecondary: 'See pricing', download: 'Download for macOS & Windows (soon)',
         featuresTitle: 'Everything you need, nothing you don’t',
         features: {
             agents: { title: 'Multiple agents, multiple chats', body: 'Run agents in parallel with plans, steps and inline diffs you accept or reject.' },
             models: { title: 'Every model in one picker', body: 'Claude, GPT, Gemini, DeepSeek, Qwen, Llama and local models, with your keys or hosted.' },
-            keymap: { title: 'IntelliJ keymap', body: 'Search Everywhere, Find Action, refactorings and the shortcuts your hands already know.' },
+            keymap: { title: 'IDE-style shortcuts', body: 'Search Everywhere, Find Action, refactorings and the shortcuts your hands already know.' },
             plugins: { title: 'Plugins and themes', body: 'A store for extensions and color themes from Open VSX, and an SDK to publish your own.' },
-            rules: { title: '.alloy rules and skills', body: 'Type / in the agent for rules, skills and commands. Reads .cursor folders too.' },
+            rules: { title: '.ingot rules and skills', body: 'Type / in the agent for rules, skills and commands. Reads your existing rule folders too.' },
             sync: { title: 'Synced everywhere', body: 'Settings, model defaults and usage stay in sync between the IDE and this portal.' }
         }
     },

@@ -9,16 +9,16 @@ export const es: Messages = {
     },
     landing: {
         badge: 'IDE de IA de código abierto',
-        title: 'El IDE de IA con el alma de WebStorm',
-        subtitle: 'Agentes, todos los modelos, los atajos de IntelliJ que ya conoces y plugins de Open VSX. Usa tu propia clave o la nuestra.',
+        title: 'El IDE de IA abierto y tranquilo',
+        subtitle: 'Agentes, todos los modelos, atajos de IDE que ya conoces y plugins de Open VSX. Usa tu propia clave o la nuestra.',
         ctaPrimary: 'Empieza gratis', ctaSecondary: 'Ver precios', download: 'Descarga para macOS y Windows (pronto)',
         featuresTitle: 'Todo lo que necesitas, nada que sobre',
         features: {
             agents: { title: 'Varios agentes, varios chats', body: 'Ejecuta agentes en paralelo con planes, pasos y diffs en línea que aceptas o rechazas.' },
             models: { title: 'Todos los modelos en un selector', body: 'Claude, GPT, Gemini, DeepSeek, Qwen, Llama y modelos locales, con tus claves o alojados.' },
-            keymap: { title: 'Atajos de IntelliJ', body: 'Search Everywhere, Find Action, refactorizaciones y los atajos que tus manos ya conocen.' },
+            keymap: { title: 'Atajos de IDE', body: 'Search Everywhere, Find Action, refactorizaciones y los atajos que tus manos ya conocen.' },
             plugins: { title: 'Plugins y temas', body: 'Una tienda de extensiones y temas de color de Open VSX, y un SDK para publicar los tuyos.' },
-            rules: { title: 'Reglas y skills en .alloy', body: 'Escribe / en el agente para ver reglas, skills y comandos. También lee carpetas .cursor.' },
+            rules: { title: 'Reglas y skills en .ingot', body: 'Escribe / en el agente para ver reglas, skills y comandos. También lee tus carpetas de reglas existentes.' },
             sync: { title: 'Sincronizado en todas partes', body: 'Ajustes, modelos por defecto y uso se sincronizan entre el IDE y este portal.' }
         }
     },

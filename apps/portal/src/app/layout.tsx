@@ -11,7 +11,7 @@ import { getCurrentUser } from '@server/http/auth';
 
 export const metadata: Metadata = {
     title: { default: 'Ingot', template: '%s · Ingot' },
-    description: 'Ingot - the open-source AI IDE with the soul of WebStorm. Account, usage, billing and team portal.'
+    description: 'Ingot - the open-source AI IDE. Account, usage, billing and team portal.'
 };
 
 /** Applies the system theme before first paint to avoid a flash. */
