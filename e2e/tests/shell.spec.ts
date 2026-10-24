@@ -56,6 +56,7 @@ test.describe('IDEA-15/16 welcome screen, brand and themes', () => {
         await runCommand(page, 'Welcome to Ingot');
         const welcome = page.locator('#ingot-welcome');
         await expect(welcome).toBeVisible();
+        await expect(welcome.locator('.ingot-welcome-logo.ingot-app-icon')).toBeVisible();
         await expect(welcome.locator('#ingot-welcome-open')).toBeVisible();
         await expect(welcome.locator('#ingot-welcome-clone')).toBeVisible();
         await welcome.locator('#ingot-welcome-tab-plugins').click();

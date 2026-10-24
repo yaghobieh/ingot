@@ -90,7 +90,7 @@ export class IngotWelcomeWidget extends ReactWidget {
         return <div className='ingot-welcome-root'>
             <nav className='ingot-welcome-nav'>
                 <div className='ingot-welcome-brand'>
-                    <span className='ingot-welcome-logo ingot-brand-mark' />
+                    <span className='ingot-welcome-logo ingot-app-icon' />
                     <div>
                         <div className='ingot-welcome-name'>{PRODUCT.name}</div>
                         <div className='ingot-welcome-version'>{PRODUCT.version}</div>

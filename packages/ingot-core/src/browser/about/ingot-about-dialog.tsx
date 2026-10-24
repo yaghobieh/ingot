@@ -9,7 +9,7 @@ export class IngotAboutDialog extends AboutDialog {
 
     protected override renderHeader(): React.ReactNode {
         return <div className='ingot-about-header'>
-            <span className='ingot-about-logo ingot-brand-mark' />
+            <span className='ingot-about-logo ingot-app-icon' />
             <div>
                 <h1 className='ingot-about-title'>{PRODUCT.name} <span>{PRODUCT.version}</span></h1>
                 <p className='ingot-about-tagline'>{PRODUCT.tagline}</p>
