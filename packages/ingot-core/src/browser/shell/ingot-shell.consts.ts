@@ -1,3 +1,4 @@
+import { WORKSPACE_COMMANDS } from '../../common/workspace/workspace.consts';
 import type { Command } from '@theia/core/lib/common/command';
 
 export const INGOT_SHELL_COMMANDS = {
@@ -28,3 +29,13 @@ export const RUN_CONFIGURATION_LABEL = 'Current File';
 
 /** Views opened in the default JetBrains-style layout on first start. */
 export const DEFAULT_LAYOUT_COMMANDS = ['fileNavigator:toggle'] as const;
+
+export const PROJECT_POPUP_RECENT_LIMIT = 8;
+
+/** Actions at the bottom of the project ▾ popup (IDEA-51). */
+export const PROJECT_POPUP_ACTIONS = [
+    { id: 'open', label: 'Open…', command: WORKSPACE_COMMANDS.openFolder, requiresWorkspace: false },
+    { id: 'open-workspace', label: 'Open Workspace…', command: WORKSPACE_COMMANDS.openWorkspace, requiresWorkspace: false },
+    { id: 'add-folder', label: 'Add Folder to Workspace…', command: WORKSPACE_COMMANDS.addFolder, requiresWorkspace: true },
+    { id: 'save-workspace', label: 'Save Workspace As…', command: WORKSPACE_COMMANDS.saveWorkspaceAs, requiresWorkspace: true }
+] as const;

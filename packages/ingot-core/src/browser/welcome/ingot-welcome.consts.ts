@@ -3,6 +3,7 @@ export const WELCOME_WIDGET_LABEL = 'Welcome to Ingot';
 
 export const WELCOME_COMMANDS = {
     openFolder: 'workspace:openFolder',
+    openWorkspace: 'workspace:openWorkspace',
     newFile: 'workbench.action.files.newUntitledFile',
     plugins: 'vsxExtensions.toggle',
     keymap: 'keymaps:open',
