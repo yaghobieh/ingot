@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { APP_READY_TIMEOUT_MS, E2E_BASE_URL, E2E_PORT, FIXTURE_WORKSPACE } from './src/e2e.consts';
+import { APP_READY_TIMEOUT_MS, E2E_BASE_URL, E2E_CONFIG_DIR, E2E_PORT, FIXTURE_WORKSPACE } from './src/e2e.consts';
 
 export const config = defineConfig({
     testDir: './tests',
@@ -23,7 +23,8 @@ export const config = defineConfig({
         url: E2E_BASE_URL,
         timeout: APP_READY_TIMEOUT_MS,
         reuseExistingServer: !process.env.CI,
-        env: { INGOT_PORT: String(E2E_PORT), INGOT_WORKSPACE: FIXTURE_WORKSPACE }
+        // Isolated user config so e2e never touches the developer's ~/.ingot settings.
+        env: { INGOT_PORT: String(E2E_PORT), INGOT_WORKSPACE: FIXTURE_WORKSPACE, THEIA_CONFIG_DIR: E2E_CONFIG_DIR }
     }
 });
 

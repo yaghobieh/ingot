@@ -36,3 +36,4 @@ plugins/*
 dist-electron/
 .browser_modules/
 applications/*/gen-esbuild*.mjs
+e2e/.ingot-e2e-config/

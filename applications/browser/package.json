@@ -63,7 +63,18 @@
           "security.workspace.trust.enabled": false,
           "workbench.colorTheme": "ingot-light",
           "window.titleBarStyle": "custom",
-          "files.enableTrash": false
+          "files.enableTrash": false,
+          "breadcrumbs.enabled": false,
+          "editor.fontFamily": "'JetBrains Mono', Menlo, Consolas, monospace",
+          "editor.fontSize": 13,
+          "editor.lineHeight": 20,
+          "editor.minimap.enabled": false,
+          "editor.renderLineHighlight": "all",
+          "terminal.integrated.fontFamily": "'JetBrains Mono', Menlo, Consolas, monospace",
+          "terminal.integrated.fontSize": 13,
+          "workbench.tree.indent": 12,
+          "workbench.statusBar.visible": true,
+          "window.menuBarVisibility": "compact"
         }
       }
     },

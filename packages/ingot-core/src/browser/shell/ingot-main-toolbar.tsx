@@ -2,15 +2,19 @@ import * as React from '@theia/core/shared/react';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import { CommandRegistry } from '@theia/core/lib/common/command';
+import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-renderer';
+import { MAIN_MENU_BAR } from '@theia/core/lib/common/menu';
+import { environment } from '@theia/core/shared/@theia/application-package/lib/environment';
+import { isOSX } from '@theia/core/lib/common/os';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
-import { ScmService } from '@theia/scm/lib/browser/scm-service';
+import { IngotBranchService } from '../vcs/ingot-branch-service';
 import { MAIN_TOOLBAR_CLASS, MAIN_TOOLBAR_ID, NO_PROJECT_LABEL, NO_VCS_LABEL, RUN_CONFIGURATION_LABEL, TOOLBAR_COMMANDS } from './ingot-shell.consts';
 
 interface ToolbarButtonProps {
     readonly id: string;
     readonly icon: string;
     readonly title: string;
-    readonly onClick: () => void;
+    readonly onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
     readonly label?: string;
     readonly dropdown?: boolean;
     readonly className?: string;
@@ -34,15 +38,28 @@ export class IngotMainToolbar extends ReactWidget {
     @inject(WorkspaceService)
     protected readonly workspace: WorkspaceService;
 
-    @inject(ScmService)
-    protected readonly scm: ScmService;
+    @inject(ContextMenuRenderer)
+    protected readonly contextMenu: ContextMenuRenderer;
+
+    /** macOS Electron keeps the native menu bar; everywhere else the main menu sits behind a hamburger like JetBrains. */
+    protected get showMainMenuButton(): boolean {
+        return !(environment.electron.is() && isOSX);
+    }
+
+    protected openMainMenu(event: React.MouseEvent<HTMLButtonElement>): void {
+        const rect = event.currentTarget.getBoundingClientRect();
+        this.contextMenu.render({ menuPath: MAIN_MENU_BAR, anchor: { x: rect.left, y: rect.bottom }, context: event.currentTarget, includeAnchorArg: false });
+    }
+
+    @inject(IngotBranchService)
+    protected readonly branches: IngotBranchService;
 
     @postConstruct()
     protected init(): void {
         this.id = MAIN_TOOLBAR_ID;
         this.addClass(MAIN_TOOLBAR_CLASS);
         this.toDispose.push(this.workspace.onWorkspaceChanged(() => this.update()));
-        this.toDispose.push(this.scm.onDidChangeSelectedRepository(() => this.update()));
+        this.toDispose.push(this.branches.onDidChange(() => this.update()));
         this.update();
     }
 
@@ -58,14 +75,13 @@ export class IngotMainToolbar extends ReactWidget {
     }
 
     protected get vcsLabel(): string {
-        const repository = this.scm.selectedRepository;
-        const branch = repository?.provider.statusBarCommands?.[0]?.title;
-        return branch ? branch.replace(/\$\([^)]*\)\s*/g, '') : NO_VCS_LABEL;
+        return this.branches.branch ?? NO_VCS_LABEL;
     }
 
     protected render(): React.ReactNode {
         return <div className='ingot-tb'>
             <div className='ingot-tb-left'>
+                {this.showMainMenuButton && <ToolbarButton id='ingot-tb-menu' icon='menu' title='Main menu' onClick={e => this.openMainMenu(e)} className='ingot-tb-menu' />}
                 <span className='ingot-tb-logo ingot-brand-mark' title='Ingot' />
                 <ToolbarButton id='ingot-tb-project' icon='project' title='Project' label={this.projectLabel} dropdown onClick={() => this.run(this.workspace.opened ? TOOLBAR_COMMANDS.openRecent : TOOLBAR_COMMANDS.openFolder)} />
                 <ToolbarButton id='ingot-tb-vcs' icon='branch' title='Version control' label={this.vcsLabel} dropdown onClick={() => this.run(TOOLBAR_COMMANDS.git)} />

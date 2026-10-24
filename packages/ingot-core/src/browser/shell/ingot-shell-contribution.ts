@@ -4,7 +4,12 @@ import { CommandRegistry, type CommandContribution } from '@theia/core/lib/commo
 import { isOSX } from '@theia/core/lib/common/os';
 import { TOOL_WINDOW_KEYMAP } from '../../common/keymap/tool-windows.keymap.consts';
 import { resolveKeymap } from '../../common/keymap/keymap.utils';
+import type { PanelLayout } from '@theia/core/shared/@lumino/widgets';
+import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service';
+import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { IngotMainToolbar } from './ingot-main-toolbar';
+import { IngotStripeWidget } from '../stripe/ingot-stripe-widget';
+import { IngotAiChatContribution } from '../ai/ingot-ai-chat-contribution';
 import { DEFAULT_LAYOUT_COMMANDS, INGOT_SHELL_COMMANDS } from './ingot-shell.consts';
 
 type SideArea = 'left' | 'right' | 'bottom';
@@ -23,9 +28,54 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     @inject(IngotMainToolbar)
     protected readonly toolbar: IngotMainToolbar;
 
+    @inject(IngotStripeWidget)
+    protected readonly stripe: IngotStripeWidget;
+
+    @inject(TerminalService)
+    protected readonly terminals: TerminalService;
+
+    @inject(WorkspaceService)
+    protected readonly workspace: WorkspaceService;
+
+    @inject(IngotAiChatContribution)
+    protected readonly aiChat: IngotAiChatContribution;
+
     onStart(_app: FrontendApplication): void {
         this.shell.addWidget(this.toolbar, { area: 'top' });
         document.body.classList.add('ingot-shell');
+    }
+
+    async onDidInitializeLayout(_app: FrontendApplication): Promise<void> {
+        // Electron hides the top panel on macOS (native menu); the JetBrains main toolbar lives there.
+        this.shell.topPanel.show();
+        this.attachStripe();
+        await this.aiChat.openView({ activate: false, reveal: false });
+        await this.workspace.ready;
+        if (this.workspace.opened) {
+            await this.ensureTerminal();
+        }
+    }
+
+    /** Puts the bottom tool window group (Terminal, Run, Problems, Ports, Git) into the left stripe. */
+    protected attachStripe(): void {
+        const bottomMenu = this.shell.leftPanelHandler.bottomMenu;
+        const layout = bottomMenu.parent?.layout as PanelLayout | undefined;
+        if (!layout || layout.widgets.includes(this.stripe)) {
+            return;
+        }
+        layout.insertWidget(layout.widgets.indexOf(bottomMenu), this.stripe);
+    }
+
+    /** JetBrains keeps a Terminal docked at the bottom; make sure one exists without stealing focus. */
+    protected async ensureTerminal(): Promise<void> {
+        let [terminal] = this.terminals.all;
+        if (!terminal) {
+            terminal = await this.terminals.newTerminal({ title: 'Local' });
+            await terminal.start();
+            this.terminals.open(terminal, { widgetOptions: { area: 'bottom' }, mode: 'reveal' });
+        }
+        this.shell.expandPanel('bottom');
+        await this.shell.revealWidget(terminal.id);
     }
 
     async initializeLayout(_app: FrontendApplication): Promise<void> {
