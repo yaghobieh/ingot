@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><title>Ingot app icon</title><defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#18214D"/><stop offset="1" stop-color="#070B1C"/></linearGradient>
+  <radialGradient id="forge" cx="0.5" cy="0.86" r="0.62"><stop offset="0" stop-color="#FF6A1A" stop-opacity="0.55"/><stop offset="0.55" stop-color="#FF6A1A" stop-opacity="0.15400000000000003"/><stop offset="1" stop-color="#FF6A1A" stop-opacity="0"/></radialGradient>
+  <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".18" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  <linearGradient id="top" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF4C7"/><stop offset=".35" stop-color="#FFD66B"/><stop offset=".75" stop-color="#E9A82A"/><stop offset="1" stop-color="#C98512"/></linearGradient>
+  <linearGradient id="front" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F2B437"/><stop offset=".55" stop-color="#C47F14"/><stop offset="1" stop-color="#8E550A"/></linearGradient>
+  <linearGradient id="side" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C98516"/><stop offset="1" stop-color="#6B3D06"/></linearGradient>
+  <linearGradient id="spec" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="22"/></filter>
+  <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="6"/></filter>
+  <clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="186"/></clipPath>
+  <linearGradient id="face" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE08A"/><stop offset=".45" stop-color="#F0AE33"/><stop offset="1" stop-color="#A9650C"/></linearGradient>
+  <linearGradient id="lid" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#E9A830"/><stop offset=".5" stop-color="#FFF1BE"/><stop offset="1" stop-color="#E9A830"/></linearGradient>
+  <filter id="hot" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="8"/></filter></defs>
+  
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#bg)"/>
+  <g clip-path="url(#sq)"><rect x="0" y="0" width="1024" height="1024" fill="url(#forge)"/></g>
+  <g clip-path="url(#sq)"><ellipse cx="512" cy="742" rx="320" ry="40" fill="#000" opacity=".6" filter="url(#shadow)"/></g>
+  <polygon points="222,720 802,720 718,380 306,380" fill="url(#face)"/>
+  <polygon points="306,380 718,380 690,340 334,340" fill="url(#lid)"/>
+  
+  <polyline points="222,720 306,380 718,380 802,720" fill="none" stroke="#FFF2C4" stroke-opacity=".75" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M430 470 L370 520 L430 570 M540 455 L484 585 M594 470 L654 520 L594 570" fill="none" stroke="#FF7A1A" stroke-width="56" stroke-linecap="round" stroke-linejoin="round" filter="url(#hot)" opacity=".95"/>
+  <path d="M430 470 L370 520 L430 570 M540 455 L484 585 M594 470 L654 520 L594 570" fill="none" stroke="#5A2A03" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M430 470 L370 520 L430 570 M540 455 L484 585 M594 470 L654 520 L594 570" fill="none" stroke="#FFD27A" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M430 470 L370 520 L430 570 M540 455 L484 585 M594 470 L654 520 L594 570" fill="none" stroke="#FFFBEA" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
