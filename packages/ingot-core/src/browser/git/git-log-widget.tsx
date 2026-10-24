@@ -4,6 +4,8 @@ import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import { OpenerService, open } from '@theia/core/lib/browser/opener-service';
 import { DiffUris } from '@theia/core/lib/browser/diff-uris';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
+import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-renderer';
+import { GIT_LOG_COMMIT_MENU } from './git-actions.consts';
 import { GIT_LOG_LIMIT } from '../../common/git/git.consts';
 import { GitService, type GitCommit, type GitFileChange } from '../../common/git/git.types';
 import { relativeDate } from '../../common/git/git.utils';
@@ -17,6 +19,7 @@ export class IngotGitLogWidget extends ReactWidget {
     @inject(GitService) protected readonly git: GitService;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(OpenerService) protected readonly opener: OpenerService;
+    @inject(ContextMenuRenderer) protected readonly contextMenu: ContextMenuRenderer;
 
     protected commits: GitCommit[] = [];
     protected selected?: GitCommit;
@@ -34,6 +37,35 @@ export class IngotGitLogWidget extends ReactWidget {
         this.title.iconClass = 'codicon codicon-git-commit';
         this.addClass('ingot-git-log');
         this.refresh();
+    }
+
+    get selectedHash(): string | undefined {
+        return this.selected?.hash;
+    }
+
+    get filePath(): string | undefined {
+        return this.path;
+    }
+
+    get loadedCommits(): readonly GitCommit[] {
+        return this.commits;
+    }
+
+    /** Selects a commit by hash (Go to Child / Parent) and scrolls it into view. */
+    async selectHash(hash: string): Promise<void> {
+        const commit = this.commits.find(c => c.hash === hash || c.hash.startsWith(hash));
+        if (commit) {
+            this.filter = '';
+            await this.select(commit);
+            this.node.querySelector(`[data-hash="${commit.hash}"]`)?.scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    protected async showCommitMenu(event: React.MouseEvent, commit: GitCommit): Promise<void> {
+        event.preventDefault();
+        event.stopPropagation();
+        await this.select(commit);
+        this.contextMenu.render({ menuPath: GIT_LOG_COMMIT_MENU, anchor: { x: event.clientX, y: event.clientY }, args: [commit.hash], context: this.node });
     }
 
     protected get root(): string | undefined {
@@ -87,7 +119,8 @@ export class IngotGitLogWidget extends ReactWidget {
                 {this.error && <div className='ingot-log-empty'>{this.error}</div>}
                 {!this.error && commits.length === 0 && <div className='ingot-log-empty'>No commits.</div>}
                 {commits.map(c => (
-                    <div key={c.hash} className={`ingot-log-row${this.selected?.hash === c.hash ? ' selected' : ''}`} onClick={() => this.select(c)} title={c.hash}>
+                    <div key={c.hash} data-hash={c.hash} className={`ingot-log-row${this.selected?.hash === c.hash ? ' selected' : ''}`} onClick={() => this.select(c)}
+                        onContextMenu={e => this.showCommitMenu(e, c)} title={c.hash}>
                         <span className='ingot-log-subject'>{c.subject}</span>
                         {c.refs.map(r => <span key={r} className='ingot-badge ingot-log-ref'>{r}</span>)}
                         <span className='ingot-log-author'>{c.author}</span>
