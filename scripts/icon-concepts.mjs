@@ -60,7 +60,15 @@ const svg = body => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1
 const conceptA = small => svg(`<defs>${defs({ bgTop: '#1E2E63', bgBottom: '#0A1128', glow: '#FF8A2A', glowOpacity: 0.42 })}</defs>
   ${background(small)}<g clip-path="url(#sq)">${ingot({ dy: 10, small, mark: stamp(CODE, small ? 26 : 16) })}</g>`);
 
-const conceptB = small => svg(`<defs>${defs({ bgTop: '#232A6B', bgBottom: '#0B0F2A', glow: '#FFB347', glowOpacity: 0.34 })}
+/** 16–32 px art for B: no grid, glow or 3/4 perspective; a bold bar with a large high-contrast ›_ so it stays crisp. */
+const conceptBSmall = () => svg(`<defs>${defs({ bgTop: '#2A3280', bgBottom: '#0D1233', glow: '#FFB347', glowOpacity: 0 })}</defs>
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#bg)"/>
+  <polygon points="300,330 724,330 776,420 248,420" fill="#FFE59A"/>
+  <polygon points="248,420 776,420 850,770 174,770" fill="url(#front)"/>
+  <polyline points="174,770 248,420 300,330 724,330 776,420 850,770" fill="none" stroke="#FFF3C8" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M352 500 L478 590 L352 680 M540 690 L690 690" fill="none" stroke="#141A45" stroke-width="72" stroke-linecap="round" stroke-linejoin="round"/>`);
+
+const conceptB = small => small ? conceptBSmall() : svg(`<defs>${defs({ bgTop: '#232A6B', bgBottom: '#0B0F2A', glow: '#FFB347', glowOpacity: 0.34 })}
   <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M48 0H0V48" fill="none" stroke="#9FB4FF" stroke-opacity=".07" stroke-width="2"/></pattern></defs>
   ${background(small)}${small ? '' : '<g clip-path="url(#sq)"><rect x="100" y="100" width="824" height="520" fill="url(#grid)"/></g>'}
   <g clip-path="url(#sq)">${ingot({ dy: 20, small, mark: stamp(PROMPT, small ? 28 : 17) })}</g>
