@@ -42,7 +42,9 @@ test.describe('IDEA-13/14 Ingot UI shell', () => {
         await expect(page.locator('.lm-Menu').first()).toContainText('File');
         await page.keyboard.press('Escape');
         await expect(page.locator('#ingot-agents')).toBeVisible();
-        await expect(page.locator('#theia-right-content-panel .theia-app-sidebar-container')).toBeHidden();
+        // IDEA-61: the right edge shows Ingot's tool window stripe instead of Theia's side tabs.
+        await expect(page.locator('#theia-right-content-panel .theia-app-sidebar-container > .lm-TabBar')).toBeHidden();
+        await expect(page.locator('#ingot-right-stripe')).toBeVisible();
     });
 
     test('editor breadcrumbs, status bar index state and caret position', async ({ page }) => {
