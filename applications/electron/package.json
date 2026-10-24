@@ -68,7 +68,7 @@
           "workbench.colorTheme": "ingot-light",
           "window.titleBarStyle": "custom",
           "files.enableTrash": false,
-          "breadcrumbs.enabled": false,
+          "breadcrumbs.enabled": true,
           "editor.fontFamily": "'JetBrains Mono', Menlo, Consolas, monospace",
           "editor.fontSize": 13,
           "editor.lineHeight": 20,

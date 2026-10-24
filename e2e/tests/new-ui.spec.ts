@@ -13,7 +13,7 @@ test.describe('IDEA-13/14 JetBrains New UI shell', () => {
 
     test('shows the bottom tool window stripe and toggles tool windows from it', async ({ page }) => {
         await openIngot(page);
-        for (const id of ['terminal', 'run', 'problems', 'ports', 'git']) {
+        for (const id of ['terminal', 'run', 'problems', 'ports']) {
             await expect(page.locator(`#ingot-stripe-${id}`)).toBeVisible();
         }
         await actUntilVisible(() => page.locator('#ingot-stripe-problems').click(), page.locator('#problems'));
@@ -22,21 +22,22 @@ test.describe('IDEA-13/14 JetBrains New UI shell', () => {
         await expect(page.locator('#ingot-stripe-ports')).toHaveClass(/selected/);
     });
 
-    test('opens the main menu from the hamburger and shows AI Chat on the right stripe', async ({ page }) => {
+    test('opens the main menu from the hamburger and shows Agents on the right', async ({ page }) => {
         await openIngot(page);
         await page.locator('#ingot-tb-menu').click();
         await expect(page.locator('.lm-Menu').first()).toBeVisible();
         await expect(page.locator('.lm-Menu').first()).toContainText('File');
         await page.keyboard.press('Escape');
-        await page.locator('.lm-TabBar.theia-app-sides [id^="shell-tab-ingot-ai-chat"]').first().click();
-        await expect(page.locator('#ingot-ai-chat')).toContainText('Ingot AI');
+        await expect(page.locator('#ingot-agents')).toBeVisible();
+        await expect(page.locator('.lm-TabBar.theia-app-sides [id^="shell-tab-ingot-agents"]').first()).toBeVisible();
     });
 
-    test('status bar shows JetBrains breadcrumbs and caret position', async ({ page }) => {
+    test('editor breadcrumbs, status bar index state and caret position', async ({ page }) => {
         await openIngot(page);
         await page.locator('#explorer-view-container .theia-TreeNode', { hasText: 'src' }).first().click();
         await page.locator('#explorer-view-container .theia-TreeNode', { hasText: 'math.ts' }).first().dblclick();
-        await expect(page.locator('#theia-statusBar')).toContainText('sample-project › src › math.ts');
+        await expect(page.locator('.theia-breadcrumbs').first()).toContainText('math.ts');
+        await expect(page.locator('#theia-statusBar')).toContainText('Index ready');
         await expect(page.locator('#theia-statusBar [id$="editor-status-cursor-position"]')).toHaveText('1:1');
     });
 });

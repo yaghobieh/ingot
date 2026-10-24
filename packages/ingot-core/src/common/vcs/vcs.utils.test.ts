@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { breadcrumbs, formatCursorPosition, parseGitHead } from './vcs.utils';
+import { breadcrumbs, formatCursorPosition, parseGitHead, pickRunScript } from './vcs.utils';
 
 describe('vcs utils', () => {
     it('parses branch names and detached heads', () => {
@@ -14,5 +14,11 @@ describe('vcs utils', () => {
 
     it('formats the caret like JetBrains', () => {
         expect(formatCursorPosition(11, 5)).toBe('12:5');
+    });
+
+    it('picks the dev/start script as run configuration', () => {
+        expect(pickRunScript('{"scripts":{"build":"x","dev":"y"}}')).toBe('dev');
+        expect(pickRunScript('{"scripts":{"build":"x"}}')).toBe('build');
+        expect(pickRunScript('not json')).toBeUndefined();
     });
 });

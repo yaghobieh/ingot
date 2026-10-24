@@ -23,11 +23,7 @@ export class IngotStripeWidget extends ReactWidget {
     }
 
     protected isSelected(button: StripeButton): boolean {
-        if (!this.shell.isExpanded('bottom') && button.widgetPrefix !== 'scm-view-container') {
-            return false;
-        }
-        const area = button.widgetPrefix === 'scm-view-container' ? 'left' : 'bottom';
-        return this.shell.getWidgets(area).some(w => w.id.startsWith(button.widgetPrefix) && w.isVisible);
+        return this.shell.isExpanded('bottom') && this.shell.getWidgets('bottom').some(w => w.id.startsWith(button.widgetPrefix) && w.isVisible);
     }
 
     protected render(): React.ReactNode {

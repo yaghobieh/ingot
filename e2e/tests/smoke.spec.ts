@@ -16,7 +16,7 @@ test.describe('IDEA-40 starter app', () => {
         await expect(header).toContainText('Ingot');
         await expect(header).toContainText('0.1.0');
         await expect(header.locator('.ingot-about-logo')).toBeVisible();
-        await page.keyboard.press('Escape');
+        await page.locator('.dialogBlock').getByRole('button', { name: 'OK' }).click();
         await expect(header).toBeHidden();
     });
 });

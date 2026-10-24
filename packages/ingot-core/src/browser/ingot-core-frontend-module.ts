@@ -16,8 +16,11 @@ import { PortsService } from '../common/ports/ports.types';
 import { IngotPortsWidget } from './ports/ingot-ports-widget';
 import { IngotPortsContribution } from './ports/ingot-ports-contribution';
 import { PORTS_WIDGET_ID } from './ports/ingot-ports.consts';
-import { AI_CHAT_WIDGET_ID, IngotAiChatWidget } from './ai/ingot-ai-chat-widget';
-import { IngotAiChatContribution } from './ai/ingot-ai-chat-contribution';
+import { AgentStore } from './agents/agent-store';
+import { AgentEditReview } from './agents/agent-edit-review';
+import { IngotAgentsWidget } from './agents/agents-widget';
+import { IngotAgentsContribution } from './agents/agents-contribution';
+import { AGENTS_WIDGET_ID } from './agents/agents.consts';
 import { IngotStripeWidget } from './stripe/ingot-stripe-widget';
 import { IngotBranchService } from './vcs/ingot-branch-service';
 import { IngotStatusBarContribution } from './status/ingot-status-bar-contribution';
@@ -50,9 +53,11 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: PORTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotPortsWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotPortsContribution);
 
-    bind(IngotAiChatWidget).toSelf();
-    bind(WidgetFactory).toDynamicValue(ctx => ({ id: AI_CHAT_WIDGET_ID, createWidget: () => ctx.container.get(IngotAiChatWidget) })).inSingletonScope();
-    bindViewContribution(bind, IngotAiChatContribution);
+    bind(AgentStore).toSelf().inSingletonScope();
+    bind(AgentEditReview).toSelf().inSingletonScope();
+    bind(IngotAgentsWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentsWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotAgentsContribution);
 
     bind(IngotStripeWidget).toSelf().inSingletonScope();
     bind(IngotBranchService).toSelf().inSingletonScope();

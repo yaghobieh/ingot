@@ -9,8 +9,13 @@ import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-servi
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { IngotMainToolbar } from './ingot-main-toolbar';
 import { IngotStripeWidget } from '../stripe/ingot-stripe-widget';
-import { IngotAiChatContribution } from '../ai/ingot-ai-chat-contribution';
+import { IngotAgentsContribution } from '../agents/agents-contribution';
+import { WidgetManager } from '@theia/core/lib/browser/widget-manager';
+import { ViewContainer } from '@theia/core/lib/browser/view-container';
 import { DEFAULT_LAYOUT_COMMANDS, INGOT_SHELL_COMMANDS } from './ingot-shell.consts';
+
+const EXPLORER_CONTAINER_ID = 'explorer-view-container';
+const PROJECT_VIEW_LABEL = 'Project';
 
 type SideArea = 'left' | 'right' | 'bottom';
 const SIDE_AREAS: readonly SideArea[] = ['left', 'right', 'bottom'];
@@ -37,8 +42,11 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     @inject(WorkspaceService)
     protected readonly workspace: WorkspaceService;
 
-    @inject(IngotAiChatContribution)
-    protected readonly aiChat: IngotAiChatContribution;
+    @inject(IngotAgentsContribution)
+    protected readonly agents: IngotAgentsContribution;
+
+    @inject(WidgetManager)
+    protected readonly widgets: WidgetManager;
 
     onStart(_app: FrontendApplication): void {
         this.shell.addWidget(this.toolbar, { area: 'top' });
@@ -49,10 +57,20 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         // Electron hides the top panel on macOS (native menu); the JetBrains main toolbar lives there.
         this.shell.topPanel.show();
         this.attachStripe();
-        await this.aiChat.openView({ activate: false, reveal: false });
+        await this.agents.openView({ activate: false, reveal: true });
+        this.renameProjectView();
         await this.workspace.ready;
         if (this.workspace.opened) {
             await this.ensureTerminal();
+        }
+    }
+
+    /** JetBrains calls the file tree "Project". */
+    protected async renameProjectView(): Promise<void> {
+        const explorer = await this.widgets.getWidget(EXPLORER_CONTAINER_ID);
+        if (explorer instanceof ViewContainer) {
+            explorer.setTitleOptions({ label: PROJECT_VIEW_LABEL, iconClass: explorer.title.iconClass, closeable: true });
+            explorer.title.label = PROJECT_VIEW_LABEL;
         }
     }
 

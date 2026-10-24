@@ -14,7 +14,7 @@
     "e2e"
   ],
   "scripts": {
-    "postinstall": "npm run build:packages",
+    "postinstall": "npm run build:packages && npm run brand:electron-dev && npm run download:plugins",
     "build:packages": "npm run build -w @ingot/core",
     "build:browser": "npm run bundle -w applications/browser",
     "build:electron": "npm run bundle -w applications/electron",
@@ -26,12 +26,36 @@
     "test": "npm run test -w packages/ingot-core",
     "gate": "npm run lint && npm run typecheck && npm run test",
     "e2e": "npm run test -w e2e",
-    "secret-scan": "node scripts/secret-scan.mjs"
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "brand:electron-dev": "node scripts/brand-electron-dev.mjs",
+    "download:plugins": "theia download:plugins --rate-limit 15 --parallel=false"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "eslint": "^9.17.0",
     "typescript": "~5.6.3",
     "typescript-eslint": "^8.18.0"
+  },
+  "theiaPluginsDir": "plugins",
+  "theiaPlugins": {
+    "vscode.typescript": "https://open-vsx.org/api/vscode/typescript/1.95.3/file/vscode.typescript-1.95.3.vsix",
+    "vscode.javascript": "https://open-vsx.org/api/vscode/javascript/1.95.3/file/vscode.javascript-1.95.3.vsix",
+    "vscode.typescript-language-features": "https://open-vsx.org/api/vscode/typescript-language-features/1.95.3/file/vscode.typescript-language-features-1.95.3.vsix",
+    "vscode.json": "https://open-vsx.org/api/vscode/json/1.95.3/file/vscode.json-1.95.3.vsix",
+    "vscode.json-language-features": "https://open-vsx.org/api/vscode/json-language-features/1.95.3/file/vscode.json-language-features-1.95.3.vsix",
+    "vscode.css": "https://open-vsx.org/api/vscode/css/1.95.3/file/vscode.css-1.95.3.vsix",
+    "vscode.css-language-features": "https://open-vsx.org/api/vscode/css-language-features/1.95.3/file/vscode.css-language-features-1.95.3.vsix",
+    "vscode.html": "https://open-vsx.org/api/vscode/html/1.95.3/file/vscode.html-1.95.3.vsix",
+    "vscode.html-language-features": "https://open-vsx.org/api/vscode/html-language-features/1.95.3/file/vscode.html-language-features-1.95.3.vsix",
+    "vscode.markdown": "https://open-vsx.org/api/vscode/markdown/1.95.3/file/vscode.markdown-1.95.3.vsix",
+    "vscode.markdown-language-features": "https://open-vsx.org/api/vscode/markdown-language-features/1.95.3/file/vscode.markdown-language-features-1.95.3.vsix",
+    "vscode.scss": "https://open-vsx.org/api/vscode/scss/1.95.3/file/vscode.scss-1.95.3.vsix",
+    "vscode.yaml": "https://open-vsx.org/api/vscode/yaml/1.95.3/file/vscode.yaml-1.95.3.vsix",
+    "vscode.shellscript": "https://open-vsx.org/api/vscode/shellscript/1.95.3/file/vscode.shellscript-1.95.3.vsix",
+    "vscode.docker": "https://open-vsx.org/api/vscode/docker/1.95.3/file/vscode.docker-1.95.3.vsix",
+    "vscode.git": "https://open-vsx.org/api/vscode/git/1.95.3/file/vscode.git-1.95.3.vsix",
+    "vscode.git-base": "https://open-vsx.org/api/vscode/git-base/1.95.3/file/vscode.git-base-1.95.3.vsix",
+    "vscode.npm": "https://open-vsx.org/api/vscode/npm/1.95.3/file/vscode.npm-1.95.3.vsix",
+    "vscode.emmet": "https://open-vsx.org/api/vscode/emmet/1.95.3/file/vscode.emmet-1.95.3.vsix"
   }
 }

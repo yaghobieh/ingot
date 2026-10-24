@@ -1,50 +1,33 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import type { FrontendApplicationContribution } from '@theia/core/lib/browser';
 import { StatusBar, StatusBarAlignment } from '@theia/core/lib/browser/status-bar';
-import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
-import { breadcrumbs } from '../../common/vcs/vcs.utils';
+import { FileSearchService } from '@theia/file-search/lib/common/file-search-service';
 import { IngotBranchService } from '../vcs/ingot-branch-service';
+import { AgentStore } from '../agents/agent-store';
+import { AGENT_COMMANDS } from '../agents/agents.consts';
 
-const BREADCRUMBS_ID = 'ingot-breadcrumbs';
 const BRANCH_ID = 'ingot-branch';
-const SEPARATOR = ' › ';
+const INDEX_ID = 'ingot-index';
+const AGENTS_ID = 'ingot-agents-active';
 
-/** JetBrains New UI status bar: breadcrumbs on the left, Git branch on the right (IDEA-13). */
+/** Status bar from the design reference: branch, index state and active agents on the left (IDEA-13). */
 @injectable()
 export class IngotStatusBarContribution implements FrontendApplicationContribution {
 
     @inject(StatusBar) protected readonly statusBar: StatusBar;
-    @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(IngotBranchService) protected readonly branches: IngotBranchService;
+    @inject(AgentStore) protected readonly agents: AgentStore;
+    @inject(FileSearchService) protected readonly fileSearch: FileSearchService;
 
     onStart(): void {
-        this.editors.onCurrentEditorChanged(() => this.updateBreadcrumbs());
-        this.workspace.onWorkspaceChanged(() => this.updateBreadcrumbs());
         this.branches.onDidChange(() => this.updateBranch());
-        this.updateBreadcrumbs();
+        this.agents.onDidChange(() => this.updateAgents());
+        this.workspace.onWorkspaceChanged(() => this.updateIndex());
         this.updateBranch();
-    }
-
-    protected updateBreadcrumbs(): void {
-        const [root] = this.workspace.tryGetRoots();
-        if (!root) {
-            this.statusBar.removeElement(BREADCRUMBS_ID);
-            return;
-        }
-        const editor = this.editors.currentEditor;
-        const parts = editor
-            ? breadcrumbs(root.resource.path.toString(), root.resource.path.base, editor.editor.uri.path.toString())
-            : [root.resource.path.base];
-        this.statusBar.setElement(BREADCRUMBS_ID, {
-            text: parts.join(SEPARATOR),
-            tooltip: editor?.editor.uri.path.fsPath() ?? root.resource.path.fsPath(),
-            alignment: StatusBarAlignment.LEFT,
-            priority: 1000,
-            className: 'ingot-status-breadcrumbs',
-            command: 'revealInExplorer'
-        });
+        this.updateAgents();
+        this.updateIndex();
     }
 
     protected updateBranch(): void {
@@ -54,12 +37,37 @@ export class IngotStatusBarContribution implements FrontendApplicationContributi
             return;
         }
         this.statusBar.setElement(BRANCH_ID, {
-            text: `$(git-branch) ${branch}`,
-            tooltip: `Git branch: ${branch}`,
-            alignment: StatusBarAlignment.RIGHT,
-            priority: -1000,
-            className: 'ingot-status-branch',
-            command: 'scmView:toggle'
+            text: branch, tooltip: `Git branch: ${branch}`, alignment: StatusBarAlignment.LEFT, priority: 1000,
+            className: 'ingot-status-branch', command: 'scmView:toggle'
+        });
+    }
+
+    /** "Indexing…" until the workspace file index answers a query, then "Index ready". */
+    protected async updateIndex(): Promise<void> {
+        await this.workspace.ready;
+        const roots = this.workspace.tryGetRoots().map(r => r.resource.toString());
+        if (!roots.length) {
+            this.statusBar.removeElement(INDEX_ID);
+            return;
+        }
+        this.statusBar.setElement(INDEX_ID, { text: 'Indexing…', alignment: StatusBarAlignment.LEFT, priority: 990, className: 'ingot-status-index' });
+        try {
+            await this.fileSearch.find('', { rootUris: roots, limit: 1 });
+            this.statusBar.setElement(INDEX_ID, { text: 'Index ready', tooltip: 'Project files indexed for search', alignment: StatusBarAlignment.LEFT, priority: 990, className: 'ingot-status-index' });
+        } catch {
+            this.statusBar.setElement(INDEX_ID, { text: 'Index unavailable', alignment: StatusBarAlignment.LEFT, priority: 990, className: 'ingot-status-index' });
+        }
+    }
+
+    protected updateAgents(): void {
+        const count = this.agents.activeCount;
+        if (!count) {
+            this.statusBar.removeElement(AGENTS_ID);
+            return;
+        }
+        this.statusBar.setElement(AGENTS_ID, {
+            text: `${count} ${count === 1 ? 'agent' : 'agents'} active`, alignment: StatusBarAlignment.LEFT, priority: 980,
+            className: 'ingot-status-agents', command: AGENT_COMMANDS.toggle.id
         });
     }
 }

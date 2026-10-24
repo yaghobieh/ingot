@@ -14,8 +14,7 @@ export const BOTTOM_STRIPE: readonly StripeButton[] = [
     { id: 'terminal', icon: 'terminal', title: 'Terminal (⌥F12)', command: 'workbench.action.terminal.toggleTerminal', widgetPrefix: 'terminal-' },
     { id: 'run', icon: 'run', title: 'Run (⌘4)', command: 'output:toggle', widgetPrefix: 'outputView' },
     { id: 'problems', icon: 'problems', title: 'Problems (⌘6)', command: 'problemsView:toggle', widgetPrefix: 'problems' },
-    { id: 'ports', icon: 'ports', title: 'Services / Ports', command: PORTS_TOGGLE_COMMAND.id, widgetPrefix: 'ingot-ports' },
-    { id: 'git', icon: 'git', title: 'Git (⌘9)', command: 'scmView:toggle', widgetPrefix: 'scm-view-container' }
+    { id: 'ports', icon: 'ports', title: 'Services / Ports', command: PORTS_TOGGLE_COMMAND.id, widgetPrefix: 'ingot-ports' }
 ];
 
 export const STRIPE_WIDGET_ID = 'ingot-stripe-bottom';

@@ -18,3 +18,15 @@ export const breadcrumbs = (rootPath: string, rootName: string, filePath: string
 
 /** `line` is zero-based (Monaco), `column` is the visible one-based column. */
 export const formatCursorPosition = (line: number, column: number): string => `${line + 1}:${column}`;
+
+const PREFERRED_RUN_SCRIPTS = ['dev', 'start', 'serve', 'watch'] as const;
+
+/** Picks the default run configuration from a package.json text. */
+export const pickRunScript = (packageJson: string): string | undefined => {
+    try {
+        const scripts = Object.keys((JSON.parse(packageJson) as { scripts?: Record<string, string> }).scripts ?? {});
+        return PREFERRED_RUN_SCRIPTS.find(s => scripts.includes(s)) ?? scripts[0];
+    } catch {
+        return undefined;
+    }
+};
