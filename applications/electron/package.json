@@ -68,6 +68,7 @@
           "git.openRepositoryInParentFolders": "never",
           "window.title": "${dirty}${appName}${separator}${rootName}${separator}${activeEditorShort}",
           "workbench.colorTheme": "ingot-light",
+          "workbench.iconTheme": "ingot-badges",
           "window.titleBarStyle": "custom",
           "files.enableTrash": false,
           "breadcrumbs.enabled": true,

@@ -48,3 +48,31 @@ export const fileIconFor = (name: string, isDirectory: boolean): FileIcon => {
 };
 
 export const fileIconClasses = (icon: FileIcon): string => `codicon codicon-${icon.codicon} ingot-fi ingot-fi-${icon.kind}`;
+
+/** Ingot Badges icon theme (reference look): small text badges such as TS, JS or {} and no folder icons. */
+export const INGOT_BADGE_THEME_ID = 'ingot-badges';
+export const INGOT_BADGE_THEME_LABEL = 'Ingot Badges';
+
+/** Badge slug per file kind/extension; the CSS draws the text for each slug. */
+export const BADGE_TEXT: Record<string, string> = {
+    ts: 'TS', tsx: 'TSX', js: 'JS', jsx: 'JSX', json: '{ }', md: 'M↓', css: '#', html: '<>', py: 'PY', go: 'GO', rs: 'RS', java: 'JV',
+    sh: '$', yml: 'Y', env: '•', agent: 'AI', npm: '{ }', git: 'G', media: '▣', lock: '⚿', file: '·'
+};
+
+const BADGE_BY_KIND: Record<string, string> = { npm: 'npm', agent: 'agent', git: 'git', media: 'media', secret: 'env', shell: 'sh', config: 'yml', style: 'css', html: 'html', doc: 'md' };
+
+export const fileBadgeFor = (name: string): { slug: string; kind: string } => {
+    const icon = fileIconFor(name, false);
+    const ext = name.toLowerCase().includes('.') ? name.toLowerCase().split('.').pop()! : '';
+    const slug = BADGE_BY_KIND[icon.kind] ?? (BADGE_TEXT[ext] ? ext : icon.kind === 'default' ? 'file' : BADGE_TEXT[icon.kind] ? icon.kind : 'file');
+    return { slug: icon.codicon === 'lock' ? 'lock' : slug, kind: icon.kind };
+};
+
+/** Folders get no icon; files get `ingot-fbadge ingot-fbadge-<slug>` plus the kind colour. */
+export const badgeClasses = (name: string, isDirectory: boolean): string => {
+    if (isDirectory) {
+        return 'ingot-fbadge-none';
+    }
+    const { slug, kind } = fileBadgeFor(name);
+    return `ingot-fbadge ingot-fbadge-${slug} ingot-fi-${kind}`;
+};

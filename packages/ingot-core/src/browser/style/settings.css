@@ -58,3 +58,31 @@
 .ingot-fi-test { color: #4FA84F; }
 .ingot-fi-py { color: #3776AB; } .ingot-fi-go { color: #00ADD8; } .ingot-fi-rs { color: #CE422B; } .ingot-fi-java { color: #E76F00; }
 .ingot-fi-shell { color: #89E051; }
+
+/* Ingot Badges icon theme: text badges, no folder icons. */
+.ingot-fbadge-none { display: none !important; }
+.ingot-fbadge { display: inline-flex !important; align-items: center; justify-content: center; min-width: 16px; height: 14px; padding: 0 1px; margin-right: 4px; font: 600 9px/14px var(--theia-ui-font-family); letter-spacing: -.02em; font-style: normal; }
+.ingot-fbadge::before { font-family: inherit !important; }
+.ingot-fbadge-ts::before { content: "TS"; }
+.ingot-fbadge-tsx::before { content: "TSX"; }
+.ingot-fbadge-js::before { content: "JS"; }
+.ingot-fbadge-jsx::before { content: "JSX"; }
+.ingot-fbadge-json::before { content: "{ }"; }
+.ingot-fbadge-md::before { content: "M\u2193"; }
+.ingot-fbadge-css::before { content: "#"; }
+.ingot-fbadge-html::before { content: "<>"; }
+.ingot-fbadge-py::before { content: "PY"; }
+.ingot-fbadge-go::before { content: "GO"; }
+.ingot-fbadge-rs::before { content: "RS"; }
+.ingot-fbadge-java::before { content: "JV"; }
+.ingot-fbadge-sh::before { content: "$"; }
+.ingot-fbadge-yml::before { content: "Y"; }
+.ingot-fbadge-env::before { content: "\u2022"; }
+.ingot-fbadge-agent::before { content: "AI"; }
+.ingot-fbadge-npm::before { content: "{ }"; }
+.ingot-fbadge-git::before { content: "G"; }
+.ingot-fbadge-media::before { content: "\u25a3"; }
+.ingot-fbadge-lock::before { content: "\u26bf"; }
+.ingot-fbadge-file::before { content: "\u00b7"; }
+.ingot-fbadge-ts { color: #3178C6; } .ingot-fbadge-js { color: #C9A40A; } .ingot-fbadge-npm, .ingot-fbadge-json { color: #C9A13B; }
+.ingot-fbadge-agent { color: var(--ingot-primary); }

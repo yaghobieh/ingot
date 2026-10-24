@@ -55,5 +55,15 @@ test.describe('IDEA-35/36 color themes and icon themes', () => {
         await iconSelect(page).selectOption({ label: 'File Icons (Theia)' });
         await page.locator('#ingot-settings-ok').click();
         await expect(tree.locator('.ingot-fi')).toHaveCount(0);
+
+        // Default Ingot Badges: TS/{ }/AI text badges on files, no folder icons.
+        await openSettings(page);
+        await iconSelect(page).selectOption({ label: 'Ingot Badges' });
+        await page.locator('#ingot-settings-ok').click();
+        await expect(tree.locator('.theia-TreeNode', { hasText: 'AGENTS.md' }).locator('.ingot-fbadge-agent')).toBeVisible();
+        await expect(tree.locator('.theia-TreeNode', { hasText: 'themes' }).locator('.ingot-fbadge-none')).toBeHidden();
+        await expect(tree.locator('.theia-TreeNode', { hasText: 'themes' }).locator('.ingot-fbadge-none')).toHaveCount(1);
+        const badge = await tree.locator('.theia-TreeNode', { hasText: 'AGENTS.md' }).locator('.ingot-fbadge').evaluate(el => getComputedStyle(el, '::before').content);
+        expect(badge).toBe('"AI"');
     });
 });
