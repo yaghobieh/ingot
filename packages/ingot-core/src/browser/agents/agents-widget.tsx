@@ -190,7 +190,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     {AGENT_MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </select>
                 <select id='ingot-composer-model' className='ingot-select' value={this.store.model} aria-label='Model' onChange={e => { this.store.model = e.currentTarget.value; this.store.changed(); }}>
-                    {MODEL_OPTIONS.map(m => <option key={m.id} value={m.id}>{m.label}{this.models.isModelConfigured(m.id) ? '' : ' — not connected'}</option>)}
+                    {MODEL_OPTIONS.map(m => <option key={m.id} value={m.id}>{m.label}{this.models.isModelConfigured(m.id) ? '' : ' (no key)'}</option>)}
                 </select>
                 <span className='ingot-flex' />
                 {this.store.isRunning(this.store.current?.id)

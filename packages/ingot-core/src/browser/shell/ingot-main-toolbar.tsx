@@ -208,6 +208,7 @@ export class IngotMainToolbar extends ReactWidget {
                 <button id='ingot-tb-theme' type='button' className='ingot-tb-button' title='Theme: Light, Dark or System' aria-label='Theme' onClick={() => this.run(TOOLBAR_COMMANDS.theme)}>
                     <span className='codicon codicon-color-mode' />
                 </button>
+                <ToolbarButton id='ingot-tb-settings' icon='settings' title='Settings' onClick={() => this.run(TOOLBAR_COMMANDS.settings)} />
             </div>
         </div>;
     }
