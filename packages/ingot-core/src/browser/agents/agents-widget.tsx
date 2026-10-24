@@ -518,6 +518,10 @@ export class IngotAgentsWidget extends ReactWidget {
         const ratio = usageRatio(usage);
         const r = 7;
         const c = 2 * Math.PI * r;
+        if (!usage || ratio <= 0) {
+            // Nothing sent yet: no ring (an empty ring reads as a spinner).
+            return undefined;
+        }
         return <span id='ingot-context-ring' className={`ingot-context-ring${ratio >= CONTEXT_NEAR_FULL ? ' near-full' : ''}`} data-ratio={ratio.toFixed(3)}
             title={usage ? usageBreakdown(usage) : 'Context usage appears after the first message'} aria-label={`Context ${Math.round(ratio * 100)}% used`}>
             <svg width='18' height='18' viewBox='0 0 18 18'>
