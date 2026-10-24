@@ -70,7 +70,7 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
             status: 'review',
             activeFile: uri.path.base,
             messages: [{ role: 'user', text: `Annotate the first function in ${uri.path.base}` }],
-            plan: [{ text: `Read ${uri.path.base}`, state: 'done' }, { text: 'Annotate the first function', state: 'done' }, { text: 'Ask for review', state: 'active' }],
+            plan: [{ text: `Read ${uri.path.base}`, state: 'done' }, { text: 'Annotate the first function', state: 'active' }, { text: 'Ask for review', state: 'todo' }],
             steps: [{ kind: 'read', target: uri.path.base, done: true }, { kind: 'edit', target: uri.path.base, done: false, added: stats.added, removed: stats.removed }],
             changes: [{ uri: uri.toString(), label: uri.path.base, added: stats.added, removed: stats.removed }]
         });

@@ -215,6 +215,7 @@ test.describe('IDEA-77 chat redesign', () => {
         await expect.poll(() => fs.readdirSync(dir).filter(f => f.endsWith('.md')).length).toBe(0);
 
         // Manager: add, search, edit, delete; Generate memories toggle.
+        await page.locator('#ingot-agents-history').click();
         await page.locator('#ingot-agents-memories').click();
         const manager = page.locator('#ingot-memories');
         await manager.locator('#ingot-memories-add').click();
