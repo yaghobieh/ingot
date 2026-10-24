@@ -190,6 +190,9 @@ test.describe('IDEA-77 chat redesign', () => {
 
         // The open file is never attached automatically; only pasted code and @ mentions become chips.
         await expect(page.locator('#ingot-context-file, #ingot-context-attach-file')).toHaveCount(0);
+        // Idle: no context ring (never a spinner), and Send stays muted until there is text.
+        await expect(page.locator('#ingot-context-ring')).toHaveCount(0);
+        await expect(page.locator('#ingot-composer-send')).toBeDisabled();
 
         await send(page, 'Please remember how we indent');
         const saved = agents(page).locator('.ingot-chat-memory');
