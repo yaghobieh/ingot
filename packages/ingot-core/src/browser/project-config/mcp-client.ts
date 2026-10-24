@@ -7,12 +7,15 @@ import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service
 import URI from '@theia/core/lib/common/uri';
 import { McpService, type McpServerConfig, type McpServerStatus, type McpToolResult } from '../../common/project-config/project-config.types';
 import { MCP_FILE } from '../../common/project-config/project-config.consts';
-import { mergeByName, parseMcpJson, toMcpJson } from '../../common/project-config/project-config.utils';
+import { headerSecretName, mergeByName, parseMcpJson, toMcpJson } from '../../common/project-config/project-config.utils';
 import type { McpScope } from '../../common/mcp/mcp-catalog';
 import { ProjectConfigService } from './project-config-service';
 
 const ENABLED_KEY = 'ingot.mcp.enabled:';
 const USER_DISABLED_KEY = 'ingot.mcp.userDisabled';
+const PROJECT_DISABLED_KEY = 'ingot.mcp.projectDisabled:';
+const IMPORTED_ENABLED_KEY = 'ingot.mcp.importedEnabled';
+const DISABLED_TOOLS_KEY = 'ingot.mcp.disabledTools';
 const PROJECT_DIR = '.ingot';
 
 /**
@@ -37,22 +40,79 @@ export class IngotMcpClient {
     /** All servers: project servers override user servers with the same name. */
     servers: readonly McpServerConfig[] = [];
     userServers: readonly McpServerConfig[] = [];
+    /** Servers from imported global config folders: off until enabled. */
+    importedServers: readonly McpServerConfig[] = [];
     projectServers: readonly McpServerConfig[] = [];
     statuses: readonly McpServerStatus[] = [];
     protected enabled = new Set<string>();
     protected userDisabled = new Set<string>();
+    protected projectDisabled = new Set<string>();
+    protected importedEnabled = new Set<string>();
+    protected disabledTools: Record<string, string[]> = {};
     protected root?: URI;
 
     get connectedTools(): { server: string; name: string; description?: string; inputSchema?: unknown }[] {
-        return this.statuses.filter(s => s.state === 'connected').flatMap(s => s.tools.map(t => ({ server: s.name, ...t })));
+        return this.statuses.filter(s => s.state === 'connected')
+            .flatMap(s => s.tools.filter(t => this.isToolEnabled(s.name, t.name)).map(t => ({ server: s.name, ...t })));
     }
 
-    scopeOf(name: string): McpScope {
-        return this.projectServers.some(s => s.name === name) ? 'project' : 'user';
+    scopeOf(name: string): McpScope | 'imported' {
+        if (this.projectServers.some(s => s.name === name)) {
+            return 'project';
+        }
+        return this.userServers.some(s => s.name === name) ? 'user' : 'imported';
     }
 
     isEnabled(name: string): boolean {
-        return this.scopeOf(name) === 'project' ? this.enabled.has(name) : !this.userDisabled.has(name);
+        switch (this.scopeOf(name)) {
+            case 'project': return this.enabled.has(name);
+            case 'imported': return this.importedEnabled.has(name);
+            default: return !this.userDisabled.has(name) && !this.projectDisabled.has(name);
+        }
+    }
+
+    /** A global server switched off for the current project only. */
+    isProjectDisabled(name: string): boolean {
+        return this.projectDisabled.has(name);
+    }
+
+    isToolEnabled(server: string, tool: string): boolean {
+        return !this.disabledTools[server]?.includes(tool);
+    }
+
+    async setToolEnabled(server: string, tool: string, enabled: boolean): Promise<void> {
+        const rest = (this.disabledTools[server] ?? []).filter(t => t !== tool);
+        this.disabledTools = { ...this.disabledTools, [server]: enabled ? rest : [...rest, tool] };
+        await this.storage.setData(DISABLED_TOOLS_KEY, this.disabledTools);
+        this.onDidChangeEmitter.fire();
+    }
+
+    /** Switches a global server off (or back on) for this project only. */
+    async setProjectDisabled(name: string, disabled: boolean): Promise<void> {
+        if (disabled) {
+            this.projectDisabled.add(name);
+        } else {
+            this.projectDisabled.delete(name);
+        }
+        if (this.root) {
+            await this.storage.setData(PROJECT_DISABLED_KEY + this.root.toString(), [...this.projectDisabled]);
+        }
+        await this.sync();
+    }
+
+    /** Stops and starts one server again (e.g. after fixing its environment). */
+    async restart(name: string): Promise<void> {
+        const wanted = this.servers.filter(s => this.isEnabled(s.name) && s.name !== name);
+        await this.service.sync(wanted, this.root?.path.fsPath() ?? '');
+        await this.sync();
+    }
+
+    /** Replaces a server's config (renaming it when the name changed). */
+    async updateServer(previous: string, config: McpServerConfig, scope: McpScope, secrets: Readonly<Record<string, string>>): Promise<void> {
+        if (previous !== config.name && this.servers.some(s => s.name === previous)) {
+            await this.removeServer(previous);
+        }
+        await this.addServer(config, scope, secrets);
     }
 
     statusOf(name: string): McpServerStatus | undefined {
@@ -81,14 +141,32 @@ export class IngotMcpClient {
         const config = await this.config.load(root);
         this.projectServers = config.mcpServers;
         this.userServers = await this.readServers(await this.userFile(), 'user');
-        this.servers = mergeByName(this.userServers, this.projectServers);
+        this.importedServers = (await this.config.loadImportedGlobalServers()).filter(s => !this.userServers.some(u => u.name === s.name));
+        this.servers = mergeByName(this.importedServers, this.userServers, this.projectServers);
+        this.projectDisabled = new Set(root ? await this.storage.getData<string[]>(PROJECT_DISABLED_KEY + root.toString(), []) : []);
+        this.importedEnabled = new Set(await this.storage.getData<string[]>(IMPORTED_ENABLED_KEY, []));
+        this.disabledTools = await this.storage.getData<Record<string, string[]>>(DISABLED_TOOLS_KEY, {});
         this.enabled = new Set(root ? await this.storage.getData<string[]>(ENABLED_KEY + root.toString(), []) : []);
         this.userDisabled = new Set(await this.storage.getData<string[]>(USER_DISABLED_KEY, []));
         await this.sync();
     }
 
     async setEnabled(name: string, enabled: boolean): Promise<void> {
-        if (this.scopeOf(name) === 'user') {
+        const scope = this.scopeOf(name);
+        if (scope === 'imported') {
+            if (enabled) {
+                this.importedEnabled.add(name);
+            } else {
+                this.importedEnabled.delete(name);
+            }
+            await this.storage.setData(IMPORTED_ENABLED_KEY, [...this.importedEnabled]);
+        } else if (scope === 'user') {
+            if (enabled) {
+                this.projectDisabled.delete(name);
+                if (this.root) {
+                    await this.storage.setData(PROJECT_DISABLED_KEY + this.root.toString(), [...this.projectDisabled]);
+                }
+            }
             if (enabled) {
                 this.userDisabled.delete(name);
             } else {
@@ -121,6 +199,7 @@ export class IngotMcpClient {
                 await this.service.setSecret(config.name, name, value);
             }
         }
+        await this.storage.setData(DISABLED_TOOLS_KEY, { ...this.disabledTools, [config.name]: [] });
         if (scope === 'project') {
             this.enabled.add(config.name);
             if (this.root) {
@@ -135,13 +214,16 @@ export class IngotMcpClient {
 
     async removeServer(name: string): Promise<void> {
         const scope = this.scopeOf(name);
+        if (scope === 'imported') {
+            throw new Error('Imported servers are read-only here. Disable it instead, or add a copy.');
+        }
         const file = scope === 'user' ? await this.userFile() : this.projectFile();
         const server = this.servers.find(s => s.name === name);
         if (file) {
             const existing = await this.readServers(file, scope === 'user' ? 'user' : 'ingot');
             await this.files.write(file, toMcpJson(existing.filter(s => s.name !== name)));
         }
-        await this.service.deleteSecrets(name, [...(server?.secretEnv ?? [])]);
+        await this.service.deleteSecrets(name, [...(server?.secretEnv ?? []), ...(server?.secretHeaders ?? []).map(headerSecretName)]);
         await this.refresh(this.root);
     }
 

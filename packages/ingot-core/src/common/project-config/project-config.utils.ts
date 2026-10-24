@@ -123,6 +123,14 @@ const splitSecretEnv = (env: Record<string, string> | undefined): { env?: Record
     return { ...(Object.keys(plain).length ? { env: plain } : {}), ...(secretEnv.length ? { secretEnv } : {}) };
 };
 
+/** Header secrets share the server's keychain namespace with a `header:` prefix. */
+export const headerSecretName = (header: string): string => `header:${header}`;
+
+const splitSecretHeaders = (headers: Record<string, string> | undefined): { headers?: Record<string, string>; secretHeaders?: string[] } => {
+    const split = splitSecretEnv(headers);
+    return { ...(split.env ? { headers: split.env } : {}), ...(split.secretEnv ? { secretHeaders: split.secretEnv } : {}) };
+};
+
 /** Keychain account for one MCP secret. */
 export const mcpSecretKey = (server: string, name: string): string => `mcp:${server}:${name}`;
 
@@ -136,7 +144,7 @@ export const toMcpJson = (servers: readonly McpServerConfig[]): string => JSON.s
         ...(s.command ? { command: s.command, args: [...(s.args ?? [])] } : {}),
         ...(s.url ? { url: s.url } : {}),
         ...(s.env || s.secretEnv ? { env: { ...(s.env ?? {}), ...Object.fromEntries((s.secretEnv ?? []).map(k => [k, KEYCHAIN_PLACEHOLDER])) } } : {}),
-        ...(s.headers ? { headers: { ...s.headers } } : {})
+        ...(s.headers || s.secretHeaders ? { headers: { ...(s.headers ?? {}), ...Object.fromEntries((s.secretHeaders ?? []).map(k => [k, KEYCHAIN_PLACEHOLDER])) } } : {})
     }]))
 }, undefined, 2) + '\n';
 
@@ -168,11 +176,20 @@ export const parseMcpJson = (text: string, source: McpServerConfig['source']): M
             ...(command ? { command, args: Array.isArray(raw.args) ? raw.args.map(String) : [] } : {}),
             ...(url ? { url } : {}),
             ...splitSecretEnv(strings(raw.env)),
-            ...(strings(raw.headers) ? { headers: strings(raw.headers) } : {})
+            ...splitSecretHeaders(strings(raw.headers))
         };
         return [config];
     });
 };
+
+export type ScopeLabel = 'Global' | 'Project' | 'Imported';
+
+/** Scope badge for an item: Global (`~/.ingot`), Imported (other tools' folders, project or global) or Project. */
+export const scopeLabel = (source: ConfigSource | 'user'): ScopeLabel =>
+    source === 'global' || source === 'user' ? 'Global' : source === 'external' || source === 'global-imported' ? 'Imported' : 'Project';
+
+/** File-name slug for a new rule / command / skill. */
+export const slugify = (name: string): string => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
 
 /** Later sources win: imported folders < legacy `.alloy` < `.ingot`, so Ingot's own config overrides the rest. */
 export const mergeByName = <T extends { name: string }>(...lists: (readonly T[])[]): T[] => {

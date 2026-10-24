@@ -1,34 +1,46 @@
 import * as React from '@theia/core/shared/react';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import { CommandService } from '@theia/core/lib/common/command';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { OpenerService, open } from '@theia/core/lib/browser/opener-service';
 import URI from '@theia/core/lib/common/uri';
-import type { McpServerConfig } from '../../common/project-config/project-config.types';
+import type { ConfigSource, McpServerConfig, ProjectConfig } from '../../common/project-config/project-config.types';
+import { CONFIG_DIRS, HOOKS_DIR, SUBAGENTS_DIR } from '../../common/project-config/project-config.consts';
+import { scopeLabel, slugify } from '../../common/project-config/project-config.utils';
 import {
-    ATTENTION_PREVIEW, CUSTOMIZE_TABS, MCP_CATALOG, catalogEntryFor, catalogToConfig, isValidServerName, matchesQuery, rowGroup, rowSummary,
-    type CustomizeTab, type McpCatalogEntry, type McpScope
+    ATTENTION_PREVIEW, CUSTOMIZE_TABS, EMPTY_SERVER_FORM, MCP_CATALOG, catalogEntryFor, catalogToConfig, configToForm, customToConfig, isValidServerName,
+    matchesQuery, newItemFile, rowGroup, rowSummary,
+    type ConfigItemKind, type CustomServerForm, type CustomizeTab, type McpCatalogEntry, type McpKeyValue, type McpScope
 } from '../../common/mcp/mcp-catalog';
 import { IngotMcpClient } from '../project-config/mcp-client';
+import { ProjectConfigService } from '../project-config/project-config-service';
 import { MCP_WIDGET_ID } from './tool-windows.consts';
 
 type ScopeFilter = 'all' | McpScope;
 interface AddForm { entry: McpCatalogEntry; name: string; scope: McpScope; values: Record<string, string>; error?: string; busy?: boolean }
+interface ServerDialog { previous?: string; form: CustomServerForm; scope: McpScope; error?: string; busy?: boolean }
 interface AuthForm { server: string; values: Record<string, string>; busy?: boolean }
-interface FileItem { name: string; uri: URI }
+interface NewItem { kind: ConfigItemKind; name: string; scope: McpScope; error?: string }
+interface ListItem { key: string; name: string; detail: string; source: ConfigSource | 'user'; uri?: string; extra?: string }
 
 const STORE_COMMAND = 'ingot.store.open';
+const KIND_OF_TAB: Partial<Record<CustomizeTab, ConfigItemKind>> = { rules: 'rule', commands: 'command', skills: 'skill', subagents: 'subagent', hooks: 'hook' };
+const KIND_LABEL: Record<ConfigItemKind, string> = { rule: 'Rule', command: 'Command', skill: 'Skill', subagent: 'Subagent', hook: 'Hook' };
 
 /**
- * Plugins & MCP page (IDEA-62): search, scope selector, kind tabs, "Needs Attention" / "Connected" / "Disabled"
- * sections, a catalog (marketplace) with one-click add, keychain-backed secrets and per-server tools.
+ * Rules & MCP page (IDEA-62): search, scope selector, kind pills, MCP servers grouped into "Needs Attention" /
+ * "Connected" / "Disabled" with per-tool toggles, Add / Edit MCP Server (stdio or HTTP, OAuth), a marketplace,
+ * and Rules / Commands / Skills / Subagents / Hooks from the project `.ingot/` and the global `~/.ingot/`.
+ * Secrets go to the OS keychain; config files only hold `${keychain}` placeholders.
  */
 @injectable()
 export class IngotMcpWidget extends ReactWidget {
 
     @inject(IngotMcpClient) protected readonly mcp: IngotMcpClient;
+    @inject(ProjectConfigService) protected readonly configService: ProjectConfigService;
     @inject(CommandService) protected readonly commands: CommandService;
     @inject(FileService) protected readonly files: FileService;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
@@ -42,14 +54,17 @@ export class IngotMcpWidget extends ReactWidget {
     protected expanded = new Set<string>();
     protected output = new Set<string>();
     protected addForm?: AddForm;
+    protected serverDialog?: ServerDialog;
     protected authForm?: AuthForm;
-    protected tabFiles: FileItem[] = [];
+    protected newItem?: NewItem;
+    protected config?: ProjectConfig;
+    protected plainFiles: ListItem[] = [];
 
     @postConstruct()
     protected init(): void {
         this.id = MCP_WIDGET_ID;
-        this.title.label = 'Plugins & MCP';
-        this.title.caption = 'Plugins, MCP servers, skills and rules';
+        this.title.label = 'Rules & MCP';
+        this.title.caption = 'Plugins, MCP servers, skills, rules and commands';
         this.title.closable = true;
         this.title.iconClass = 'codicon codicon-plug';
         this.addClass('ingot-toolwindow');
@@ -60,29 +75,41 @@ export class IngotMcpWidget extends ReactWidget {
     }
 
     /** Sets one UI state field and re-renders. */
-    protected set(key: 'query' | 'scope' | 'showAllAttention' | 'marketplace' | 'addForm' | 'authForm', value: unknown): void {
+    protected set(key: 'query' | 'scope' | 'showAllAttention' | 'marketplace' | 'addForm' | 'authForm' | 'serverDialog' | 'newItem', value: unknown): void {
         (this as unknown as Record<string, unknown>)[key] = value;
         this.update();
     }
 
-    protected async selectTab(tab: CustomizeTab): Promise<void> {
+    protected get root(): URI | undefined {
+        return this.workspace.tryGetRoots()[0]?.resource;
+    }
+
+    async selectTab(tab: CustomizeTab): Promise<void> {
         this.tab = tab;
         this.marketplace = false;
-        this.tabFiles = [];
+        this.newItem = undefined;
         this.update();
-        const dir = CUSTOMIZE_TABS.find(t => t.id === tab && 'dir' in t) as { dir: string } | undefined;
-        const root = this.workspace.tryGetRoots()[0]?.resource;
-        if (dir && root) {
-            const stat = await this.files.resolve(root.resolve('.ingot').resolve(dir.dir)).catch(() => undefined);
-            this.tabFiles = (stat?.children ?? []).filter(c => !c.isDirectory || tab === 'skills').map(c => ({ name: c.name, uri: c.resource }))
-                .sort((a, b) => a.name.localeCompare(b.name));
-            this.update();
+        await this.reloadItems();
+    }
+
+    protected async reloadItems(): Promise<void> {
+        const kind = KIND_OF_TAB[this.tab];
+        if (kind === 'subagent' || kind === 'hook') {
+            const files = await this.configService.listFiles(this.root, kind === 'subagent' ? SUBAGENTS_DIR : HOOKS_DIR);
+            this.plainFiles = files.map(f => ({ key: f.uri.toString(), name: f.name, detail: `${f.source === 'global' ? '~/' : ''}${CONFIG_DIRS.ingot}/${kind === 'subagent' ? SUBAGENTS_DIR : HOOKS_DIR}/${f.name}`, source: f.source, uri: f.uri.toString() }));
+        } else if (kind) {
+            this.config = await this.configService.load(this.root);
         }
+        this.update();
+    }
+
+    protected scopeOk(source: ConfigSource | 'user'): boolean {
+        const label = scopeLabel(source);
+        return this.scope === 'all' || (this.scope === 'user' ? label !== 'Project' : label === 'Project');
     }
 
     protected visibleServers(): McpServerConfig[] {
-        return this.mcp.servers.filter(s => (this.scope === 'all' || this.mcp.scopeOf(s.name) === this.scope)
-            && matchesQuery(this.query, s.name, catalogEntryFor(s)?.name, s.command));
+        return this.mcp.servers.filter(s => this.scopeOk(s.source) && matchesQuery(this.query, s.name, catalogEntryFor(s)?.name, s.command, s.url));
     }
 
     protected render(): React.ReactNode {
@@ -93,14 +120,14 @@ export class IngotMcpWidget extends ReactWidget {
                     <input id='ingot-mcp-search' type='search' placeholder='Search Plugins, Skills, MCPs…' value={this.query} onChange={e => this.set('query', e.currentTarget.value)} />
                 </label>
                 <button id='ingot-mcp-browse' type='button' className={`ingot-mcp-browse ${this.marketplace ? 'active' : ''}`}
-                    onClick={() => { this.tab = 'mcps'; this.set('marketplace', !this.marketplace); }}>Browse Marketplace</button>
+                    onClick={() => { this.tab = 'mcps'; this.serverDialog = undefined; this.addForm = undefined; this.set('marketplace', !this.marketplace); }}>Browse Marketplace</button>
             </div>
             <div className='ingot-mcp-filters'>
-                <label className='ingot-mcp-account' title='Show servers from'>
+                <label className='ingot-mcp-account' title='Show items from'>
                     <span className='codicon codicon-account' />
                     <select id='ingot-mcp-scope' value={this.scope} onChange={e => this.set('scope', e.currentTarget.value as ScopeFilter)}>
                         <option value='all'>All scopes</option>
-                        <option value='user'>User (all projects)</option>
+                        <option value='user'>Global (~/.ingot)</option>
                         <option value='project'>This project</option>
                     </select>
                 </label>
@@ -109,12 +136,40 @@ export class IngotMcpWidget extends ReactWidget {
                     {CUSTOMIZE_TABS.map(t => <button key={t.id} id={`ingot-mcp-tab-${t.id}`} type='button' role='tab' aria-selected={this.tab === t.id}
                         className={`ingot-mcp-pill ${this.tab === t.id ? 'active' : ''}`} onClick={() => this.selectTab(t.id)}>{t.label}</button>)}
                 </div>
-                <button type='button' className='ingot-mcp-filter codicon codicon-filter' title='Reload servers' onClick={() => this.mcp.refresh()} />
+                <button type='button' id='ingot-mcp-reload' className='ingot-mcp-filter codicon codicon-refresh' title='Reload' onClick={() => this.tab === 'mcps' ? this.mcp.refresh() : this.reloadItems()} />
             </div>
-            <div className='ingot-mcp-body'>
-                {this.addForm ? this.renderAddForm(this.addForm) : this.marketplace ? this.renderMarketplace() : this.tab === 'mcps' ? this.renderServers() : this.renderFilesTab()}
-            </div>
+            <div className='ingot-mcp-body'>{this.renderBody()}</div>
         </div>;
+    }
+
+    protected renderBody(): React.ReactNode {
+        if (this.addForm) {
+            return this.renderAddForm(this.addForm);
+        }
+        if (this.serverDialog) {
+            return this.renderServerDialog(this.serverDialog);
+        }
+        if (this.marketplace) {
+            return this.renderMarketplace();
+        }
+        if (this.tab === 'mcps') {
+            return this.renderServers();
+        }
+        if (this.tab === 'plugins') {
+            return <div className='ingot-mcp-empty' id='ingot-mcp-plugins'>
+                <p>Plugins, themes and terminal skins are installed from the Ingot Store.</p>
+                <button type='button' className='ingot-mcp-primary' onClick={() => this.commands.executeCommand(STORE_COMMAND).catch(() => undefined)}>Open Store</button>
+            </div>;
+        }
+        return this.renderItems(KIND_OF_TAB[this.tab]!);
+    }
+
+    // ---- MCP servers ----
+
+    protected openServerDialog(server?: McpServerConfig): void {
+        const scope = server ? (this.mcp.scopeOf(server.name) === 'project' ? 'project' : 'user') : 'user';
+        this.marketplace = false;
+        this.set('serverDialog', { previous: server && this.mcp.scopeOf(server.name) !== 'imported' ? server.name : undefined, form: server ? configToForm(server) : EMPTY_SERVER_FORM, scope });
     }
 
     protected renderServers(): React.ReactNode {
@@ -123,14 +178,15 @@ export class IngotMcpWidget extends ReactWidget {
         const attention = servers.filter(s => group(s) === 'attention');
         const connected = servers.filter(s => group(s) === 'connected');
         const disabled = servers.filter(s => group(s) === 'available');
-        if (!this.mcp.servers.length) {
-            return <div className='ingot-mcp-empty' id='ingot-mcp-empty'>
-                <p>No MCP servers yet.</p>
-                <button type='button' className='ingot-mcp-primary' onClick={() => this.set('marketplace', true)}>Browse Marketplace</button>
-            </div>;
-        }
         const shownAttention = this.showAllAttention ? attention : attention.slice(0, ATTENTION_PREVIEW);
         return <>
+            <div className='ingot-mcp-toolbar'>
+                <button type='button' id='ingot-mcp-add-server' className='ingot-mcp-secondary' onClick={() => this.openServerDialog()}><span className='codicon codicon-add' /> Add MCP Server</button>
+            </div>
+            {!this.mcp.servers.length && <div className='ingot-mcp-empty' id='ingot-mcp-empty'>
+                <p>No MCP servers yet. Add one, or pick a popular app from the marketplace.</p>
+                <button type='button' className='ingot-mcp-primary' onClick={() => this.set('marketplace', true)}>Browse Marketplace</button>
+            </div>}
             {attention.length > 0 && <section className='ingot-mcp-section' id='ingot-mcp-attention'>
                 <h3>Needs Attention <span>{attention.length}</span></h3>
                 <div className='ingot-mcp-list'>{shownAttention.map(s => this.renderRow(s))}</div>
@@ -146,7 +202,7 @@ export class IngotMcpWidget extends ReactWidget {
                 <h3>Disabled <span>{disabled.length}</span></h3>
                 <div className='ingot-mcp-list'>{disabled.map(s => this.renderRow(s))}</div>
             </section>}
-            {!servers.length && <div className='ingot-mcp-empty'>No servers match.</div>}
+            {!!this.mcp.servers.length && !servers.length && <div className='ingot-mcp-empty'>No servers match.</div>}
         </>;
     }
 
@@ -158,26 +214,50 @@ export class IngotMcpWidget extends ReactWidget {
         </span>;
     }
 
+    protected toggleIn(set: Set<string>, name: string): void {
+        if (set.has(name)) {
+            set.delete(name);
+        } else {
+            set.add(name);
+        }
+        this.update();
+    }
+
+    protected async confirm(title: string, msg: string, ok: string): Promise<boolean> {
+        return !!await new ConfirmDialog({ title, msg, ok, cancel: 'Cancel' }).open();
+    }
+
+    protected async remove(server: McpServerConfig): Promise<void> {
+        if (await this.confirm('Remove MCP Server', `Remove "${server.name}" and delete its keychain secrets?`, 'Remove')) {
+            await this.mcp.removeServer(server.name);
+        }
+    }
+
     protected renderRow(server: McpServerConfig): React.ReactNode {
         const enabled = this.mcp.isEnabled(server.name);
         const status = this.mcp.statusOf(server.name);
         const scope = this.mcp.scopeOf(server.name);
         const dot = !enabled ? 'off' : status?.state === 'connected' ? 'ok' : status?.state === 'starting' || !status ? 'busy' : 'bad';
         const open = this.expanded.has(server.name);
-        const toggle = (set: Set<string>) => { if (set.has(server.name)) { set.delete(server.name); } else { set.add(server.name); } this.update(); };
-        return <div key={server.name} className={`ingot-mcp-row ${open ? 'open' : ''}`} data-server={server.name}>
-            <div className='ingot-mcp-row-main' onClick={() => toggle(this.expanded)}>
+        const tools = status?.tools ?? [];
+        const onTools = tools.filter(t => this.mcp.isToolEnabled(server.name, t.name)).length;
+        const summary = status?.state === 'connected' && onTools !== tools.length
+            ? `${onTools} of ${tools.length} tools${status.resources ? `, ${status.resources} resources` : ''} enabled`
+            : rowSummary(enabled, status);
+        return <div key={server.name} className={`ingot-mcp-row ${open ? 'open' : ''}`} data-server={server.name} id={`ingot-mcp-row-${server.name}`}>
+            <div className='ingot-mcp-row-main' onClick={() => this.toggleIn(this.expanded, server.name)}>
                 {this.renderIcon(server, dot)}
                 <div className='ingot-mcp-row-text'>
-                    <div><span className='ingot-mcp-name'>{server.name}</span> <span className='ingot-mcp-badge'>{scope === 'user' ? 'User' : 'Project'}</span></div>
+                    <div><span className='ingot-mcp-name'>{server.name}</span> <span className='ingot-mcp-badge'>{scopeLabel(server.source)}</span>
+                        {this.mcp.isProjectDisabled(server.name) && <span className='ingot-mcp-badge'>Off in this project</span>}</div>
                     <div className='ingot-mcp-summary'>
                         {status?.state === 'error'
-                            ? <>Error - <a href='#' className='ingot-mcp-output-link' onClick={e => { e.preventDefault(); e.stopPropagation(); toggle(this.output); }}>Show Output</a></>
-                            : rowSummary(enabled, status)}
+                            ? <>Error - <a href='#' className='ingot-mcp-output-link' onClick={e => { e.preventDefault(); e.stopPropagation(); this.toggleIn(this.output, server.name); }}>Show Output</a></>
+                            : summary}
                     </div>
                 </div>
                 <div className='ingot-mcp-row-actions' onClick={e => e.stopPropagation()}>
-                    {enabled && status?.state === 'needs-auth' && <button type='button' className='ingot-mcp-link'
+                    {enabled && status?.state === 'needs-auth' && <button type='button' className='ingot-mcp-link ingot-mcp-authenticate'
                         onClick={() => this.set('authForm', { server: server.name, values: {} })}>Authenticate</button>}
                     <label className='ingot-switch' title={enabled ? 'Disable' : 'Enable'}>
                         <input type='checkbox' className='ingot-mcp-toggle' checked={enabled} onChange={e => this.mcp.setEnabled(server.name, e.currentTarget.checked)} />
@@ -186,26 +266,38 @@ export class IngotMcpWidget extends ReactWidget {
                 </div>
             </div>
             {this.authForm?.server === server.name && this.renderAuth(server, this.authForm)}
-            {this.output.has(server.name) && <pre className='ingot-mcp-output'>{status?.output || status?.error || 'No output.'}</pre>}
+            {this.output.has(server.name) && <div className='ingot-mcp-drawer'>
+                <div className='ingot-mcp-drawer-head'>Output · {server.name}<button type='button' className='codicon codicon-close' title='Close' onClick={() => this.toggleIn(this.output, server.name)} /></div>
+                <pre className='ingot-mcp-output'>{status?.output || status?.error || 'No output.'}</pre>
+            </div>}
             {open && <div className='ingot-mcp-details'>
-                <div className='ingot-mcp-kv'><span>Command</span><code>{[server.command, ...(server.args ?? [])].join(' ')}</code></div>
-                <div className='ingot-mcp-kv'><span>Scope</span>{scope === 'user' ? 'User: runs in every project' : 'Project: .ingot/mcp.json, trusted for this project'}</div>
-                {!!server.secretEnv?.length && <div className='ingot-mcp-kv'><span>Secrets</span>{server.secretEnv.join(', ')} <em>(OS keychain)</em></div>}
-                {!!status?.tools.length && <div className='ingot-mcp-tools'>
-                    <div className='ingot-mcp-tools-title'>Tools</div>
-                    {status.tools.map(t => <div key={t.name} className='ingot-mcp-tool'><code>{t.name}</code><span>{t.description}</span></div>)}
+                <div className='ingot-mcp-kv'><span>{server.url ? 'URL' : 'Command'}</span><code>{server.url ?? [server.command, ...(server.args ?? [])].join(' ')}</code></div>
+                <div className='ingot-mcp-kv'><span>Scope</span>{scope === 'user' ? 'Global: ~/.ingot/mcp.json, runs in every project' : scope === 'imported' ? 'Imported (read-only), off until enabled' : 'Project: trusted for this project only'}</div>
+                {!!Object.keys(server.env ?? {}).length && <div className='ingot-mcp-kv'><span>Env</span>{Object.keys(server.env ?? {}).join(', ')} <em>(values hidden)</em></div>}
+                {!!(server.secretEnv?.length || server.secretHeaders?.length) && <div className='ingot-mcp-kv'><span>Secrets</span>{[...(server.secretEnv ?? []), ...(server.secretHeaders ?? [])].join(', ')} <em>(OS keychain)</em></div>}
+                {scope === 'user' && <label className='ingot-mcp-check'><input type='checkbox' className='ingot-mcp-project-off' checked={this.mcp.isProjectDisabled(server.name)}
+                    onChange={e => this.mcp.setProjectDisabled(server.name, e.currentTarget.checked)} /> Turn off in this project only</label>}
+                {!!tools.length && <div className='ingot-mcp-tools'>
+                    <div className='ingot-mcp-tools-title'>Tools <span>{onTools}/{tools.length}</span></div>
+                    {tools.map(t => <label key={t.name} className='ingot-mcp-tool'>
+                        <input type='checkbox' className='ingot-mcp-tool-toggle' data-tool={t.name} checked={this.mcp.isToolEnabled(server.name, t.name)}
+                            onChange={e => this.mcp.setToolEnabled(server.name, t.name, e.currentTarget.checked)} />
+                        <code>{t.name}</code><span>{t.description}</span>
+                    </label>)}
                 </div>}
                 <div className='ingot-mcp-detail-actions'>
-                    <button type='button' className='ingot-mcp-secondary' onClick={() => toggle(this.output)}>{this.output.has(server.name) ? 'Hide Output' : 'Show Output'}</button>
-                    {!!server.secretEnv?.length && <button type='button' className='ingot-mcp-secondary' onClick={() => this.set('authForm', { server: server.name, values: {} })}>Update secrets…</button>}
-                    <button type='button' className='ingot-mcp-danger ingot-mcp-remove' onClick={() => this.mcp.removeServer(server.name)}>Remove</button>
+                    <button type='button' className='ingot-mcp-secondary ingot-mcp-show-output' onClick={() => this.toggleIn(this.output, server.name)}>{this.output.has(server.name) ? 'Hide Output' : 'Show Output'}</button>
+                    <button type='button' className='ingot-mcp-secondary ingot-mcp-restart' disabled={!enabled} onClick={() => this.mcp.restart(server.name)}>Restart</button>
+                    <button type='button' className='ingot-mcp-secondary ingot-mcp-edit' onClick={() => this.openServerDialog(server)}>{scope === 'imported' ? 'Copy to Ingot…' : 'Edit…'}</button>
+                    {scope !== 'imported' && <button type='button' className='ingot-mcp-danger ingot-mcp-remove' onClick={() => this.remove(server)}>Remove</button>}
                 </div>
             </div>}
         </div>;
     }
 
     protected renderAuth(server: McpServerConfig, form: AuthForm): React.ReactNode {
-        const names = this.mcp.statusOf(server.name)?.missingSecrets?.length ? this.mcp.statusOf(server.name)!.missingSecrets! : server.secretEnv ?? [];
+        const status = this.mcp.statusOf(server.name);
+        const names = status?.missingSecrets?.length ? status.missingSecrets : [...(server.secretEnv ?? []), ...(server.secretHeaders ?? []).map(h => `header:${h}`)];
         const entry = catalogEntryFor(server);
         return <form className='ingot-mcp-auth' onClick={e => e.stopPropagation()} onSubmit={async e => {
             e.preventDefault();
@@ -215,7 +307,7 @@ export class IngotMcpWidget extends ReactWidget {
         }}>
             <p>Secrets are stored in the OS keychain, never in files.</p>
             {names.map(n => <label key={n} className='ingot-mcp-field'>
-                <span>{entry?.fields.find(f => f.name === n)?.label ?? n}</span>
+                <span>{entry?.fields.find(f => f.name === n)?.label ?? n.replace(/^header:/, 'Header ')}</span>
                 <input type='password' autoComplete='off' name={n} value={form.values[n] ?? ''} onChange={e => this.set('authForm', { ...form, values: { ...form.values, [n]: e.currentTarget.value } })} />
             </label>)}
             <div className='ingot-mcp-form-actions'>
@@ -224,6 +316,75 @@ export class IngotMcpWidget extends ReactWidget {
             </div>
         </form>;
     }
+
+    protected renderKeyValues(label: string, list: readonly McpKeyValue[], onChange: (list: McpKeyValue[]) => void, kind: string): React.ReactNode {
+        const set = (i: number, patch: Partial<McpKeyValue>) => onChange(list.map((kv, j) => j === i ? { ...kv, ...patch } : kv));
+        return <div className='ingot-mcp-kvlist' data-kind={kind}>
+            <div className='ingot-mcp-kvlist-head'>{label}<button type='button' className='ingot-mcp-link ingot-mcp-kv-add' onClick={() => onChange([...list, { key: '', value: '', secret: false }])}>+ Add</button></div>
+            {list.map((kv, i) => <div key={i} className='ingot-mcp-kvrow'>
+                <input className='ingot-mcp-kv-key' placeholder='NAME' value={kv.key} onChange={e => set(i, { key: e.currentTarget.value })} />
+                <input className='ingot-mcp-kv-value' type={kv.secret ? 'password' : 'text'} autoComplete='off' placeholder={kv.secret && !kv.value ? 'stored in keychain' : 'value'} value={kv.value} onChange={e => set(i, { value: e.currentTarget.value })} />
+                <label className='ingot-mcp-check' title='Store the value in the OS keychain'><input type='checkbox' className='ingot-mcp-kv-secret' checked={kv.secret} onChange={e => set(i, { secret: e.currentTarget.checked })} /> Secret</label>
+                <button type='button' className='codicon codicon-trash' title='Remove' onClick={() => onChange(list.filter((_, j) => j !== i))} />
+            </div>)}
+        </div>;
+    }
+
+    protected async saveServer(dialog: ServerDialog): Promise<void> {
+        const { form } = dialog;
+        const error = !isValidServerName(form.name) ? 'Name: letters, digits, dot, dash or underscore.'
+            : form.transport === 'stdio' && !form.command.trim() ? 'Command is required.'
+            : form.transport === 'http' && !/^https?:\/\//.test(form.url.trim()) ? 'URL must start with http:// or https://.'
+            : dialog.previous !== form.name && this.mcp.servers.some(s => s.name === form.name && this.mcp.scopeOf(s.name) !== 'imported') ? `A server named "${form.name}" already exists.` : undefined;
+        if (error) {
+            this.set('serverDialog', { ...dialog, error });
+            return;
+        }
+        this.set('serverDialog', { ...dialog, busy: true, error: undefined });
+        try {
+            const { config, secrets } = customToConfig(form, dialog.scope);
+            await this.mcp.updateServer(dialog.previous ?? form.name, config, dialog.scope, secrets);
+            this.set('serverDialog', undefined);
+        } catch (e) {
+            this.set('serverDialog', { ...dialog, busy: false, error: e instanceof Error ? e.message : String(e) });
+        }
+    }
+
+    protected renderServerDialog(dialog: ServerDialog): React.ReactNode {
+        const { form } = dialog;
+        const update = (patch: Partial<CustomServerForm>) => this.set('serverDialog', { ...dialog, form: { ...form, ...patch }, error: undefined });
+        return <form className='ingot-mcp-addform' id='ingot-mcp-server-dialog' onSubmit={e => { e.preventDefault(); void this.saveServer(dialog); }}>
+            <h3>{dialog.previous ? `Edit ${dialog.previous}` : 'Add MCP Server'}</h3>
+            <label className='ingot-mcp-field'><span>Name</span><input name='name' value={form.name} placeholder='my-server' onChange={e => update({ name: e.currentTarget.value })} /></label>
+            <div className='ingot-mcp-segmented' role='radiogroup'>
+                {(['stdio', 'http'] as const).map(t => <button key={t} type='button' role='radio' aria-checked={form.transport === t} id={`ingot-mcp-transport-${t}`}
+                    className={form.transport === t ? 'active' : ''} onClick={() => update({ transport: t })}>{t === 'stdio' ? 'Local command (stdio)' : 'Remote URL (HTTP / SSE)'}</button>)}
+            </div>
+            {form.transport === 'stdio' ? <>
+                <label className='ingot-mcp-field'><span>Command</span><input name='command' value={form.command} placeholder='npx' onChange={e => update({ command: e.currentTarget.value })} /></label>
+                <label className='ingot-mcp-field'><span>Arguments</span><input name='args' value={form.args} placeholder='-y @scope/server --flag "value with spaces"' onChange={e => update({ args: e.currentTarget.value })} /></label>
+            </> : <>
+                <label className='ingot-mcp-field'><span>URL</span><input name='url' value={form.url} placeholder='https://example.com/mcp' onChange={e => update({ url: e.currentTarget.value })} /></label>
+                <label className='ingot-mcp-check'><input type='checkbox' name='oauth' checked={form.oauth} onChange={e => update({ oauth: e.currentTarget.checked })} /> Sign in with OAuth in the browser</label>
+                {!form.oauth && this.renderKeyValues('Headers', form.headers, headers => update({ headers }), 'headers')}
+            </>}
+            {(form.transport === 'stdio' || form.oauth) && this.renderKeyValues('Environment', form.env, env => update({ env }), 'env')}
+            <label className='ingot-mcp-field'><span>Enable for</span>
+                <select name='scope' value={dialog.scope} onChange={e => this.set('serverDialog', { ...dialog, scope: e.currentTarget.value as McpScope })}>
+                    <option value='user'>All projects (global ~/.ingot/mcp.json)</option>
+                    <option value='project'>This project only (.ingot/mcp.json)</option>
+                </select>
+            </label>
+            <p className='ingot-mcp-hint'>Values marked Secret are saved in the OS keychain; mcp.json only gets a placeholder.</p>
+            {dialog.error && <div className='ingot-mcp-error'>{dialog.error}</div>}
+            <div className='ingot-mcp-form-actions'>
+                <button type='button' className='ingot-mcp-secondary' onClick={() => this.set('serverDialog', undefined)}>Cancel</button>
+                <button type='submit' className='ingot-mcp-primary' disabled={dialog.busy}>{dialog.busy ? 'Saving…' : dialog.previous ? 'Save' : 'Add server'}</button>
+            </div>
+        </form>;
+    }
+
+    // ---- Marketplace ----
 
     protected renderMarketplace(): React.ReactNode {
         const entries = MCP_CATALOG.filter(e => matchesQuery(this.query, e.name, e.description, e.id));
@@ -246,10 +407,6 @@ export class IngotMcpWidget extends ReactWidget {
     }
 
     protected startAdd(entry: McpCatalogEntry): void {
-        if (!entry.fields.length) {
-            void this.add({ entry, name: entry.id, scope: 'user', values: {} });
-            return;
-        }
         this.set('addForm', { entry, name: entry.id, scope: 'user', values: {} });
     }
 
@@ -279,11 +436,11 @@ export class IngotMcpWidget extends ReactWidget {
         const update = (patch: Partial<AddForm>) => this.set('addForm', { ...form, ...patch, error: undefined });
         return <form className='ingot-mcp-addform' id='ingot-mcp-addform' onSubmit={e => { e.preventDefault(); void this.add(form); }}>
             <div className='ingot-mcp-card-head'>{this.renderIcon({ name: form.entry.id })}<h3>Add {form.entry.name}</h3></div>
-            <p className='ingot-mcp-hint'>{form.entry.description}</p>
+            <p className='ingot-mcp-hint'>{form.entry.description}{form.entry.signIn ? ' A browser window opens to sign in the first time it starts.' : ''}</p>
             <label className='ingot-mcp-field'><span>Name</span><input name='name' value={form.name} onChange={e => update({ name: e.currentTarget.value })} /></label>
             <label className='ingot-mcp-field'><span>Enable for</span>
                 <select name='scope' value={form.scope} onChange={e => update({ scope: e.currentTarget.value as McpScope })}>
-                    <option value='user'>All projects (user)</option>
+                    <option value='user'>All projects (global)</option>
                     <option value='project'>This project only</option>
                 </select>
             </label>
@@ -300,24 +457,87 @@ export class IngotMcpWidget extends ReactWidget {
         </form>;
     }
 
-    protected renderFilesTab(): React.ReactNode {
-        const tab = CUSTOMIZE_TABS.find(t => t.id === this.tab)!;
-        if (this.tab === 'plugins') {
-            return <div className='ingot-mcp-empty' id='ingot-mcp-plugins'>
-                <p>Plugins, themes and terminal skins are installed from the Ingot Store.</p>
-                <button type='button' className='ingot-mcp-primary' onClick={() => this.commands.executeCommand(STORE_COMMAND).catch(() => undefined)}>Open Store</button>
-            </div>;
+    // ---- Rules / Commands / Skills / Subagents / Hooks ----
+
+    protected itemsFor(kind: ConfigItemKind): ListItem[] {
+        if (kind === 'subagent' || kind === 'hook') {
+            return this.plainFiles;
         }
-        const items = this.tabFiles.filter(f => matchesQuery(this.query, f.name));
-        const dir = 'dir' in tab ? `.ingot/${tab.dir}/` : '';
-        return <section className='ingot-mcp-section' id={`ingot-mcp-files-${tab.id}`}>
-            <h3>{tab.label} <span>{items.length}</span></h3>
-            {items.length ? <div className='ingot-mcp-list'>{items.map(f => <div key={f.name} className='ingot-mcp-row'>
-                <div className='ingot-mcp-row-main' onClick={() => open(this.opener, f.uri)}>
-                    <span className='ingot-mcp-icon'><span className='codicon codicon-file' /></span>
-                    <div className='ingot-mcp-row-text'><span className='ingot-mcp-name'>{f.name}</span><div className='ingot-mcp-summary'>{dir}{f.name}</div></div>
+        if (kind === 'rule') {
+            return (this.config?.rules ?? []).map(r => ({ key: r.path, name: r.name, detail: r.path, source: r.source, uri: r.uri, extra: r.alwaysApply ? 'always' : r.globs.join(', ') }));
+        }
+        return (this.config?.commands ?? []).filter(c => c.kind === kind).map(c => ({ key: c.path, name: kind === 'command' ? `/${c.name}` : c.name, detail: c.description ?? c.path, source: c.source, uri: c.uri }));
+    }
+
+    protected async createItem(item: NewItem): Promise<void> {
+        const slug = slugify(item.name);
+        if (!slug) {
+            this.set('newItem', { ...item, error: 'Enter a name.' });
+            return;
+        }
+        const base = item.scope === 'user' ? await this.configService.globalDir() : this.root?.resolve(CONFIG_DIRS.ingot);
+        if (!base) {
+            this.set('newItem', { ...item, error: 'Open a project first, or create it globally.' });
+            return;
+        }
+        const { path, content } = newItemFile(item.kind, slug);
+        const uri = path.reduce((u, p) => u.resolve(p), base);
+        if (await this.files.exists(uri)) {
+            this.set('newItem', { ...item, error: `${path.join('/')} already exists.` });
+            return;
+        }
+        await this.files.create(uri, content);
+        this.newItem = undefined;
+        await this.reloadItems();
+        await open(this.opener, uri);
+    }
+
+    protected async deleteItem(item: ListItem, kind: ConfigItemKind): Promise<void> {
+        if (!item.uri || !await this.confirm(`Delete ${KIND_LABEL[kind]}`, `Delete ${item.detail}? This removes the file.`, 'Delete')) {
+            return;
+        }
+        const uri = new URI(item.uri);
+        await this.files.delete(kind === 'skill' ? uri.parent : uri, { recursive: true, useTrash: true }).catch(() => this.files.delete(kind === 'skill' ? uri.parent : uri, { recursive: true }));
+        await this.reloadItems();
+    }
+
+    protected renderItems(kind: ConfigItemKind): React.ReactNode {
+        if (!this.config && kind !== 'subagent' && kind !== 'hook') {
+            void this.reloadItems();
+        }
+        const items = this.itemsFor(kind).filter(i => this.scopeOk(i.source) && matchesQuery(this.query, i.name, i.detail));
+        const label = KIND_LABEL[kind];
+        const item = this.newItem;
+        return <section className='ingot-mcp-section' id={`ingot-mcp-items-${kind}`}>
+            <div className='ingot-mcp-section-head'>
+                <h3>{CUSTOMIZE_TABS.find(t => t.id === this.tab)?.label} <span>{items.length}</span></h3>
+                <button type='button' id={`ingot-mcp-new-${kind}`} className='ingot-mcp-secondary' onClick={() => this.set('newItem', { kind, name: '', scope: this.root ? 'project' : 'user' })}>
+                    <span className='codicon codicon-add' /> New {label}
+                </button>
+            </div>
+            {item?.kind === kind && <form className='ingot-mcp-newitem' id='ingot-mcp-newitem' onSubmit={e => { e.preventDefault(); void this.createItem(item); }}>
+                <input name='name' autoFocus placeholder={`${label} name`} value={item.name} onChange={e => this.set('newItem', { ...item, name: e.currentTarget.value, error: undefined })} />
+                <select name='scope' value={item.scope} onChange={e => this.set('newItem', { ...item, scope: e.currentTarget.value as McpScope })}>
+                    <option value='project'>Project (.ingot)</option>
+                    <option value='user'>Global (~/.ingot)</option>
+                </select>
+                <button type='submit' className='ingot-mcp-primary'>Create</button>
+                <button type='button' className='ingot-mcp-secondary' onClick={() => this.set('newItem', undefined)}>Cancel</button>
+                {item.error && <div className='ingot-mcp-error'>{item.error}</div>}
+            </form>}
+            {items.length ? <div className='ingot-mcp-list'>{items.map(i => <div key={i.key} className='ingot-mcp-row ingot-mcp-item' data-item={i.name}>
+                <div className='ingot-mcp-row-main' onClick={() => i.uri && open(this.opener, new URI(i.uri))}>
+                    <span className='ingot-mcp-icon'><span className={`codicon codicon-${kind === 'rule' ? 'law' : kind === 'skill' ? 'mortar-board' : kind === 'subagent' ? 'hubot' : kind === 'hook' ? 'zap' : 'terminal'}`} /></span>
+                    <div className='ingot-mcp-row-text'>
+                        <div><span className='ingot-mcp-name'>{i.name}</span> <span className='ingot-mcp-badge ingot-mcp-scope'>{scopeLabel(i.source)}</span>{i.extra && <span className='ingot-mcp-badge'>{i.extra}</span>}</div>
+                        <div className='ingot-mcp-summary'>{i.detail}</div>
+                    </div>
+                    <div className='ingot-mcp-row-actions' onClick={e => e.stopPropagation()}>
+                        {i.uri && <button type='button' className='codicon codicon-edit' title='Edit' onClick={() => open(this.opener, new URI(i.uri!))} />}
+                        {i.uri && scopeLabel(i.source) !== 'Imported' && <button type='button' className='codicon codicon-trash ingot-mcp-item-delete' title='Delete' onClick={() => this.deleteItem(i, kind)} />}
+                    </div>
                 </div>
-            </div>)}</div> : <div className='ingot-mcp-empty'>No {tab.label.toLowerCase()} yet. Add files to <code>{dir}</code> in this project.</div>}
+            </div>)}</div> : <div className='ingot-mcp-empty'>No {label.toLowerCase()}s yet. Project ones live in <code>.ingot/</code>, global ones in <code>~/.ingot/</code>.</div>}
         </section>;
     }
 }

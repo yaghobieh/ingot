@@ -1,7 +1,7 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
 import { DEFAULT_KEYCHAIN_SERVICE } from '../common/models/models.consts';
-import { expandArgs, mcpSecretKey } from '../common/project-config/project-config.utils';
+import { expandArgs, headerSecretName, mcpSecretKey } from '../common/project-config/project-config.utils';
 import { MAX_TOOL_RESULT_CHARS } from '../common/project-config/project-config.consts';
 import type { McpServerConfig, McpServerStatus, McpService, McpToolResult } from '../common/project-config/project-config.types';
 import { McpConnection } from './mcp-connection';
@@ -70,7 +70,7 @@ export class IngotMcpService implements McpService {
     }
 
     /** Reads the server's keychain secrets; returns the names that are still missing. */
-    protected async resolveSecrets(config: McpServerConfig): Promise<{ env: Record<string, string>; missing: string[] }> {
+    protected async resolveSecrets(config: McpServerConfig): Promise<{ env: Record<string, string>; headers: Record<string, string>; missing: string[] }> {
         const env: Record<string, string> = {};
         const missing: string[] = [];
         for (const name of config.secretEnv ?? []) {
@@ -81,13 +81,23 @@ export class IngotMcpService implements McpService {
                 missing.push(name);
             }
         }
-        return { env, missing };
+        const headers: Record<string, string> = {};
+        for (const name of config.secretHeaders ?? []) {
+            const value = await this.keyStore.getPassword(this.keychain, mcpSecretKey(config.name, headerSecretName(name))).catch(() => undefined);
+            if (value) {
+                headers[name] = value;
+            } else {
+                missing.push(headerSecretName(name));
+            }
+        }
+        return { env, headers, missing };
     }
 
     protected async start(base: McpServerConfig, cwd: string): Promise<void> {
         const secrets = await this.resolveSecrets(base);
         const env = { ...(base.env ?? {}), ...secrets.env };
-        const config: McpServerConfig = { ...base, env, ...(base.args ? { args: expandArgs(base.args, env) } : {}) };
+        const headers = base.headers || base.secretHeaders ? { headers: { ...(base.headers ?? {}), ...secrets.headers } } : {};
+        const config: McpServerConfig = { ...base, env, ...headers, ...(base.args ? { args: expandArgs(base.args, env) } : {}) };
         const connection = new McpConnection(config, cwd);
         const entry: Entry = { key: this.keyOf(base, cwd), connection, status: { name: base.name, state: 'starting', tools: [] } };
         this.entries.set(base.name, entry);

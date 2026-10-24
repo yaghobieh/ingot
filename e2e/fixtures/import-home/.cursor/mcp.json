@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "imported-calc": { "command": "node", "args": ["calc-server.mjs"] }
+  }
+}

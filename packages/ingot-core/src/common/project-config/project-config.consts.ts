@@ -14,8 +14,15 @@ export const SOURCE_LABELS = {
     legacy: 'legacy',
     external: 'imported',
     agents: 'AGENTS.md',
-    user: 'user'
+    user: 'global',
+    global: 'global',
+    'global-imported': 'imported'
 } as const;
+
+/** Env var that points imported global folders somewhere else (e2e isolation); defaults to the home folder. */
+export const IMPORT_HOME_ENV = 'INGOT_IMPORT_HOME';
+export const SUBAGENTS_DIR = 'agents';
+export const HOOKS_DIR = 'hooks';
 
 export const RULES_DIR = 'rules';
 export const COMMANDS_DIR = 'commands';
