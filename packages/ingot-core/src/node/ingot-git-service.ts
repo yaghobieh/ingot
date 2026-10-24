@@ -3,8 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { injectable } from '@theia/core/shared/inversify';
 import { BRANCH_FORMAT, LOG_FORMAT } from '../common/git/git.consts';
-import type { GitBranch, GitCommit, GitFileChange, GitService } from '../common/git/git.types';
-import { isRepoRelativePath, isValidBranchName, isValidRevision, parseBranches, parseLog, parseNameStatus } from '../common/git/git.utils';
+import type { GitBlameLine, GitBranch, GitCommit, GitFileChange, GitService } from '../common/git/git.types';
+import { isRepoRelativePath, isValidBranchName, isValidRef, parseBlame, parseBranches, parseLog, parseNameStatus } from '../common/git/git.utils';
 
 const GIT_TIMEOUT_MS = 15_000;
 const MAX_BUFFER = 16 * 1024 * 1024;
@@ -65,18 +65,54 @@ export class IngotGitService implements GitService {
     }
 
     async changes(root: string, hash: string): Promise<GitFileChange[]> {
-        if (!isValidRevision(hash)) {
+        if (!isValidRef(hash)) {
             throw new Error('Invalid revision.');
         }
         return parseNameStatus(await this.git(root, ['diff-tree', '--no-commit-id', '--name-status', '-r', '-M', '--root', hash]));
     }
 
     async show(root: string, ref: string, file: string): Promise<string | undefined> {
-        if (!isValidRevision(ref) || !isRepoRelativePath(file)) {
+        if (!isValidRef(ref) || !isRepoRelativePath(file)) {
             throw new Error('Invalid revision or path.');
         }
         try {
-            return await this.git(root, ['show', `${ref}:${file}`]);
+            return await this.git(root, ["show", `${ref}:./${file}`]);
+        } catch {
+            return undefined;
+        }
+    }
+
+    protected checkPath(file: string): void {
+        if (!isRepoRelativePath(file)) {
+            throw new Error('Invalid path.');
+        }
+    }
+
+    async commitFile(root: string, file: string, message: string): Promise<void> {
+        this.checkPath(file);
+        if (!message.trim()) {
+            throw new Error('A commit message is required.');
+        }
+        await this.git(root, ['add', '--', file]);
+        await this.git(root, ['commit', '-m', message, '--', file]);
+    }
+
+    async rollbackFile(root: string, file: string): Promise<void> {
+        this.checkPath(file);
+        await this.git(root, ['checkout', 'HEAD', '--', file]);
+    }
+
+    async blame(root: string, file: string): Promise<GitBlameLine[]> {
+        this.checkPath(file);
+        return parseBlame(await this.git(root, ['blame', '--line-porcelain', '--', file]));
+    }
+
+    async remote(root: string): Promise<{ url: string; commit: string; branch?: string } | undefined> {
+        try {
+            const url = (await this.git(root, ['remote', 'get-url', 'origin'])).trim();
+            const commit = (await this.git(root, ['rev-parse', 'HEAD'])).trim();
+            const branch = (await this.git(root, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+            return { url, commit, branch: branch === 'HEAD' ? undefined : branch };
         } catch {
             return undefined;
         }

@@ -66,6 +66,13 @@ export class IngotAgentsWidget extends ReactWidget {
         (this.composer ?? this.node).focus();
     }
 
+    /** Appends context such as `@src/a.ts:12 useCart` to the composer and focuses it (IDEA-56). */
+    addContext(text: string): void {
+        this.draft = this.draft.trim() ? `${this.draft.trimEnd()} ${text} ` : `${text} `;
+        this.update();
+        this.composer?.focus();
+    }
+
     protected submit(): void {
         if (!this.draft.trim()) {
             return;

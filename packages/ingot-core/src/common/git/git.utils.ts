@@ -1,5 +1,5 @@
 import { FIELD_SEP, RECORD_SEP } from './git.consts';
-import type { GitBranch, GitChangeStatus, GitCommit, GitFileChange } from './git.types';
+import type { GitBranch, GitChangeStatus, GitCommit, GitFileChange, GitBlameLine } from './git.types';
 
 /** Parses `git for-each-ref --format=%(HEAD)\t%(refname)\t%(upstream:short)\t%(upstream:track) refs/heads refs/remotes`. */
 export const parseBranches = (output: string): GitBranch[] => output.split('\n').filter(Boolean).flatMap(line => {
@@ -39,6 +39,54 @@ export const isValidBranchName = (name: string): boolean =>
     && /^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!.*\.lock$)(?!.*\/$)(?!.*\.$)[^\s~^:?*[\\]+$/.test(name);
 
 /** Revisions the UI asks for: a commit hash, optionally with `~1` / `^` suffixes. */
+/** A revision, `HEAD`/`HEAD~n`, or a (possibly remote) branch name. */
+export const isValidRef = (ref: string): boolean => /^HEAD(?:~\d+)?$/.test(ref) || isValidRevision(ref) || isValidBranchName(ref);
+
+/** Parses `git blame --line-porcelain` output. */
+export const parseBlame = (output: string): GitBlameLine[] => {
+    const lines: GitBlameLine[] = [];
+    let current: { hash?: string; line?: number; author?: string; time?: number; summary?: string } = {};
+    for (const row of output.split('\n')) {
+        const head = /^([0-9a-f]{40}) \d+ (\d+)/.exec(row);
+        if (head) {
+            current = { hash: head[1], line: Number(head[2]) };
+        } else if (row.startsWith('author ')) {
+            current.author = row.slice(7);
+        } else if (row.startsWith('author-time ')) {
+            current.time = Number(row.slice(12));
+        } else if (row.startsWith('summary ')) {
+            current.summary = row.slice(8);
+        } else if (row.startsWith('\t') && current.hash && current.line) {
+            const uncommitted = /^0+$/.test(current.hash);
+            lines.push({
+                line: current.line, hash: current.hash,
+                author: uncommitted ? 'You' : current.author ?? '',
+                date: current.time ? new Date(current.time * 1000).toISOString() : '',
+                summary: uncommitted ? 'Uncommitted changes' : current.summary ?? ''
+            });
+        }
+    }
+    return lines;
+};
+
+/** Web URL of a file on GitHub, GitLab or Bitbucket for a git remote URL. */
+export const remoteFileUrl = (remote: string, ref: string, path: string, line?: number): string | undefined => {
+    const m = /^(?:git@([^:]+):|https?:\/\/(?:[^@/]+@)?([^/]+)\/)(.+?)(?:\.git)?\/?$/.exec(remote.trim());
+    if (!m) {
+        return undefined;
+    }
+    const host = m[1] ?? m[2];
+    const repo = m[3];
+    const file = path.split('/').map(encodeURIComponent).join('/');
+    if (host.includes('bitbucket')) {
+        return `https://${host}/${repo}/src/${ref}/${file}${line ? `#lines-${line}` : ''}`;
+    }
+    if (host.includes('gitlab')) {
+        return `https://${host}/${repo}/-/blob/${ref}/${file}${line ? `#L${line}` : ''}`;
+    }
+    return `https://${host}/${repo}/blob/${ref}/${file}${line ? `#L${line}` : ''}`;
+};
+
 export const isValidRevision = (ref: string): boolean => /^[0-9a-f]{4,40}(?:[~^]\d*)*$/i.test(ref);
 
 /** Relative, forward-slash path inside the repository. */
