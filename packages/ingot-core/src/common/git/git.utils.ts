@@ -35,7 +35,8 @@ export const parseNameStatus = (output: string): GitFileChange[] => output.split
 
 /** Rejects names git would refuse or that could be read as options (`git check-ref-format` rules, simplified). */
 export const isValidBranchName = (name: string): boolean =>
-    /^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!.*\.lock$)(?!.*\/$)(?!.*\.$)[^\s~^:?*[\\\x00-\x1f\x7f]+$/.test(name);
+    ![...name].some(c => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f)
+    && /^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!.*\.lock$)(?!.*\/$)(?!.*\.$)[^\s~^:?*[\\]+$/.test(name);
 
 /** Revisions the UI asks for: a commit hash, optionally with `~1` / `^` suffixes. */
 export const isValidRevision = (ref: string): boolean => /^[0-9a-f]{4,40}(?:[~^]\d*)*$/i.test(ref);

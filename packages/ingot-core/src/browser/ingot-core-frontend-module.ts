@@ -55,6 +55,13 @@ import { IngotAgentConfigContribution } from './project-config/agent-config-cont
 import { AGENT_CONFIG_WIDGET_ID } from './project-config/project-config.browser-consts';
 import { MCP_SERVICE_PATH } from '../common/project-config/project-config.consts';
 import { McpService } from '../common/project-config/project-config.types';
+import { ResourceResolver } from '@theia/core/lib/common/resource';
+import { GIT_SERVICE_PATH } from '../common/git/git.consts';
+import { GitService } from '../common/git/git.types';
+import { GitResourceResolver } from './git/git-resource-resolver';
+import { IngotGitLogWidget } from './git/git-log-widget';
+import { IngotGitContribution } from './git/git-contribution';
+import { GIT_LOG_WIDGET_ID } from './git/git.browser-consts';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
@@ -70,6 +77,12 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: keymapPreferenceSchema });
     bind(NavigationHistory).toSelf().inSingletonScope();
     bind(ProjectConfigService).toSelf().inSingletonScope();
+    bind(GitService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<GitService>(ctx.container, GIT_SERVICE_PATH)).inSingletonScope();
+    bind(GitResourceResolver).toSelf().inSingletonScope();
+    bind(ResourceResolver).toService(GitResourceResolver);
+    bind(IngotGitLogWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: GIT_LOG_WIDGET_ID, createWidget: () => ctx.container.get(IngotGitLogWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotGitContribution);
     bind(McpService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<McpService>(ctx.container, MCP_SERVICE_PATH)).inSingletonScope();
     bind(IngotMcpClient).toSelf().inSingletonScope();
     bind(IngotAgentConfigWidget).toSelf();
