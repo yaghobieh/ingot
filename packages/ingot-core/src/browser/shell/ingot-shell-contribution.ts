@@ -59,7 +59,7 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     }
 
     async onDidInitializeLayout(_app: FrontendApplication): Promise<void> {
-        // Electron hides the top panel on macOS (native menu); the JetBrains main toolbar lives there.
+        // Electron hides the top panel on macOS (native menu); the Ingot main toolbar lives there.
         this.shell.topPanel.show();
         this.attachStripe();
         await this.agents.openView({ activate: false, reveal: true });
@@ -70,7 +70,7 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         }
     }
 
-    /** JetBrains calls the file tree "Project". */
+    /** Ingot calls the file tree "Project". */
     protected async renameProjectView(): Promise<void> {
         const explorer = await this.widgets.getWidget(EXPLORER_CONTAINER_ID);
         if (explorer instanceof ViewContainer) {
@@ -88,7 +88,7 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         layout.insertWidget(layout.widgets.indexOf(bottomMenu), this.stripe);
     }
 
-    /** JetBrains keeps a Terminal docked at the bottom; make sure one exists without stealing focus. */
+    /** Ingot keeps a Terminal docked at the bottom; make sure one exists without stealing focus. */
     protected async ensureTerminal(): Promise<void> {
         let [terminal] = this.terminals.all;
         if (!terminal) {
@@ -108,7 +108,7 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         }
     }
 
-    /** Areas that were open before "Hide All Tool Windows", restored on the next toggle like JetBrains. */
+    /** Areas that were open before "Hide All Tool Windows", restored on the next toggle like classic IDEs. */
     protected hiddenAreas: SideArea[] = [];
 
     protected async toggleAllToolWindows(): Promise<void> {

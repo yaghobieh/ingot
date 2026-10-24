@@ -30,7 +30,7 @@ export class IngotGroupsContribution implements FrontendApplicationContribution,
         registry.registerCommand(GROUP_COMMANDS.previousProject, { execute: () => this.groups.cycle(-1), isEnabled: () => this.groups.isGroup });
     }
 
-    /** IntelliJ: Next/Previous Project Window (Ctrl+Alt+] / Ctrl+Alt+[, Cmd+` / Cmd+Shift+` on macOS). */
+    /** Next/Previous Project Window (Ctrl+Alt+] / Ctrl+Alt+[, Cmd+` / Cmd+Shift+` on macOS). */
     registerKeybindings(keybindings: KeybindingRegistry): void {
         const [next, previous] = isOSX ? ['cmd+`', 'cmd+shift+`'] : ['ctrl+alt+]', 'ctrl+alt+['];
         keybindings.registerKeybinding({ command: GROUP_COMMANDS.nextProject.id, keybinding: next });

@@ -34,7 +34,7 @@ export class IngotGitService implements GitService {
         const local = (await this.branches(root)).some(b => !b.remote && b.name === branch);
         const remote = branch.includes('/') ? branch.slice(branch.indexOf('/') + 1) : undefined;
         if (!local && remote && (await this.branches(root)).some(b => b.remote && b.name === branch)) {
-            // Checking out a remote branch creates a local tracking branch, like IntelliJ's "Checkout".
+            // Checking out a remote branch creates a local tracking branch, like classic IDE "Checkout".
             await this.git(root, ['checkout', '--track', branch]);
             return;
         }

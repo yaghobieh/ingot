@@ -7,7 +7,7 @@ import { formatCursorPosition } from '../../common/vcs/vcs.utils';
 
 const CURSOR_STATUS_ID = 'editor-status-cursor-position';
 
-/** JetBrains-style caret position in the status bar: `12:5` instead of `Ln 12, Col 5`. */
+/** IDE-style caret position in the status bar: `12:5` instead of `Ln 12, Col 5`. */
 @injectable()
 export class IngotEditorContribution extends EditorContribution {
 

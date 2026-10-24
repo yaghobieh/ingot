@@ -5,7 +5,7 @@ const terminalPanel = (page: Page) => page.locator('#theia-bottom-content-panel 
 const portsPanel = (page: Page) => page.locator('#ingot-ports');
 const randomPort = (): number => 47_000 + Math.floor(Math.random() * 2_000);
 
-test.describe('IDEA-13/14 JetBrains New UI shell', () => {
+test.describe('IDEA-13/14 Ingot UI shell', () => {
     test('docks a Terminal at the bottom by default', async ({ page }) => {
         await openIngot(page);
         await expect(terminalPanel(page)).toBeVisible({ timeout: 30_000 });

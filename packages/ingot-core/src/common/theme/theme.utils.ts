@@ -4,8 +4,8 @@ import type { IngotThemeDefinition, TokenColorRule, VsCodeThemeJson } from './th
 const rule = (scope: string[], foreground: string, fontStyle?: string): TokenColorRule => ({ scope, settings: fontStyle ? { foreground, fontStyle } : { foreground } });
 
 /**
- * Maps Ingot design tokens onto VS Code workbench color ids so Theia, Monaco and
- * VS Code extensions all pick up the JetBrains-style palette.
+ * Maps Ingot design tokens onto workbench color ids so Theia, Monaco and
+ * extensions all pick up the Ingot palette.
  */
 export const buildWorkbenchColors = ({ tokens: t }: IngotThemeDefinition): Record<string, string> => ({
     'foreground': t.text,

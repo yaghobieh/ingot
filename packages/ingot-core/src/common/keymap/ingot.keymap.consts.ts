@@ -1,6 +1,6 @@
 import type { KeymapEntry } from './keymap.types';
 
-/** Ingot commands the IntelliJ keymap points at (implemented in the browser keymap / run contributions). */
+/** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
     searchEverywhere: { id: 'ingot.searchEverywhere', label: 'Search Everywhere', category: 'Navigate' },
     recentFiles: { id: 'ingot.recentFiles', label: 'Recent Files', category: 'Navigate' },
@@ -15,16 +15,16 @@ export const INGOT_RUN_COMMANDS = {
     stop: { id: 'ingot.stop', label: 'Stop', category: 'Run' }
 } as const;
 
-/** Keeps IntelliJ shortcuts from stealing the agent review keys (Ctrl+Y / Ctrl+N) while an edit is pending. */
+/** Keeps Ingot shortcuts from stealing the agent review keys (Ctrl+Y / Ctrl+N) while an edit is pending. */
 const NOT_REVIEWING = '!ingotAgentEditPending';
 const EDITOR = 'editorTextFocus';
 const EDITOR_NOT_REVIEWING = `${EDITOR} && ${NOT_REVIEWING}`;
 
 /**
- * IntelliJ IDEA / WebStorm default keymap (IDEA-18): "macOS" and "Windows/Linux" variants.
+ * Ingot default keymap (IDEA-18): "macOS" and "Windows/Linux" variants.
  * Theia syntax: `ctrlcmd` = Cmd on macOS, `ctrl` = the real Control key, `alt` = Option.
  */
-export const INTELLIJ_KEYMAP: readonly KeymapEntry[] = [
+export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     // Navigation (IDEA-19/20)
     { action: 'Go to File', command: 'file-search.openFile', mac: 'ctrlcmd+shift+o', other: 'ctrl+shift+n' },
     { action: 'Go to Class', command: INGOT_NAV_COMMANDS.goToClass.id, mac: 'ctrlcmd+o', other: 'ctrl+n', when: NOT_REVIEWING },
@@ -90,7 +90,7 @@ export const INTELLIJ_KEYMAP: readonly KeymapEntry[] = [
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';
-export const KEYMAP_OPTIONS = ['IntelliJ IDEA', 'VS Code'] as const;
+export const KEYMAP_OPTIONS = ['Ingot (default)', 'Alternative'] as const;
 export type KeymapOption = typeof KEYMAP_OPTIONS[number];
 
 /** Double Shift opens Search Everywhere when both presses land within this window. */

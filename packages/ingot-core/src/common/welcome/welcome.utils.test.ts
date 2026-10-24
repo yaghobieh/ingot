@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { projectInitials, repoNameFromUrl, toRecentProject, toRecentProjects } from './welcome.utils';
 
 describe('welcome utils', () => {
-    it('builds initials like JetBrains project icons', () => {
+    it('builds initials like classic IDEs project icons', () => {
         expect(projectInitials('forge-mission-control')).toBe('FM');
         expect(projectInitials('atlas')).toBe('AT');
     });

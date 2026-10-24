@@ -5,14 +5,14 @@ export const SETTINGS_PREFS = {
     iconTheme: 'workbench.iconTheme'
 } as const;
 
-/** JetBrains-style Settings tree (IDEA-34). */
+/** IDE-style Settings tree (IDEA-34). */
 export const SETTINGS_TREE: readonly SettingsPage[] = [
     {
         id: 'appearance-behavior', label: 'Appearance & Behavior', children: [
             {
                 id: 'appearance', label: 'Appearance', preferences: [SETTINGS_PREFS.colorTheme, SETTINGS_PREFS.iconTheme, 'window.zoomLevel', 'workbench.tree.indent'],
-                actions: [{ id: 'importTheme', label: 'Import VS Code Theme…' }, { id: 'removeTheme', label: 'Remove Imported Theme…' }],
-                description: 'Color themes include Ingot Light, Ingot Dark, Ingot Darcula, high contrast, themes from plugins and imported VS Code themes.'
+                actions: [{ id: 'importTheme', label: 'Import Color Theme…' }, { id: 'removeTheme', label: 'Remove Imported Theme…' }],
+                description: 'Color themes include Ingot Light, Ingot Dark, Ingot Ember, high contrast, themes from plugins and imported color themes.'
             },
             { id: 'system', label: 'System Settings', preferences: ['files.autoSave', 'files.autoSaveDelay', 'window.title'] }
         ]

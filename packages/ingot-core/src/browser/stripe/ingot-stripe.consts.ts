@@ -9,7 +9,7 @@ export interface StripeButton {
     readonly widgetPrefix: string;
 }
 
-/** JetBrains New UI bottom-left stripe group: tool windows that dock to the bottom. */
+/** Ingot UI bottom-left stripe group: tool windows that dock to the bottom. */
 export const BOTTOM_STRIPE: readonly StripeButton[] = [
     { id: 'terminal', icon: 'terminal', title: 'Terminal (⌥F12)', command: 'workbench.action.terminal.toggleTerminal', widgetPrefix: 'terminal-' },
     { id: 'run', icon: 'run', title: 'Run (⌘4)', command: 'output:toggle', widgetPrefix: 'outputView' },

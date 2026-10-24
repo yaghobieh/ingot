@@ -15,6 +15,6 @@ export const CLONE_TERMINAL_TITLE = 'Get from VCS';
 export const SYNC_WITH_OS = 'Sync with OS';
 export const LEARN_LINKS = [
     { label: 'Ingot on GitHub', url: 'https://github.com/yaghobieh/ingot' },
-    { label: 'IntelliJ keymap reference', url: 'https://resources.jetbrains.com/storage/products/intellij-idea/docs/IntelliJIDEA_ReferenceCard.pdf' },
+    { label: 'Ingot keymap reference', url: 'https://github.com/yaghobieh/ingot/blob/main/docs/keymap.md' },
     { label: 'Open VSX registry', url: 'https://open-vsx.org' }
 ] as const;

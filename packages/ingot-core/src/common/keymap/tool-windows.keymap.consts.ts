@@ -1,6 +1,6 @@
 import type { KeymapEntry } from './keymap.types';
 
-/** IntelliJ tool window shortcuts (IDEA-14). */
+/** Ingot tool window shortcuts (IDEA-14). */
 export const TOOL_WINDOW_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Project tool window', command: 'fileNavigator:toggle', mac: 'ctrlcmd+1', other: 'alt+1' },
     { action: 'Bookmarks / Search tool window', command: 'search-in-workspace.toggle', mac: 'ctrlcmd+2', other: 'alt+2' },

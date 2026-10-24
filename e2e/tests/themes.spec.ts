@@ -11,18 +11,18 @@ const iconSelect = (page: Page) => page.locator('#ingot-setting-workbench-iconTh
 const editorBackground = (page: Page) => page.evaluate(() => getComputedStyle(document.body).getPropertyValue('--theia-editor-background').trim().toLowerCase());
 
 test.describe('IDEA-35/36 color themes and icon themes', () => {
-    test('imports a VS Code color theme from a file, applies it, and removes it', async ({ page }) => {
+    test('imports a color theme from a file, applies it, and removes it', async ({ page }) => {
         await openIngot(page, CONFIG_PROJECT);
         await openSettings(page);
         await expect(themeSelect(page).locator('option', { hasText: 'High Contrast' }).first()).toBeAttached();
         await page.locator('#ingot-settings-action-importTheme').click();
 
         // Theia file dialog: expand themes/, pick the file, Import.
-        const fileDialog = page.locator('.dialogBlock', { hasText: 'Import VS Code Color Theme' });
+        const fileDialog = page.locator('.dialogBlock').filter({ has: page.getByText('Import Color Theme', { exact: true }) });
         await expect(fileDialog).toBeVisible();
         await fileDialog.locator('.theia-TreeNode', { hasText: 'themes' }).dblclick();
         await fileDialog.locator('.theia-TreeNode', { hasText: 'sample-night-color-theme.json' }).click();
-        await fileDialog.getByRole('button', { name: 'Import' }).click();
+        await fileDialog.getByRole('button', { name: 'Import', exact: true }).click();
 
         await expect(page.locator('body')).toHaveClass(/user-sample-night/);
         await expect.poll(() => editorBackground(page)).toBe('#011627');

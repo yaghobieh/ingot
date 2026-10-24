@@ -4,7 +4,7 @@ import { MonacoThemingService } from '@theia/monaco/lib/browser/monaco-theming-s
 import { INGOT_THEMES } from '../../common/theme/theme.consts';
 import { buildThemeJson } from '../../common/theme/theme.utils';
 
-/** Registers the Ingot Light / Dark / Darcula themes (IDEA-16, IDEA-35). */
+/** Registers the Ingot Light / Dark / Ember themes (IDEA-16, IDEA-35). */
 @injectable()
 export class IngotThemeContribution implements FrontendApplicationContribution {
 

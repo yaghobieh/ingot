@@ -14,7 +14,7 @@ import { INLINE_ACTIONS, SETTINGS_ACTION_COMMANDS, SettingsDialogProps, settingD
 
 interface Option { readonly value: string; readonly label: string }
 
-/** JetBrains-style Settings dialog: searchable tree, schema-driven pages, OK / Cancel / Apply (IDEA-34). */
+/** IDE-style Settings dialog: searchable tree, schema-driven pages, OK / Cancel / Apply (IDEA-34). */
 @injectable()
 export class IngotSettingsDialog extends ReactDialog<void> {
 

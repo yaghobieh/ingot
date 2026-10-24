@@ -9,7 +9,7 @@ const THEME = `{
   "tokenColors": [ { "scope": "comment", "settings": { "foreground": "#637777" } }, ],
 }`;
 
-describe('VS Code theme import', () => {
+describe('color theme import', () => {
     it('strips comments and trailing commas but not strings', () => {
         const parsed = JSON.parse(stripJsonc(THEME));
         expect(parsed.colors.url).toBe('http://x/y');
@@ -24,7 +24,7 @@ describe('VS Code theme import', () => {
 
     it('rejects files that are not color themes', () => {
         expect(() => parseVsCodeTheme('nope', 'a.json')).toThrow(/valid JSON/);
-        expect(() => parseVsCodeTheme('{"name":"x"}', 'a.json')).toThrow(/not a VS Code color theme/);
+        expect(() => parseVsCodeTheme('{"name":"x"}', 'a.json')).toThrow(/not a color theme file/);
         expect(() => parseVsCodeTheme('{"colors":{},"include":"./base.json"}', 'a.json')).toThrow(/include/);
     });
 

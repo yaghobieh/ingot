@@ -38,7 +38,7 @@ const ToolbarButton = ({ id, icon, title, onClick, label, dropdown, className }:
     </button>
 );
 
-/** Slim JetBrains New UI main toolbar matching docs/design/ide-reference.png (IDEA-13). */
+/** Slim Ingot UI main toolbar matching docs/design/ide-reference.png (IDEA-13). */
 @injectable()
 export class IngotMainToolbar extends ReactWidget {
 
@@ -139,7 +139,7 @@ export class IngotMainToolbar extends ReactWidget {
         </div>;
     }
 
-    /** Uses the project's `dev`/`start` npm script as the default run configuration, like WebStorm. */
+    /** Uses the project's `dev`/`start` npm script as the default run configuration, like a full IDE. */
     protected async loadRunScript(): Promise<void> {
         const [root] = this.workspace.tryGetRoots();
         this.runScript = undefined;

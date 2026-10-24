@@ -14,7 +14,7 @@ describe('buildThemeJson', () => {
         }
     });
 
-    it('uses a neutral (JetBrains-style) status bar, not a blue one', () => {
+    it('uses a neutral (IDE-style) status bar, not a blue one', () => {
         const light = INGOT_THEMES.find(t => t.id === THEME_IDS.light)!;
         const json = buildThemeJson(light);
         expect(json.colors['statusBar.background']).toBe(light.tokens.toolbar);

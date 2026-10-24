@@ -1,10 +1,10 @@
 ---
-description: Ingot UI rules (JetBrains look and feel, tokens, shortcuts)
+description: Ingot UI rules (look and feel, tokens, shortcuts)
 globs: packages/**/src/**
 alwaysApply: false
 ---
-- Match the IntelliJ New UI: main toolbar, tool window stripes, compact density, 13px UI font, 20px tool window icons.
-- Every action has a command id, an IntelliJ default shortcut (see keymap constants) and appears in Find Action (Cmd+Shift+A).
-- Colors only via design tokens (`--ingot-*`); support Ingot Light, Ingot Dark and Darcula themes.
+- Match docs/design/ide-reference.png: main toolbar, tool window stripes, compact density, 13px UI font, 20px tool window icons.
+- Every action has a command id, an Ingot default shortcut (see keymap constants) and appears in Find Action (Cmd+Shift+A).
+- Colors only via design tokens (`--ingot-*`); support Ingot Light, Ingot Dark and System themes.
 - Every user-facing feature ships with a Playwright e2e spec that drives it with real clicks and shortcuts.
-- Never use the Microsoft VS Code Marketplace; extensions come from Open VSX.
+- Extensions come from Open VSX only.

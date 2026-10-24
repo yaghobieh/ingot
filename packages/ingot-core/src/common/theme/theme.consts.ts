@@ -1,10 +1,10 @@
-import { DARCULA_TOKENS, DARK_TOKENS, LIGHT_TOKENS } from './palette.consts';
+import { EMBER_TOKENS, DARK_TOKENS, LIGHT_TOKENS } from './palette.consts';
 import type { IngotThemeDefinition, SyntaxColors } from './theme.types';
 
 export const THEME_IDS = {
     light: 'ingot-light',
     dark: 'ingot-dark',
-    darcula: 'ingot-darcula'
+    ember: 'ingot-ember'
 } as const;
 
 export const LIGHT_SYNTAX: SyntaxColors = {
@@ -17,7 +17,7 @@ export const DARK_SYNTAX: SyntaxColors = {
     type: '#BCBEC4', property: '#C77DBB', variable: '#BCBEC4', constant: '#C77DBB', tag: '#D5B778', attribute: '#BABABA'
 };
 
-export const DARCULA_SYNTAX: SyntaxColors = {
+export const EMBER_SYNTAX: SyntaxColors = {
     keyword: '#CC7832', string: '#6A8759', number: '#6897BB', comment: '#808080', function: '#FFC66D',
     type: '#A9B7C6', property: '#9876AA', variable: '#A9B7C6', constant: '#9876AA', tag: '#E8BF6A', attribute: '#BABABA'
 };
@@ -25,7 +25,7 @@ export const DARCULA_SYNTAX: SyntaxColors = {
 export const INGOT_THEMES: readonly IngotThemeDefinition[] = [
     { id: THEME_IDS.light, label: 'Ingot Light', uiTheme: 'vs', tokens: LIGHT_TOKENS, syntax: LIGHT_SYNTAX },
     { id: THEME_IDS.dark, label: 'Ingot Dark', uiTheme: 'vs-dark', tokens: DARK_TOKENS, syntax: DARK_SYNTAX },
-    { id: THEME_IDS.darcula, label: 'Ingot Darcula', uiTheme: 'vs-dark', tokens: DARCULA_TOKENS, syntax: DARCULA_SYNTAX }
+    { id: THEME_IDS.ember, label: 'Ingot Ember', uiTheme: 'vs-dark', tokens: EMBER_TOKENS, syntax: EMBER_SYNTAX }
 ];
 
 /** Alpha suffixes used when deriving translucent colors from tokens. */

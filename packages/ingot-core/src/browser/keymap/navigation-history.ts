@@ -13,7 +13,7 @@ export interface RecentLocation {
 
 const MAX_FILES = 50;
 const MAX_LOCATIONS = 30;
-/** Cursor moves within this many lines update the last location instead of adding one. */
+/** Caret moves within this many lines update the last location instead of adding one. */
 const SAME_PLACE_LINES = 5;
 
 /** Recent Files (Cmd+E) and Recent Locations (Cmd+Shift+E) history (IDEA-17). */

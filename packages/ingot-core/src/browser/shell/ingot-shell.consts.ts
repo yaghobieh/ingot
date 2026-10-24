@@ -28,7 +28,7 @@ export const NO_PROJECT_LABEL = 'Open Project';
 export const NO_VCS_LABEL = 'Version Control';
 export const RUN_CONFIGURATION_LABEL = 'Current File';
 
-/** Views opened in the default JetBrains-style layout on first start. */
+/** Views opened in the default IDE-style layout on first start. */
 export const DEFAULT_LAYOUT_COMMANDS = ['fileNavigator:toggle'] as const;
 
 export const PROJECT_POPUP_RECENT_LIMIT = 8;

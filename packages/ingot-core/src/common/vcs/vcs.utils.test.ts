@@ -12,7 +12,7 @@ describe('vcs utils', () => {
         expect(breadcrumbs('/p/ingot', 'ingot', '/p/ingot/src/app.ts')).toEqual(['ingot', 'src', 'app.ts']);
     });
 
-    it('formats the caret like JetBrains', () => {
+    it('formats the caret like classic IDEs', () => {
         expect(formatCursorPosition(11, 5)).toBe('12:5');
     });
 

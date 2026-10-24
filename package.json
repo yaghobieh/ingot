@@ -2,7 +2,7 @@
   "name": "ingot",
   "private": true,
   "version": "0.1.0",
-  "description": "Ingot - the open-source AI IDE with the soul of WebStorm",
+  "description": "Ingot - the open-source AI IDE",
   "license": "Apache-2.0",
   "engines": {
     "node": ">=22 <23",

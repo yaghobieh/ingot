@@ -111,7 +111,7 @@ export const expandCommand = (prompt: string, commands: readonly ProjectCommand[
     return { command, text };
 };
 
-/** `{ "mcpServers": { name: { command, args, env } | { url, headers } } }` (Cursor / Claude format). */
+/** `{ "mcpServers": { name: { command, args, env } | { url, headers } } }` (common MCP format). */
 export const parseMcpJson = (text: string, source: McpServerConfig['source']): McpServerConfig[] => {
     let json: unknown;
     try {

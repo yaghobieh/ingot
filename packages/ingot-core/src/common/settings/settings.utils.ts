@@ -57,6 +57,6 @@ export const coerceSetting = (raw: string | boolean, type: string | undefined): 
 
 export const themeIdFromLabel = (label: string): string => `user-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'theme'}`;
 
-/** VS Code theme `type` → Monaco base theme. */
+/** color theme `type` → Monaco base theme. */
 export const uiThemeFor = (type: unknown): 'vs' | 'vs-dark' | 'hc-black' | 'hc-light' =>
     type === 'light' ? 'vs' : type === 'hc' || type === 'hcDark' ? 'hc-black' : type === 'hcLight' ? 'hc-light' : 'vs-dark';

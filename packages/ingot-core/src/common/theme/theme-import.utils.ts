@@ -10,7 +10,7 @@ export interface ImportedTheme {
 export const USER_THEMES_STORAGE_KEY = 'ingot.userThemes';
 export const MAX_THEME_BYTES = 2_000_000;
 
-/** Strips // and /* *\/ comments and trailing commas (VS Code themes are JSONC), leaving strings intact. */
+/** Strips // and /* *\/ comments and trailing commas (color themes are JSONC), leaving strings intact. */
 export const stripJsonc = (text: string): string => {
     let out = '';
     let inString = false;
@@ -46,7 +46,7 @@ export const stripJsonc = (text: string): string => {
     return out.replace(/,(\s*[}\]])/g, '$1');
 };
 
-/** Validates a VS Code color theme file and turns it into a theme Ingot can register. */
+/** Validates a color theme file and turns it into a theme Ingot can register. */
 export const parseVsCodeTheme = (text: string, fileName: string): ImportedTheme => {
     if (text.length > MAX_THEME_BYTES) {
         throw new Error('Theme file is too large.');
@@ -64,7 +64,7 @@ export const parseVsCodeTheme = (text: string, fileName: string): ImportedTheme 
     const hasColors = typeof theme.colors === 'object' && theme.colors !== null;
     const hasTokens = Array.isArray(theme.tokenColors) || typeof theme.tokenColors === 'string' || typeof theme.semanticTokenColors === 'object';
     if (!hasColors && !hasTokens) {
-        throw new Error('The file has no "colors" or "tokenColors"; it is not a VS Code color theme.');
+        throw new Error('The file has no "colors" or "tokenColors"; it is not a color theme file.');
     }
     if (typeof theme.include === 'string' || typeof theme.tokenColors === 'string') {
         throw new Error('Themes that include other files are not supported yet; install the theme as a plugin instead.');
