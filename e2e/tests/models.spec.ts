@@ -6,6 +6,7 @@ import { dismissNotifications, openIngot, runCommand } from '../src/app.utils';
 import { E2E_CONFIG_DIR, FIXTURE_WORKSPACE } from '../src/e2e.consts';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama, modelsPanel as models } from '../src/models.e2e-utils';
+import { pickModel } from '../src/chat.e2e-utils';
 
 const MATH = path.join(FIXTURE_WORKSPACE, 'src', 'math.ts');
 const CHAT_REPLY = 'Hello from your local model';
@@ -30,7 +31,7 @@ test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
         expect(server.requests.at(-1)?.model).toBe('e2e-coder');
 
         await page.locator('#ingot-agents-new').click();
-        await page.locator('#ingot-composer-model').selectOption('ollama-local');
+        await pickModel(page, 'ollama-local');
         await page.locator('#ingot-composer-input').fill('Say hello');
         await page.locator('#ingot-composer-input').press('Enter');
         await expect(page.locator('#ingot-agents .ingot-chat-agent')).toHaveText(CHAT_REPLY);
@@ -41,7 +42,7 @@ test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
         await openIngot(page);
         await connectOllama(page, server);
         await models(page).locator('#ingot-autocomplete-model').selectOption('ollama-local');
-        await expect(page.locator('#theia-statusBar [id$="ingot-autocomplete-status"]')).toContainText('Ollama (local)');
+        await expect(page.locator('#theia-statusBar [id$="ingot-autocomplete-status"]')).toContainText('Qwen2.5 Coder (local)');
 
         await page.locator('#files').getByText('src', { exact: true }).click();
         await page.locator('#files').getByText('math.ts', { exact: true }).dblclick();
