@@ -49,8 +49,7 @@ test.describe('IDEA-34 Settings dialog', () => {
 
     test('theme switches on OK and page buttons open the keymap editor', async ({ page }) => {
         await openIngot(page);
-        await page.locator('#ingot-tb-settings').click();
-        await expect(dialog(page)).toBeVisible();
+        await openSettings(page);
         await page.locator('#ingot-setting-ingot-appearance').selectOption('light');
         await page.locator('#ingot-settings-ok').click();
         await expect(page.locator('body')).toHaveClass(/theia-light/);

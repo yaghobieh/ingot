@@ -1,14 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
-import { actUntilVisible, openIngot } from '../src/app.utils';
+import { actUntilVisible, openIngot, runCommand } from '../src/app.utils';
+
+const PORTS_LABEL = 'View: Toggle Ports';
 
 const terminalPanel = (page: Page) => page.locator('#theia-bottom-content-panel [id^="terminal-"]').first();
 const portsPanel = (page: Page) => page.locator('#ingot-ports');
 const randomPort = (): number => 47_000 + Math.floor(Math.random() * 2_000);
 
 test.describe('IDEA-13/14 Ingot UI shell', () => {
-    test('docks a Terminal at the bottom by default', async ({ page }) => {
+    test('keeps the bottom panel closed and docks a Terminal there from the stripe', async ({ page }) => {
         await openIngot(page);
-        await expect(terminalPanel(page)).toBeVisible({ timeout: 30_000 });
+        await expect(terminalPanel(page)).toBeHidden();
+        await actUntilVisible(() => page.locator('#ingot-stripe-terminal').click(), terminalPanel(page));
+        await expect(page.locator('#ingot-stripe-terminal')).toHaveClass(/selected/);
     });
 
     test('names the window Ingot and the file tree Project', async ({ page }) => {
@@ -18,15 +22,17 @@ test.describe('IDEA-13/14 Ingot UI shell', () => {
         await expect(page.locator('#theia-left-content-panel .theia-sidepanel-title')).not.toHaveText(/explorer/i);
     });
 
-    test('shows the bottom tool window stripe and toggles tool windows from it', async ({ page }) => {
+    test('shows a thin stripe with Project, Search, Git and Terminal only', async ({ page }) => {
         await openIngot(page);
-        for (const id of ['terminal', 'run', 'problems', 'ports']) {
-            await expect(page.locator(`#ingot-stripe-${id}`)).toBeVisible();
+        for (const id of ['explorer-view-container', 'search-view-container', 'scm-view-container']) {
+            await expect(page.locator(`#shell-tab-${id}`)).toBeVisible();
         }
-        await actUntilVisible(() => page.locator('#ingot-stripe-problems').click(), page.locator('#problems'));
-        await page.locator('#ingot-stripe-ports').click();
-        await expect(portsPanel(page)).toBeVisible();
-        await expect(page.locator('#ingot-stripe-ports')).toHaveClass(/selected/);
+        await expect(page.locator('#ingot-stripe-terminal')).toBeVisible();
+        for (const id of ['debug', 'vsx-extensions-view-container']) {
+            await expect(page.locator(`#shell-tab-${id}`)).toBeHidden();
+        }
+        await page.locator('#shell-tab-search-view-container').click();
+        await expect(page.locator('#search-view-container')).toBeVisible();
     });
 
     test('opens the main menu from the hamburger and shows Agents on the right', async ({ page }) => {
@@ -36,7 +42,7 @@ test.describe('IDEA-13/14 Ingot UI shell', () => {
         await expect(page.locator('.lm-Menu').first()).toContainText('File');
         await page.keyboard.press('Escape');
         await expect(page.locator('#ingot-agents')).toBeVisible();
-        await expect(page.locator('.lm-TabBar.theia-app-sides [id^="shell-tab-ingot-agents"]').first()).toBeVisible();
+        await expect(page.locator('#theia-right-content-panel .theia-app-sidebar-container')).toBeHidden();
     });
 
     test('editor breadcrumbs, status bar index state and caret position', async ({ page }) => {
@@ -67,7 +73,7 @@ test.describe('IDEA-24 terminal and Ports tool window', () => {
         }).toPass({ timeout: 20_000 });
 
         // Ports lists it with its process.
-        await page.locator('#ingot-stripe-ports').click();
+        await runCommand(page, PORTS_LABEL);
         const row = portsPanel(page).locator(`tr[data-port="${port}"]`);
         await expect(row).toBeVisible({ timeout: 15_000 });
         await expect(row).toContainText('node');

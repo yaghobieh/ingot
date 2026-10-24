@@ -61,6 +61,7 @@
         "reloadOnReconnect": true,
         "preferences": {
           "security.workspace.trust.enabled": false,
+          "git.openRepositoryInParentFolders": "never",
           "window.title": "${dirty}${appName}${separator}${rootName}${separator}${activeEditorShort}",
           "workbench.colorTheme": "ingot-light",
           "window.titleBarStyle": "custom",
