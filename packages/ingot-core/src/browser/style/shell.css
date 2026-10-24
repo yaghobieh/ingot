@@ -314,3 +314,6 @@ body.ingot-has-group #theia-top-panel > .ingot-project-tabs { order: 2; height: 
 .ingot-log-file-D .ingot-log-status { color: var(--ingot-danger, #F75464); }
 .ingot-log-file-M .ingot-log-status { color: var(--ingot-accent-blue, #3574F0); }
 .ingot-log-empty { padding: 8px; opacity: .7; }
+.ingot-log-subject { min-width: 140px; }
+.ingot-log-ref { flex: none; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.ingot-log-author, .ingot-log-date { flex: none; }
