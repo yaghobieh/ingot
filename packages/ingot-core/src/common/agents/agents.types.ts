@@ -1,5 +1,5 @@
 export type AgentStatus = 'idle' | 'thinking' | 'editing' | 'review' | 'done' | 'error';
-export type AgentMode = 'agent' | 'ask' | 'plan';
+export type AgentMode = 'agent' | 'multi' | 'ask' | 'plan' | 'debug';
 export type PlanState = 'done' | 'active' | 'todo';
 export type StepKind = 'read' | 'edit' | 'run' | 'search';
 
@@ -24,7 +24,19 @@ export interface AgentMessage {
     /** What the model sees when it differs from the visible text (an expanded /command). */
     readonly expanded?: string;
     /** Context chips attached to a user message (IDEA-65), shown under it. */
-    readonly chips?: readonly { readonly label: string; readonly path: string }[];
+    readonly chips?: readonly { readonly label: string; readonly path: string; readonly kind?: 'code' | 'file' | 'rule' | 'memory' }[];
+    /** A memory the agent saved from this reply (IDEA-77), with Undo. */
+    readonly memory?: { readonly id: string; readonly scope: 'project' | 'global'; readonly undone?: boolean };
+    /** A Plan-mode reply that can be built (IDEA-77). */
+    readonly buildable?: boolean;
+}
+
+/** What went into the last request of a chat (IDEA-77): shown as chips and in the usage ring. */
+export interface ChatContextInfo {
+    readonly files: readonly string[];
+    readonly rules: readonly string[];
+    readonly memories: readonly { readonly id: string; readonly text: string }[];
+    readonly usage: import('./context-usage').ContextUsage;
 }
 
 export interface FileChange {
@@ -49,6 +61,15 @@ export interface AgentSession {
     activeFile?: string;
     /** Project root URI the agent works in; set inside project groups (IDEA-52). */
     project?: string;
+    /** Open as a tab in the Agents panel (closed chats stay in History). */
+    open?: boolean;
+    openedAt?: number;
+    pinned?: boolean;
+    /** The open editor is not attached automatically (its chip was removed). */
+    detachActiveFile?: boolean;
+    context?: ChatContextInfo;
+    /** Multi-agent: the chat that started this sub-agent. */
+    parent?: string;
 }
 
 export interface ModelOption {

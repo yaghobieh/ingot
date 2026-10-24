@@ -6,6 +6,7 @@ import { dismissNotifications, openIngot } from '../src/app.utils';
 import { FIXTURE_WORKSPACE } from '../src/e2e.consts';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
+import { pickModel } from '../src/chat.e2e-utils';
 
 const MATH = path.join(FIXTURE_WORKSPACE, 'src', 'math.ts');
 const STRINGS = path.join(FIXTURE_WORKSPACE, 'src', 'strings.ts');
@@ -34,7 +35,7 @@ const twoFileReply = [
 
 const ask = async (page: Page, prompt: string): Promise<void> => {
     await page.locator('#ingot-agents-new').click();
-    await page.locator('#ingot-composer-model').selectOption('ollama-local');
+    await pickModel(page, 'ollama-local');
     await page.locator('#ingot-composer-input').fill(prompt);
     await page.locator('#ingot-composer-input').press('Enter');
 };

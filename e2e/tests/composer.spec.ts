@@ -84,7 +84,7 @@ test.describe('IDEA-65 / IDEA-67 agent composer', () => {
 
         await openAgents(page);
         await paste(page, copied);
-        const chip = page.locator('#ingot-composer-chips .ingot-chip');
+        const chip = page.locator('#ingot-composer-chips .ingot-chip-code');
         await expect(chip).toHaveCount(1);
         await expect(chip.locator('.ingot-chip-label')).toHaveText('dev-db.mjs (2-3)');
         await expect(composer(page)).toHaveValue('');

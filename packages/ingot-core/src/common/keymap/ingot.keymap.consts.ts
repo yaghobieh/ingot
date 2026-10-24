@@ -18,6 +18,8 @@ export const INGOT_RUN_COMMANDS = {
 /** Keeps Ingot shortcuts from stealing the agent review keys (Ctrl+Y / Ctrl+N) while an edit is pending. */
 const NOT_REVIEWING = '!ingotAgentEditPending';
 const EDITOR = 'editorTextFocus';
+/** Focus is inside the Agents tool window (chat). */
+const AGENTS_FOCUS = 'ingotAgentsFocus';
 const EDITOR_NOT_REVIEWING = `${EDITOR} && ${NOT_REVIEWING}`;
 
 /**
@@ -92,7 +94,10 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Push…', command: 'ingot.commit.push', mac: 'ctrlcmd+shift+k', other: 'ctrl+shift+k' },
     { action: 'Commit Message History', command: 'ingot.commit.messageHistory', mac: 'ctrlcmd+alt+h', other: 'ctrl+alt+h', when: 'ingotLocalChangesFocus' },
     // Agent chat (IDEA-65)
-    { action: 'Add Selection to Agent Chat', command: 'ingot.agents.addSelectionToChat', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: EDITOR }
+    { action: 'Add Selection to Agent Chat', command: 'ingot.agents.addSelectionToChat', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: EDITOR },
+    { action: 'Cycle Chat Mode', command: 'ingot.agents.cycleMode', mac: 'ctrlcmd+.', other: 'ctrl+.', when: AGENTS_FOCUS },
+    { action: 'New Chat', command: 'ingot.agents.new', mac: 'ctrlcmd+alt+n', other: 'ctrl+alt+n', when: AGENTS_FOCUS },
+    { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';

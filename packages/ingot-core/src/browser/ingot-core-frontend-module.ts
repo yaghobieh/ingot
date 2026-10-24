@@ -17,6 +17,7 @@ import { IngotPortsWidget } from './ports/ingot-ports-widget';
 import { IngotPortsContribution } from './ports/ingot-ports-contribution';
 import { PORTS_WIDGET_ID } from './ports/ingot-ports.consts';
 import { AgentStore } from './agents/agent-store';
+import { MemoryStore } from './agents/memory-store';
 import { AgentEditReview } from './agents/agent-edit-review';
 import { IngotAgentsWidget } from './agents/agents-widget';
 import { IngotAgentsContribution } from './agents/agents-contribution';
@@ -175,6 +176,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bindViewContribution(bind, IngotPortsContribution);
 
     bind(AgentStore).toSelf().inSingletonScope();
+    bind(MemoryStore).toSelf().inSingletonScope();
     bind(AgentEditReview).toSelf().inSingletonScope();
     bind(IngotAgentsWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentsWidget) })).inSingletonScope();

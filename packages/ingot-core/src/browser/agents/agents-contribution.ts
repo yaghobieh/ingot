@@ -32,7 +32,10 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
 
     override registerCommands(registry: CommandRegistry): void {
         super.registerCommands(registry);
-        registry.registerCommand(AGENT_COMMANDS.newAgent, { execute: async () => { await this.openView({ activate: true, reveal: true }); this.store.create(); } });
+        registry.registerCommand(AGENT_COMMANDS.newAgent, { execute: async () => (await this.openView({ activate: true, reveal: true })).newChat() });
+        registry.registerCommand(AGENT_COMMANDS.cycleMode, { execute: async () => (await this.openView({ activate: false, reveal: true })).cycleMode() });
+        registry.registerCommand(AGENT_COMMANDS.history, { execute: async () => (await this.openView({ activate: true, reveal: true })).toggleHistory() });
+        registry.registerCommand(AGENT_COMMANDS.memories, { execute: async () => (await this.openView({ activate: true, reveal: true })).toggleMemories() });
         registry.registerCommand(AGENT_COMMANDS.acceptEdit, { execute: () => this.review.accept(), isEnabled: () => !!this.review.pending });
         registry.registerCommand(AGENT_COMMANDS.rejectEdit, { execute: () => this.review.reject(), isEnabled: () => !!this.review.pending });
         registry.registerCommand(AGENT_COMMANDS.addSelectionToChat, {
