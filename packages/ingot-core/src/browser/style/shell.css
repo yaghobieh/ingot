@@ -541,3 +541,44 @@ button.ingot-popover-footer:hover { color: var(--theia-textLink-foreground); }
 .ingot-hunk-ignore { cursor: pointer; color: var(--theia-descriptionForeground); font-size: 12px !important; opacity: .6; }
 .ingot-hunk-ignore:hover, .ingot-hunk-ignore.active { opacity: 1; color: var(--theia-errorForeground, #F85149); }
 .ingot-diff .ingot-hunk-ignored { opacity: .55; background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(127, 127, 127, .08) 6px 12px); }
+
+/* IDEA-33: conflicts dialog and three-pane merge tool */
+.ingot-lc-link { border: 0; background: transparent; color: var(--theia-textLink-foreground); cursor: pointer; font: inherit; font-size: 12px; margin-left: 8px; padding: 0; }
+.ingot-lc-link:hover { text-decoration: underline; }
+.ingot-conflicts-body { display: flex; gap: 12px; min-width: 560px; }
+.ingot-conflicts-table { flex: 1; border-collapse: collapse; font-size: 12px; }
+.ingot-conflicts-table th { text-align: left; font-weight: 500; color: var(--theia-descriptionForeground); padding: 4px 8px; border-bottom: 1px solid var(--theia-panel-border); }
+.ingot-conflicts-table td { padding: 4px 8px; cursor: pointer; }
+.ingot-conflicts-table tr.selected td { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
+.ingot-conflicts-name .codicon { color: var(--theia-errorForeground, #F85149); vertical-align: -2px; }
+.ingot-conflicts-actions { display: flex; flex-direction: column; gap: 6px; }
+.ingot-conflicts-actions .theia-button { margin: 0; min-width: 120px; }
+
+.ingot-merge { display: flex; flex-direction: column; background: var(--theia-editor-background); position: relative; outline: none; }
+.ingot-merge-tools { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--theia-panel-border); font-size: 12px; }
+.ingot-merge-status { color: var(--theia-descriptionForeground); }
+.ingot-merge[data-conflicts="0"] .ingot-merge-status { color: var(--theia-testing-iconPassed, #3FB950); }
+.ingot-merge-panes { flex: 1; min-height: 0; display: flex; }
+.ingot-merge-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--theia-panel-border); }
+.ingot-merge-pane:last-child { border-right: 0; }
+.ingot-merge-result { flex: 1.1; }
+.ingot-merge-pane-title { font-size: 11px; padding: 3px 8px; color: var(--theia-descriptionForeground); border-bottom: 1px solid var(--theia-panel-border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-merge-result .ingot-merge-pane-title { color: var(--theia-foreground); font-weight: 600; }
+.ingot-merge-editor { flex: 1; min-height: 0; }
+.ingot-merge-line.ingot-merge-conflict { background: rgba(248, 81, 73, .16); }
+.ingot-merge-line.ingot-merge-ours, .ingot-merge-line.ingot-merge-theirs { background: rgba(110, 139, 255, .14); }
+.ingot-merge-line.ingot-merge-same { background: rgba(63, 185, 80, .12); }
+.ingot-merge-line.resolved { background: rgba(127, 127, 127, .08); }
+.ingot-merge-line.empty { border-top: 2px solid rgba(248, 81, 73, .6); }
+.ingot-merge-marker { border-top: 2px solid rgba(110, 139, 255, .6); }
+.ingot-merge-apply { cursor: pointer; color: var(--ingot-primary, #6E8BFF); font-size: 14px !important; }
+.ingot-merge-ignore { cursor: pointer; color: var(--theia-descriptionForeground); font-size: 11px !important; opacity: .7; }
+.ingot-merge-ignore:hover { opacity: 1; color: var(--theia-errorForeground, #F85149); }
+.ingot-merge-buttons { display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--theia-panel-border); }
+.ingot-merge-buttons .theia-button { margin: 0; }
+.ingot-merge-overlay { display: none; position: absolute; inset: 0; background: rgba(0, 0, 0, .35); z-index: 5; padding: 24px; }
+.ingot-merge-overlay.open { display: flex; }
+.ingot-merge-proposal { flex: 1; display: flex; flex-direction: column; background: var(--theia-editor-background); border: 1px solid var(--theia-panel-border); border-radius: 8px; overflow: hidden; }
+.ingot-merge-proposal-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--theia-panel-border); font-size: 12px; }
+.ingot-merge-proposal-head .theia-button { margin: 0; }
+.ingot-merge-proposal-diff { flex: 1; min-height: 0; }
