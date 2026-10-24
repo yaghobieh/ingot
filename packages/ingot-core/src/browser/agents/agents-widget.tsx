@@ -84,7 +84,10 @@ export class IngotAgentsWidget extends ReactWidget {
         const pending = this.review.pending;
         return <>
             {session.messages.map((m, i) => (
-                <div key={i} className={`ingot-chat-msg ingot-chat-${m.role}`}>{m.text}</div>
+                <div key={i} className={`ingot-chat-msg ingot-chat-${m.role}`}>
+                    {m.from && <div className='ingot-chat-from'>{m.from}</div>}
+                    {m.text}
+                </div>
             ))}
             {session.plan.length > 0 && <div className='ingot-chat-plan'>
                 <div className='ingot-chat-label'>Plan</div>

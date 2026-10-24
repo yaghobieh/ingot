@@ -32,6 +32,10 @@ import { IngotWorkspaceFileService } from '../common/workspace/ingot-workspace-f
 import { IngotGroupService } from './groups/ingot-group-service';
 import { IngotProjectTabsWidget } from './groups/project-tabs-widget';
 import { IngotGroupsContribution } from './groups/groups-contribution';
+import { GroupChannel } from './groups/group-channel';
+import { IngotGroupChatWidget } from './groups/group-chat-widget';
+import { IngotGroupChatContribution } from './groups/group-chat-contribution';
+import { GROUP_CHAT_WIDGET_ID } from './groups/groups.browser-consts';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
@@ -43,6 +47,11 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     for (const id of [FrontendApplicationContribution, CommandContribution, KeybindingContribution]) {
         bind(id).toService(IngotGroupsContribution);
     }
+    bind(GroupChannel).toSelf().inSingletonScope();
+    bind(IngotGroupChatWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: GROUP_CHAT_WIDGET_ID, createWidget: () => ctx.container.get(IngotGroupChatWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotGroupChatContribution);
+    bind(FrontendApplicationContribution).toService(IngotGroupChatContribution);
     bind(IngotCoreContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(IngotCoreContribution);
     bind(MenuContribution).toService(IngotCoreContribution);

@@ -6,6 +6,9 @@ import { activeAgentCount, titleFromPrompt } from '../../common/agents/agents.ut
 
 let nextId = 1;
 
+/** Handles slash commands before the prompt reaches a model; returns true when handled (e.g. the group channel). */
+export type AgentCommandHandler = (session: AgentSession, prompt: string) => boolean;
+
 /** In-memory agent sessions shown in the Agents tool window (the runtime arrives with IDEA-27/28). */
 @injectable()
 export class AgentStore {
@@ -16,6 +19,7 @@ export class AgentStore {
     protected items: AgentSession[] = [];
     protected selected?: string;
     protected projectScope?: string;
+    protected readonly commandHandlers: AgentCommandHandler[] = [];
     mode: AgentMode = 'agent';
     model = DEFAULT_MODEL;
 
@@ -74,6 +78,33 @@ export class AgentStore {
         }
     }
 
+    registerCommandHandler(handler: AgentCommandHandler): void {
+        this.commandHandlers.push(handler);
+    }
+
+    /** Most recent session of a project, created on demand (used to deliver group channel messages). */
+    sessionFor(project: string, title: string): AgentSession {
+        const existing = this.items.find(s => s.project === project && s.status !== 'done');
+        if (existing) {
+            return existing;
+        }
+        const session: AgentSession = {
+            id: `agent-${nextId++}`, title, status: 'idle', updatedAt: Date.now(), mode: this.mode, model: this.model,
+            messages: [], plan: [], steps: [], changes: [], project
+        };
+        this.items = [session, ...this.items];
+        if (this.projectScope === project && !this.selected) {
+            this.selected = session.id;
+        }
+        return session;
+    }
+
+    addMessage(session: AgentSession, message: AgentSession['messages'][number]): void {
+        session.messages.push(message);
+        session.updatedAt = Date.now();
+        this.changed();
+    }
+
     /** Sends a prompt. Without a connected model the agent explains how to connect one instead of pretending. */
     send(prompt: string): AgentSession {
         const session = this.current ?? this.create();
@@ -83,6 +114,11 @@ export class AgentStore {
         session.mode = this.mode;
         session.model = this.model;
         session.messages.push({ role: 'user', text: prompt.trim() });
+        if (this.commandHandlers.some(handle => handle(session, prompt.trim()))) {
+            session.updatedAt = Date.now();
+            this.changed();
+            return session;
+        }
         session.messages.push({ role: 'system', text: NO_MODEL_MESSAGE });
         session.status = 'idle';
         session.updatedAt = Date.now();
