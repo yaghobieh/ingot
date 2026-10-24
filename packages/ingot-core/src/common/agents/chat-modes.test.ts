@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AGENT_MODE_INFO, isAgentMode, modeInfo, nextMode } from './agent-modes';
-import { CHATS_STORAGE_KEY, chatTime, filterChats, parseChats, serializeChats, sortChats } from './chat-history';
+import { agentSubtitle, CHATS_STORAGE_KEY, chatTime, filterChats, parseChats, serializeChats, sortChats } from './chat-history';
 import { CONTEXT_NEAR_FULL, contextUsage, estimateTokens, formatTokens, usageBreakdown, usageRatio } from './context-usage';
 import type { AgentSession } from './agents.types';
 
@@ -67,5 +67,16 @@ describe('context usage', () => {
         expect(formatTokens(12_340)).toBe('12.3k');
         expect(formatTokens(200_000)).toBe('200k');
         expect(formatTokens(1_000_000)).toBe('1M');
+    });
+});
+
+describe('agentSubtitle (chat v2 agent list)', () => {
+    const base = { updatedAt: 0, activeFile: undefined as string | undefined, changes: [] as AgentSession['changes'], messages: [] as AgentSession['messages'] };
+    const now = 2 * 60_000;
+    it('follows the reference wording', () => {
+        expect(agentSubtitle({ ...base, status: 'editing', activeFile: 'src/hooks/useCart.ts' }, now)).toBe('Editing useCart.ts · 2m');
+        expect(agentSubtitle({ ...base, status: 'review' }, now, 4)).toBe('Ready for review · 4 files');
+        expect(agentSubtitle({ ...base, status: 'done' }, 18 * 60_000)).toBe('Done · 18 min ago');
+        expect(agentSubtitle({ ...base, status: 'idle' }, now)).toBe('New chat');
     });
 });

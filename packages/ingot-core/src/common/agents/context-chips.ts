@@ -41,7 +41,7 @@ export const expandWithChips = (prompt: string, chips: readonly ContextChip[]): 
 };
 
 /** Composer height (IDEA-67): ~4 lines minimum, auto-grow up to half the panel, then scroll. */
-export const COMPOSER_MIN_HEIGHT = 84;
+export const COMPOSER_MIN_HEIGHT = 38;
 export const COMPOSER_MAX_RATIO = 0.5;
 export const composerHeight = (content: number, panel: number, manual?: number): number => {
     const max = Math.max(COMPOSER_MIN_HEIGHT, Math.floor(panel * COMPOSER_MAX_RATIO));

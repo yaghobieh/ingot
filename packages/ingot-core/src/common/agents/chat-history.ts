@@ -46,3 +46,26 @@ export const chatTime = (updatedAt: number, now: number): string => {
     if (hours < 24) { return `${hours}h`; }
     return `${Math.floor(hours / 24)}d`;
 };
+
+const ago = (updatedAt: number, now: number): string => {
+    const t = chatTime(updatedAt, now);
+    if (t === 'now') { return 'just now'; }
+    const n = parseInt(t, 10);
+    const unit = t.endsWith('m') ? 'min' : t.endsWith('h') ? (n === 1 ? 'hour' : 'hours') : (n === 1 ? 'day' : 'days');
+    return `${n} ${unit} ago`;
+};
+
+const baseName = (path: string): string => path.split('/').pop() ?? path;
+
+/** Agent list subtitle per reference: 'Editing useCart.ts · 2m', 'Ready for review · 4 files', 'Done · 18 min ago'. */
+export const agentSubtitle = (s: Pick<AgentSession, 'status' | 'updatedAt' | 'activeFile' | 'changes' | 'messages'>, now: number, reviewFiles = 0): string => {
+    const files = reviewFiles || s.changes.length;
+    switch (s.status) {
+        case 'thinking': return `Thinking · ${chatTime(s.updatedAt, now)}`;
+        case 'editing': return s.activeFile ? `Editing ${baseName(s.activeFile)} · ${chatTime(s.updatedAt, now)}` : `Editing · ${chatTime(s.updatedAt, now)}`;
+        case 'review': return `Ready for review · ${files} file${files === 1 ? '' : 's'}`;
+        case 'done': return `Done · ${ago(s.updatedAt, now)}`;
+        case 'error': return `Failed · ${ago(s.updatedAt, now)}`;
+        default: return s.messages.length ? `Idle · ${ago(s.updatedAt, now)}` : 'New chat';
+    }
+};
