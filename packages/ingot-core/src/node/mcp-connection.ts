@@ -48,6 +48,21 @@ export class McpConnection {
         return result.tools ?? [];
     }
 
+    /** Resources exposed by the server; 0 when it does not support resources. */
+    async countResources(): Promise<number> {
+        try {
+            const result = await this.request('resources/list', {}) as { resources?: unknown[] };
+            return result.resources?.length ?? 0;
+        } catch {
+            return 0;
+        }
+    }
+
+    /** Recent stderr from the server process, with secrets removed. */
+    get output(): string {
+        return this.clean(this.stderr.trim());
+    }
+
     async callTool(name: string, args: Record<string, unknown>): Promise<{ text: string; isError: boolean }> {
         const result = await this.request('tools/call', { name, arguments: args }) as { content?: { type: string; text?: string }[]; isError?: boolean };
         const text = (result.content ?? []).map(c => c.type === 'text' ? c.text ?? '' : `[${c.type}]`).join('\n');
