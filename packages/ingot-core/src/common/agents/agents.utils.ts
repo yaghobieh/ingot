@@ -23,7 +23,8 @@ export const agentSubtitle = (session: AgentSession, now: number): string => {
         return `${label} ${session.activeFile} · ${relativeTime(session.updatedAt, now)}`;
     }
     if (session.status === 'review') {
-        const files = session.changes.length;
+        // Files proposed in this run (still under review or already kept).
+        const files = new Set([...session.changes.map(c => c.label), ...session.steps.filter(st => st.kind === 'edit').map(st => st.target)]).size;
         return `${label} · ${files} ${files === 1 ? 'file' : 'files'}`;
     }
     return `${label} · ${relativeTime(session.updatedAt, now)}`;
