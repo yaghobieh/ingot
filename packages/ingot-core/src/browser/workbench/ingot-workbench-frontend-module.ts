@@ -9,6 +9,7 @@ import { IngotAgentsWindowContribution } from './agents-window-contribution';
 import { IngotShellLayoutRestorer } from './agents-window-layout-restorer';
 import { IngotPanelsContribution } from './panels-contribution';
 import { IngotShortcutConflictsContribution } from './shortcut-conflicts-contribution';
+import { IngotLayoutCustomContribution } from './layout-custom-contribution';
 import '../../../src/browser/style/workbench.css';
 
 /**
@@ -35,4 +36,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
 
     bind(IngotShortcutConflictsContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(IngotShortcutConflictsContribution);
+
+    bind(IngotLayoutCustomContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(IngotLayoutCustomContribution);
+    bind(MenuContribution).toService(IngotLayoutCustomContribution);
+    bind(FrontendApplicationContribution).toService(IngotLayoutCustomContribution);
 });
