@@ -9,7 +9,8 @@ import type { Message } from '@theia/core/shared/@lumino/messaging';
 import { splitPath, STATUS_LABEL, type ChangeEntry } from '../../common/git/changes';
 import { badgeClasses } from '../../common/icons/file-icons.utils';
 import { LocalChangesModel } from './local-changes-model';
-import { COMMIT_COMMANDS, DEFAULT_CHANGELIST, LOCAL_CHANGES_CONTEXT_MENU, LOCAL_CHANGES_FOCUS, LOCAL_CHANGES_LABEL, LOCAL_CHANGES_WIDGET_ID, UNVERSIONED_GROUP } from './commit.consts';
+import { COMMIT_COMMANDS, DEFAULT_CHANGELIST, LOCAL_CHANGES_CONTEXT_MENU, LOCAL_CHANGES_FOCUS, LOCAL_CHANGES_LABEL, LOCAL_CHANGES_WIDGET_ID, UNVERSIONED_GROUP, CONFLICTS_GROUP } from './commit.consts';
+import { MERGE_COMMANDS } from '../merge/merge.consts';
 
 interface Group {
     readonly name: string;
@@ -72,7 +73,8 @@ export class LocalChangesWidget extends ReactWidget {
     }
 
     protected get groups(): Group[] {
-        const tracked = this.model.entries.filter(e => e.status !== 'untracked');
+        const tracked = this.model.entries.filter(e => e.status !== 'untracked' && e.status !== 'conflicted');
+        const conflicted = this.model.entries.filter(e => e.status === 'conflicted');
         const names = this.model.changelistNames;
         const groups: Group[] = names.map(name => ({ name, entries: tracked.filter(e => this.model.changelistOf(e.path) === name) }))
             .filter(g => g.name === DEFAULT_CHANGELIST || g.entries.length);
@@ -80,7 +82,7 @@ export class LocalChangesWidget extends ReactWidget {
         if (unversioned.length) {
             groups.push({ name: UNVERSIONED_GROUP, entries: unversioned });
         }
-        return groups;
+        return conflicted.length ? [{ name: CONFLICTS_GROUP, entries: conflicted }, ...groups] : groups;
     }
 
     protected toggleCollapsed(key: string): void {
@@ -191,6 +193,7 @@ export class LocalChangesWidget extends ReactWidget {
                     onClick={e => e.stopPropagation()} onChange={e => this.model.setChecked(paths, e.currentTarget.checked)} />
                 <span className='ingot-lc-group-name'>{group.name}</span>
                 <span className='ingot-lc-count'>{group.entries.length} file{group.entries.length === 1 ? '' : 's'}</span>
+                {group.name === CONFLICTS_GROUP && <button type='button' id='ingot-lc-resolve' className='ingot-lc-link' onClick={e => { e.stopPropagation(); this.commands.executeCommand(MERGE_COMMANDS.conflicts.id); }}>Resolve…</button>}
             </div>
             {open && (this.groupByDirectory
                 ? this.dirsOf(group).map(dir => {
