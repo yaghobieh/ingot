@@ -317,3 +317,22 @@ body.ingot-has-group #theia-top-panel > .ingot-project-tabs { order: 2; height: 
 .ingot-log-subject { min-width: 140px; }
 .ingot-log-ref { flex: none; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
 .ingot-log-author, .ingot-log-date { flex: none; }
+
+/* IDEA-67: taller composer with a drag handle; IDEA-65: context chips */
+.ingot-composer-resize { position: absolute; top: -5px; left: 12px; right: 12px; height: 8px; cursor: ns-resize; z-index: 2; }
+.ingot-composer-resize::after { content: ''; position: absolute; left: 50%; top: 3px; width: 32px; height: 2px; margin-left: -16px; border-radius: 2px; background: var(--theia-panel-border); opacity: 0; transition: opacity .15s; }
+.ingot-composer:hover .ingot-composer-resize::after, .ingot-composer-resize:active::after { opacity: 1; }
+.ingot-composer-input { min-height: 84px; max-height: none; overflow-y: auto; line-height: 18px; box-sizing: border-box; }
+.ingot-composer-chips, .ingot-chat-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.ingot-chip { position: relative; display: inline-flex; align-items: center; gap: 2px; height: 20px; padding: 0 6px 0 2px; border-radius: 5px; font-size: 11.5px;
+  background: color-mix(in srgb, var(--ingot-primary) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ingot-primary) 35%, transparent); color: var(--theia-foreground); }
+.ingot-chip-sent { padding: 0 6px; }
+.ingot-chip button { border: 0; background: transparent; color: inherit; font: inherit; padding: 0 2px; cursor: pointer; }
+.ingot-chip-remove { opacity: .6; font-size: 10px; }
+.ingot-chip-remove:hover { opacity: 1; }
+.ingot-chip-label:hover { text-decoration: underline; }
+.ingot-chip-preview { display: none; position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 10; min-width: 220px; max-width: 420px; padding: 6px 8px; border-radius: 6px;
+  background: var(--theia-editorHoverWidget-background, var(--theia-editor-background)); border: 1px solid var(--theia-editorHoverWidget-border, var(--theia-panel-border)); box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.ingot-chip:hover .ingot-chip-preview { display: block; }
+.ingot-chip-preview-path { display: block; color: var(--theia-descriptionForeground); font-size: 11px; margin-bottom: 4px; }
+.ingot-chip-preview pre { margin: 0; font-family: var(--theia-code-font-family, monospace); font-size: 11px; white-space: pre; overflow: hidden; }
