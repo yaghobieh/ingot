@@ -46,3 +46,30 @@ describe('git utils', () => {
         expect(relativeDate('2026-10-21T12:00:00Z', now)).toBe('3 days ago');
     });
 });
+
+describe('IDEA-56 git helpers', () => {
+    it('parses blame porcelain, including uncommitted lines', async () => {
+        const { parseBlame } = await import('./git.utils');
+        const sha = 'a'.repeat(40);
+        const out = [
+            `${sha} 1 1 1`, 'author Ada', 'author-time 1700000000', 'summary Add cart', 'filename a.ts', '\tline one',
+            `${'0'.repeat(40)} 2 2 1`, 'author Not Committed Yet', 'author-time 1700000001', 'summary Version of a.ts from a.ts', 'filename a.ts', '\tline two'
+        ].join('\n');
+        const lines = parseBlame(out);
+        expect(lines).toHaveLength(2);
+        expect(lines[0]).toMatchObject({ line: 1, author: 'Ada', summary: 'Add cart' });
+        expect(lines[1]).toMatchObject({ line: 2, author: 'You', summary: 'Uncommitted changes' });
+    });
+
+    it('builds remote file URLs and validates refs', async () => {
+        const { isValidRef, remoteFileUrl } = await import('./git.utils');
+        expect(remoteFileUrl('git@github.com:acme/shop.git', 'main', 'src/a b.ts', 4)).toBe('https://github.com/acme/shop/blob/main/src/a%20b.ts#L4');
+        expect(remoteFileUrl('https://gitlab.com/acme/shop.git', 'abc', 'x.ts')).toBe('https://gitlab.com/acme/shop/-/blob/abc/x.ts');
+        expect(remoteFileUrl('https://user@bitbucket.org/acme/shop', 'abc', 'x.ts', 2)).toBe('https://bitbucket.org/acme/shop/src/abc/x.ts#lines-2');
+        expect(remoteFileUrl('nonsense', 'a', 'b')).toBeUndefined();
+        expect(isValidRef('HEAD')).toBe(true);
+        expect(isValidRef('HEAD~1')).toBe(true);
+        expect(isValidRef('origin/main')).toBe(true);
+        expect(isValidRef('--upload-pack=x')).toBe(false);
+    });
+});

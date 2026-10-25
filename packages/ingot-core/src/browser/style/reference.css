@@ -83,3 +83,4 @@ button.ingot-tb-logo:hover { background: var(--ingot-primary-hover); }
 .ingot-shell #explorer-view-container .theia-TreeNode { line-height: 22px; }
 .ingot-shell #explorer-view-container .theia-TreeNodeSegment .codicon-folder,
 .ingot-shell #explorer-view-container .theia-TreeNodeSegment .codicon-folder-opened { display: none; }
+.ingot-blame-annotation { color: var(--theia-descriptionForeground); opacity: .7; font-style: italic; }

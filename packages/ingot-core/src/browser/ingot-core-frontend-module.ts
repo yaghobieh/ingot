@@ -70,6 +70,7 @@ import { IngotBadgeIconTheme, IngotIconTheme } from './icons/ingot-icon-theme';
 import { IconThemeContribution } from '@theia/core/lib/browser/icon-theme-contribution';
 import { LabelProviderContribution } from '@theia/core/lib/browser/label-provider';
 import { AppearanceContribution, appearancePreferenceSchema } from './theme/appearance-contribution';
+import { IngotEditorContextMenuContribution } from './editor/editor-context-menu-contribution';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
@@ -171,6 +172,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotIconTheme).toSelf().inSingletonScope();
     bind(IconThemeContribution).toService(IngotIconTheme);
     bind(LabelProviderContribution).toService(IngotIconTheme);
+    bind(IngotEditorContextMenuContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(IngotEditorContextMenuContribution);
+    bind(MenuContribution).toService(IngotEditorContextMenuContribution);
+    bind(FrontendApplicationContribution).toService(IngotEditorContextMenuContribution);
     bind(IngotBadgeIconTheme).toSelf().inSingletonScope();
     bind(IconThemeContribution).toService(IngotBadgeIconTheme);
     bind(LabelProviderContribution).toService(IngotBadgeIconTheme);
