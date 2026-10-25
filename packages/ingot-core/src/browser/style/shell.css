@@ -295,3 +295,25 @@ body.ingot-has-group #theia-top-panel > .ingot-project-tabs { order: 2; height: 
 .ingot-slash-item.selected, .ingot-slash-item:hover { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
 .ingot-slash-desc { opacity: .7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ingot-composer { position: relative; }
+.ingot-log-root { display: flex; height: 100%; font-size: 12px; }
+.ingot-log-list { flex: 3; overflow: auto; border-right: 1px solid var(--theia-panel-border); }
+.ingot-log-details { flex: 2; overflow: auto; padding: 6px 10px; }
+.ingot-log-toolbar { display: flex; gap: 6px; padding: 4px 6px; position: sticky; top: 0; background: var(--theia-panel-background); }
+.ingot-log-toolbar .theia-input { flex: 1; }
+.ingot-log-toolbar .theia-button { margin: 0; min-width: 0; }
+.ingot-log-row { display: flex; gap: 8px; align-items: center; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+.ingot-log-row.selected, .ingot-log-row:hover { background: var(--theia-list-hoverBackground); }
+.ingot-log-row.selected { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
+.ingot-log-subject { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.ingot-log-author, .ingot-log-date { opacity: .7; }
+.ingot-log-commit { margin-bottom: 6px; font-weight: 600; }
+.ingot-log-file { padding: 2px 4px; cursor: pointer; border-radius: 4px; }
+.ingot-log-file:hover { background: var(--theia-list-hoverBackground); }
+.ingot-log-status { display: inline-block; width: 16px; font-weight: 700; }
+.ingot-log-file-A .ingot-log-status { color: var(--ingot-success, #5FAD56); }
+.ingot-log-file-D .ingot-log-status { color: var(--ingot-danger, #F75464); }
+.ingot-log-file-M .ingot-log-status { color: var(--ingot-accent-blue, #3574F0); }
+.ingot-log-empty { padding: 8px; opacity: .7; }
+.ingot-log-subject { min-width: 140px; }
+.ingot-log-ref { flex: none; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.ingot-log-author, .ingot-log-date { flex: none; }

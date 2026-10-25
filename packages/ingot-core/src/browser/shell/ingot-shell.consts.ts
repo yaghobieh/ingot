@@ -15,6 +15,7 @@ export const TOOLBAR_COMMANDS = {
     openRecent: 'workspace:openRecent',
     openFolder: 'workspace:openFolder',
     git: 'scmView:toggle',
+    branches: 'ingot.git.branches',
     runTask: 'ingot.run',
     debugStart: 'workbench.action.debug.start',
     debugStop: 'workbench.action.debug.stop',
