@@ -86,7 +86,11 @@ export class EditorImportDialog extends ReactDialog<ImportChoice | undefined> {
     }
 
     protected toggle(set: Set<string>, key: string): void {
-        set.has(key) ? set.delete(key) : set.add(key);
+        if (set.has(key)) {
+            set.delete(key);
+        } else {
+            set.add(key);
+        }
         this.update();
     }
 
