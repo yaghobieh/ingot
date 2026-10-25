@@ -13,6 +13,8 @@ export function globalSetup(): void {
         current = {};
     }
     fs.writeFileSync(file, JSON.stringify({ ...current, ...E2E_USER_SETTINGS }, undefined, 4));
+    // A remote config cached by an earlier (interrupted) run, e.g. a force update, must not leak into this one.
+    fs.rmSync(path.join(E2E_CONFIG_DIR, 'remote-config.json'), { force: true });
 }
 
 // Playwright requires a default export for globalSetup (tool config exception).
