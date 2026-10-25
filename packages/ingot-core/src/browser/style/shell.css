@@ -725,3 +725,15 @@ button.ingot-popover-footer:hover { color: var(--theia-textLink-foreground); }
 .ingot-annotation-subject, .ingot-annotation-author { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ingot-annotation-first { color: var(--theia-descriptionForeground); }
 .ingot-annotation-date { color: var(--theia-descriptionForeground); text-align: right; }
+
+/* IDEA-91: model families with a '>' arrow that opens the family's models; no badges. Spans the composer so it fits narrow panels. */
+.ingot-pill-anchor:has(> #ingot-composer-model) { position: static; }
+.ingot-composer-bar { position: relative; }
+.ingot-composer-bar .ingot-popover.ingot-model-picker { left: 0; right: auto; width: 100%; max-width: 320px; box-sizing: border-box; }
+.ingot-pick-family-icon { opacity: .7; font-size: 13px; }
+.ingot-pick-family-current { font-size: 11px; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-pick-arrow { opacity: .6; font-size: 12px; }
+.ingot-pick-family:hover .ingot-pick-arrow { opacity: 1; }
+.ingot-pick-back { font-weight: 600; border-bottom: 1px solid var(--theia-panel-border); border-radius: 6px 6px 0 0; margin-bottom: 2px; }
+.ingot-pick-check { font-size: 12px; color: var(--ingot-primary, #3B6FD9); }
+.ingot-pick-row.selected .ingot-pick-check { color: inherit; }
