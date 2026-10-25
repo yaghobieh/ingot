@@ -42,6 +42,14 @@ export interface CatalogModel {
 export interface ChatMessage {
     readonly role: 'system' | 'user' | 'assistant';
     readonly content: string;
+    /** Images on a user message (IDEA-98), sent as image parts to models that can read them. */
+    readonly images?: readonly ChatImage[];
+}
+
+export interface ChatImage {
+    readonly mediaType: string;
+    /** Base64, no data: prefix. */
+    readonly data: string;
 }
 
 export interface CompletionRequest {
