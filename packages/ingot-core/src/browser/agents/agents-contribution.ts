@@ -1,5 +1,5 @@
-import { inject, injectable } from '@theia/core/shared/inversify';
-import { AbstractViewContribution } from '@theia/core/lib/browser';
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
+import { AbstractViewContribution, StatusBar, StatusBarAlignment } from '@theia/core/lib/browser';
 import type { CommandRegistry } from '@theia/core/lib/common';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
@@ -7,7 +7,9 @@ import { AgentStore } from './agent-store';
 import { ChangeTracker } from '../changes/change-tracker';
 import { CHANGE_COMMANDS } from '../changes/changes.browser-consts';
 import { IngotAgentsWidget } from './agents-widget';
-import { AGENT_COMMANDS, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL, DEMO_MARKER } from './agents.consts';
+import { AGENT_COMMANDS, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL, CHAT_MODEL_STATUS_ID, DEMO_MARKER } from './agents.consts';
+import { AUTO_MODEL_ID, AUTO_MODEL_LABEL } from '../../common/models/models.consts';
+import { findModel } from '../../common/models/models.utils';
 
 /** Demo transformation: annotate the first function-like line so the review UI can be tried without a model. */
 const demoEdit = (text: string): string => {
@@ -25,9 +27,37 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(MessageService) protected readonly messages: MessageService;
+    @inject(StatusBar) protected readonly statusBar: StatusBar;
+    protected chatModelStatus = '';
 
     constructor() {
         super({ widgetId: AGENTS_WIDGET_ID, widgetName: AGENTS_WIDGET_LABEL, defaultWidgetOptions: { area: 'right', rank: 100 }, toggleCommandId: AGENT_COMMANDS.toggle.id });
+    }
+
+    @postConstruct()
+    protected initStatus(): void {
+        this.store.onDidChange(() => this.updateChatModelStatus());
+        this.updateChatModelStatus();
+    }
+
+    /** IDEA-104: the status bar names the active chat's model, and follows every chat switch or model pick. */
+    protected updateChatModelStatus(): void {
+        const session = this.store.current;
+        const chosen = session?.model ?? AUTO_MODEL_ID;
+        const resolved = this.store.resolveModel(chosen);
+        const label = (id: string) => id === AUTO_MODEL_ID ? AUTO_MODEL_LABEL : findModel(id)?.label ?? id;
+        const text = chosen === AUTO_MODEL_ID && resolved !== AUTO_MODEL_ID ? `${AUTO_MODEL_LABEL} · ${label(resolved)}` : label(chosen);
+        if (text === this.chatModelStatus) {
+            return;
+        }
+        this.chatModelStatus = text;
+        this.statusBar.setElement(CHAT_MODEL_STATUS_ID, {
+            text: `$(hubot) ${text}`,
+            tooltip: `Model of the active chat: ${text}`,
+            alignment: StatusBarAlignment.RIGHT,
+            priority: 51,
+            command: AGENT_COMMANDS.toggle.id
+        });
     }
 
     override registerCommands(registry: CommandRegistry): void {

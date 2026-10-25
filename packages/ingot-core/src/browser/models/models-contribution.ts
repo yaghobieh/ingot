@@ -35,8 +35,8 @@ export class IngotModelsContribution extends AbstractViewContribution<IngotModel
         const connected = !!modelId && this.client.isModelConfigured(modelId);
         const on = this.completions.enabled && connected;
         this.statusBar.setElement(STATUS_ID, {
-            text: on ? `$(sparkle) ${findModel(modelId!)?.label ?? ''}` : '$(sparkle) AI off',
-            tooltip: on ? 'Inline completion is on — click to turn off' : connected ? 'Inline completion is off — click to turn on' : 'No completion model connected — open Models',
+            text: on ? '$(sparkle) AI' : '$(sparkle) AI off',
+            tooltip: on ? `Inline completion is on (${findModel(modelId!)?.label ?? modelId}) — click to turn off` : connected ? 'Inline completion is off — click to turn on' : 'No completion model connected — open Models',
             alignment: StatusBarAlignment.RIGHT,
             priority: 50,
             command: connected ? AUTOCOMPLETE_TOGGLE_COMMAND.id : MODELS_OPEN_COMMAND.id
