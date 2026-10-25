@@ -1,4 +1,4 @@
-export type AgentStatus = 'idle' | 'thinking' | 'editing' | 'review' | 'done' | 'error';
+export type AgentStatus = 'idle' | 'thinking' | 'editing' | 'review' | 'paused' | 'done' | 'error';
 export type AgentMode = 'agent' | 'multi' | 'ask' | 'plan' | 'debug';
 export type PlanState = 'done' | 'active' | 'todo';
 export type StepKind = 'read' | 'edit' | 'run' | 'search';
@@ -72,6 +72,15 @@ export interface AgentSession {
     context?: ChatContextInfo;
     /** Multi-agent: the chat that started this sub-agent. */
     parent?: string;
+    /** IDEA-105 checkpoint: the run stopped for review after `applied` of `total` files. */
+    pause?: ReviewPause;
+}
+
+export interface ReviewPause {
+    readonly applied: number;
+    readonly total: number;
+    /** Epoch ms when the run continues by itself; undefined = waits for Continue (or the countdown was cancelled). */
+    readonly continueAt?: number;
 }
 
 export interface ModelOption {
