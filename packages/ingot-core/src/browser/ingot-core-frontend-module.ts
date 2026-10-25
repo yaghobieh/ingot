@@ -54,6 +54,9 @@ import { IngotModelsWidget } from './models/models-widget';
 import { IngotModelsContribution } from './models/models-contribution';
 import { IngotInlineCompletions } from './models/inline-completions';
 import { bindModelPreferences } from './models/model-preferences';
+import { bindAccountPreferences } from './account/account-preferences';
+import { IngotAccountClient } from './account/account-client';
+import { ACCOUNT_SERVICE_PATH, AccountBackend } from '../common/account/account-protocol';
 import { MODELS_WIDGET_ID } from './models/models.browser-consts';
 import { NavigationHistory } from './keymap/navigation-history';
 import { IngotKeymapContribution, keymapPreferenceSchema } from './keymap/ingot-keymap-contribution';
@@ -113,6 +116,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         bind(id).toService(IngotGroupsContribution);
     }
     bindModelPreferences(bind);
+    bindAccountPreferences(bind);
     bind(PreferenceContribution).toConstantValue({ schema: keymapPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: appearancePreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: layoutPreferenceSchema });
@@ -227,6 +231,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentsWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotAgentsContribution);
 
+    bind(IngotAccountClient).toSelf().inSingletonScope();
+    bind(AccountBackend).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<AccountBackend>(ctx.container, ACCOUNT_SERVICE_PATH, ctx.container.get(IngotAccountClient))).inSingletonScope();
     bind(IngotAccountService).toSelf().inSingletonScope();
     bind(IngotAccountContribution).toSelf().inSingletonScope();
     for (const id of [CommandContribution, MenuContribution, FrontendApplicationContribution]) {

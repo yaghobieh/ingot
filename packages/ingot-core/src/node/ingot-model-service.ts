@@ -1,5 +1,7 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
+import { IngotAccountBackend } from './account/ingot-account-backend';
+import { SIGN_IN_FOR_MODELS } from '../common/models/models.consts';
 import { DEFAULT_KEYCHAIN_SERVICE, MAX_DICTATION_BYTES, PROVIDERS, REQUEST_TIMEOUT_MS, TRANSCRIBE_MODEL, TRANSCRIBE_PATH } from '../common/models/models.consts';
 import type { CompletionRequest, CompletionResult, ModelService, ProviderId, ProviderSettings, ProviderStatus, StreamPoll } from '../common/models/models.types';
 import { buildProviderRequest, findModel, findProvider, parseProviderError, parseProviderResponse, parseStreamLine, redactSecrets, resolveModelName } from '../common/models/models.utils';
@@ -22,6 +24,7 @@ const STREAM_TTL_MS = 120_000;
 export class IngotModelService implements ModelService {
 
     @inject(KeyStoreService) protected readonly keyStore: KeyStoreService;
+    @inject(IngotAccountBackend) protected readonly account: IngotAccountBackend;
 
     protected readonly service = process.env.INGOT_KEYCHAIN_SERVICE || DEFAULT_KEYCHAIN_SERVICE;
     protected readonly streams = new Map<string, StreamState>();
@@ -43,7 +46,8 @@ export class IngotModelService implements ModelService {
         } catch {
             stored = [];
         }
-        return PROVIDERS.map(p => ({ id: p.id, configured: !p.needsKey || stored.includes(p.id) }));
+        const signedIn = (await this.account.snapshot().catch(() => undefined))?.signedIn ?? false;
+        return PROVIDERS.map(p => ({ id: p.id, configured: p.id === 'ingot' ? signedIn : !p.needsKey || stored.includes(p.id) }));
     }
 
     async setKey(provider: ProviderId, key: string): Promise<void> {
@@ -65,12 +69,28 @@ export class IngotModelService implements ModelService {
         if (!audio.length || audio.length > MAX_DICTATION_BYTES) {
             throw new Error('Recording is empty or too long.');
         }
+        const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+        const token = await this.account.accessToken().catch(() => undefined);
+        if (token) {
+            // Signed in: Ingot's metered transcription endpoint (IDEA-101); no provider key needed.
+            const form = new FormData();
+            form.append('file', new Blob([audio], { type: mimeType }), `dictation.${ext}`);
+            form.append('model', 'ingot-transcribe');
+            const response = await fetch(`${this.account.gatewayBaseUrl}${TRANSCRIBE_PATH}`, {
+                method: 'POST', headers: { authorization: `Bearer ${token}`, 'x-ingot-feature': 'dictation' }, body: form, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+            });
+            const json = await response.json().catch(() => ({})) as { text?: string };
+            this.account.usageChanged();
+            if (!response.ok) {
+                throw new Error(redactSecrets(parseProviderError(json) ?? `Transcription failed (${response.status}).`, [token]));
+            }
+            return String(json.text ?? '').trim();
+        }
         const key = await this.keyStore.getPassword(this.service, 'openai').catch(() => undefined);
         if (!key) {
             throw new Error('Voice dictation needs speech-to-text: sign in to Ingot or add an OpenAI key in Settings › Models.');
         }
         const form = new FormData();
-        const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
         form.append('file', new Blob([audio], { type: mimeType }), `dictation.${ext}`);
         form.append('model', TRANSCRIBE_MODEL);
         const response = await fetch(`${findProvider('openai').baseUrl}${TRANSCRIBE_PATH}`, {
@@ -89,6 +109,14 @@ export class IngotModelService implements ModelService {
             throw new Error(`Unknown model "${request.modelId}".`);
         }
         const info = findProvider(model.provider);
+        if (info.id === 'ingot') {
+            const token = await this.account.accessToken().catch(() => undefined);
+            if (!token) {
+                throw new Error(`${SIGN_IN_FOR_MODELS}.`);
+            }
+            const settings = { ...request.settings, ingotBaseUrl: this.account.gatewayBaseUrl };
+            return { model, info, key: token, name: model.model, spec: buildProviderRequest('ingot', model.model, { ...request, settings }, token, stream) };
+        }
         const key = info.needsKey ? await this.keyStore.getPassword(this.service, info.id) : undefined;
         if (info.needsKey && !key) {
             throw new Error(`No API key for ${model.label}. Add it in Settings › Models.`);
@@ -110,6 +138,10 @@ export class IngotModelService implements ModelService {
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(redactSecrets(message, [key]));
+        } finally {
+            if (info.id === 'ingot') {
+                this.account.usageChanged();
+            }
         }
     }
 
@@ -120,6 +152,9 @@ export class IngotModelService implements ModelService {
         this.streams.set(id, state);
         this.pump(state, prepared).finally(() => {
             state.done = true;
+            if (prepared.info.id === 'ingot') {
+                this.account.usageChanged();
+            }
             setTimeout(() => this.streams.delete(id), STREAM_TTL_MS);
         });
         return id;
@@ -189,5 +224,5 @@ export class IngotModelService implements ModelService {
 
 /** Model used by the Test button for each provider. */
 const TEST_MODELS: Record<ProviderId, string> = {
-    anthropic: 'claude-sonnet-4-5', openai: 'gpt-5-mini', gemini: 'gemini-2-5-pro', deepseek: 'deepseek-v3', openrouter: 'openrouter-auto', ollama: 'ollama-local'
+    ingot: 'ingot:ingot-fast', anthropic: 'claude-sonnet-4-5', openai: 'gpt-5-mini', gemini: 'gemini-2-5-pro', deepseek: 'deepseek-v3', openrouter: 'openrouter-auto', ollama: 'ollama-local'
 };
