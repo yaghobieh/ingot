@@ -2,7 +2,7 @@ import * as React from '@theia/core/shared/react';
 import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
 import { AGENT_MODE_INFO } from '../../common/agents/agent-modes';
 import { chatTime, filterChats } from '../../common/agents/chat-history';
-import { AUTO_MODEL_ID, AUTO_MODEL_LABEL } from '../../common/models/models.consts';
+import { AUTO_MODEL_ID, AUTO_MODEL_LABEL, SIGN_IN_FOR_MODELS } from '../../common/models/models.consts';
 import type { CatalogModel, ModelFamilyGroup } from '../../common/models/models.types';
 import { groupModelsByFamily } from '../../common/models/models.utils';
 import { MODEL_PICKER_TEXT } from './agents.consts';
@@ -69,6 +69,8 @@ export interface ModelPickerProps {
     readonly onAddKey: (id: string) => void;
     readonly onManage: () => void;
     readonly onClose: () => void;
+    /** Signed out (IDEA-101): show "Sign in to use Ingot models" at the top. */
+    readonly onSignIn?: () => void;
 }
 
 interface ModelPickerState {
@@ -88,11 +90,13 @@ export class ModelPicker extends React.Component<ModelPickerProps, ModelPickerSt
     protected row(m: CatalogModel, section: string): React.ReactNode {
         const { current, configured, favorites } = this.props;
         const ready = configured(m.id);
+        const hosted = m.provider === 'ingot';
         return <div key={`${section}-${m.id}`} role='option' aria-selected={current === m.id} id={`ingot-pick-${section}-${m.id}`} data-model={m.id}
             className={`ingot-pick-row${current === m.id ? ' selected' : ''}${ready ? '' : ' ingot-pick-nokey'}`} onClick={() => this.props.onPick(m.id)}>
             <span className='ingot-pick-label'>{m.label}</span>
             {current === m.id && <span className='codicon codicon-check ingot-pick-check' />}
-            {!ready && <button type='button' className='ingot-pick-addkey' onClick={e => { e.stopPropagation(); this.props.onAddKey(m.id); }}>{MODEL_PICKER_TEXT.addKey}</button>}
+            {!ready && !hosted && <button type='button' className='ingot-pick-addkey' onClick={e => { e.stopPropagation(); this.props.onAddKey(m.id); }}>{MODEL_PICKER_TEXT.addKey}</button>}
+            {!ready && hosted && !this.props.onSignIn && <span className='ingot-pick-unavailable' title={MODEL_PICKER_TEXT.unavailableHint}>{MODEL_PICKER_TEXT.unavailable}</span>}
             <button type='button' className={`ingot-pick-star codicon ${favorites.has(m.id) ? 'codicon-star-full' : 'codicon-star-empty'}`}
                 aria-label={`${favorites.has(m.id) ? MODEL_PICKER_TEXT.unfavorite : MODEL_PICKER_TEXT.favorite} ${m.label}`} aria-pressed={favorites.has(m.id)}
                 onClick={e => { e.stopPropagation(); this.props.onToggleFavorite(m.id); }} />
@@ -140,6 +144,10 @@ export class ModelPicker extends React.Component<ModelPickerProps, ModelPickerSt
                     onChange={e => this.setState({ query: e.currentTarget.value, open: undefined })}
                     onKeyDown={e => { if (e.key === 'Enter' && first) { e.preventDefault(); this.props.onPick(first); } }} />
                 <div className='ingot-pick-list'>
+                    {this.props.onSignIn && !q && <button type='button' id='ingot-pick-sign-in' className='ingot-pick-row ingot-pick-sign-in' onClick={this.props.onSignIn}>
+                        <span className='codicon codicon-account' />
+                        <span className='ingot-pick-label'>{SIGN_IN_FOR_MODELS}</span>
+                    </button>}
                     {showAuto && <div role='option' aria-selected={current === AUTO_MODEL_ID} id='ingot-pick-auto' className={`ingot-pick-row ingot-pick-auto${current === AUTO_MODEL_ID ? ' selected' : ''}`}
                         onClick={() => this.props.onPick(AUTO_MODEL_ID)}>
                         <span className='codicon codicon-sparkle' />

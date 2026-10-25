@@ -17,12 +17,27 @@ import { IngotGitService } from './ingot-git-service';
 import { GIT_SERVICE_PATH } from '../common/git/git.consts';
 import { GitService } from '../common/git/git.types';
 
+import { BackendApplicationContribution } from '@theia/core/lib/node/backend-application';
+import { IngotAccountBackend } from './account/ingot-account-backend';
+import { AccountDeepLinkEndpoint } from './account/account-deeplink-endpoint';
+import { ACCOUNT_SERVICE_PATH, AccountBackend, type AccountClient } from '../common/account/account-protocol';
+
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
     rebind(WorkspaceFileService).toService(IngotWorkspaceFileService);
     bind(IngotPortsService).toSelf().inSingletonScope();
     bind(PortsService).toService(IngotPortsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(PORTS_SERVICE_PATH, () => ctx.container.get<PortsService>(PortsService))).inSingletonScope();
+    bind(IngotAccountBackend).toSelf().inSingletonScope();
+    bind(AccountBackend).toService(IngotAccountBackend);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<AccountClient>(ACCOUNT_SERVICE_PATH, client => {
+        const backend = ctx.container.get(IngotAccountBackend);
+        backend.setClient(client);
+        client.onDidCloseConnection(() => backend.removeClient(client));
+        return backend;
+    })).inSingletonScope();
+    bind(AccountDeepLinkEndpoint).toSelf().inSingletonScope();
+    bind(BackendApplicationContribution).toService(AccountDeepLinkEndpoint);
     bind(IngotModelService).toSelf().inSingletonScope();
     bind(ModelService).toService(IngotModelService);
     bind(IngotGitService).toSelf().inSingletonScope();
