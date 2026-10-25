@@ -16,6 +16,7 @@ describe('agents utils', () => {
     it('builds list subtitles like the design', () => {
         expect(agentSubtitle(session({ status: 'editing', activeFile: 'useCart.ts' }), 2 * 60_000)).toBe('Editing useCart.ts · 2m');
         expect(agentSubtitle(session({ status: 'review', changes: [1, 2, 3, 4].map(n => ({ uri: `${n}`, label: `${n}`, added: 1, removed: 0 })) }), 0)).toBe('Ready for review · 4 files');
+        expect(agentSubtitle(session({ status: 'review', steps: [{ kind: 'edit', target: 'a.ts', done: false }] }), 0)).toBe('Ready for review · 1 file');
         expect(agentSubtitle(session({ status: 'done' }), 18 * 60_000)).toBe('Done · 18 min ago');
     });
 

@@ -108,6 +108,8 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected renderSession(session: AgentSession): React.ReactNode {
         const pending = this.review.pending;
+        // While edits wait in the inline review, the card already counts the files under review.
+        const reviewing = pending ? new Set(session.steps.filter(st => st.kind === 'edit').map(st => st.target)).size + this.review.queued - session.changes.length : 0;
         return <>
             {session.messages.map((m, i) => (
                 <div key={i} className={`ingot-chat-msg ingot-chat-${m.role}`}>
@@ -130,13 +132,24 @@ export class IngotAgentsWidget extends ReactWidget {
                     {step.added !== undefined && <span className='ingot-step-diff'><span className='ingot-plus'>+{step.added}</span> <span className='ingot-minus'>−{step.removed ?? 0}</span></span>}
                 </div>
             ))}
-            {session.changes.length > 0 && <div className='ingot-chat-changes'>
-                <span>{changesSummary(session.changes.length)}</span>
+            {(reviewing > 0 || session.changes.length > 0) && <div className='ingot-chat-changes'>
+                <span>{changesSummary(reviewing || session.changes.length)}</span>
                 <span className='ingot-flex' />
                 <button type='button' id='ingot-agents-undo' className='ingot-btn-ghost' disabled={!pending} onClick={() => this.review.reject()}>Undo</button>
-                <button type='button' id='ingot-agents-keep' className='ingot-btn-primary' disabled={!pending} onClick={() => this.review.accept()}>Keep all</button>
+                <button type='button' id='ingot-agents-keep' className='ingot-btn-primary' disabled={!pending} onClick={() => this.keepAll()}>Keep all</button>
             </div>}
         </>;
+    }
+
+    /** Accepts the edit under review and every edit queued behind it. */
+    protected async keepAll(): Promise<void> {
+        for (let i = 0; i < 200 && (this.review.pending || this.review.queued); i++) {
+            if (this.review.pending) {
+                await this.review.accept();
+            } else {
+                await new Promise(resolve => setTimeout(resolve, 25));
+            }
+        }
     }
 
     protected renderComposer(): React.ReactNode {
@@ -190,7 +203,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     {AGENT_MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </select>
                 <select id='ingot-composer-model' className='ingot-select' value={this.store.model} aria-label='Model' onChange={e => { this.store.model = e.currentTarget.value; this.store.changed(); }}>
-                    {MODEL_OPTIONS.map(m => <option key={m.id} value={m.id}>{m.label}{this.models.isModelConfigured(m.id) ? '' : ' — not connected'}</option>)}
+                    {MODEL_OPTIONS.map(m => <option key={m.id} value={m.id}>{m.label}{this.models.isModelConfigured(m.id) ? '' : ' (no key)'}</option>)}
                 </select>
                 <span className='ingot-flex' />
                 {this.store.isRunning(this.store.current?.id)
