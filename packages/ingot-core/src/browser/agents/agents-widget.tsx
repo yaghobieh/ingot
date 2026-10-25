@@ -23,6 +23,8 @@ import URI from '@theia/core/lib/common/uri';
 import { agentSubtitle } from '../../common/agents/chat-history';
 import { chipLabel, chipPreview, composerHeight, INGOT_REF_MIME, insertedText, type ContextChip } from '../../common/agents/context-chips';
 import { EditorCopyTracker } from './editor-copy-tracker';
+import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-renderer';
+import { LAYOUT_CONTEXT_MENU } from '../layout/layout.browser-consts';
 import { AgentEditReview } from './agent-edit-review';
 import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
 
@@ -43,6 +45,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(ContextKeyService) protected readonly contextKeys: ContextKeyService;
     @inject(KeybindingRegistry) protected readonly keybindings: KeybindingRegistry;
     @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
+    @inject(ContextMenuRenderer) protected readonly contextMenu: ContextMenuRenderer;
 
     protected popover: Popover;
     protected showMemories = false;
@@ -266,11 +269,18 @@ export class IngotAgentsWidget extends ReactWidget {
         return id === AUTO_MODEL_ID ? AUTO_MODEL_LABEL : findModel(id)?.label ?? id;
     }
 
+    /** Right-click on the chat header: move the chat right or to the bottom (IDEA-85). */
+    protected openLayoutMenu(event: React.MouseEvent): void {
+        event.preventDefault();
+        event.stopPropagation();
+        this.contextMenu.render({ menuPath: LAYOUT_CONTEXT_MENU, anchor: { x: event.clientX, y: event.clientY }, context: event.currentTarget as HTMLElement });
+    }
+
     protected render(): React.ReactNode {
         const current = this.store.current;
         const tabs = this.store.tabs;
         return <div className='ingot-agents-root'>
-            <div className='ingot-agents-header'>
+            <div className='ingot-agents-header' onContextMenu={e => this.openLayoutMenu(e)}>
                 <button type='button' className={`ingot-agents-tab${this.popover !== 'history' ? ' active' : ''}`} id='ingot-agents-tab-agents'
                     onClick={() => { this.popover = undefined; this.showMemories = false; this.update(); }}>Agents</button>
                 <button type='button' className={`ingot-agents-tab${this.popover === 'history' ? ' active' : ''}`} id='ingot-agents-tab-history'
