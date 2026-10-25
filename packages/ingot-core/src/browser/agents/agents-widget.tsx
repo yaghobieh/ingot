@@ -2,7 +2,7 @@ import * as React from '@theia/core/shared/react';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
-import { COMPOSER_PLACEHOLDER, NO_MODEL_MESSAGE } from '../../common/agents/agents.consts';
+import { COMPOSER_PLACEHOLDER, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
 import { modeInfo, nextMode } from '../../common/agents/agent-modes';
 import { CONTEXT_NEAR_FULL, contextSegments, formatTokens, messageWeights, usageRatio } from '../../common/agents/context-usage';
 import { AUTO_MODEL_ID, AUTO_MODEL_LABEL, FAVORITE_MODELS_KEY } from '../../common/models/models.consts';
@@ -13,6 +13,8 @@ import { ChatHistory, ContextBreakdown, MemoriesManager, ModeMenu, ModelPicker }
 import { Dictation } from './dictation';
 import type { DictationState } from './dictation.types';
 import { MessageService } from '@theia/core/lib/common/message-service';
+import { IngotAccountService } from '../account/account-service';
+import { SIGN_IN_FOR_MODELS } from '../../common/models/models.consts';
 import { MemoryStore } from './memory-store';
 import { CommandRegistry } from '@theia/core/lib/common/command';
 import { IngotModelClient } from '../models/model-client';
@@ -54,6 +56,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(AgentEditReview) protected readonly review: AgentEditReview;
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
     @inject(MessageService) protected readonly messages: MessageService;
+    @inject(IngotAccountService) protected readonly account: IngotAccountService;
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
@@ -579,6 +582,10 @@ export class IngotAgentsWidget extends ReactWidget {
                     {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
                     {m.buildable && session.mode === 'plan' && <div><button type='button' id='ingot-plan-build' className='ingot-btn-primary ingot-chat-action'
                         onClick={() => this.store.build(session.id)}><span className='codicon codicon-play' /> Build</button></div>}
+                    {m.text === SIGN_IN_MESSAGE && <div className='ingot-chat-sign-in'>
+                        <button type='button' id='ingot-chat-sign-in' className='ingot-btn-primary ingot-chat-action' onClick={() => this.account.signIn(false)}>{SIGN_IN_FOR_MODELS}</button>
+                        {this.account.devSignInAvailable && <button type='button' id='ingot-chat-sign-in-dev' className='ingot-btn-secondary ingot-chat-action' onClick={() => this.account.signIn(true)}>Dev: test@ingot.dev</button>}
+                    </div>}
                     {m.text === NO_MODEL_MESSAGE && <div><button type='button' id='ingot-open-models' className='ingot-btn-primary ingot-chat-action' onClick={() => this.commands.executeCommand(MODELS_OPEN_COMMAND.id)}>Open Models</button></div>}
                 </div>);
     }
@@ -770,6 +777,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 onPick={id => { this.store.model = id; this.store.changed(); this.closePopover(); }}
                 onAddKey={() => { this.closePopover(); this.commands.executeCommand(MODELS_OPEN_COMMAND.id); }}
                 onManage={() => { this.closePopover(); this.commands.executeCommand(MODELS_OPEN_COMMAND.id); }}
+                onSignIn={this.account.signedIn ? undefined : () => { this.closePopover(); this.account.signIn(false); }}
                 onClose={() => this.closePopover()} />}
         </span>;
     }

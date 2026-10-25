@@ -1,8 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
-import { APP_READY_TIMEOUT_MS, E2E_BASE_URL, E2E_CONFIG_DIR, E2E_PORT, FIXTURE_WORKSPACE, E2E_KEYCHAIN_SERVICE, IMPORT_HOME } from './src/e2e.consts';
+import { APP_READY_TIMEOUT_MS, E2E_BASE_URL, E2E_CONFIG_DIR, E2E_PORT, FAKE_INGOT_URL, FIXTURE_WORKSPACE, E2E_KEYCHAIN_SERVICE, IMPORT_HOME } from './src/e2e.consts';
 
 export const config = defineConfig({
     testDir: './tests',
+    globalSetup: './src/global-setup.ts',
     timeout: 90_000,
     expect: { timeout: 15_000 },
     fullyParallel: false,
@@ -24,7 +25,7 @@ export const config = defineConfig({
         timeout: APP_READY_TIMEOUT_MS,
         reuseExistingServer: !process.env.CI,
         // Isolated user config and keychain entries so e2e never touches the developer's ~/.ingot settings or real keys.
-        env: { INGOT_PORT: String(E2E_PORT), INGOT_WORKSPACE: FIXTURE_WORKSPACE, THEIA_CONFIG_DIR: E2E_CONFIG_DIR, INGOT_KEYCHAIN_SERVICE: E2E_KEYCHAIN_SERVICE, INGOT_IMPORT_HOME: IMPORT_HOME }
+        env: { INGOT_PORT: String(E2E_PORT), INGOT_WORKSPACE: FIXTURE_WORKSPACE, THEIA_CONFIG_DIR: E2E_CONFIG_DIR, INGOT_KEYCHAIN_SERVICE: E2E_KEYCHAIN_SERVICE, INGOT_IMPORT_HOME: IMPORT_HOME, INGOT_SERVER_URL: FAKE_INGOT_URL, INGOT_PORTAL_URL: FAKE_INGOT_URL }
     }
 });
 
