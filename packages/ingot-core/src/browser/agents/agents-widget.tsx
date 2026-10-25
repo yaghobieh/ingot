@@ -42,7 +42,9 @@ import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import { EditorCopyTracker } from './editor-copy-tracker';
 import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-renderer';
 import { LAYOUT_CONTEXT_MENU } from '../layout/layout.browser-consts';
-import { AgentEditReview } from './agent-edit-review';
+import { ChangeTracker } from '../changes/change-tracker';
+import { CodeChangeBlock } from '../changes/code-change-block';
+import { changeStats } from '../../common/changes/changes.utils';
 import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
 
 type Popover = 'mode' | 'model' | 'history' | 'context' | undefined;
@@ -53,7 +55,9 @@ const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 export class IngotAgentsWidget extends ReactWidget {
 
     @inject(AgentStore) protected readonly store: AgentStore;
-    @inject(AgentEditReview) protected readonly review: AgentEditReview;
+    @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
+    /** Code-change blocks the user collapsed (they start open). */
+    protected readonly collapsedChanges = new Set<string>();
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(IngotAccountService) protected readonly account: IngotAccountService;
@@ -159,7 +163,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.title.iconClass = 'ingot-icon ingot-icon-ai';
         this.addClass('ingot-agents');
         this.toDispose.push(this.store.onDidChange(() => this.update()));
-        this.toDispose.push(this.review.onDidChange(() => this.update()));
+        this.toDispose.push(this.tracker.onDidChange(() => this.update()));
         this.toDispose.push(this.models.onDidChange(() => this.update()));
         this.toDispose.push(this.editors.onCurrentEditorChanged(() => this.update()));
         this.focusKey = this.contextKeys.createKey<boolean>(AGENTS_FOCUS_KEY, false);
@@ -430,6 +434,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 ? <div className='ingot-agents-chat ingot-agents-memories-pane'><MemoriesManager store={this.memoryStore} onClose={() => this.toggleMemories()} /></div>
                 : <div className='ingot-agents-chat'>{current && current.messages.length ? this.renderSession(current)
                     : <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>}</div>}
+            {!this.showMemories && this.renderChangesBar(current)}
             {this.renderComposer()}
         </div>;
     }
@@ -579,7 +584,15 @@ export class IngotAgentsWidget extends ReactWidget {
                         ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
                             : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
                         : m.text}
-                    {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
+                    {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && !this.tracker.forMessage(session.id, i).length && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
+                    {m.role === 'agent' && this.tracker.forMessage(session.id, i).map(change => <CodeChangeBlock key={change.id} change={change}
+                        expanded={!this.collapsedChanges.has(change.id)}
+                        onToggle={() => { if (!this.collapsedChanges.delete(change.id)) { this.collapsedChanges.add(change.id); } this.update(); }}
+                        onOpen={hunkId => this.tracker.reveal(change.id, hunkId)}
+                        onDecide={(hunks, state) => this.tracker.decide(change.id, hunks, state)} />)}
+                    {(m.role === 'user' || m.role === 'agent') && this.store.canRevertTo(session.id, i) && <button type='button' className='ingot-chat-revert' id={`ingot-revert-${i}`}
+                        title={m.role === 'user' ? 'Restore files to before this message and drop the replies after it' : 'Restore files to right after this reply and drop what came later'}
+                        onClick={() => this.store.revertTo(session.id, i)}><span className='codicon codicon-discard' /> Revert to here</button>}
                     {m.buildable && session.mode === 'plan' && <div><button type='button' id='ingot-plan-build' className='ingot-btn-primary ingot-chat-action'
                         onClick={() => this.store.build(session.id)}><span className='codicon codicon-play' /> Build</button></div>}
                     {m.text === SIGN_IN_MESSAGE && <div className='ingot-chat-sign-in'>
@@ -636,9 +649,6 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     protected renderSession(session: AgentSession): React.ReactNode {
-        const pending = this.review.pending;
-        // While edits wait in the inline review, the card already counts the files under review.
-        const reviewing = pending ? new Set(session.steps.filter(st => st.kind === 'edit').map(st => st.target)).size + this.review.queued - session.changes.length : 0;
         const lastAgent = session.messages.map(m => m.role).lastIndexOf('agent');
         const readSteps = session.steps.map((step, index) => ({ step, index })).filter(({ step }) => step.kind === 'read');
         return <>
@@ -659,26 +669,30 @@ export class IngotAgentsWidget extends ReactWidget {
                     {step.added !== undefined && <span className='ingot-step-diff'><span className='ingot-plus'>+{step.added}</span> <span className='ingot-minus'>−{step.removed ?? 0}</span></span>}
                 </div>
             ))}
-            {(reviewing > 0 || session.changes.length > 0) && <div className='ingot-chat-changes'>
-                <span>{changesSummary(reviewing || session.changes.length)}</span>
+            {session.changes.length > 0 && !this.tracker.pending(session.id).length && <div className='ingot-chat-changes'>
+                <span>{changesSummary(session.changes.length)}</span>
                 <span className='ingot-flex' />
-                {pending ? <>
-                    <button type='button' id='ingot-agents-undo' className='ingot-btn-ghost' onClick={() => this.review.reject()}>Undo</button>
-                    <button type='button' id='ingot-agents-keep' className='ingot-btn-primary' onClick={() => this.keepAll()}>Keep all</button>
-                </> : <span className='ingot-dim'>Kept</span>}
+                <span className='ingot-dim'>Kept</span>
             </div>}
         </>;
     }
 
-    /** Accepts the edit under review and every edit queued behind it. */
-    protected async keepAll(): Promise<void> {
-        for (let i = 0; i < 200 && (this.review.pending || this.review.queued); i++) {
-            if (this.review.pending) {
-                await this.review.accept();
-            } else {
-                await new Promise(resolve => setTimeout(resolve, 25));
-            }
+    /** Accept All / Reject All bar above the composer while agent changes wait (IDEA-102). */
+    protected renderChangesBar(session: AgentSession | undefined): React.ReactNode {
+        const pending = session ? this.tracker.pending(session.id).filter(c => c.status !== 'streaming') : [];
+        if (!session || !pending.length) {
+            return undefined;
         }
+        const stats = pending.map(c => changeStats(c.hunks.filter(h => h.state === 'pending'))).reduce((a, b) => ({ added: a.added + b.added, removed: a.removed + b.removed }), { added: 0, removed: 0 });
+        const hunks = pending.reduce((n, c) => n + c.hunks.filter(h => h.state === 'pending').length, 0);
+        return <div className='ingot-changes-bar' id='ingot-changes-bar'>
+            <span className='codicon codicon-diff' />
+            <span id='ingot-changes-summary'>{changesSummary(pending.length)} · {hunks} {hunks === 1 ? 'change' : 'changes'} <span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
+            <button type='button' className='ingot-btn-ghost ingot-changes-nav' title='Previous change (⌥↑)' onClick={() => this.tracker.navigate(-1)}><span className='codicon codicon-arrow-up' /></button>
+            <button type='button' className='ingot-btn-ghost ingot-changes-nav' title='Next change (⌥↓)' onClick={() => this.tracker.navigate(1)}><span className='codicon codicon-arrow-down' /></button>
+            <button type='button' id='ingot-changes-reject-all' className='ingot-btn-ghost' onClick={() => this.tracker.decideAll('rejected', session.id)}>Reject All</button>
+            <button type='button' id='ingot-changes-accept-all' className='ingot-btn-primary' onClick={() => this.tracker.decideAll('accepted', session.id)}>Accept All</button>
+        </div>;
     }
 
     protected renderComposer(): React.ReactNode {

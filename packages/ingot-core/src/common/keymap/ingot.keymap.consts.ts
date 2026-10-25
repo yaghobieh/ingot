@@ -1,4 +1,5 @@
 import type { KeymapEntry } from './keymap.types';
+import { CHANGES_PENDING_KEY } from '../changes/changes.consts';
 
 /** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
@@ -15,8 +16,8 @@ export const INGOT_RUN_COMMANDS = {
     stop: { id: 'ingot.stop', label: 'Stop', category: 'Run' }
 } as const;
 
-/** Keeps Ingot shortcuts from stealing the agent review keys (Ctrl+Y / Ctrl+N) while an edit is pending. */
-const NOT_REVIEWING = '!ingotAgentEditPending';
+/** Keeps Ingot shortcuts from stealing the agent review keys (Ctrl+Y / Ctrl+N, ⌥↑ / ⌥↓) while changes wait. */
+const NOT_REVIEWING = `!${CHANGES_PENDING_KEY}`;
 const EDITOR = 'editorTextFocus';
 /** Focus is inside the Agents tool window (chat). */
 const AGENTS_FOCUS = 'ingotAgentsFocus';
@@ -64,8 +65,8 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Move Line Down', command: 'editor.action.moveLinesDownAction', mac: 'alt+shift+down', other: 'alt+shift+down', when: EDITOR },
     { action: 'Move Statement Up', command: 'editor.action.moveLinesUpAction', mac: 'ctrlcmd+shift+up', other: 'ctrl+shift+up', when: EDITOR },
     { action: 'Move Statement Down', command: 'editor.action.moveLinesDownAction', mac: 'ctrlcmd+shift+down', other: 'ctrl+shift+down', when: EDITOR },
-    { action: 'Extend Selection', command: 'editor.action.smartSelect.expand', mac: 'alt+up', other: 'ctrl+w', when: EDITOR },
-    { action: 'Shrink Selection', command: 'editor.action.smartSelect.shrink', mac: 'alt+down', other: 'ctrl+shift+w', when: EDITOR },
+    { action: 'Extend Selection', command: 'editor.action.smartSelect.expand', mac: 'alt+up', other: 'ctrl+w', when: EDITOR_NOT_REVIEWING },
+    { action: 'Shrink Selection', command: 'editor.action.smartSelect.shrink', mac: 'alt+down', other: 'ctrl+shift+w', when: EDITOR_NOT_REVIEWING },
     { action: 'Add Selection for Next Occurrence', command: 'editor.action.addSelectionToNextFindMatch', mac: 'ctrl+g', other: 'alt+j', when: EDITOR },
     { action: 'Select All Occurrences', command: 'editor.action.selectHighlights', mac: 'ctrlcmd+ctrl+g', other: 'ctrl+alt+shift+j', when: EDITOR },
     { action: 'Join Lines', command: 'editor.action.joinLines', mac: 'ctrl+shift+j', other: 'ctrl+shift+j', when: EDITOR },

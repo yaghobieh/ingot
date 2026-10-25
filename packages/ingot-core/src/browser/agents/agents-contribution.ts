@@ -1,13 +1,13 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
-import { AbstractViewContribution, type KeybindingContribution, type KeybindingRegistry } from '@theia/core/lib/browser';
+import { AbstractViewContribution } from '@theia/core/lib/browser';
 import type { CommandRegistry } from '@theia/core/lib/common';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
-import { lineDiff, diffStats } from '../../common/diff/diff.utils';
 import { AgentStore } from './agent-store';
-import { AGENT_EDIT_PENDING_KEY, AgentEditReview } from './agent-edit-review';
+import { ChangeTracker } from '../changes/change-tracker';
+import { CHANGE_COMMANDS } from '../changes/changes.browser-consts';
 import { IngotAgentsWidget } from './agents-widget';
-import { ACCEPT_EDIT_KEY, AGENT_COMMANDS, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL, DEMO_MARKER, REJECT_EDIT_KEY } from './agents.consts';
+import { AGENT_COMMANDS, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL, DEMO_MARKER } from './agents.consts';
 
 /** Demo transformation: annotate the first function-like line so the review UI can be tried without a model. */
 const demoEdit = (text: string): string => {
@@ -19,10 +19,10 @@ const demoEdit = (text: string): string => {
 };
 
 @injectable()
-export class IngotAgentsContribution extends AbstractViewContribution<IngotAgentsWidget> implements KeybindingContribution {
+export class IngotAgentsContribution extends AbstractViewContribution<IngotAgentsWidget> {
 
     @inject(AgentStore) protected readonly store: AgentStore;
-    @inject(AgentEditReview) protected readonly review: AgentEditReview;
+    @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(MessageService) protected readonly messages: MessageService;
 
@@ -36,8 +36,13 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
         registry.registerCommand(AGENT_COMMANDS.cycleMode, { execute: async () => (await this.openView({ activate: false, reveal: true })).cycleMode() });
         registry.registerCommand(AGENT_COMMANDS.history, { execute: async () => (await this.openView({ activate: true, reveal: true })).toggleHistory() });
         registry.registerCommand(AGENT_COMMANDS.memories, { execute: async () => (await this.openView({ activate: true, reveal: true })).toggleMemories() });
-        registry.registerCommand(AGENT_COMMANDS.acceptEdit, { execute: () => this.review.accept(), isEnabled: () => !!this.review.pending });
-        registry.registerCommand(AGENT_COMMANDS.rejectEdit, { execute: () => this.review.reject(), isEnabled: () => !!this.review.pending });
+        const pending = () => !!this.tracker.currentChange();
+        registry.registerCommand(AGENT_COMMANDS.acceptEdit, { execute: () => this.tracker.decideCurrentFile('accepted'), isEnabled: pending });
+        registry.registerCommand(AGENT_COMMANDS.rejectEdit, { execute: () => this.tracker.decideCurrentFile('rejected'), isEnabled: pending });
+        registry.registerCommand(CHANGE_COMMANDS.next, { execute: () => this.tracker.navigate(1), isEnabled: pending });
+        registry.registerCommand(CHANGE_COMMANDS.prev, { execute: () => this.tracker.navigate(-1), isEnabled: pending });
+        registry.registerCommand(CHANGE_COMMANDS.acceptAll, { execute: () => this.tracker.decideAll('accepted'), isEnabled: pending });
+        registry.registerCommand(CHANGE_COMMANDS.rejectAll, { execute: () => this.tracker.decideAll('rejected'), isEnabled: pending });
         registry.registerCommand(AGENT_COMMANDS.addSelectionToChat, {
             execute: async () => {
                 const widget = await this.openView({ activate: false, reveal: true });
@@ -49,12 +54,6 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
         registry.registerCommand(AGENT_COMMANDS.demoEdit, { execute: () => this.runDemo() });
     }
 
-    override registerKeybindings(keybindings: KeybindingRegistry): void {
-        super.registerKeybindings(keybindings);
-        keybindings.registerKeybinding({ command: AGENT_COMMANDS.acceptEdit.id, keybinding: ACCEPT_EDIT_KEY, when: AGENT_EDIT_PENDING_KEY });
-        keybindings.registerKeybinding({ command: AGENT_COMMANDS.rejectEdit.id, keybinding: REJECT_EDIT_KEY, when: AGENT_EDIT_PENDING_KEY });
-    }
-
     protected async runDemo(): Promise<void> {
         const editor = this.editors.currentEditor ?? this.editors.all[0];
         if (!editor) {
@@ -63,21 +62,21 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
         }
         const uri = editor.editor.uri;
         const next = demoEdit(editor.editor.document.getText());
-        const stats = diffStats(lineDiff(editor.editor.document.getText(), next));
         await this.openView({ activate: false, reveal: true });
         const session = this.store.create(`Demo: review an edit to ${uri.path.base}`);
         this.store.update(session.id, {
             status: 'review',
             activeFile: uri.path.base,
-            messages: [{ role: 'user', text: `Annotate the first function in ${uri.path.base}` }],
+            messages: [{ role: 'user', text: `Annotate the first function in ${uri.path.base}` }, { role: 'agent', text: `Annotated the first function in ${uri.path.base}.` }],
             plan: [{ text: `Read ${uri.path.base}`, state: 'done' }, { text: 'Annotate the first function', state: 'active' }, { text: 'Ask for review', state: 'todo' }],
-            steps: [{ kind: 'read', target: uri.path.base, done: true }, { kind: 'edit', target: uri.path.base, done: false, added: stats.added, removed: stats.removed }],
-            changes: [{ uri: uri.toString(), label: uri.path.base, added: stats.added, removed: stats.removed }]
+            steps: [{ kind: 'read', target: uri.path.base, done: true }]
         });
-        await this.review.propose(uri, next);
-        const done = this.review.onDidChange(pending => {
-            if (!pending) {
-                this.store.update(session.id, { status: 'done', plan: session.plan.map(p => ({ ...p, state: 'done' as const })), steps: session.steps.map(s => ({ ...s, done: true })) });
+        const change = await this.tracker.finalize({ sessionId: session.id, messageIndex: 1, userIndex: 0 }, uri.path.base, uri, next);
+        const stats = this.tracker.stats(change);
+        this.store.update(session.id, { steps: [...session.steps, { kind: 'edit', target: uri.path.base, done: true, added: stats.added, removed: stats.removed }] });
+        const done = this.tracker.onDidChange(() => {
+            if (this.tracker.find(change.id)?.status !== 'applied') {
+                this.store.update(session.id, { status: 'done', plan: session.plan.map(p => ({ ...p, state: 'done' as const })) });
                 done.dispose();
             }
         });

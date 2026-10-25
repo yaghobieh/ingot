@@ -77,19 +77,24 @@ test.describe('IDEA-27-29 agent runtime: streaming answers and edits through the
         await expect(page.locator('#ingot-agents')).toContainText('Review finished: 1 of 1 change(s) kept.');
     });
 
-    test('reviews several files one by one: Ctrl+N rejects, Ctrl+Y creates the new file', async ({ page }) => {
+    test('several files become code-change blocks: reject one, Accept All creates the new file', async ({ page }) => {
         replyText = twoFileReply;
         await openIngot(page);
         await connectOllama(page, server);
         await ask(page, 'Add subtract and a strings helper');
 
-        const bar = page.locator('.ingot-agent-edit-bar');
-        await expect(bar.locator('.ingot-agent-edit-file')).toHaveText('math.ts', { timeout: 15_000 });
-        await page.keyboard.press('Control+n');
-        await expect(bar.locator('.ingot-agent-edit-file')).toHaveText('strings.ts');
-        expect(fs.readFileSync(MATH, 'utf8')).toBe(ORIGINAL_MATH);
-        await page.keyboard.press('Control+y');
-        await expect(bar).toBeHidden();
+        // IDEA-102: both files are applied at once, one code-change block each; decide per file.
+        const blocks = page.locator('#ingot-agents .ingot-change-block');
+        await expect(blocks).toHaveCount(2, { timeout: 15_000 });
+        const math = blocks.filter({ has: page.locator('.ingot-change-name', { hasText: 'math.ts' }) });
+        const strings = blocks.filter({ has: page.locator('.ingot-change-name', { hasText: 'strings.ts' }) });
+        await expect(math.locator('.ingot-change-status')).toHaveText('Review');
+        await math.locator('.ingot-change-btn.reject').click();
+        await expect(math.locator('.ingot-change-status')).toHaveText('Rejected');
+        await expect.poll(() => fs.readFileSync(MATH, 'utf8')).toBe(ORIGINAL_MATH);
+        await page.locator('#ingot-changes-accept-all').click();
+        await expect(strings.locator('.ingot-change-status')).toHaveText('Accepted');
+        await expect(page.locator('#ingot-changes-bar')).toBeHidden();
         await expect.poll(() => fs.existsSync(STRINGS) && fs.readFileSync(STRINGS, 'utf8')).toBe(STRINGS_CONTENT);
         await expect(page.locator('#ingot-agents')).toContainText('Review finished: 1 of 2 change(s) kept.');
     });
