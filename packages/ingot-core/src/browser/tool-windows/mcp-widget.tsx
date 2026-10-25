@@ -16,6 +16,8 @@ import {
     type ConfigItemKind, type CustomServerForm, type CustomizeTab, type McpCatalogEntry, type McpKeyValue, type McpScope
 } from '../../common/mcp/mcp-catalog';
 import { IngotMcpClient } from '../project-config/mcp-client';
+import { IngotFeatureFlags } from '../config/feature-flags';
+import { IDE_FLAGS } from '../../common/config/remote-config.consts';
 import { ProjectConfigService } from '../project-config/project-config-service';
 import { MCP_WIDGET_ID } from './tool-windows.consts';
 
@@ -40,6 +42,7 @@ const KIND_LABEL: Record<ConfigItemKind, string> = { rule: 'Rule', command: 'Com
 export class IngotMcpWidget extends ReactWidget {
 
     @inject(IngotMcpClient) protected readonly mcp: IngotMcpClient;
+    @inject(IngotFeatureFlags) protected readonly flags: IngotFeatureFlags;
     @inject(ProjectConfigService) protected readonly configService: ProjectConfigService;
     @inject(CommandService) protected readonly commands: CommandService;
     @inject(FileService) protected readonly files: FileService;
@@ -67,6 +70,13 @@ export class IngotMcpWidget extends ReactWidget {
         this.title.caption = 'Plugins, MCP servers, skills, rules and commands';
         this.title.closable = true;
         this.title.iconClass = 'codicon codicon-plug';
+        // The marketplace can be switched off remotely (IDEA-125).
+        this.toDispose.push(this.flags.onDidChange(() => {
+            if (!this.flags.enabled(IDE_FLAGS.mcpMarketplace)) {
+                this.marketplace = false;
+            }
+            this.update();
+        }));
         this.addClass('ingot-toolwindow');
         this.addClass('ingot-mcp-page');
         this.node.tabIndex = 0;
@@ -119,8 +129,8 @@ export class IngotMcpWidget extends ReactWidget {
                     <span className='codicon codicon-search' />
                     <input id='ingot-mcp-search' type='search' placeholder='Search Plugins, Skills, MCPs…' value={this.query} onChange={e => this.set('query', e.currentTarget.value)} />
                 </label>
-                <button id='ingot-mcp-browse' type='button' className={`ingot-mcp-browse ${this.marketplace ? 'active' : ''}`}
-                    onClick={() => { this.tab = 'mcps'; this.serverDialog = undefined; this.addForm = undefined; this.set('marketplace', !this.marketplace); }}>Browse Marketplace</button>
+                {this.flags.enabled(IDE_FLAGS.mcpMarketplace) && <button id='ingot-mcp-browse' type='button' className={`ingot-mcp-browse ${this.marketplace ? 'active' : ''}`}
+                    onClick={() => { this.tab = 'mcps'; this.serverDialog = undefined; this.addForm = undefined; this.set('marketplace', !this.marketplace); }}>Browse Marketplace</button>}
             </div>
             <div className='ingot-mcp-filters'>
                 <label className='ingot-mcp-account' title='Show items from'>
@@ -149,7 +159,7 @@ export class IngotMcpWidget extends ReactWidget {
         if (this.serverDialog) {
             return this.renderServerDialog(this.serverDialog);
         }
-        if (this.marketplace) {
+        if (this.marketplace && this.flags.enabled(IDE_FLAGS.mcpMarketplace)) {
             return this.renderMarketplace();
         }
         if (this.tab === 'mcps') {

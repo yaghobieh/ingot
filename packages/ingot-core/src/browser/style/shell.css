@@ -1000,3 +1000,6 @@ button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true']
 .ingot-blocked-card h2 { margin: 12px 0 8px; font-size: 18px; }
 .ingot-blocked-card p { margin: 0 0 20px; color: var(--theia-descriptionForeground); line-height: 1.5; }
 .ingot-blocked-icon { font-size: 32px !important; color: var(--theia-errorForeground); }
+.ingot-blocked-actions { display: flex; gap: 8px; justify-content: center; }
+.ingot-blocked-screen[hidden] { display: none; }
+.ingot-update-icon { font-size: 32px !important; color: var(--theia-button-background); }

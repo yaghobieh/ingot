@@ -1,5 +1,12 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
+import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
+import { FileUri } from '@theia/core/lib/common/file-uri';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import type { RemoteConfigSnapshot } from '../../common/config/remote-config.types';
+import { CONFIG_CACHE_FILE, CONFIG_PATH } from '../../common/config/remote-config.consts';
+import { defaultRemoteConfig, parseRemoteConfig } from '../../common/config/remote-config.utils';
 import { DEFAULT_KEYCHAIN_SERVICE } from '../../common/models/models.consts';
 import type { AccountBackend, AccountClient, AccountSnapshot, AccountUrls, GatewayModelInfo, SignInOptions } from '../../common/account/account-protocol';
 import {
@@ -19,6 +26,7 @@ const CLIENT_NAME = 'Ingot IDE';
 export class IngotAccountBackend implements AccountBackend {
 
     @inject(KeyStoreService) protected readonly keyStore: KeyStoreService;
+    @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
 
     protected readonly keychainService = process.env.INGOT_KEYCHAIN_SERVICE || DEFAULT_KEYCHAIN_SERVICE;
     protected readonly clients = new Set<AccountClient>();
@@ -275,6 +283,49 @@ export class IngotAccountBackend implements AccountBackend {
             return [];
         }
         return parseGatewayModels(await response.json().catch(() => ({})));
+    }
+
+    protected async configCachePath(): Promise<string> {
+        return path.join(FileUri.fsPath(await this.env.getConfigDirUri()), CONFIG_CACHE_FILE);
+    }
+
+    protected async cachedConfig(): Promise<RemoteConfigSnapshot> {
+        try {
+            const raw = JSON.parse(await fs.readFile(await this.configCachePath(), 'utf8')) as { config?: unknown; fetchedAt?: unknown; serverUrl?: unknown };
+            if (raw.serverUrl === this.currentUrls.serverUrl) {
+                return { config: parseRemoteConfig(raw.config, PRODUCT.version), source: 'cache', fetchedAt: typeof raw.fetchedAt === 'number' ? raw.fetchedAt : 0 };
+            }
+        } catch {
+            // No cache yet.
+        }
+        return { config: defaultRemoteConfig(PRODUCT.version), source: 'default', fetchedAt: 0 };
+    }
+
+    async remoteConfig(): Promise<RemoteConfigSnapshot> {
+        if (this.blocked) {
+            return this.cachedConfig();
+        }
+        const token = this.current.signedIn ? await this.accessToken().catch(() => undefined) : undefined;
+        try {
+            const response = await fetch(`${this.currentUrls.serverUrl}${CONFIG_PATH}`, {
+                headers: { ...ideHeaders(PRODUCT.version), ...(token ? { authorization: `Bearer ${token}` } : {}) }, signal: AbortSignal.timeout(10_000)
+            });
+            const json = await response.json().catch(() => undefined) as { error?: unknown } | undefined;
+            if (response.status === 403 && json?.error === 'account_blocked') {
+                await this.markBlocked();
+                return this.cachedConfig();
+            }
+            if (!response.ok || !json) {
+                return this.cachedConfig();
+            }
+            const fetchedAt = Date.now();
+            const file = await this.configCachePath();
+            await fs.mkdir(path.dirname(file), { recursive: true });
+            await fs.writeFile(file, JSON.stringify({ serverUrl: this.currentUrls.serverUrl, fetchedAt, config: json }), 'utf8').catch(() => undefined);
+            return { config: parseRemoteConfig(json, PRODUCT.version), source: 'server', fetchedAt };
+        } catch {
+            return this.cachedConfig();
+        }
     }
 
     protected describe(error: unknown): string {

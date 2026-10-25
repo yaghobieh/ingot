@@ -1,5 +1,7 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { IngotModelClient } from '../models/model-client';
+import { IngotFeatureFlags } from '../config/feature-flags';
+import { UPDATE_TEXT } from '../../common/config/remote-config.consts';
 import { chatErrorText, decodeGatewayError, fallsBackToDefault, rateLimitText, refetchesModels, type GatewayError } from '../../common/account/gateway-errors';
 import { AGENT_SYSTEM_PROMPTS, AUTO_MODEL_ID, DEFAULT_CONTEXT_WINDOW } from '../../common/models/models.consts';
 import { findModel, supportsVision } from '../../common/models/models.utils';
@@ -44,6 +46,7 @@ export type AgentCommandHandler = (session: AgentSession, prompt: string) => boo
 export class AgentStore {
 
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
+    @inject(IngotFeatureFlags) protected readonly flags: IngotFeatureFlags;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(FileService) protected readonly files: FileService;
     @inject(EditorManager) protected readonly editors: EditorManager;
@@ -317,6 +320,13 @@ export class AgentStore {
                 : { role: 'user', text: prompt.trim() });
         }
         if (this.commandHandlers.some(handle => handle(session, prompt.trim()))) {
+            session.updatedAt = Date.now();
+            this.changed();
+            return session;
+        }
+        if (this.flags.forceUpdate) {
+            session.messages.push({ role: 'system', text: UPDATE_TEXT.chatBlocked });
+            session.status = 'idle';
             session.updatedAt = Date.now();
             this.changed();
             return session;
