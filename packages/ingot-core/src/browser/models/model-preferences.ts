@@ -5,6 +5,7 @@ import { DEFAULT_OLLAMA_URL, MODEL_CATALOG, MODEL_PREFERENCES } from '../../comm
 /** Non-secret model settings. API keys are never preferences: they live in the OS keychain. */
 export const modelPreferenceSchema: PreferenceSchema = {
     properties: {
+        [MODEL_PREFERENCES.byok]: { type: 'boolean', default: false, description: 'Use my own API keys (BYOK) and local models (Ollama) in addition to Ingot models.' },
         [MODEL_PREFERENCES.ollamaUrl]: { type: 'string', default: DEFAULT_OLLAMA_URL, description: 'Base URL of the local Ollama server.' },
         [MODEL_PREFERENCES.overrides]: { type: 'object', default: {}, description: 'Provider model name overrides, e.g. { "ollama": "llama3.2" }.' },
         [MODEL_PREFERENCES.autocompleteEnabled]: { type: 'boolean', default: true, description: 'Show inline AI completions (ghost text) in the editor.' },

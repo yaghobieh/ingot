@@ -472,6 +472,7 @@ button.ingot-popover-footer:hover { color: var(--theia-textLink-foreground); }
 .ingot-pick-row.selected { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
 .ingot-pick-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ingot-pick-nokey .ingot-pick-label { opacity: .7; }
+.ingot-pick-unavailable { font-size: 10px; color: var(--theia-descriptionForeground); white-space: nowrap; }
 .ingot-pick-badges { display: inline-flex; gap: 3px; }
 .ingot-pick-badge { font-size: 10px; padding: 0 5px; border-radius: 4px; line-height: 16px; background: var(--theia-badge-background, rgba(127, 127, 127, .2)); color: var(--theia-badge-foreground, inherit); opacity: .85; }
 .ingot-pick-speed-fast { color: #3FB950; background: rgba(63, 185, 80, .14); }
@@ -897,3 +898,16 @@ button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true']
 .ingot-context-actions .ingot-btn-primary { display: inline-flex; align-items: center; gap: 4px; }
 .ingot-pill-anchor:has(> #ingot-context-ring) { position: static; }
 .ingot-composer-bar .ingot-popover.ingot-context-popover { left: auto; right: 0; width: 100%; max-width: 320px; box-sizing: border-box; }
+
+/* IDEA-101 Ingot models (account) */
+.ingot-model-card-ingot { border-color: var(--theia-focusBorder); }
+.ingot-model-card-ingot .ingot-models-row { gap: 8px; flex-wrap: wrap; align-items: center; }
+.ingot-models-byok { display: flex; gap: 8px; align-items: center; margin: 12px 0 8px; cursor: pointer; }
+.ingot-models-byok input { margin: 0; }
+.ingot-chat-sign-in { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.ingot-pick-row.ingot-pick-sign-in { width: 100%; border: 0; background: transparent; color: var(--theia-textLink-foreground); font: inherit; text-align: left; cursor: pointer; gap: 8px; }
+.ingot-pick-row.ingot-pick-sign-in:hover { background: var(--theia-list-hoverBackground); }
+#status-bar-ingot-account-status { cursor: pointer; }
+@media (prefers-reduced-motion: no-preference) {
+    #status-bar-ingot-account-status .codicon-sparkle { transition: opacity 0.2s ease; }
+}
