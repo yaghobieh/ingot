@@ -12,6 +12,8 @@ import { ContextKeyService, type ContextKey } from '@theia/core/lib/browser/cont
 import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding';
 import { ChatHistory, ContextBreakdown, MemoriesManager, ModeMenu, ModelPicker } from './chat-popovers';
 import { Dictation } from './dictation';
+import { IngotFeatureFlags } from '../config/feature-flags';
+import { IDE_FLAGS } from '../../common/config/remote-config.consts';
 import type { DictationState } from './dictation.types';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { IngotAccountService } from '../account/account-service';
@@ -66,6 +68,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(IngotAccountService) protected readonly account: IngotAccountService;
+    @inject(IngotFeatureFlags) protected readonly flags: IngotFeatureFlags;
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
@@ -181,6 +184,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.toDispose.push({ dispose: () => clearInterval(ticker) });
         this.toDispose.push(this.models.onDidChange(() => this.update()));
         this.toDispose.push(this.reviewComments.onDidChange(() => this.update()));
+        this.toDispose.push(this.flags.onDidChange(() => this.update()));
         this.toDispose.push(this.editors.onCurrentEditorChanged(() => this.update()));
         this.focusKey = this.contextKeys.createKey<boolean>(AGENTS_FOCUS_KEY, false);
         this.node.addEventListener('focusin', () => this.focusKey?.set(true));
@@ -830,7 +834,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 <label className='ingot-icon-button codicon codicon-attach ingot-composer-attach' id='ingot-composer-attach' title='Attach images' aria-label='Attach images'>
                     <input type='file' accept='image/png,image/jpeg,image/gif,image/webp' multiple hidden onChange={e => this.attachImages(e.currentTarget)} />
                 </label>
-                {this.renderMic()}
+                {this.flags.enabled(IDE_FLAGS.micDictation) && this.renderMic()}
                 {this.renderModePill()}
                 {this.renderModelPill()}
                 {this.renderReviewToggle()}
@@ -886,7 +890,7 @@ export class IngotAgentsWidget extends ReactWidget {
             </button>
             {this.popover === 'model' && <ModelPicker current={model} models={this.models.catalog}
                 autoResolved={resolved !== AUTO_MODEL_ID && model === AUTO_MODEL_ID ? this.modelLabel(resolved) : undefined}
-                configured={id => this.models.isModelConfigured(id)} favorites={this.favorites}
+                configured={id => this.models.isModelConfigured(id)} unavailableReason={id => this.models.unavailableReason(id)} favorites={this.favorites}
                 onToggleFavorite={id => this.toggleFavorite(id)}
                 onPick={id => { this.store.model = id; this.store.changed(); this.closePopover(); }}
                 onAddKey={() => { this.closePopover(); this.commands.executeCommand(MODELS_OPEN_COMMAND.id); }}

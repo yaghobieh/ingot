@@ -1,16 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { devLoginUrl, gatewayModelName, ingotModelId, isIngotModel, isLoopbackUrl, parseGatewayModels, snapshotOf, toCatalogModel, tokensLeftLabel, usedRatio } from './gateway.utils';
+import { defaultGatewayModel, devLoginUrl, roleOf, gatewayModelName, ingotModelId, isIngotModel, isLoopbackUrl, parseGatewayModels, snapshotOf, toCatalogModel, tokensLeftLabel, usedRatio } from './gateway.utils';
 import type { IdeStatusResponse } from './shared/ide-auth.types';
 
 describe('Ingot gateway in the IDE (IDEA-101)', () => {
     it('maps /v1/models rows to picker models under the ingot provider', () => {
         const models = parseGatewayModels({ data: [{ id: 'ingot-fast', name: 'Ingot Fast', context_window: 128000, available: true }, { id: 'x', available: false }, { bad: 1 }] });
-        expect(models).toEqual([{ id: 'ingot-fast', label: 'Ingot Fast', contextWindow: 128000, available: true }, { id: 'x', label: 'x', contextWindow: 128000, available: false }]);
+        expect(models).toEqual([{ id: 'ingot-fast', label: 'Ingot Fast', contextWindow: 128000, available: true, order: 0, isDefault: false }, { id: 'x', label: 'x', contextWindow: 128000, available: false, order: 1, isDefault: false }]);
         const entry = toCatalogModel(models[0]);
         expect(entry).toMatchObject({ id: 'ingot:ingot-fast', provider: 'ingot', model: 'ingot-fast', speed: 'fast', recommended: true });
         expect(isIngotModel(entry.id)).toBe(true);
         expect(gatewayModelName(ingotModelId('gpt-4.1'))).toBe('gpt-4.1');
         expect(parseGatewayModels(undefined)).toEqual([]);
+    });
+
+    it('keeps the admin order and default (IDEA-124)', () => {
+        const models = parseGatewayModels({
+            default: 'ingot-smart',
+            data: [{ id: 'b', order: 30, available: true }, { id: 'ingot-smart', order: 20, available: false, unavailable_reason: 'off' }, { id: 'a', order: 10, available: true }]
+        });
+        expect(models.map(m => m.id)).toEqual(['a', 'ingot-smart', 'b']);
+        expect(models[1]).toMatchObject({ isDefault: true, reason: 'off' });
+        expect(defaultGatewayModel(models)?.id).toBe('a');
+        expect(defaultGatewayModel(models.map(m => ({ ...m, available: true })))?.id).toBe('ingot-smart');
+        expect(parseGatewayModels({ data: [{ id: 'z', default: true }] })[0].isDefault).toBe(true);
+        expect(roleOf({ user: { role: 'admin' } })).toBe('admin');
+        expect(roleOf({})).toBeUndefined();
     });
 
     it('builds the account snapshot and token labels from /api/ide/status', () => {

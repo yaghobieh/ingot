@@ -5,6 +5,7 @@ import { CommandContribution, CommandRegistry } from '@theia/core/lib/common/com
 import { MenuContribution, MenuModelRegistry } from '@theia/core/lib/common/menu';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { AGENTS_WIDGET_ID } from '../agents/agents.consts';
+import { isAgentsWindow } from '../workbench/agents-window';
 import { LAYOUT_PREFS } from '../../common/layout/layout.consts';
 import type { ChatPosition } from '../../common/layout/layout.types';
 import { toChatPosition } from '../../common/layout/layout.utils';
@@ -54,6 +55,10 @@ export class IngotLayoutContribution implements CommandContribution, MenuContrib
 
     /** Moves the Agents panel into the chosen area if it is somewhere else. */
     async apply(): Promise<void> {
+        // The Agents Window (IDEA-118) shows the chat full size in its main area.
+        if (isAgentsWindow()) {
+            return;
+        }
         const widget = await this.widgets.getWidget(AGENTS_WIDGET_ID);
         if (!widget) {
             return;

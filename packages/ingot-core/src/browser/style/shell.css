@@ -472,6 +472,8 @@ button.ingot-popover-footer:hover { color: var(--theia-textLink-foreground); }
 .ingot-pick-row.selected { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
 .ingot-pick-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ingot-pick-nokey .ingot-pick-label { opacity: .7; }
+.ingot-pick-disabled { cursor: not-allowed; }
+.ingot-pick-disabled .ingot-pick-label { opacity: .45; }
 .ingot-pick-unavailable { font-size: 10px; color: var(--theia-descriptionForeground); white-space: nowrap; }
 .ingot-pick-badges { display: inline-flex; gap: 3px; }
 .ingot-pick-badge { font-size: 10px; padding: 0 5px; border-radius: 4px; line-height: 16px; background: var(--theia-badge-background, rgba(127, 127, 127, .2)); color: var(--theia-badge-foreground, inherit); opacity: .85; }
@@ -991,3 +993,13 @@ button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true']
 /* IDEA-106: Ingot Files icons in chips and code-change blocks. */
 .ingot-chip .ingot-ficon, .ingot-change-file .ingot-ficon { width: 14px; height: 14px; vertical-align: -2px; }
 .ingot-change-file .ingot-ficon { flex: none; }
+
+/* Blocked account (IDEA-124) */
+.ingot-blocked-screen { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; background: var(--theia-editor-background); }
+.ingot-blocked-card { max-width: 420px; padding: 32px; text-align: center; border: 1px solid var(--theia-panel-border); border-radius: 8px; background: var(--theia-sideBar-background); }
+.ingot-blocked-card h2 { margin: 12px 0 8px; font-size: 18px; }
+.ingot-blocked-card p { margin: 0 0 20px; color: var(--theia-descriptionForeground); line-height: 1.5; }
+.ingot-blocked-icon { font-size: 32px !important; color: var(--theia-errorForeground); }
+.ingot-blocked-actions { display: flex; gap: 8px; justify-content: center; }
+.ingot-blocked-screen[hidden] { display: none; }
+.ingot-update-icon { font-size: 32px !important; color: var(--theia-button-background); }

@@ -71,6 +71,8 @@ export interface ModelPickerProps {
     readonly onClose: () => void;
     /** Signed out (IDEA-101): show "Sign in to use Ingot models" at the top. */
     readonly onSignIn?: () => void;
+    /** Ingot models the server lists but cannot run (IDEA-124): greyed out with this tooltip, not pickable. */
+    readonly unavailableReason?: (id: string) => string | undefined;
 }
 
 interface ModelPickerState {
@@ -91,12 +93,15 @@ export class ModelPicker extends React.Component<ModelPickerProps, ModelPickerSt
         const { current, configured, favorites } = this.props;
         const ready = configured(m.id);
         const hosted = m.provider === 'ingot';
-        return <div key={`${section}-${m.id}`} role='option' aria-selected={current === m.id} id={`ingot-pick-${section}-${m.id}`} data-model={m.id}
-            className={`ingot-pick-row${current === m.id ? ' selected' : ''}${ready ? '' : ' ingot-pick-nokey'}`} onClick={() => this.props.onPick(m.id)}>
+        const reason = hosted && !this.props.onSignIn ? this.props.unavailableReason?.(m.id) : undefined;
+        return <div key={`${section}-${m.id}`} role='option' aria-selected={current === m.id} aria-disabled={reason ? true : undefined} title={reason}
+            id={`ingot-pick-${section}-${m.id}`} data-model={m.id}
+            className={`ingot-pick-row${current === m.id ? ' selected' : ''}${ready ? '' : ' ingot-pick-nokey'}${reason ? ' ingot-pick-disabled' : ''}`}
+            onClick={() => { if (!reason) { this.props.onPick(m.id); } }}>
             <span className='ingot-pick-label'>{m.label}</span>
             {current === m.id && <span className='codicon codicon-check ingot-pick-check' />}
             {!ready && !hosted && <button type='button' className='ingot-pick-addkey' onClick={e => { e.stopPropagation(); this.props.onAddKey(m.id); }}>{MODEL_PICKER_TEXT.addKey}</button>}
-            {!ready && hosted && !this.props.onSignIn && <span className='ingot-pick-unavailable' title={MODEL_PICKER_TEXT.unavailableHint}>{MODEL_PICKER_TEXT.unavailable}</span>}
+            {!ready && hosted && !this.props.onSignIn && <span className='ingot-pick-unavailable' title={reason ?? MODEL_PICKER_TEXT.unavailableHint}>{MODEL_PICKER_TEXT.unavailable}</span>}
             <button type='button' className={`ingot-pick-star codicon ${favorites.has(m.id) ? 'codicon-star-full' : 'codicon-star-empty'}`}
                 aria-label={`${favorites.has(m.id) ? MODEL_PICKER_TEXT.unfavorite : MODEL_PICKER_TEXT.favorite} ${m.label}`} aria-pressed={favorites.has(m.id)}
                 onClick={e => { e.stopPropagation(); this.props.onToggleFavorite(m.id); }} />
