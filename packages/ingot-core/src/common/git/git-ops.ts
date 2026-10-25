@@ -36,6 +36,8 @@ export type GitOperation =
     | { kind: 'upstream' }
     | { kind: 'lastCommit'; path: string }
     | { kind: 'logLines'; path: string; start: number; end: number }
+    | { kind: 'blameAt'; path: string; rev: string }
+    | { kind: 'commitInfo'; commit: string }
     | { kind: 'formatPatch'; commit: string }
     | { kind: 'checkoutRevision'; commit: string }
     | { kind: 'lsTree'; commit: string }
@@ -132,6 +134,8 @@ export const gitArgs = (op: GitOperation): string[] => {
         case 'upstream': return ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'];
         case 'lastCommit': return ['log', '-1', '--format=%H%x1f%an%x1f%cI%x1f%s', '--', ...paths([op.path])];
         case 'logLines': return ['log', '--format=%H%x1f%h%x1f%an%x1f%cI%x1f%s', '--no-patch', `-L${line(op.start)},${line(Math.max(op.start, op.end))}:${paths([op.path])[0]}`];
+        case 'blameAt': return ['blame', '--line-porcelain', ref(op.rev), '--', ...paths([op.path])];
+        case 'commitInfo': return ['show', '--no-patch', '--format=%H%x1f%an%x1f%ae%x1f%cI%x1f%B', ref(op.commit)];
         case 'formatPatch': return ['format-patch', '-1', '--stdout', commit(op.commit)];
         case 'checkoutRevision': return ['checkout', '--detach', commit(op.commit)];
         case 'lsTree': return ['ls-tree', '-r', '--name-only', commit(op.commit)];
