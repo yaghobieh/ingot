@@ -17,6 +17,10 @@ export interface FakeIngotServer {
     readonly disabledModels: Set<string>;
     /** Served (in order) instead of the next chat completions, e.g. a 429 with Retry-After. */
     readonly chatErrors: FakeGatewayError[];
+    /** GET /v1/config (IDEA-125): flags and update policy served, and who asked (version header, signed in). */
+    flags: Record<string, boolean>;
+    update: { minVersion?: string; latestVersion?: string; updateAvailable?: boolean; forceUpdate?: boolean };
+    readonly configCalls: { version: string; signedIn: boolean }[];
     close(): Promise<void>;
 }
 
@@ -39,7 +43,8 @@ const send = (res: http.ServerResponse, status: number, body: unknown): void => 
  */
 export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<FakeIngotServer> => {
     const state: FakeIngotServer = {
-        url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', blocked: false, disabledModels: new Set(), chatErrors: [], close: async () => undefined
+        url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', blocked: false, disabledModels: new Set(), chatErrors: [],
+        flags: {}, update: {}, configCalls: [], close: async () => undefined
     };
     const access = 'ingot_at_e2e_access';
     const status = () => ({
@@ -77,6 +82,20 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
             }
             if (url.pathname === '/api/ide/revoke') {
                 send(res, 200, { ok: true });
+                return;
+            }
+            if (url.pathname === '/v1/config') {
+                // Works signed out too (update policy before sign-in).
+                const version = String(req.headers['x-ingot-ide-version'] ?? '');
+                state.configCalls.push({ version, signedIn: authed });
+                const u = state.update;
+                send(res, 200, {
+                    flags: state.flags, values: {}, config: {}, ttlSeconds: 300, signedIn: authed,
+                    ide: {
+                        version, minVersion: u.minVersion ?? null, latestVersion: u.latestVersion ?? null, updateAvailable: !!u.updateAvailable, forceUpdate: !!u.forceUpdate,
+                        downloadUrl: `${state.url}/download`, releaseNotesUrl: `${state.url}/release-notes`
+                    }
+                });
                 return;
             }
             if (!authed) {

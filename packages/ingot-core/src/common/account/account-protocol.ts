@@ -1,4 +1,5 @@
 import type { RpcServer } from '@theia/core/lib/common/messaging';
+import type { RemoteConfigSnapshot } from '../config/remote-config.types';
 
 export const ACCOUNT_SERVICE_PATH = '/services/ingot/account';
 export const AccountBackend = Symbol('IngotAccountBackend');
@@ -76,4 +77,6 @@ export interface AccountBackend extends RpcServer<AccountClient> {
     signOut(): Promise<void>;
     refresh(): Promise<AccountSnapshot>;
     models(): Promise<GatewayModelInfo[]>;
+    /** GET /v1/config (IDEA-125), signed in or not; falls back to the disk cache offline. No calls while blocked. */
+    remoteConfig(): Promise<RemoteConfigSnapshot>;
 }

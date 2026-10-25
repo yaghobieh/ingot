@@ -28,6 +28,8 @@ import { IngotStripeWidget } from './stripe/ingot-stripe-widget';
 import { IngotExplorerHeader } from './navigator/explorer-header';
 import { IngotAccountService } from './account/account-service';
 import { IngotAccountContribution } from './account/account-contribution';
+import { IngotFeatureFlags } from './config/feature-flags';
+import { IngotUpdateContribution } from './config/update-contribution';
 import { IngotRightStripeWidget } from './tool-windows/right-stripe-widget';
 import { IngotDatabaseWidget } from './tool-windows/database-widget';
 import { IngotMcpWidget } from './tool-windows/mcp-widget';
@@ -248,6 +250,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     for (const id of [CommandContribution, MenuContribution, FrontendApplicationContribution]) {
         bind(id).toService(IngotAccountContribution);
     }
+    bind(IngotFeatureFlags).toSelf().inSingletonScope();
+    bind(IngotUpdateContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(IngotUpdateContribution);
     bind(IngotExplorerHeader).toSelf().inSingletonScope();
     bind(IngotStripeWidget).toSelf().inSingletonScope();
     bind(IngotRightStripeWidget).toSelf().inSingletonScope();
