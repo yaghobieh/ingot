@@ -16,6 +16,8 @@ mac:
   category: public.app-category.developer-tools
   icon: ../../assets/brand/app-icon.icns
   target: [dmg, zip]
+  extendInfo:
+    NSMicrophoneUsageDescription: Ingot uses the microphone for voice dictation in the chat composer.
 win:
   icon: ../../assets/brand/app-icon.ico
   target: [nsis]

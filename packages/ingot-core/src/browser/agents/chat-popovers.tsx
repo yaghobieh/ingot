@@ -8,6 +8,7 @@ import { groupModelsByFamily } from '../../common/models/models.utils';
 import { MODEL_PICKER_TEXT } from './agents.consts';
 import type { Memory, MemoryScope } from '../../common/memories/memories';
 import type { MemoryStore } from './memory-store';
+import { formatTokens, usageRatio, type ContextSegment, type ContextUsage } from '../../common/agents/context-usage';
 
 /** Transparent layer that closes a popover on an outside click or Escape (wherever focus is). */
 export const Backdrop = ({ onClose }: { onClose: () => void }): React.ReactElement => {
@@ -312,3 +313,48 @@ export class MemoriesManager extends React.Component<MemoriesManagerProps, Memor
         </div>;
     }
 }
+
+export interface ContextBreakdownProps {
+    readonly usage: ContextUsage;
+    readonly segments: readonly ContextSegment[];
+    readonly busy: boolean;
+    readonly onCompact: () => void;
+    readonly onNewWithSummary: () => void;
+    readonly onClose: () => void;
+}
+
+/** Context ring popover (IDEA-98): how the window is used, and ways to free it. */
+export const ContextBreakdown = ({ usage, segments, busy, onCompact, onNewWithSummary, onClose }: ContextBreakdownProps): React.ReactElement => {
+    const pct = Math.round(usageRatio(usage) * 100);
+    return <>
+        <Backdrop onClose={onClose} />
+        <div id='ingot-context-popover' className='ingot-popover ingot-context-popover' role='dialog' aria-label='Context usage' tabIndex={-1}
+            onKeyDown={onEscape(onClose)} ref={el => el?.focus()}>
+            <div className='ingot-context-head'>
+                <span className='ingot-context-title'>Context</span>
+                <span className='ingot-flex' />
+                <span id='ingot-context-total' className='ingot-context-total'>{formatTokens(usage.total)} / {formatTokens(usage.window)} · {pct}%</span>
+            </div>
+            <div className='ingot-context-bar' aria-hidden='true'>
+                {segments.filter(s => s.tokens > 0).map(s => <span key={s.id} className={`ingot-context-seg seg-${s.id}`}
+                    style={{ width: `${usage.window > 0 ? Math.max(0.5, (s.tokens / usage.window) * 100) : 0}%` }} />)}
+            </div>
+            <ul className='ingot-context-list'>
+                {segments.map(s => <li key={s.id} id={`ingot-context-${s.id}`} className='ingot-context-row'>
+                    <span className={`ingot-context-dot seg-${s.id}`} />
+                    <span className='ingot-context-label'>{s.label}</span>
+                    <span className='ingot-flex' />
+                    <span className='ingot-context-tokens'>{formatTokens(s.tokens)}</span>
+                </li>)}
+            </ul>
+            <div className='ingot-context-actions'>
+                <button type='button' id='ingot-context-compact' className='ingot-btn-secondary' disabled={busy} onClick={onCompact}>
+                    <span className='codicon codicon-fold' /> Summarize &amp; compact
+                </button>
+                <button type='button' id='ingot-context-new' className='ingot-btn-primary' disabled={busy} onClick={onNewWithSummary}>
+                    <span className='codicon codicon-add' /> New chat with summary
+                </button>
+            </div>
+        </div>
+    </>;
+};
