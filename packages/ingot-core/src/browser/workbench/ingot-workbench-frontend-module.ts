@@ -8,6 +8,7 @@ import { AgentsWindowOpener, BrowserAgentsWindowOpener } from './agents-window';
 import { IngotAgentsWindowContribution } from './agents-window-contribution';
 import { IngotShellLayoutRestorer } from './agents-window-layout-restorer';
 import { IngotPanelsContribution } from './panels-contribution';
+import { IngotShortcutConflictsContribution } from './shortcut-conflicts-contribution';
 import '../../../src/browser/style/workbench.css';
 
 /**
@@ -31,4 +32,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CommandContribution).toService(IngotPanelsContribution);
     bind(MenuContribution).toService(IngotPanelsContribution);
     bind(FrontendApplicationContribution).toService(IngotPanelsContribution);
+
+    bind(IngotShortcutConflictsContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(IngotShortcutConflictsContribution);
 });
