@@ -48,7 +48,6 @@ export const CodeChangeBlock = ({ change, expanded, onToggle, onOpen, onDecide }
     const streaming = change.status === 'streaming';
     const pending = change.hunks.some(h => h.state === 'pending') && !streaming;
     const name = change.path.split('/').pop() ?? change.path;
-    const dir = change.path.slice(0, change.path.length - name.length);
     const firstRowOf = new Set<string>();
     return <div className={`ingot-change-block status-${change.status}`} id={`ingot-change-${change.id}`} data-path={change.path}>
         <div className='ingot-change-head'>
@@ -56,13 +55,13 @@ export const CodeChangeBlock = ({ change, expanded, onToggle, onOpen, onDecide }
                 <span className={`codicon codicon-chevron-${expanded ? 'down' : 'right'}`} />
             </button>
             <ChangeMark loop={streaming} still={!streaming} className='ingot-change-mark' />
-            <button type='button' className='ingot-change-file' title={`Open ${change.path}`} onClick={() => onOpen()}>
-                <span className='codicon codicon-file-code' />
-                <span className='ingot-change-dir'>{dir}</span><span className='ingot-change-name'>{name}</span>
+            <button type='button' className='ingot-change-file' title={change.path} aria-label={`Open ${change.path}`} onClick={() => onOpen()}>
+                <span className='ingot-change-name'>{name}</span>
             </button>
             <span className='ingot-change-stats'><span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
             <span className='ingot-flex' />
-            <span className={`ingot-change-status ingot-change-status-${change.status}`}>{CHANGE_STATUS_LABELS[change.status]}</span>
+            {/* While hunks wait, the Accept / Reject buttons say it; the status pill would only crowd out the file name. */}
+            <span className={`ingot-change-status ingot-change-status-${change.status}${pending ? ' ingot-change-status-quiet' : ''}`}>{CHANGE_STATUS_LABELS[change.status]}</span>
             {pending && <>
                 <button type='button' className='ingot-change-btn reject' id={`ingot-change-reject-${change.id}`} title='Reject file' onClick={() => onDecide('all', 'rejected')}>
                     <span className='codicon codicon-close' />

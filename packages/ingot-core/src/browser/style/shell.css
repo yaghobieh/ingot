@@ -914,16 +914,17 @@ button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true']
 /* IDEA-102 code-change blocks */
 .ingot-change-block { border: 1px solid var(--theia-panel-border); border-radius: 8px; margin: 10px 0 4px; overflow: hidden; background: var(--theia-editor-background); }
 .ingot-change-block.status-streaming { border-color: #3B7BF0; box-shadow: 0 0 0 1px rgba(59, 123, 240, .25); }
-.ingot-change-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; min-height: 30px; }
+.ingot-change-head { display: flex; align-items: center; gap: 4px; padding: 6px 8px; min-height: 30px; }
 .ingot-change-toggle, .ingot-change-file, .ingot-change-btn, .ingot-change-hunk-btn, .ingot-change-more, .ingot-chat-revert { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .ingot-change-toggle { padding: 0; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; color: var(--theia-descriptionForeground); }
 .ingot-change-mark { flex: none; }
-.ingot-change-file { display: inline-flex; align-items: center; gap: 5px; padding: 0; min-width: 0; overflow: hidden; }
+.ingot-change-file { display: inline-flex; align-items: center; gap: 5px; padding: 0; min-width: 0; flex: 0 1 auto; overflow: hidden; }
 .ingot-change-file:hover .ingot-change-name { text-decoration: underline; }
-.ingot-change-dir { color: var(--theia-descriptionForeground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ingot-change-name { font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+.ingot-change-name { font-weight: 600; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ingot-change-head > .ingot-change-stats, .ingot-change-head > .ingot-change-status, .ingot-change-head > .ingot-change-btn, .ingot-change-head > .ingot-change-toggle { flex: none; }
 .ingot-change-stats { font-family: var(--theia-code-font-family); font-size: 12px; white-space: nowrap; }
 .ingot-change-status { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--theia-badge-background); color: var(--theia-badge-foreground); white-space: nowrap; }
+.ingot-change-status-quiet { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); padding: 0; }
 .ingot-change-status-streaming { background: rgba(59, 123, 240, .16); color: #3B7BF0; }
 .ingot-change-status-accepted { background: rgba(46, 160, 67, .16); color: var(--theia-gitDecoration-addedResourceForeground, #2EA043); }
 .ingot-change-status-rejected { background: rgba(248, 81, 73, .14); color: var(--theia-gitDecoration-deletedResourceForeground, #F85149); }

@@ -62,6 +62,46 @@ test.describe('IDEA-102 code-change blocks (desktop)', () => {
         await page.keyboard.press('Enter');
     };
 
+    test('an instant reply (the whole edit in one delta) opens one editor tab, never asks to save, and clicking the block jumps to the change', async () => {
+        const { page } = desktop;
+        await server.close();
+        // Hosted gateways often deliver a short edit in a single delta: beginStream and finalize then race.
+        server = await startFakeOllama(() => REPLY, { chunkSize: REPLY.length, delayMs: 0 });
+        await connectOllama(page, server);
+        if (!await page.locator('#ingot-composer-input').isVisible()) {
+            await page.locator('#ingot-rs-agents').click();
+        }
+        await pickModel(page, 'ollama-local');
+        await ask(page, 'Add quantities to the cart');
+        const block = page.locator('#ingot-agents .ingot-change-block');
+        await expect(block.locator('.ingot-change-status')).toHaveText('Review', { timeout: 15_000 });
+        await page.waitForTimeout(1_500);
+        await expect(page.locator('#theia-dialog-shell .dialogBlock')).toHaveCount(0);
+        await expect(page.locator('#theia-main-content-panel .lm-TabBar-tab', { hasText: 'cart.ts' })).toHaveCount(1);
+        await expect(block).toHaveCount(1);
+        // The header shows the whole file name; the path is on hover.
+        await expect(block.locator('.ingot-change-file')).toHaveAttribute('title', 'src/cart.ts');
+        await expect(block.locator('.ingot-change-name')).toHaveText('cart.ts');
+        expect(await block.locator('.ingot-change-name').evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(true);
+
+        // Clicking the block (a changed line, then the file name) opens the file at that change with the live diff.
+        const statusBar = page.locator('#theia-statusBar');
+        await page.locator('#ingot-composer-input').click();
+        await block.locator('.ingot-change-row.added', { hasText: 'export const count' }).click();
+        await expect(page.locator('#theia-main-content-panel .lm-TabBar-tab.lm-mod-current', { hasText: 'cart.ts' })).toBeVisible();
+        await expect(statusBar).toContainText(/(?<!\d)18:1\b/);
+        await expect(page.locator('.ingot-hunk-accept')).toHaveCount(2);
+        await page.locator('#ingot-composer-input').click();
+        await block.locator('.ingot-change-file').click();
+        await expect(statusBar).toContainText(/(?<!\d)1:1\b/);
+        await expect(page.locator('#theia-main-content-panel .lm-TabBar-tab', { hasText: 'cart.ts' })).toHaveCount(1);
+        await expect(page.locator('#theia-dialog-shell .dialogBlock')).toHaveCount(0);
+
+        await page.locator('#ingot-changes-accept-all').click();
+        await expect.poll(() => fs.readFileSync(file, 'utf8')).toBe(EDITED);
+        await expect(page.locator('#theia-dialog-shell .dialogBlock')).toHaveCount(0);
+    });
+
     test('streams live, then per-hunk Accept / Reject in the editor and the block, ⌥↓ navigation and Revert to here', async () => {
         const { page } = desktop;
         await connectOllama(page, server);

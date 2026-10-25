@@ -3,7 +3,7 @@ import { Emitter, type Event } from '@theia/core/lib/common/event';
 import type { Reference as IReference } from '@theia/core/lib/common/reference';
 import URI from '@theia/core/lib/common/uri';
 import { ContextKeyService, type ContextKey } from '@theia/core/lib/browser/context-key-service';
-import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
+import { EditorManager, type EditorOpenerOptions } from '@theia/editor/lib/browser/editor-manager';
 import type { EditorWidget } from '@theia/editor/lib/browser/editor-widget';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
@@ -60,6 +60,10 @@ export class ChangeTracker {
     protected readonly streams = new Map<string, StreamState>();
     protected pendingKey?: ContextKey<boolean>;
     protected counter = 0;
+    /** In-flight beginStream per session + file, so a finalize that arrives first lands on the same change. */
+    protected readonly starting = new Map<string, Promise<string>>();
+    /** Last editor open per file: opens are chained so two never race into two widgets (save prompt on close). */
+    protected readonly opening = new Map<string, Promise<unknown>>();
 
     @postConstruct()
     protected init(): void {
@@ -88,7 +92,18 @@ export class ChangeTracker {
     }
 
     /** Starts (or continues) the live view of an edit that is still streaming. */
-    async beginStream({ sessionId, messageIndex, userIndex }: ChangeOrigin, path: string, uri: URI): Promise<string> {
+    beginStream(origin: ChangeOrigin, path: string, uri: URI): Promise<string> {
+        const key = `${origin.sessionId}\u0000${path}`;
+        const inFlight = this.starting.get(key);
+        if (inFlight) {
+            return inFlight;
+        }
+        const started = this.doBeginStream(origin, path, uri).finally(() => this.starting.delete(key));
+        this.starting.set(key, started);
+        return started;
+    }
+
+    protected async doBeginStream({ sessionId, messageIndex, userIndex }: ChangeOrigin, path: string, uri: URI): Promise<string> {
         const existing = this.items.find(c => c.sessionId === sessionId && c.path === path && c.status === 'streaming');
         if (existing) {
             return existing.id;
@@ -99,7 +114,7 @@ export class ChangeTracker {
         const id = `chg${++this.counter}`;
         this.items = [...this.items, { id, sessionId, messageIndex, path, uri: uri.toString(), oldText: text, newText: text, created, hunks: [], status: 'streaming' }];
         this.streams.set(id, { partial: '', typedLines: 0 });
-        await this.editors.open(uri, { mode: 'reveal' }).catch(() => undefined);
+        await this.revealFile(uri);
         this.fire();
         return id;
     }
@@ -126,6 +141,7 @@ export class ChangeTracker {
 
     /** The edit is complete: apply the final text and wait for per-hunk decisions. */
     async finalize({ sessionId, messageIndex, userIndex }: ChangeOrigin, path: string, uri: URI, newText: string): Promise<CodeChange> {
+        await this.starting.get(`${sessionId}\u0000${path}`)?.catch(() => undefined);
         let change = this.items.find(c => c.sessionId === sessionId && c.path === path && c.status === 'streaming');
         if (!change) {
             await this.settleEarlier(uri.toString());
@@ -146,7 +162,7 @@ export class ChangeTracker {
         if (!hunks.length) {
             await this.settle(final);
         }
-        await this.editors.open(uri, { mode: 'reveal' }).catch(() => undefined);
+        await this.revealFile(uri);
         this.redrawUri(final.uri);
         return final;
     }
@@ -206,7 +222,7 @@ export class ChangeTracker {
         }
         const target = change.hunks.find(h => h.id === hunkId) ?? change.hunks.find(h => h.state === 'pending') ?? change.hunks[0];
         const line = target ? (hunkLines(change.hunks).get(target.id)?.start ?? 0) : 0;
-        const widget = await this.editors.open(new URI(change.uri), { mode: 'activate', selection: { start: { line, character: 0 }, end: { line, character: 0 } } });
+        const widget = await this.openEditor(new URI(change.uri), { mode: 'activate', selection: { start: { line, character: 0 }, end: { line, character: 0 } } });
         if (widget.editor instanceof MonacoEditor) {
             widget.editor.getControl().revealLineInCenter(line + 1);
         }
@@ -278,6 +294,26 @@ export class ChangeTracker {
         return changeStats(change.hunks);
     }
 
+    /**
+     * Opens the file in the editor it already has, wherever that is. Theia only reuses an editor found in the target tab
+     * bar, so with no current editor (focus in the chat, empty main area) every open made a new widget for the same file;
+     * the duplicates then closed each other with a "save changes?" prompt while an edit waited for review.
+     */
+    protected openEditor(uri: URI, options: EditorOpenerOptions): Promise<EditorWidget> {
+        const existing = this.editors.all.find(w => w.editor.uri.toString() === uri.toString());
+        const counter = existing ? Number(existing.id.slice(existing.id.lastIndexOf(':') + 1)) : NaN;
+        return this.editors.open(uri, Number.isFinite(counter) ? { ...options, counter } : options);
+    }
+
+    /** Opens (or reveals) the file's editor; chained per file so concurrent opens reuse one widget. */
+    protected revealFile(uri: URI): Promise<unknown> {
+        const key = uri.toString();
+        const next = (this.opening.get(key) ?? Promise.resolve()).then(() => this.openEditor(uri, { mode: 'reveal' })).catch(() => undefined);
+        this.opening.set(key, next);
+        next.then(() => this.opening.get(key) === next && this.opening.delete(key));
+        return next;
+    }
+
     protected async readOrCreate(uri: URI): Promise<{ text: string; created: boolean }> {
         if (await this.files.exists(uri)) {
             const ref = await this.refFor(uri.toString());
@@ -297,7 +333,12 @@ export class ChangeTracker {
     protected refFor(uri: string): Promise<IReference<MonacoEditorModel>> {
         let ref = this.refs.get(uri);
         if (!ref) {
-            ref = this.textModels.createModelReference(new URI(uri));
+            // The tracker opens the editor itself (revealFile): without this, Theia's "open an editor when a model with no
+            // editor gets dirty" raced it and the two editors for one file closed each other with a save prompt.
+            ref = this.textModels.createModelReference(new URI(uri)).then(r => {
+                r.object.suppressOpenEditorWhenDirty = true;
+                return r;
+            });
             this.refs.set(uri, ref);
         }
         return ref;
@@ -308,9 +349,12 @@ export class ChangeTracker {
         if (!change || this.items.some(c => c.id !== id && c.uri === change.uri && isPending(c))) {
             return;
         }
-        const ref = this.refs.get(change.uri);
+        const ref = await this.refs.get(change.uri)?.catch(() => undefined);
         this.refs.delete(change.uri);
-        (await ref?.catch(() => undefined))?.dispose();
+        if (ref) {
+            ref.object.suppressOpenEditorWhenDirty = false;
+            ref.dispose();
+        }
     }
 
     protected async applyText(change: CodeChange, text: string, undoable: boolean): Promise<void> {
