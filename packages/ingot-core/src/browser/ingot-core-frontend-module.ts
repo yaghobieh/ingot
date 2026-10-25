@@ -30,6 +30,7 @@ import { IngotAccountService } from './account/account-service';
 import { IngotAccountContribution } from './account/account-contribution';
 import { IngotFeatureFlags } from './config/feature-flags';
 import { IngotUpdateContribution } from './config/update-contribution';
+import { IngotSyncService } from './sync/sync-service';
 import { IngotRightStripeWidget } from './tool-windows/right-stripe-widget';
 import { IngotDatabaseWidget } from './tool-windows/database-widget';
 import { IngotMcpWidget } from './tool-windows/mcp-widget';
@@ -246,6 +247,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotFeatureFlags).toSelf().inSingletonScope();
     bind(IngotUpdateContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(IngotUpdateContribution);
+    bind(IngotSyncService).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(IngotSyncService);
+    bind(CommandContribution).toService(IngotSyncService);
     bind(IngotExplorerHeader).toSelf().inSingletonScope();
     bind(IngotStripeWidget).toSelf().inSingletonScope();
     bind(IngotRightStripeWidget).toSelf().inSingletonScope();

@@ -4,7 +4,13 @@ export const flattenPages = (pages: readonly SettingsPage[], parents: readonly s
     pages.flatMap(page => [{ page, path: [...parents, page.label] }, ...flattenPages(page.children ?? [], [...parents, page.label])]);
 
 /** Human label for a preference key: `editor.fontSize` → "Font Size". */
+/** Labels that read better than the key's last segment. */
+const SETTING_LABELS: Record<string, string> = { 'ingot.account.syncSettings': 'Sync settings' };
+
 export const settingLabel = (key: string): string => {
+    if (SETTING_LABELS[key]) {
+        return SETTING_LABELS[key];
+    }
     const last = key.split('.').pop() ?? key;
     return last.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
 };
