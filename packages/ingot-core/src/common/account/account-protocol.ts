@@ -70,7 +70,7 @@ export interface AccountBackend extends RpcServer<AccountClient> {
     configure(urls: AccountUrls): Promise<AccountSnapshot>;
     urls(): Promise<AccountUrls>;
     snapshot(): Promise<AccountSnapshot>;
-    /** Starts a browser sign-in and returns the URL to open; the session arrives on the loopback callback. */
+    /** Starts a browser sign-in and returns the URL to open ('' when a local dev sign-in already finished); the session arrives on the loopback callback. */
     signIn(options?: SignInOptions): Promise<string>;
     cancelSignIn(): Promise<void>;
     /** ingot://auth?code=… ("Open in Ingot") or ingot://auth/callback. */

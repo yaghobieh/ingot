@@ -10,7 +10,8 @@ import { pickModel } from '../src/chat.e2e-utils';
 
 const MATH = path.join(FIXTURE_WORKSPACE, 'src', 'math.ts');
 const STRINGS = path.join(FIXTURE_WORKSPACE, 'src', 'strings.ts');
-const ORIGINAL_MATH = fs.readFileSync(MATH, 'utf8');
+// The committed version (a run that died mid-test can leave the file edited); `git show` takes no index lock.
+const ORIGINAL_MATH = execFileSync('git', ['show', 'HEAD:./src/math.ts'], { cwd: FIXTURE_WORKSPACE, encoding: 'utf8' });
 const SUBTRACT = 'export function subtract(a: number, b: number): number {\n    return a - b;\n}\n';
 const NEW_MATH = `${ORIGINAL_MATH}\n${SUBTRACT}`;
 const STRINGS_CONTENT = "export const shout = (text: string): string => text.toUpperCase();\n";
@@ -47,7 +48,8 @@ test.describe('IDEA-27-29 agent runtime: streaming answers and edits through the
     test.beforeEach(async () => { server = await startFakeOllama(() => replyText); });
     test.afterEach(async () => {
         await server.close();
-        execFileSync('git', ['checkout', '--', MATH], { cwd: FIXTURE_WORKSPACE });
+        // Write the original back instead of `git checkout` (an IDE with this repo open may hold the index lock).
+        fs.writeFileSync(MATH, ORIGINAL_MATH);
         fs.rmSync(STRINGS, { force: true });
     });
 

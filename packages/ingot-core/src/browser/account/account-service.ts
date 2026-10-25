@@ -80,7 +80,10 @@ export class IngotAccountService {
         await this.configure();
         const url = await this.backend.signIn(dev ? { devEmail: DEV_ACCOUNT_EMAIL } : {});
         this.apply({ ...this.current, pending: true });
-        this.windows.openNewWindow(url, { external: true });
+        if (url) {
+            // Empty = the backend already finished a local dev sign-in.
+            this.windows.openNewWindow(url, { external: true });
+        }
     }
 
     async cancelSignIn(): Promise<void> {
