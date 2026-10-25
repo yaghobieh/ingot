@@ -6,6 +6,7 @@ import type { IconThemeService } from '@theia/core/lib/browser/icon-theme-servic
 import { Disposable, DisposableCollection } from '@theia/core/lib/common/disposable';
 import { Emitter } from '@theia/core/lib/common/event';
 import URI from '@theia/core/lib/common/uri';
+import { fileIconClass, INGOT_FILES_THEME_ID, INGOT_FILES_THEME_LABEL } from '../../common/icons/file-icon-map';
 import { badgeClasses, fileIconClasses, fileIconFor, INGOT_BADGE_THEME_ID, INGOT_BADGE_THEME_LABEL, INGOT_ICON_THEME_ID, INGOT_ICON_THEME_LABEL } from '../../common/icons/file-icons.utils';
 
 interface FileLike { readonly resource: URI; readonly isDirectory?: boolean }
@@ -83,5 +84,23 @@ export class IngotBadgeIconTheme extends IngotIconTheme {
     override getIcon(element: object): string | undefined {
         const file = asFile(element);
         return file ? badgeClasses(file.name, file.isDirectory) : undefined;
+    }
+}
+
+/** Ingot Files (default, IDEA-106): full-colour Material-style file and folder icons, in the tree, tabs and chips. */
+@injectable()
+export class IngotFilesIconTheme extends IngotIconTheme {
+    override readonly id: string = INGOT_FILES_THEME_ID;
+    override readonly label: string = INGOT_FILES_THEME_LABEL;
+    override readonly description: string = 'Colour file and folder icons (Material Icon Theme, MIT)';
+    protected override readonly bodyClass: string = 'ingot-files-theme';
+
+    override canHandle(element: object): number {
+        return super.canHandle(element) ? super.canHandle(element) + 2 : 0;
+    }
+
+    override getIcon(element: object): string | undefined {
+        const file = asFile(element);
+        return file ? fileIconClass(file.name, file.isDirectory) : undefined;
     }
 }

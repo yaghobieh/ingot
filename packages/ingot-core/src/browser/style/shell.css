@@ -987,3 +987,7 @@ button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true']
     .monaco-editor .ingot-gutter-mark.ingot-gutter-mark-live { background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cg fill='none' stroke='%233B7BF0' stroke-width='110' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M336 300 L124 512 L336 724'/%3E%3Cpath d='M688 300 L900 512 L688 724'/%3E%3Cline x1='578' y1='250' x2='446' y2='774'/%3E%3C/g%3E%3C/svg%3E"); }
     .ingot-change-caret { animation: none; }
 }
+
+/* IDEA-106: Ingot Files icons in chips and code-change blocks. */
+.ingot-chip .ingot-ficon, .ingot-change-file .ingot-ficon { width: 14px; height: 14px; vertical-align: -2px; }
+.ingot-change-file .ingot-ficon { flex: none; }
