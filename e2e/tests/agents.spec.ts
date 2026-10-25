@@ -58,7 +58,8 @@ test.describe('IDEA-29 inline agent edit review', () => {
         await expect(page.locator('.ingot-diff-added-line').first()).toBeVisible();
         await expect(page.locator('.ingot-diff-removed-zone').first()).toBeVisible();
         await expect(page.locator('#ingot-agents .ingot-chat-plan')).toBeVisible();
-        await expect(page.locator('#ingot-agents .ingot-chat-changes')).toContainText('1 file changed');
+        await expect(page.locator('#ingot-changes-bar')).toContainText('1 file changed');
+        await expect(page.locator('#ingot-agents .ingot-change-block .ingot-change-name')).toHaveText('math.ts');
         await expect(page.locator('#theia-statusBar')).toContainText('1 agent active');
 
         await page.locator('.monaco-editor').first().click();

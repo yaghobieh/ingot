@@ -49,6 +49,8 @@ export interface ParsedAgentOutput {
     readonly toolCalls: readonly AgentToolCall[];
     /** Path of an edit block that is still streaming. */
     readonly editing?: string;
+    /** File content typed so far for the streaming edit (IDEA-102 live editor view). */
+    readonly editingContent?: string;
 }
 
 /** Parses (possibly partial, streaming) agent output. */
@@ -57,6 +59,7 @@ export const parseAgentOutput = (text: string): ParsedAgentOutput => {
     const toolCalls: AgentToolCall[] = [];
     let display = '';
     let editing: string | undefined;
+    let editingContent: string | undefined;
     let rest = text;
     for (;;) {
         const editAt = rest.indexOf(EDIT_OPEN);
@@ -79,6 +82,7 @@ export const parseAgentOutput = (text: string): ParsedAgentOutput => {
         const end = body.indexOf(EDIT_CLOSE);
         if (end < 0) {
             editing = isTool ? undefined : target;
+            editingContent = isTool ? undefined : body;
             break;
         }
         const content = body.slice(0, end);
@@ -108,7 +112,7 @@ export const parseAgentOutput = (text: string): ParsedAgentOutput => {
         }
         lines.splice(planAt, i - planAt);
     }
-    return { display: lines.join('\n').replace(/\n{3,}/g, '\n\n').trim(), plan, edits, toolCalls, editing };
+    return { display: lines.join('\n').replace(/\n{3,}/g, '\n\n').trim(), plan, edits, toolCalls, editing, editingContent };
 };
 
 /** `@path/to/file` mentions in a prompt. */
