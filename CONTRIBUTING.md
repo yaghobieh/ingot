@@ -21,10 +21,10 @@ Thanks for helping build Ingot. These rules apply to humans and AI agents alike.
 ## Gate before every push
 
 1. **Code review** — self-review `git diff --staged` against every rule in `.alloy/rules` (same as `.cursor/rules`). Fix findings and list them in the PR body.
-2. **Gate** — `pnpm gate` (lint + typecheck + unit tests) is green.
-3. **E2E** — `pnpm e2e` (Playwright for Electron, real clicks and shortcuts against fixture repos with mock AI). Add or extend specs for every user-facing change.
-4. **Build** — `pnpm build` is green for desktop and browser targets.
-5. **Secret scan** — run `gitleaks protect --staged` (or the repo scan script). Staged files must never contain keys, tokens, passwords or values from `ingot.config.json`.
+2. **Gate** — `npm run gate` (lint + typecheck + unit tests) is green.
+3. **E2E** — `npm run e2e` (Playwright for Electron, real clicks and shortcuts against fixture repos with mock AI). Add or extend specs for every user-facing change.
+4. **Build** — `npm run build` is green for desktop and browser targets.
+5. **Secret scan** — run `npm run secret-scan` (and `gitleaks protect --staged` if installed). Staged files must never contain keys, tokens, passwords or values from `ingot.config.json`.
 
 PR body: summary, ticket link, review notes, e2e results, screenshots/GIFs for UI.
 

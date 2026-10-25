@@ -7,7 +7,7 @@ Jira: https://yaghobieh.atlassian.net/browse/IDEA-<n>
 ### Review notes (self code review against .alloy/rules)
 
 ### Gate
-- [ ] `pnpm gate`
-- [ ] `pnpm e2e` (attach results / screenshots)
-- [ ] `pnpm build`
+- [ ] `npm run gate`
+- [ ] `npm run e2e` (attach results / screenshots)
+- [ ] `npm run build`
 - [ ] secret scan clean

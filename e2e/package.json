@@ -1,0 +1,14 @@
+{
+  "name": "@ingot/e2e",
+  "private": true,
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^22.10.0"
+  }
+}

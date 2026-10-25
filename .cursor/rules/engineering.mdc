@@ -4,7 +4,7 @@ alwaysApply: true
 ---
 - Branches: `master` (production), `release/<version>` (integration, default). Work on `feature/IDEA-<n>` / `bug/IDEA-<n>` cut from the release branch; one PR per ticket into it.
 - Commits: `IDEA-<n>: <imperative summary>`.
-- Before every push: self code review against these rules, `pnpm gate` (lint + typecheck + unit), `pnpm e2e` (Playwright for Electron, real clicks), `pnpm build`, secret scan (`gitleaks protect --staged`).
+- Before every push: self code review against these rules, `npm run gate` (lint + typecheck + unit), `npm run e2e` (Playwright for Electron, real clicks), `npm run build`, secret scan (`npm run secret-scan`).
 - Secrets only in gitignored `ingot.config.json`, OS keychain or CI secrets. Never in code, tests, fixtures or logs.
 - Types in `*.types.ts` (import with `import type`); constants in `*.consts.ts` or `src/constants/`; no magic strings or numbers (`0`, `1`, `-1`, `''`, `[]`, `{}` allowed).
 - Unit folder layout: `<Name>.tsx|ts`, `<Name>.utils.ts`, `<Name>.consts.ts`, `<Name>.types.ts`, `index.ts`. Named exports only.

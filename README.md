@@ -7,7 +7,7 @@ Bring any model. Keep your shortcuts. Own your tools.</p>
 
 ---
 
-> **Status:** 0.1.0 planning — UI-first. Nothing to download yet. Tracked in Jira project **IDEA** (board 236).
+> **Status:** 0.1.0 in development — UI-first. Nothing to download yet. Tracked in Jira project **IDEA** (board 236).
 
 ## Why Ingot
 
@@ -55,6 +55,22 @@ Ingot also reads `.cursor/rules`, `.cursor/mcp.json`, `.cursorrules` and `AGENTS
 
 **Ingot gold** `#D9A04E` · **Forge blue** `#3B6FD9` · **Forge navy** `#1B2647` · Light bg `#F7F8FA` · Dark bg `#1C1E24`.
 The mark is an ingot with a text caret: raw material, ready to be shaped into code. Ingot is part of the Forge family alongside Alloy and Mission Control.
+
+## Run it locally
+
+Requirements: Node 22 (`nvm use`), Xcode CLT on macOS / build-essential + libsecret + libxkbfile on Linux.
+
+```bash
+npm install            # installs and builds the Ingot extensions
+npm run build:browser  # bundle the browser app
+npm run start:browser  # http://127.0.0.1:3100
+npm run build:electron # bundle the desktop app
+npm run start:electron # opens the Ingot desktop window
+npm run gate           # lint + typecheck + unit tests
+npm run e2e            # Playwright click-through tests (starts the browser app)
+```
+
+Layout: `packages/*` are Ingot Theia extensions, `applications/browser` and `applications/electron` are the two app targets, `e2e/` holds Playwright tests and fixture workspaces.
 
 ## Architecture
 

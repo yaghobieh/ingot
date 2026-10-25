@@ -1,0 +1,25 @@
+{
+  "name": "@ingot/core",
+  "version": "0.1.0",
+  "description": "Ingot core: branding, product identity and shared services",
+  "license": "Apache-2.0",
+  "keywords": ["theia-extension"],
+  "files": ["lib", "src"],
+  "dependencies": {
+    "@theia/core": "1.76.0"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.0",
+    "typescript": "~5.6.3",
+    "vitest": "^2.1.8"
+  },
+  "scripts": {
+    "clean": "rimraf lib",
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -w -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "theiaExtensions": [
+    { "frontend": "lib/browser/ingot-core-frontend-module" }
+  ]
+}
