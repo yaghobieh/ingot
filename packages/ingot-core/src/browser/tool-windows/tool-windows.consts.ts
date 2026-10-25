@@ -21,7 +21,6 @@ export type RightStripeItem =
 
 /** The right-edge tool window stripe, top to bottom (IDEA-61). Icons are codicons. */
 export const RIGHT_STRIPE_TOP: readonly RightStripeItem[] = [
-    { id: 'settings', icon: 'settings-gear', title: 'Settings (Ctrl+Alt+S)', kind: 'command', command: 'ingot.settings.open' },
     { id: 'notifications', icon: 'bell', title: 'Notifications', kind: 'notifications' },
     { id: 'agents', icon: 'sparkle', title: 'Agents / AI Chat', kind: 'panel', widgetId: AGENTS_WIDGET_ID, command: AGENT_COMMANDS.toggle.id },
     { id: 'database', icon: 'database', title: 'Database', kind: 'panel', widgetId: DATABASE_WIDGET_ID, command: TOOL_WINDOW_COMMANDS.database.id },
