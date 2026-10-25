@@ -94,12 +94,54 @@ test.describe('IDEA-105 agent review (desktop)', () => {
         expect(read('src/b.ts')).toBe(original('src/b.ts'));
     });
 
+    test('floating review bar bottom-right: X of Y files, step files and changes, Accept, countdown + Continue, Accept All', async () => {
+        const page = await start({ 'ingot.agent.reviewPauseThreshold': 3, 'ingot.agent.reviewAutoContinueSeconds': 60, 'ingot.appearance': 'light' }, () => editsReply(FILES));
+        await ask(page, 'Bump every constant');
+        await expect(page.locator('#ingot-review-pause')).toContainText('3 of 5 files applied', { timeout: 20_000 });
+        await page.locator('#ingot-review-files .ingot-review-file').first().click();
+        const bar = page.locator('#theia-main-content-panel .lm-Widget:not(.lm-mod-hidden) > .ingot-agent-edit-bar').first();
+        await expect(bar).toBeVisible();
+        await expect(page.locator('#theia-main-content-panel .lm-TabBar-tab.lm-mod-current', { hasText: 'a.ts' })).toBeVisible();
+        await expect(bar.locator('.ingot-rb-of')).toHaveText('1 of 3 files');
+        // Opening a file from the list is review activity: the countdown stops and the bar shows Paused + Continue.
+        await expect(bar.locator('.ingot-rb-pause')).toContainText('Paused');
+        await expect(bar.locator('[data-action="continue"]')).toBeVisible();
+        // Bottom-right of the editor area.
+        const box = (await bar.boundingBox())!;
+        const editor = (await page.locator('#theia-main-content-panel').boundingBox())!;
+        expect(box.x + box.width).toBeGreaterThan(editor.x + editor.width - 60);
+        expect(box.y + box.height).toBeGreaterThan(editor.y + editor.height - 80);
+        await shot(page, 'idea-105-bar-light.png');
+
+        await bar.locator('[data-action="next-file"]').click();
+        await expect(page.locator('#theia-main-content-panel .lm-TabBar-tab.lm-mod-current', { hasText: 'b.ts' })).toBeVisible();
+        const barB = page.locator('#theia-main-content-panel .lm-Widget:not(.lm-mod-hidden) > .ingot-agent-edit-bar').first();
+        await expect(barB.locator('.ingot-rb-of')).toHaveText('2 of 3 files');
+        await barB.locator('[data-action="accept"]').click();
+        await expect.poll(() => read('src/b.ts')).toBe(edited('src/b.ts'));
+
+        // b.ts is decided, so its bar is gone; Continue from a.ts's bar.
+        await page.locator('#ingot-review-files .ingot-review-file').first().click();
+        await page.locator('#theia-main-content-panel .lm-Widget:not(.lm-mod-hidden) > .ingot-agent-edit-bar [data-action="continue"]').first().click();
+        await expect(page.locator('#ingot-review-pause')).toHaveCount(0, { timeout: 15_000 });
+        await expect(page.locator('#ingot-review-files .ingot-review-file')).toHaveCount(5);
+        await page.locator('#ingot-review-files .ingot-review-file').nth(4).click();
+        const barE = page.locator('#theia-main-content-panel .lm-Widget:not(.lm-mod-hidden) > .ingot-agent-edit-bar').first();
+        await expect(barE.locator('.ingot-rb-of')).toHaveText('4 of 4 files');
+        await barE.locator('[data-action="accept-all"]').click();
+        for (const f of FILES) {
+            await expect.poll(() => read(f)).toBe(edited(f));
+        }
+    });
+
     test('auto-continue countdown runs out by itself; Wait stops it; the default threshold (10) does not pause 5 files', async () => {
         const page = await start({ 'ingot.agent.reviewPauseThreshold': 1, 'ingot.agent.reviewAutoContinueSeconds': 2 }, () => editsReply(FILES.slice(0, 3)));
         await ask(page, 'Bump three constants');
         const pause = page.locator('#ingot-review-pause');
         await expect(pause).toContainText('1 of 3 files applied', { timeout: 20_000 });
         await expect(page.locator('#ingot-review-countdown')).toHaveText(/Continuing in 0:0[12]/);
+        // The floating review bar in the editor shows the same countdown.
+        await expect(page.locator('.ingot-agent-edit-bar .ingot-rb-countdown').first()).toHaveText(/^0:0[0-2]$/);
         // No interaction: it continues to the next checkpoint on its own.
         await expect(pause).toContainText('2 of 3 files applied', { timeout: 10_000 });
         await page.locator('#ingot-review-wait').click();

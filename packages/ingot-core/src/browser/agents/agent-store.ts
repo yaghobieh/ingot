@@ -416,7 +416,14 @@ export class AgentStore {
         clearTimeout(pause.timer);
         pause.timer = undefined;
         session.pause = { ...session.pause, continueAt: undefined };
+        this.syncPause(session);
         this.changed();
+    }
+
+    /** The floating review bar in the editor shows the paused run too (IDEA-105). */
+    protected syncPause(session: AgentSession): void {
+        const pause = session.pause;
+        this.tracker.setPause(pause ? { ...pause, onContinue: () => this.continueRun(session.id) } : undefined);
     }
 
     protected releasePause(id: string, go: boolean): void {
@@ -434,6 +441,7 @@ export class AgentStore {
         session.status = 'paused';
         session.pause = { applied, total, continueAt: seconds > 0 ? Date.now() + seconds * 1000 : undefined };
         session.updatedAt = Date.now();
+        this.syncPause(session);
         this.changed();
         return new Promise<boolean>(resolve => {
             const entry: { resolve: (go: boolean) => void; timer?: ReturnType<typeof setTimeout> } = { resolve };
@@ -443,6 +451,7 @@ export class AgentStore {
             this.pauses.set(session.id, entry);
         }).then(go => {
             session.pause = undefined;
+            this.syncPause(session);
             session.status = go ? 'editing' : 'idle';
             this.changed();
             return go;

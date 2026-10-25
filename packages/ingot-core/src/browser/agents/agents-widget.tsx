@@ -725,24 +725,27 @@ export class IngotAgentsWidget extends ReactWidget {
         const stats = pending.map(c => changeStats(c.hunks.filter(h => h.state === 'pending'))).reduce((a, b) => ({ added: a.added + b.added, removed: a.removed + b.removed }), { added: 0, removed: 0 });
         const hunks = pending.reduce((n, c) => n + c.hunks.filter(h => h.state === 'pending').length, 0);
         return <div className='ingot-review' id='ingot-review'>
-            {paused && session.pause && this.renderPause(session, session.pause)}
-            <div className={`ingot-review-files${review.enabled ? '' : ' info'}`} id='ingot-review-files'>
-                <div className='ingot-review-files-head'>Changed files <span className='ingot-dim'>{run.length}</span></div>
-                {run.map((change, i) => this.renderReviewFile(session, change, i, review.enabled))}
+            <div className='ingot-review-card'>
+                {paused && session.pause && this.renderPause(session, session.pause)}
+                {pending.length > 0 && review.enabled
+                    ? <div className='ingot-changes-bar' id='ingot-changes-bar'>
+                        <span id='ingot-changes-summary'>{changesSummary(pending.length)} · {hunks} {hunks === 1 ? 'change' : 'changes'} <span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
+                        <span className='ingot-flex' />
+                        <button type='button' className='ingot-icon-button codicon codicon-arrow-up ingot-changes-nav' title='Previous change (⌥↑)' aria-label='Previous change' onClick={() => this.tracker.navigate(-1)} />
+                        <button type='button' className='ingot-icon-button codicon codicon-arrow-down ingot-changes-nav' title='Next change (⌥↓)' aria-label='Next change' onClick={() => this.tracker.navigate(1)} />
+                        <button type='button' id='ingot-changes-reject-all' className='ingot-review-link' onClick={() => { this.touchReview(session); void this.tracker.decideAll('rejected', session.id); }}>Reject All</button>
+                        <button type='button' id='ingot-changes-accept-all' className='ingot-review-link accept' onClick={() => { this.touchReview(session); void this.tracker.decideAll('accepted', session.id); }}>Accept All</button>
+                    </div>
+                    : <div className='ingot-review-files-head'>{run.length} {run.length === 1 ? 'file' : 'files'} changed{review.enabled ? '' : ' · review off'}</div>}
+                <div className={`ingot-review-files${review.enabled ? '' : ' info'}`} id='ingot-review-files'>
+                    {run.map((change, i) => this.renderReviewFile(session, change, i, review.enabled))}
+                </div>
             </div>
             {drafts.length > 0 && <div className='ingot-review-comments-bar' id='ingot-review-comments-bar'>
                 <span className='codicon codicon-comment' />
                 <span id='ingot-review-comments-count'>{drafts.length} pending {drafts.length === 1 ? 'comment' : 'comments'}</span>
                 <span className='ingot-flex' />
                 <button type='button' id='ingot-review-submit' className='ingot-btn-primary' onClick={() => this.reviewComments.submit(session.id)}>Finish review</button>
-            </div>}
-            {pending.length > 0 && review.enabled && <div className='ingot-changes-bar' id='ingot-changes-bar'>
-                <span className='codicon codicon-diff' />
-                <span id='ingot-changes-summary'>{changesSummary(pending.length)} · {hunks} {hunks === 1 ? 'change' : 'changes'} <span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
-                <button type='button' className='ingot-btn-ghost ingot-changes-nav' title='Previous change (⌥↑)' onClick={() => this.tracker.navigate(-1)}><span className='codicon codicon-arrow-up' /></button>
-                <button type='button' className='ingot-btn-ghost ingot-changes-nav' title='Next change (⌥↓)' onClick={() => this.tracker.navigate(1)}><span className='codicon codicon-arrow-down' /></button>
-                <button type='button' id='ingot-changes-reject-all' className='ingot-btn-ghost' onClick={() => { this.touchReview(session); void this.tracker.decideAll('rejected', session.id); }}>Reject All</button>
-                <button type='button' id='ingot-changes-accept-all' className='ingot-btn-primary' onClick={() => { this.touchReview(session); void this.tracker.decideAll('accepted', session.id); }}>Accept All</button>
             </div>}
         </div>;
     }
@@ -761,9 +764,9 @@ export class IngotAgentsWidget extends ReactWidget {
             <span className='ingot-review-pause-text'>Paused for review · {pause.applied} of {pause.total} files applied</span>
             {left !== undefined && <span className='ingot-review-countdown' id='ingot-review-countdown'>Continuing in {formatCountdown(left)}</span>}
             <span className='ingot-flex' />
-            <button type='button' id='ingot-review-stop' className='ingot-btn-ghost' onClick={() => this.store.stop(session.id)}>Stop</button>
-            {left !== undefined && <button type='button' id='ingot-review-wait' className='ingot-btn-ghost' onClick={() => this.store.holdPause(session.id)}>Wait</button>}
-            <button type='button' id='ingot-review-continue' className='ingot-btn-primary' onClick={() => this.store.continueRun(session.id)}>Continue now</button>
+            <button type='button' id='ingot-review-stop' className='ingot-review-link' onClick={() => this.store.stop(session.id)}>Stop</button>
+            {left !== undefined && <button type='button' id='ingot-review-wait' className='ingot-review-link' onClick={() => this.store.holdPause(session.id)}>Wait</button>}
+            <button type='button' id='ingot-review-continue' className='ingot-review-link accept' onClick={() => this.store.continueRun(session.id)}>Continue now</button>
         </div>;
     }
 
