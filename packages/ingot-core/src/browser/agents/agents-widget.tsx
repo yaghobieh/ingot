@@ -4,12 +4,15 @@ import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
 import { COMPOSER_PLACEHOLDER, NO_MODEL_MESSAGE } from '../../common/agents/agents.consts';
 import { modeInfo, nextMode } from '../../common/agents/agent-modes';
-import { CONTEXT_NEAR_FULL, usageBreakdown, usageRatio } from '../../common/agents/context-usage';
+import { CONTEXT_NEAR_FULL, contextSegments, formatTokens, messageWeights, usageRatio } from '../../common/agents/context-usage';
 import { AUTO_MODEL_ID, AUTO_MODEL_LABEL, FAVORITE_MODELS_KEY } from '../../common/models/models.consts';
 import { findModel } from '../../common/models/models.utils';
 import { ContextKeyService, type ContextKey } from '@theia/core/lib/browser/context-key-service';
 import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding';
-import { ChatHistory, MemoriesManager, ModeMenu, ModelPicker } from './chat-popovers';
+import { ChatHistory, ContextBreakdown, MemoriesManager, ModeMenu, ModelPicker } from './chat-popovers';
+import { Dictation } from './dictation';
+import type { DictationState } from './dictation.types';
+import { MessageService } from '@theia/core/lib/common/message-service';
 import { MemoryStore } from './memory-store';
 import { CommandRegistry } from '@theia/core/lib/common/command';
 import { IngotModelClient } from '../models/model-client';
@@ -20,15 +23,27 @@ import { AgentStore } from './agent-store';
 import { EditorManager } from '@theia/editor/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import URI from '@theia/core/lib/common/uri';
-import { agentSubtitle } from '../../common/agents/chat-history';
-import { chipLabel, chipPreview, composerHeight, INGOT_REF_MIME, insertedText, type ContextChip } from '../../common/agents/context-chips';
+import { composerHeight, INGOT_REF_MIME, type ContextChip } from '../../common/agents/context-chips';
+import { composeParts } from '../../common/agents/composer-parts';
+import type { ImageChip, SentPart } from '../../common/agents/composer-parts.types';
+import { tabContextLevel, tabLabel } from '../../common/agents/chat-tabs';
+import { InlineComposer, readImage } from './inline-composer';
+import { COMPOSER_INPUT_ID, MAX_DROPPED_FILE_CHARS } from './inline-composer.consts';
+import { AgentMarkdownRenderer } from './markdown-renderer';
+import { COPIED_LABEL, COPY_LABEL } from './markdown.consts';
+import { WindowService } from '@theia/core/lib/browser/window/window-service';
+import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
+import { lineCount } from '../../common/agents/context-chips';
+import type { AgentStep } from '../../common/agents/agents.types';
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import { EditorCopyTracker } from './editor-copy-tracker';
 import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-renderer';
 import { LAYOUT_CONTEXT_MENU } from '../layout/layout.browser-consts';
 import { AgentEditReview } from './agent-edit-review';
 import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
 
-type Popover = 'mode' | 'model' | 'history' | undefined;
+type Popover = 'mode' | 'model' | 'history' | 'context' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
 /** Right tool window: chats as tabs with History, conversation with plan and tool steps, composer with mode, model and context (IDEA-27/28, IDEA-77). */
@@ -38,6 +53,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(AgentStore) protected readonly store: AgentStore;
     @inject(AgentEditReview) protected readonly review: AgentEditReview;
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
+    @inject(MessageService) protected readonly messages: MessageService;
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
@@ -46,18 +62,35 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(KeybindingRegistry) protected readonly keybindings: KeybindingRegistry;
     @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
     @inject(ContextMenuRenderer) protected readonly contextMenu: ContextMenuRenderer;
+    @inject(WindowService) protected readonly windows: WindowService;
+    @inject(FileService) protected readonly files: FileService;
+
+    protected readonly markdown = new AgentMarkdownRenderer(() => this.update());
+    /** Expanded "Read rules" step rows, by session id + step index. */
+    protected expandedSteps = new Set<string>();
 
     protected popover: Popover;
     protected showMemories = false;
     protected renamingTab?: string;
     protected focusKey?: ContextKey<boolean>;
     protected favorites = new Set<string>(JSON.parse(localStorage.getItem(FAVORITE_MODELS_KEY) ?? '[]') as string[]);
+    /** Plain text of the composer (chips left out), mirrored for the `/` menu and the live tab name. */
     protected draft = '';
-    protected composer?: HTMLTextAreaElement | null;
+    protected composer?: HTMLDivElement | null;
+    protected inline?: InlineComposer;
+    protected composerEmpty = true;
+    /** Enlarged image chip (click a thumbnail). */
+    protected lightbox?: ImageChip;
+    protected dictation?: Dictation;
+    protected dictationState: DictationState = 'idle';
+    protected dictationInterim = '';
+    /** Right-click menu on a chat tab (IDEA-98). */
+    protected tabMenu?: { id: string; x: number; y: number };
+    protected dragTab?: string;
+    protected tabStrip?: HTMLDivElement | null;
+    protected tabOverflow = { left: false, right: false };
     protected slashIndex = 0;
     protected slashDismissed = false;
-    /** Context chips waiting to be sent with the next message (IDEA-65). */
-    protected chips: ContextChip[] = [];
     /** Height set by dragging the handle (IDEA-67); persisted. */
     protected manualHeight?: number;
 
@@ -73,10 +106,45 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     protected acceptSlash(name: string): void {
-        this.draft = `/${name} `;
         this.slashIndex = 0;
+        this.inline?.setText(`/${name} `);
+        this.focusComposer();
+    }
+
+    protected focusComposer(): void {
+        if (this.inline) {
+            this.inline.focus();
+        } else {
+            this.focusComposer();
+        }
+    }
+
+    /** Creates the inline editor once React has mounted its element (IDEA-98). */
+    protected setComposer(el: HTMLDivElement | null): void {
+        if (!el || el === this.composer) {
+            return;
+        }
+        this.composer = el;
+        this.inline?.dispose();
+        this.inline = new InlineComposer(el, {
+            onChange: () => this.composerChanged(),
+            openCode: chip => this.openChip(chip),
+            openImage: image => { this.lightbox = image; this.update(); },
+            drop: data => this.onDrop(data)
+        });
+        el.classList.add('empty');
+    }
+
+    protected composerChanged(): void {
+        const text = this.inline?.text ?? '';
+        if (text === '/' && this.draft === '') {
+            this.slashDismissed = false;
+            this.slashIndex = 0;
+            this.store.loadCommands();
+        }
+        this.draft = text;
+        this.composerEmpty = this.inline?.empty ?? true;
         this.update();
-        this.composer?.focus();
     }
 
     @postConstruct()
@@ -94,6 +162,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.focusKey = this.contextKeys.createKey<boolean>(AGENTS_FOCUS_KEY, false);
         this.node.addEventListener('focusin', () => this.focusKey?.set(true));
         this.node.addEventListener('focusout', e => { if (!this.node.contains(e.relatedTarget as Node | null)) { this.focusKey?.set(false); } });
+        this.toDispose.push({ dispose: () => this.inline?.dispose() });
         const stored = Number(localStorage.getItem(COMPOSER_HEIGHT_KEY));
         this.manualHeight = stored > 0 ? stored : undefined;
         this.update();
@@ -108,7 +177,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected override onUpdateRequest(msg: Message): void {
         super.onUpdateRequest(msg);
-        requestAnimationFrame(() => this.fitComposer());
+        requestAnimationFrame(() => { this.fitComposer(); this.checkTabOverflow(); });
     }
 
     /** Min ~4 lines, grows with content up to half the panel then scrolls; a dragged height wins (IDEA-67). */
@@ -146,13 +215,16 @@ export class IngotAgentsWidget extends ReactWidget {
         this.fitComposer();
     }
 
-    /** Adds a chip (Add to Chat ⌘L, editor paste) unless the same range is already attached. */
+    /** Adds a code chip at the caret (Add to Chat ⌘L, editor paste) unless the same range is already in the composer. */
     addChip(data: Omit<ContextChip, 'id'>): void {
-        if (!this.chips.some(c => c.uri === data.uri && c.start === data.start && c.end === data.end)) {
-            this.chips = [...this.chips, { ...data, id: `${Date.now()}-${this.chips.length}` }];
+        const inline = this.inline;
+        if (!inline) {
+            return;
         }
-        this.update();
-        this.composer?.focus();
+        if (!inline.codeChips.some(c => c.uri === data.uri && c.start === data.start && c.end === data.end)) {
+            inline.insertCode(data);
+        }
+        this.focusComposer();
     }
 
     /** Add to Chat: the current editor selection becomes a chip; returns false when nothing is selected. */
@@ -164,58 +236,112 @@ export class IngotAgentsWidget extends ReactWidget {
         return !!selection;
     }
 
-    protected removeChip(id: string): void {
-        this.chips = this.chips.filter(c => c.id !== id);
-        this.update();
-        this.composer?.focus();
-    }
-
     protected openChip(chip: ContextChip): void {
         this.editors.open(new URI(chip.uri), { selection: { start: { line: chip.start - 1, character: 0 }, end: { line: chip.end - 1, character: Number.MAX_SAFE_INTEGER } } });
     }
 
-    /** Multi-line text copied from an editor pastes as a chip; anything else pastes as plain text. */
-    protected onPaste(e: React.ClipboardEvent<HTMLTextAreaElement>): void {
-        const chip = this.copies.match(e.clipboardData.getData('text/plain'), e.clipboardData.getData(INGOT_REF_MIME) || undefined);
+    /** Images become thumbnail chips; lines copied from an editor become a code chip; anything else pastes as plain text. */
+    protected onPaste(e: React.ClipboardEvent<HTMLDivElement>): void {
+        const inline = this.inline;
+        if (!inline) {
+            return;
+        }
+        e.preventDefault();
+        const files = Array.from(e.clipboardData.items).filter(i => i.kind === 'file' && i.type.startsWith('image/')).map(i => i.getAsFile()).filter((f): f is File => !!f);
+        if (files.length) {
+            this.addImages(files);
+            return;
+        }
+        const text = e.clipboardData.getData('text/plain');
+        const chip = this.copies.match(text, e.clipboardData.getData(INGOT_REF_MIME) || undefined);
         if (chip) {
-            e.preventDefault();
             this.addChip(chip);
+        } else if (text) {
+            inline.insertText(text);
         }
     }
 
-    /**
-     * The desktop app's paste command (⌘V, Edit > Paste) inserts clipboard text with `execCommand('insertText')`, which
-     * fires neither `paste` nor `beforeinput`; only the resulting change. A multi-line insertion that matches the last
-     * editor copy is therefore taken back out of the draft and becomes a chip.
-     */
-    protected pastedChip(e: React.ChangeEvent<HTMLTextAreaElement>): ContextChip | Omit<ContextChip, 'id'> | undefined {
-        const inputType = (e.nativeEvent as InputEvent).inputType;
-        if (inputType !== 'insertText' && inputType !== 'insertFromPaste') {
-            return undefined;
+    protected async addImages(files: readonly File[]): Promise<void> {
+        for (const [i, file] of files.entries()) {
+            const image = await readImage(file, file.name && file.name !== 'image.png' ? file.name : `image-${Date.now().toString(36)}${i ? `-${i}` : ''}.png`);
+            if (image) {
+                this.inline?.insertImage(image);
+            }
         }
-        const inserted = insertedText(this.draft, e.currentTarget.value);
-        return inserted && inserted.includes('\n') ? this.copies.match(inserted) : undefined;
+        this.focusComposer();
+    }
+
+    /** Drop images (thumbnails) or files from the project tree / Finder (file chips) at the drop point (IDEA-100). */
+    protected onDrop(data: DataTransfer): boolean {
+        const all = Array.from(data.files);
+        const images = all.filter(f => f.type.startsWith('image/'));
+        const others = all.filter(f => !f.type.startsWith('image/'));
+        const uris = ApplicationShell.getDraggedEditorUris(data);
+        if (!images.length && !others.length && !uris.length) {
+            return false;
+        }
+        this.dropFiles(images, others, uris);
+        return true;
+    }
+
+    protected async dropFiles(images: readonly File[], others: readonly File[], uris: readonly URI[]): Promise<void> {
+        await this.addImages(images);
+        const root = this.workspace.tryGetRoots()[0]?.resource;
+        for (const uri of uris) {
+            const content = await this.files.read(uri).then(r => r.value, () => undefined);
+            if (content !== undefined) {
+                this.addFileChip(root?.relative(uri)?.toString() ?? uri.path.base, uri.toString(), content);
+            }
+        }
+        for (const file of others) {
+            const content = await file.text().catch(() => undefined);
+            if (content !== undefined) {
+                const path = (window as { electronTheiaCore?: { getPathForFile?(f: File): string } }).electronTheiaCore?.getPathForFile?.(file) ?? '';
+                const uri = path ? URI.fromFilePath(path) : undefined;
+                this.addFileChip(uri && root?.relative(uri)?.toString() || file.name, uri?.toString() ?? '', content);
+            }
+        }
+    }
+
+    protected addFileChip(path: string, uri: string, content: string): void {
+        const text = content.length > MAX_DROPPED_FILE_CHARS ? `${content.slice(0, MAX_DROPPED_FILE_CHARS)}\n…` : content;
+        this.inline?.insertCode({ path, uri, start: 1, end: Math.max(1, lineCount(text)), text, whole: true });
+        this.focusComposer();
+    }
+
+    protected attachImages(input: HTMLInputElement): void {
+        const files = Array.from(input.files ?? []);
+        input.value = '';
+        this.addImages(files);
     }
 
     protected override onActivateRequest(msg: Message): void {
         super.onActivateRequest(msg);
-        (this.composer ?? this.node).focus();
+        if (this.composer) {
+            this.focusComposer();
+        } else {
+            this.node.focus();
+        }
     }
 
     /** Appends context such as `@src/a.ts:12 useCart` to the composer and focuses it (IDEA-56). */
     addContext(text: string): void {
-        this.draft = this.draft.trim() ? `${this.draft.trimEnd()} ${text} ` : `${text} `;
-        this.update();
-        this.composer?.focus();
+        this.inline?.appendText(`${text} `);
+        this.focusComposer();
     }
 
+    /** Sends text and chips in the order they were typed (IDEA-98). */
     protected submit(): void {
-        if (!this.draft.trim() && !this.chips.length) {
+        const inline = this.inline;
+        if (!inline || inline.empty) {
             return;
         }
-        this.store.send(this.draft.trim() || 'Explain this code.', this.chips);
+        const composed = composeParts(inline.parts);
+        const prompt = composed.text.trim() || 'Explain this code.';
+        this.store.send(prompt, composed.chips, composed.expanded ? composed : undefined);
+        inline.clear();
         this.draft = '';
-        this.chips = [];
+        this.composerEmpty = true;
         this.update();
     }
 
@@ -230,7 +356,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.showMemories = false;
         this.store.create();
         this.update();
-        this.composer?.focus();
+        this.focusComposer();
     }
 
     cycleMode(): void {
@@ -252,7 +378,7 @@ export class IngotAgentsWidget extends ReactWidget {
     protected closePopover(): void {
         this.popover = undefined;
         this.update();
-        this.composer?.focus();
+        this.focusComposer();
     }
 
     protected toggleFavorite(id: string): void {
@@ -281,11 +407,7 @@ export class IngotAgentsWidget extends ReactWidget {
         const tabs = this.store.tabs;
         return <div className='ingot-agents-root'>
             <div className='ingot-agents-header' onContextMenu={e => this.openLayoutMenu(e)}>
-                <button type='button' className={`ingot-agents-tab${this.popover !== 'history' ? ' active' : ''}`} id='ingot-agents-tab-agents'
-                    onClick={() => { this.popover = undefined; this.showMemories = false; this.update(); }}>Agents</button>
-                <button type='button' className={`ingot-agents-tab${this.popover === 'history' ? ' active' : ''}`} id='ingot-agents-tab-history'
-                    onClick={() => this.toggleHistory()}>History</button>
-                <span className='ingot-flex' />
+                {this.renderTabs(tabs, current)}
                 <button type='button' id='ingot-agents-new' className='ingot-icon-button codicon codicon-add' aria-label='New chat'
                     title={`New chat${this.shortcut(AGENT_COMMANDS.newAgent.id) ? ` (${this.shortcut(AGENT_COMMANDS.newAgent.id)})` : ''}`} onClick={() => this.newChat()} />
                 <button type='button' id='ingot-agents-history' className={`ingot-icon-button codicon codicon-history${this.popover === 'history' ? ' active' : ''}`} aria-label='Chat history'
@@ -296,29 +418,10 @@ export class IngotAgentsWidget extends ReactWidget {
                     onMemories={() => this.toggleMemories()}
                     onClose={() => this.closePopover()} />}
             </div>
-            {tabs.length > 0 && <div className='ingot-agents-list ingot-chat-tabs' role='tablist'>
-                {tabs.map(t => (
-                    <div key={t.id} role='tab' aria-selected={current?.id === t.id} data-id={t.id} title={t.title}
-                        className={`ingot-agent-item ingot-chat-tab${current?.id === t.id ? ' active selected' : ''}`}
-                        onClick={() => this.store.select(t.id)}
-                        onMouseDown={e => { if (e.button === 1) { e.preventDefault(); this.store.closeTab(t.id); } }}
-                        onDoubleClick={() => { this.renamingTab = t.id; this.update(); }}>
-                        <span className={`ingot-agent-status ingot-status-${t.status}`} />
-                        <span className='ingot-agent-item-text'>
-                            {this.renamingTab === t.id
-                                ? <input className='ingot-input ingot-chat-tab-rename' autoFocus defaultValue={t.title} aria-label='Chat title'
-                                    onBlur={e => { this.store.rename(t.id, e.currentTarget.value); this.renamingTab = undefined; this.update(); }}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter') { e.currentTarget.blur(); }
-                                        if (e.key === 'Escape') { this.renamingTab = undefined; this.update(); }
-                                    }} />
-                                : <span className='ingot-agent-item-title ingot-chat-tab-title'>{t.title}</span>}
-                            <span className='ingot-agent-item-sub'>{agentSubtitle(t, Date.now(), current?.id === t.id && this.review.pending ? this.review.queued + 1 : 0)}</span>
-                        </span>
-                        <button type='button' className='ingot-chat-tab-close codicon codicon-close' aria-label={`Close ${t.title}`}
-                            onClick={e => { e.stopPropagation(); this.store.closeTab(t.id); }} />
-                    </div>
-                ))}
+            {this.tabMenu && this.renderTabMenu()}
+            {this.lightbox && <div className='ingot-lightbox' id='ingot-lightbox' role='dialog' aria-label={this.lightbox.name} onClick={() => { this.lightbox = undefined; this.update(); }}>
+                <img src={`data:${this.lightbox.mediaType};base64,${this.lightbox.data}`} alt={this.lightbox.name} />
+                <span className='ingot-lightbox-name'>{this.lightbox.name}</span>
             </div>}
             {this.showMemories
                 ? <div className='ingot-agents-chat ingot-agents-memories-pane'><MemoriesManager store={this.memoryStore} onClose={() => this.toggleMemories()} /></div>
@@ -328,13 +431,137 @@ export class IngotAgentsWidget extends ReactWidget {
         </div>;
     }
 
-    protected renderSession(session: AgentSession): React.ReactNode {
-        const pending = this.review.pending;
-        // While edits wait in the inline review, the card already counts the files under review.
-        const reviewing = pending ? new Set(session.steps.filter(st => st.kind === 'edit').map(st => st.target)).size + this.review.queued - session.changes.length : 0;
-        return <>
-            {session.messages.map((m, i) => m.memory
-                ? <div key={i} className={`ingot-chat-memory${m.memory.undone ? ' undone' : ''}`}>
+    /** Open chats as one compact row of tabs (IDEA-98): pinned first, drag to reorder, middle-click closes, right-click menu. */
+    protected renderTabs(tabs: readonly AgentSession[], current: AgentSession | undefined): React.ReactNode {
+        return <div className='ingot-chat-tabs-wrap'>
+            {this.tabOverflow.left && <button type='button' className='ingot-chat-tabs-scroll codicon codicon-chevron-left' aria-label='Scroll tabs left' onClick={() => this.scrollTabs(-1)} />}
+            <div className='ingot-chat-tabs' id='ingot-chat-tabs' role='tablist' ref={el => { this.tabStrip = el; }}
+                onWheel={e => { if (this.tabStrip && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { this.tabStrip.scrollLeft += e.deltaY; this.checkTabOverflow(); } }}
+                onScroll={() => this.checkTabOverflow()}>
+                {tabs.map(t => {
+                    const active = current?.id === t.id;
+                    const label = tabLabel(t.title, active && !t.messages.length ? this.draft : '');
+                    const level = tabContextLevel(usageRatio(t.context?.usage));
+                    return <div key={t.id} role='tab' tabIndex={0} aria-selected={active} data-id={t.id} title={label || 'New chat'} draggable={this.renamingTab !== t.id}
+                        className={`ingot-chat-tab${active ? ' active' : ''}${t.pinned ? ' pinned' : ''}${level !== 'ok' ? ` context-${level}` : ''}${label ? '' : ' untitled'}`}
+                        onClick={() => this.store.select(t.id)}
+                        onMouseDown={e => { if (e.button === 1) { e.preventDefault(); this.store.closeTab(t.id); } }}
+                        onDoubleClick={() => this.startRename(t.id)}
+                        onKeyDown={e => { if (e.key === 'F2') { e.preventDefault(); this.startRename(t.id); } }}
+                        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); this.tabMenu = { id: t.id, x: e.clientX, y: e.clientY }; this.update(); }}
+                        onDragStart={e => { this.dragTab = t.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/x-ingot-tab', t.id); }}
+                        onDragEnter={e => this.acceptTabDrag(e)}
+                        onDragOver={e => this.acceptTabDrag(e)}
+                        onDrop={e => { e.preventDefault(); if (this.dragTab && this.dragTab !== t.id) { this.store.moveTab(this.dragTab, t.id); } this.dragTab = undefined; }}
+                        onDragEnd={() => { this.dragTab = undefined; }}>
+                        {t.pinned && <span className='ingot-chat-tab-pin codicon codicon-pinned' aria-label='Pinned' />}
+                        {this.store.isRunning(t.id) && <span className={`ingot-agent-status ingot-status-${t.status}`} />}
+                        {this.renamingTab === t.id
+                            ? <input className='ingot-input ingot-chat-tab-rename' autoFocus defaultValue={label} aria-label='Chat title'
+                                onClick={e => e.stopPropagation()}
+                                onBlur={e => { this.store.rename(t.id, e.currentTarget.value); this.renamingTab = undefined; this.update(); }}
+                                onKeyDown={e => {
+                                    e.stopPropagation();
+                                    if (e.key === 'Enter') { e.currentTarget.blur(); }
+                                    if (e.key === 'Escape') { this.renamingTab = undefined; this.update(); }
+                                }} />
+                            : label ? <span className='ingot-chat-tab-title'>{label}</span> : <span className='ingot-chat-tab-blank codicon codicon-comment' />}
+                        {!t.pinned && <button type='button' className='ingot-chat-tab-close codicon codicon-close' aria-label={`Close ${label || 'chat'}`}
+                            onClick={e => { e.stopPropagation(); this.store.closeTab(t.id); }} />}
+                    </div>;
+                })}
+            </div>
+            {this.tabOverflow.right && <button type='button' className='ingot-chat-tabs-scroll codicon codicon-chevron-right' aria-label='Scroll tabs right' onClick={() => this.scrollTabs(1)} />}
+        </div>;
+    }
+
+    /** The workbench marks document drags as "no drop"; claim tab drags so reordering works in the desktop app. */
+    protected acceptTabDrag(e: React.DragEvent): void {
+        if (this.dragTab) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'move';
+        }
+    }
+
+    protected startRename(id: string): void {
+        this.tabMenu = undefined;
+        this.renamingTab = id;
+        this.update();
+    }
+
+    protected scrollTabs(direction: number): void {
+        this.tabStrip?.scrollBy({ left: direction * 160, behavior: 'smooth' });
+        setTimeout(() => this.checkTabOverflow(), 300);
+    }
+
+    protected checkTabOverflow(): void {
+        const el = this.tabStrip;
+        if (!el) {
+            return;
+        }
+        const left = el.scrollLeft > 1;
+        const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+        if (left !== this.tabOverflow.left || right !== this.tabOverflow.right) {
+            this.tabOverflow = { left, right };
+            this.update();
+        }
+    }
+
+    protected renderTabMenu(): React.ReactNode {
+        const menu = this.tabMenu!;
+        const tab = this.store.tabs.find(t => t.id === menu.id);
+        if (!tab) {
+            return undefined;
+        }
+        const close = (): void => { this.tabMenu = undefined; this.update(); };
+        const item = (id: string, label: string, run: () => void, danger = false) =>
+            <button type='button' role='menuitem' id={`ingot-tab-menu-${id}`} className={`ingot-tab-menu-item${danger ? ' danger' : ''}`} onClick={() => { close(); run(); }}>{label}</button>;
+        return <div className='ingot-tab-menu-backdrop' onMouseDown={close} onContextMenu={e => { e.preventDefault(); close(); }}>
+            <div className='ingot-tab-menu' id='ingot-tab-menu' role='menu' style={{ left: menu.x, top: menu.y }} onMouseDown={e => e.stopPropagation()}>
+                {item('rename', 'Rename', () => this.startRename(tab.id))}
+                {item('pin', tab.pinned ? 'Unpin' : 'Pin', () => this.store.togglePin(tab.id))}
+                <div className='ingot-tab-menu-sep' />
+                {item('close', 'Close', () => this.store.closeTab(tab.id))}
+                {item('close-others', 'Close Others', () => this.store.closeOthers(tab.id))}
+                <div className='ingot-tab-menu-sep' />
+                {item('delete', 'Delete…', () => this.deleteChat(tab.id), true)}
+            </div>
+        </div>;
+    }
+
+    protected async deleteChat(id: string): Promise<void> {
+        const tab = this.store.sessions.find(t => t.id === id);
+        const name = tab ? tabLabel(tab.title) : '';
+        const confirmed = await new ConfirmDialog({
+            title: 'Delete chat', msg: `Delete ${name ? `"${name}"` : 'this chat'}? It is removed from History too.`, ok: 'Delete', cancel: 'Cancel'
+        }).open();
+        if (confirmed) {
+            this.store.remove(id);
+        }
+    }
+
+    /** A sent user message with its chips and images inline, in order (IDEA-98). */
+    protected renderParts(parts: readonly SentPart[], images: readonly ImageChip[] = []): React.ReactNode {
+        return <div className='ingot-chat-parts'>{parts.map((p, i) => {
+            if (p.kind === 'text') {
+                return <span key={i}>{p.text}</span>;
+            }
+            if (p.kind === 'code') {
+                return <span key={i} className='ingot-chip ingot-chip-sent ingot-chip-code ingot-chip-inline' title={p.path}><span className='codicon codicon-code' />{p.label}</span>;
+            }
+            const image = images.find(img => img.id === p.id);
+            return <span key={i} className='ingot-chip ingot-chip-sent ingot-chip-image ingot-chip-inline' title={p.name}
+                onClick={() => { if (image?.data) { this.lightbox = image; this.update(); } }}>
+                {image?.data ? <img className='ingot-chip-thumb' src={`data:${image.mediaType};base64,${image.data}`} alt={p.name} /> : <span className='codicon codicon-file-media' />}
+                {p.name}
+            </span>;
+        })}</div>;
+    }
+
+    protected renderMessage(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+        return m.memory
+            ? <div key={i} className={`ingot-chat-memory${m.memory.undone ? ' undone' : ''}`}>
                     <span className='codicon codicon-lightbulb' />
                     <span className='ingot-chat-memory-text'>{m.memory.undone ? 'Memory removed' : 'Memory saved'} · <span className='ingot-dim'>{m.text}</span></span>
                     {!m.memory.undone && <button type='button' className='ingot-btn-ghost ingot-memory-undo' onClick={() => this.store.undoMemory(session.id, i)}>Undo</button>}
@@ -342,22 +569,83 @@ export class IngotAgentsWidget extends ReactWidget {
                 : (
                 <div key={i} className={`ingot-chat-msg ingot-chat-${m.role}`}>
                     {m.from && <div className='ingot-chat-from'>{m.from}</div>}
-                    {m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className={`ingot-chip ingot-chip-sent ingot-chip-${c.kind ?? 'code'}`} title={c.kind === 'memory' ? 'Memory' : c.kind === 'rule' ? `Rule ${c.path}` : c.path}>
+                    {m.parts ? this.renderParts(m.parts, m.images) : m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className={`ingot-chip ingot-chip-sent ingot-chip-${c.kind ?? 'code'}`} title={c.kind === 'memory' ? 'Memory' : c.kind === 'rule' ? `Rule ${c.path}` : c.path}>
                         {c.kind === 'memory' && <span className='codicon codicon-lightbulb' />}{c.kind === 'rule' && <span className='codicon codicon-law' />}{c.label}</span>)}</div>}
-                    {m.text || (m.role === 'agent' && this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')}
+                    {m.role === 'agent' && <div className='ingot-chat-agent-head'><span className='ingot-chat-logo' aria-hidden='true'>&lt;/&gt;</span><b>Ingot</b><span className='ingot-dim'>· {this.replyModel(session)}</span></div>}
+                    {m.parts ? '' : m.role === 'agent'
+                        ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
+                            : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
+                        : m.text}
                     {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
                     {m.buildable && session.mode === 'plan' && <div><button type='button' id='ingot-plan-build' className='ingot-btn-primary ingot-chat-action'
                         onClick={() => this.store.build(session.id)}><span className='codicon codicon-play' /> Build</button></div>}
                     {m.text === NO_MODEL_MESSAGE && <div><button type='button' id='ingot-open-models' className='ingot-btn-primary ingot-chat-action' onClick={() => this.commands.executeCommand(MODELS_OPEN_COMMAND.id)}>Open Models</button></div>}
-                </div>
-            ))}
+                </div>);
+    }
+
+    /** Collapsible "Read rules · AGENTS.md, engineering" row shown above the reply (IDEA-100). */
+    protected renderReadStep(session: AgentSession, step: AgentStep, index: number): React.ReactNode {
+        const key = `${session.id}:${index}`;
+        const open = this.expandedSteps.has(key);
+        const rules = step.target.startsWith('rules: ');
+        const items = (rules ? step.target.slice('rules: '.length) : step.target).split(', ').filter(Boolean);
+        return <div key={`read-${index}`} className={`ingot-chat-read${open ? ' open' : ''}`}>
+            <button type='button' className='ingot-chat-read-row' aria-expanded={open}
+                onClick={() => { if (open) { this.expandedSteps.delete(key); } else { this.expandedSteps.add(key); } this.update(); }}>
+                <span className='codicon codicon-check ingot-chat-read-mark' />
+                <span className='ingot-chat-read-label'>{rules ? 'Read rules' : 'Read'}</span>
+                <span className='ingot-chat-read-items'>{items.map((item, j) => <code key={j}>{item}</code>)}</span>
+                <span className='ingot-flex' />
+                <span className={`codicon codicon-chevron-${open ? 'down' : 'right'}`} />
+            </button>
+            {open && <ul className='ingot-chat-read-list'>{items.map((item, j) => <li key={j}><span className={`codicon codicon-${rules ? 'law' : 'file'}`} />{item}</li>)}</ul>}
+        </div>;
+    }
+
+    protected replyModel(session: AgentSession): string {
+        return this.modelLabel(this.store.resolveModel(session.model));
+    }
+
+    /** Copy buttons on code blocks and links in rendered replies. */
+    protected onMarkdownClick(e: React.MouseEvent<HTMLDivElement>): void {
+        const target = e.target as HTMLElement;
+        const copy = target.closest<HTMLElement>('[data-md-copy]');
+        if (copy) {
+            const code = copy.closest('.ingot-md-code')?.querySelector('code')?.textContent ?? '';
+            navigator.clipboard.writeText(code).catch(() => undefined);
+            copy.lastChild!.textContent = COPIED_LABEL;
+            copy.classList.add('copied');
+            setTimeout(() => { copy.lastChild!.textContent = COPY_LABEL; copy.classList.remove('copied'); }, 1200);
+            return;
+        }
+        const link = target.closest<HTMLAnchorElement>('a[data-md-link]');
+        if (link) {
+            e.preventDefault();
+            const href = link.getAttribute('href') ?? '';
+            if (/^https?:/i.test(href)) {
+                this.windows.openNewWindow(href, { external: true });
+            }
+        }
+    }
+
+    protected renderSession(session: AgentSession): React.ReactNode {
+        const pending = this.review.pending;
+        // While edits wait in the inline review, the card already counts the files under review.
+        const reviewing = pending ? new Set(session.steps.filter(st => st.kind === 'edit').map(st => st.target)).size + this.review.queued - session.changes.length : 0;
+        const lastAgent = session.messages.map(m => m.role).lastIndexOf('agent');
+        const readSteps = session.steps.map((step, index) => ({ step, index })).filter(({ step }) => step.kind === 'read');
+        return <>
+            {session.messages.map((m, i) => i === lastAgent && readSteps.length > 0
+                ? <React.Fragment key={i}>{readSteps.map(({ step, index }) => this.renderReadStep(session, step, index))}{this.renderMessage(session, m, i)}</React.Fragment>
+                : this.renderMessage(session, m, i))}
+            {lastAgent < 0 && readSteps.map(({ step, index }) => this.renderReadStep(session, step, index))}
             {session.plan.length > 0 && <div className='ingot-chat-plan'>
                 <div className='ingot-chat-label'>Plan</div>
                 {session.plan.map((p, i) => (
                     <div key={i} className={`ingot-plan-item ingot-plan-${p.state}`}><span className='ingot-plan-mark'>{p.state === 'done' ? '✓' : p.state === 'active' ? '●' : '○'}</span>{p.text}</div>
                 ))}
             </div>}
-            {session.steps.map((step, i) => (
+            {session.steps.map((step, i) => step.kind === 'read' ? undefined : (
                 <div key={i} className={`ingot-chat-step ${step.done ? 'done' : 'running'}`}>
                     <span className='ingot-step-mark'>{step.done ? '✓' : '●'}</span>
                     <span className='ingot-step-text'>{stepVerb(step)} {step.target}</span>
@@ -391,19 +679,6 @@ export class IngotAgentsWidget extends ReactWidget {
         return <div className='ingot-composer'>
             <div className='ingot-composer-resize' id='ingot-composer-resize' title='Drag to resize · double-click to reset' onMouseDown={e => this.startResize(e)} onDoubleClick={() => this.resetHeight()} />
             {this.renderSummarize()}
-            <div className='ingot-composer-chips' id='ingot-composer-chips'>
-                {this.renderContextChips()}
-                {this.chips.map(chip => (
-                    <span key={chip.id} className='ingot-chip ingot-chip-code' data-path={chip.path}>
-                        <button type='button' className='ingot-chip-remove' aria-label={`Remove ${chipLabel(chip)}`} onClick={() => this.removeChip(chip.id)}>✕</button>
-                        <button type='button' className='ingot-chip-label' onClick={() => this.openChip(chip)}>{chipLabel(chip)}</button>
-                        <span className='ingot-chip-preview' role='tooltip'>
-                            <span className='ingot-chip-preview-path'>{chip.path}:{chip.start}-{chip.end}</span>
-                            <pre>{chipPreview(chip.text)}</pre>
-                        </span>
-                    </span>
-                ))}
-            </div>
             {items.length > 0 && <div id='ingot-slash-menu' className='ingot-slash-menu' role='listbox'>
                 {items.map((item, i) => (
                     <div key={item.name} id={`ingot-slash-item-${item.name}`} role='option' aria-selected={i === this.slashIndex}
@@ -412,24 +687,9 @@ export class IngotAgentsWidget extends ReactWidget {
                     </div>
                 ))}
             </div>}
-            <textarea id='ingot-composer-input' ref={el => { this.composer = el; }} className='ingot-composer-input' placeholder={COMPOSER_PLACEHOLDER} value={this.draft} rows={2}
+            <div id={COMPOSER_INPUT_ID} ref={el => this.setComposer(el)} className='ingot-composer-input' data-placeholder={COMPOSER_PLACEHOLDER}
+                aria-label='Message' suppressContentEditableWarning
                 onPaste={e => this.onPaste(e)}
-                onChange={e => {
-                    const pasted = this.pastedChip(e);
-                    if (pasted) {
-                        e.currentTarget.value = this.draft;
-                        this.addChip(pasted);
-                        return;
-                    }
-                    const value = e.currentTarget.value;
-                    if (value === '/' && this.draft === '') {
-                        this.slashDismissed = false;
-                        this.slashIndex = 0;
-                        this.store.loadCommands();
-                    }
-                    this.draft = value;
-                    this.update();
-                }}
                 onKeyDown={e => {
                     const items = this.slashItems;
                     if (items.length) {
@@ -455,13 +715,17 @@ export class IngotAgentsWidget extends ReactWidget {
                     if (e.key === 'Escape' && this.store.current && this.store.isRunning(this.store.current.id)) { e.preventDefault(); this.store.stop(this.store.current.id); }
                 }} />
             <div className='ingot-composer-bar'>
+                <label className='ingot-icon-button codicon codicon-attach ingot-composer-attach' id='ingot-composer-attach' title='Attach images' aria-label='Attach images'>
+                    <input type='file' accept='image/png,image/jpeg,image/gif,image/webp' multiple hidden onChange={e => this.attachImages(e.currentTarget)} />
+                </label>
+                {this.renderMic()}
                 {this.renderModePill()}
                 {this.renderModelPill()}
                 <span className='ingot-flex' />
                 {this.renderUsageRing()}
                 {this.store.isRunning(this.store.current?.id)
                     ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}>■</button>
-                    : <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' disabled={!this.draft.trim() && !this.chips.length} onClick={() => this.submit()}>↑</button>}
+                    : <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' disabled={this.composerEmpty} onClick={() => this.submit()}>↑</button>}
             </div>
         </div>;
     }
@@ -520,13 +784,48 @@ export class IngotAgentsWidget extends ReactWidget {
             // Nothing sent yet: no ring (an empty ring reads as a spinner).
             return undefined;
         }
-        return <span id='ingot-context-ring' className={`ingot-context-ring${ratio >= CONTEXT_NEAR_FULL ? ' near-full' : ''}`} data-ratio={ratio.toFixed(3)}
-            title={usage ? usageBreakdown(usage) : 'Context usage appears after the first message'} aria-label={`Context ${Math.round(ratio * 100)}% used`}>
-            <svg width='18' height='18' viewBox='0 0 18 18'>
-                <circle cx='9' cy='9' r={r} className='ingot-ring-track' />
-                <circle cx='9' cy='9' r={r} className='ingot-ring-value' strokeDasharray={`${c * ratio} ${c}`} transform='rotate(-90 9 9)' />
-            </svg>
+        const current = this.store.current!;
+        return <span className='ingot-pill-anchor'>
+            <button type='button' id='ingot-context-ring' className={`ingot-context-ring${ratio >= CONTEXT_NEAR_FULL ? ' near-full' : ''}`} data-ratio={ratio.toFixed(3)}
+                title={`Context: ${formatTokens(usage.total)} of ${formatTokens(usage.window)} tokens (${Math.round(ratio * 100)}%) · click for details`} aria-label={`Context ${Math.round(ratio * 100)}% used`} aria-haspopup='dialog' aria-expanded={this.popover === 'context'}
+                onClick={() => { this.popover = this.popover === 'context' ? undefined : 'context'; this.update(); }}>
+                <svg width='18' height='18' viewBox='0 0 18 18'>
+                    <circle cx='9' cy='9' r={r} className='ingot-ring-track' />
+                    <circle cx='9' cy='9' r={r} className='ingot-ring-value' strokeDasharray={`${c * ratio} ${c}`} transform='rotate(-90 9 9)' />
+                </svg>
+            </button>
+            {this.popover === 'context' && <ContextBreakdown usage={usage} segments={contextSegments(usage, messageWeights(current.messages))}
+                busy={this.store.isRunning(current.id) || current.status === 'thinking'} onClose={() => this.closePopover()}
+                onCompact={() => { this.closePopover(); this.store.compact(current.id); }}
+                onNewWithSummary={() => { this.closePopover(); this.store.summarizeAndContinue(current.id); }} />}
         </span>;
+    }
+
+    /** Voice dictation (IDEA-98): live transcript where the Web Speech API works, otherwise record and transcribe. */
+    protected renderMic(): React.ReactNode {
+        const state = this.dictationState;
+        const label = state === 'listening' ? 'Stop dictation' : state === 'transcribing' ? 'Transcribing…' : 'Dictate';
+        return <>
+            <button type='button' id='ingot-composer-mic' className={`ingot-icon-button ingot-composer-mic codicon ${state === 'transcribing' ? 'codicon-loading codicon-modifier-spin' : 'codicon-mic'}${state === 'listening' ? ' listening' : ''}`}
+                data-state={state} title={label} aria-label={label} aria-pressed={state === 'listening'} disabled={state === 'transcribing'}
+                onClick={() => this.toggleDictation()} />
+            {this.dictationInterim && <span id='ingot-dictation-interim' className='ingot-dictation-interim ingot-dim'>{this.dictationInterim}</span>}
+        </>;
+    }
+
+    protected toggleDictation(): void {
+        this.dictation ??= new Dictation({
+            interim: text => { this.dictationInterim = text; this.update(); },
+            final: text => {
+                const value = text.trim();
+                if (value) {
+                    this.inline?.insertText(this.inline.empty ? value : ` ${value}`);
+                }
+            },
+            state: state => { this.dictationState = state; if (state === 'idle') { this.dictationInterim = ''; } this.update(); },
+            error: message => this.messages.warn(message)
+        }, (audio, mime) => this.models.transcribe(audio, mime));
+        this.dictation.toggle();
     }
 
     protected renderSummarize(): React.ReactNode {
