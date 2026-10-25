@@ -5,6 +5,7 @@ import type { AccountBackend, AccountClient, AccountSnapshot, AccountUrls, Gatew
 import {
     ACCOUNT_KEYCHAIN_KEY, DEFAULT_PORTAL_URL, DEFAULT_SERVER_URL, DEV_ACCOUNT_EMAIL, GATEWAY_PATH, SIGN_IN_TIMEOUT_MS, STATUS_POLL_MS, USAGE_REFRESH_DELAY_MS
 } from '../../common/account/account.consts';
+import { completeDevSignIn } from './dev-sign-in';
 import { devLoginUrl, isLoopbackUrl, parseGatewayModels, snapshotOf } from '../../common/account/gateway.utils';
 import { IngotAccountSession, IngotIdeClient, type IdeSessionStore, type IdeSignInHandle, type IdeStoredSession } from './ide-client';
 
@@ -138,7 +139,14 @@ export class IngotAccountBackend implements AccountBackend {
                 throw new Error('Dev sign-in only works with a local Ingot server.');
             }
             const authorize = new URL(handle.authorizeUrl);
-            return devLoginUrl(this.currentUrls.portalUrl, options.devEmail || DEV_ACCOUNT_EMAIL, `${authorize.pathname}${authorize.search}`);
+            const url = devLoginUrl(this.currentUrls.portalUrl, options.devEmail || DEV_ACCOUNT_EMAIL, `${authorize.pathname}${authorize.search}`);
+            try {
+                // Finish the local flow here; the default browser is only the fallback (it needs a click to approve).
+                await completeDevSignIn(url);
+                return '';
+            } catch {
+                return url;
+            }
         }
         return handle.authorizeUrl;
     }
