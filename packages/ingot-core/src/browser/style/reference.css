@@ -17,7 +17,7 @@ button.ingot-tb-logo:hover { background: var(--ingot-primary-hover); }
 /* Right side: the Agents panel owns the column; no side tab strip or "AGENTS" title bar. */
 .ingot-shell #theia-right-content-panel .theia-sidepanel-toolbar { display: none; }
 
-/* PROJECT header: title only, no view toolbar icons; script sections stay hidden. */
+/* Project header (IDEA-93): project name with a fold chevron + New File, New Folder, Refresh, Collapse All; script sections stay hidden. */
 .ingot-shell #explorer-view-container .part[id*="plugin-view"] { display: none; }
 .ingot-shell #explorer-view-container .theia-header .lm-TabBar-toolbar { display: none; }
 .ingot-shell #theia-left-content-panel .theia-sidepanel-toolbar .p-TabBar-toolbar,

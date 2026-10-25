@@ -748,3 +748,17 @@ body.ingot-shell #ingot-stripe-bottom { justify-content: flex-start; }
 .ingot-stripe-button .codicon { font-size: 18px; color: var(--theia-descriptionForeground); }
 .ingot-stripe-button:hover .codicon { color: var(--theia-foreground); }
 .ingot-avatar { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; background: #3B6FD9; }
+
+/* IDEA-93: Project header = chevron + project name + New File, New Folder, Refresh, Collapse All. */
+.ingot-explorer-toggle { display: none; border: 0; background: transparent; color: var(--theia-descriptionForeground); cursor: pointer; padding: 0; margin: 0 2px 0 -6px; width: 18px; height: 18px; font-size: 14px; border-radius: 4px; transition: transform .12s; }
+.ingot-explorer-toggle:hover { background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); color: var(--theia-foreground); }
+body .ingot-explorer-toggle.codicon { display: none; }
+body.ingot-explorer-current .ingot-explorer-toggle.codicon { display: inline-grid; place-items: center; }
+body.ingot-explorer-collapsed .ingot-explorer-toggle { transform: rotate(-90deg); }
+body.ingot-shell.ingot-explorer-current #theia-left-content-panel .theia-sidepanel-toolbar { display: flex; align-items: center; }
+body.ingot-shell.ingot-explorer-current #theia-left-content-panel .theia-sidepanel-title { text-transform: none !important; letter-spacing: 0; font-size: 13px !important; font-weight: 600; color: var(--theia-foreground); cursor: pointer; flex: 1; min-width: 0; }
+.ingot-explorer-actions { display: none; gap: 1px; margin-right: 6px; }
+body.ingot-explorer-current .ingot-explorer-actions { display: flex; }
+.ingot-explorer-action { width: 22px; height: 22px; border: 0; border-radius: 4px; background: transparent; color: var(--theia-descriptionForeground); cursor: pointer; font-size: 14px; display: grid; place-items: center; padding: 0; }
+.ingot-explorer-action:hover { background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); color: var(--theia-foreground); }
+body.ingot-explorer-collapsed #explorer-view-container > .lm-SplitPanel { visibility: hidden; }
