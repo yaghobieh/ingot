@@ -1,13 +1,16 @@
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
-import { MODEL_CATALOG, MODEL_PREFERENCES } from '../../common/models/models.consts';
+import { BYOK_PROVIDERS, MODEL_CATALOG, MODEL_PREFERENCES } from '../../common/models/models.consts';
+import type { CatalogModel } from '../../common/models/models.types';
+import { IngotAccountService } from '../account/account-service';
+import { toCatalogModel } from '../../common/account/gateway.utils';
 import { ModelService, type ChatMessage, type CompletionResult, type ProviderId, type ProviderSettings, type ProviderStatus } from '../../common/models/models.types';
-import { findModel } from '../../common/models/models.utils';
+import { findModel, getGatewayModels, setGatewayModels } from '../../common/models/models.utils';
 
 /** Preferred order when picking a model automatically for inline completion (fast/cheap first). */
 const STREAM_POLL_MS = 80;
-const AUTOCOMPLETE_ORDER = ['ollama-local', 'gpt-5-mini', 'deepseek-v3', 'claude-sonnet-4-5', 'gemini-2-5-pro', 'openrouter-auto', 'gpt-5', 'claude-opus-4-1'];
+const AUTOCOMPLETE_ORDER = ['ingot:ingot-fast', 'ollama-local', 'gpt-5-mini', 'deepseek-v3', 'claude-sonnet-4-5', 'gemini-2-5-pro', 'openrouter-auto', 'gpt-5', 'claude-opus-4-1'];
 
 /** Frontend view of the BYOK model gateway; only ever sees "configured" flags, never keys. */
 @injectable()
@@ -15,6 +18,11 @@ export class IngotModelClient {
 
     @inject(ModelService) protected readonly service: ModelService;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
+    @inject(IngotAccountService) protected readonly account: IngotAccountService;
+
+    /** Gateway model ids the server says are available (provider key present upstream). */
+    protected available = new Set<string>();
+    protected signedIn = false;
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
@@ -25,11 +33,29 @@ export class IngotModelClient {
     @postConstruct()
     protected init(): void {
         this.refresh();
+        this.account.onDidChange(() => {
+            if (this.account.signedIn !== this.signedIn) {
+                this.signedIn = this.account.signedIn;
+                this.refresh();
+            }
+        });
+        this.preferences.onPreferenceChanged(e => e.preferenceName === MODEL_PREFERENCES.byok && this.onDidChangeEmitter.fire());
+    }
+
+    /** BYOK / Local providers are opt-in (IDEA-101). */
+    get byok(): boolean {
+        return this.preferences.get<boolean>(MODEL_PREFERENCES.byok, false);
+    }
+
+    protected async refreshGatewayModels(): Promise<void> {
+        const models = await this.account.models().catch(() => []);
+        setGatewayModels(models.map(toCatalogModel));
+        this.available = new Set(models.filter(m => m.available).map(m => `ingot:${m.id}`));
     }
 
     async refresh(): Promise<void> {
         try {
-            const [secure, statuses] = await Promise.all([this.service.secureStorageAvailable(), this.service.status()]);
+            const [secure, statuses] = await Promise.all([this.service.secureStorageAvailable(), this.service.status(), this.refreshGatewayModels()]);
             this.secureStorage = secure;
             this.statuses = statuses;
         } catch {
@@ -39,12 +65,22 @@ export class IngotModelClient {
     }
 
     isProviderConfigured(provider: ProviderId): boolean {
+        if (provider === 'ingot') {
+            // The account snapshot is the source of truth; a provider status fetched mid sign-in can be stale.
+            return this.account.signedIn;
+        }
         return this.statuses.some(s => s.id === provider && s.configured);
     }
 
     isModelConfigured(modelId: string): boolean {
         const model = findModel(modelId);
-        return !!model && this.isProviderConfigured(model.provider);
+        if (!model) {
+            return false;
+        }
+        if (model.provider === 'ingot') {
+            return this.isProviderConfigured('ingot') && (this.available.size === 0 || this.available.has(model.id));
+        }
+        return this.byok && this.isProviderConfigured(model.provider);
     }
 
     get settings(): ProviderSettings {
@@ -115,7 +151,9 @@ export class IngotModelClient {
         return { done, cancel: () => { cancelled = true; if (streamId) { this.service.cancelStream(streamId); } } };
     }
 
-    get catalog(): typeof MODEL_CATALOG {
-        return MODEL_CATALOG;
+    /** Picker models: Ingot models first (signed in), then BYOK / Local when that is turned on. */
+    get catalog(): readonly CatalogModel[] {
+        const own = this.byok ? MODEL_CATALOG.filter(m => BYOK_PROVIDERS.includes(m.provider)) : [];
+        return [...getGatewayModels(), ...own];
     }
 }
