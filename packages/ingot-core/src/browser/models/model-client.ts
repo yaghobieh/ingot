@@ -4,7 +4,8 @@ import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { BYOK_PROVIDERS, MODEL_CATALOG, MODEL_PREFERENCES } from '../../common/models/models.consts';
 import type { CatalogModel } from '../../common/models/models.types';
 import { IngotAccountService } from '../account/account-service';
-import { toCatalogModel } from '../../common/account/gateway.utils';
+import { UNAVAILABLE_MODEL_HINT, defaultGatewayModel, ingotModelId, toCatalogModel } from '../../common/account/gateway.utils';
+import type { GatewayModelInfo } from '../../common/account/account-protocol';
 import { ModelService, type ChatMessage, type CompletionResult, type ProviderId, type ProviderSettings, type ProviderStatus } from '../../common/models/models.types';
 import { findModel, getGatewayModels, setGatewayModels } from '../../common/models/models.utils';
 
@@ -22,6 +23,9 @@ export class IngotModelClient {
 
     /** Gateway model ids the server says are available (provider key present upstream). */
     protected available = new Set<string>();
+    /** Gateway rows by picker id (IDEA-124): order, default and why a model is unavailable. */
+    protected gateway = new Map<string, GatewayModelInfo>();
+    protected gatewayDefault?: string;
     protected signedIn = false;
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -50,7 +54,45 @@ export class IngotModelClient {
     protected async refreshGatewayModels(): Promise<void> {
         const models = await this.account.models().catch(() => []);
         setGatewayModels(models.map(toCatalogModel));
-        this.available = new Set(models.filter(m => m.available).map(m => `ingot:${m.id}`));
+        this.available = new Set(models.filter(m => m.available).map(m => ingotModelId(m.id)));
+        this.gateway = new Map(models.map(m => [ingotModelId(m.id), m]));
+        const fallback = defaultGatewayModel(models);
+        this.gatewayDefault = fallback ? ingotModelId(fallback.id) : undefined;
+    }
+
+    /** Re-fetch /v1/models (after model_* errors, plan or config changes). */
+    async refreshModels(): Promise<void> {
+        await this.refreshGatewayModels();
+        this.onDidChangeEmitter.fire();
+    }
+
+    /** The server's default model (or the first that can run), as a picker id. */
+    get defaultModel(): string | undefined {
+        return this.gatewayDefault;
+    }
+
+    /** True once /v1/models returned a list for the signed-in account. */
+    get gatewayLoaded(): boolean {
+        return this.gateway.size > 0;
+    }
+
+    /** A saved Ingot model that is gone from the list or cannot run right now. */
+    isGatewayModelGone(id: string): boolean {
+        return id.startsWith('ingot:') && this.gatewayLoaded && !this.available.has(id);
+    }
+
+    /** Tooltip for a greyed-out Ingot model; undefined when it can run. */
+    unavailableReason(id: string): string | undefined {
+        const row = this.gateway.get(id);
+        return row && !row.available ? row.reason || UNAVAILABLE_MODEL_HINT : undefined;
+    }
+
+    get portalUrl(): string {
+        return this.account.urls.portalUrl;
+    }
+
+    label(id: string): string {
+        return findModel(id)?.label ?? id;
     }
 
     async refresh(): Promise<void> {

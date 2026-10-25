@@ -6,7 +6,8 @@ import { ContextKeyService, type ContextKey } from '@theia/core/lib/browser/cont
 import { StatusBar, StatusBarAlignment } from '@theia/core/lib/browser/status-bar/status-bar';
 import type { FrontendApplicationContribution } from '@theia/core/lib/browser';
 import { IngotAccountService } from './account-service';
-import { ACCOUNT_COMMANDS, ACCOUNT_MENU_ACTIONS, ACCOUNT_MENU_INFO, ACCOUNT_STATUS_ID, ACCOUNT_TEXT, DEV_SIGN_IN_KEY, SIGN_IN_PENDING_KEY, SIGNED_IN_KEY } from './account.consts';
+import { ACCOUNT_COMMANDS, ACCOUNT_MENU_ACTIONS, ACCOUNT_MENU_INFO, ACCOUNT_STATUS_ID, ACCOUNT_TEXT, ADMIN_KEY, DEV_SIGN_IN_KEY, SIGN_IN_PENDING_KEY, SIGNED_IN_KEY } from './account.consts';
+import { showBlockedScreen } from './blocked-screen';
 import { tokensLeftLabel } from '../../common/account/gateway.utils';
 import { formatTokens } from '../../common/agents/context-usage';
 
@@ -24,6 +25,8 @@ export class IngotAccountContribution implements CommandContribution, MenuContri
     protected signedIn?: ContextKey<boolean>;
     protected pending?: ContextKey<boolean>;
     protected devSignIn?: ContextKey<boolean>;
+    protected admin?: ContextKey<boolean>;
+    protected hideBlocked?: () => void;
     /** Menu rows whose text follows the account (who is signed in, tokens left). */
     protected readonly who: Command = { ...ACCOUNT_COMMANDS.who };
     protected readonly tokens: Command = { ...ACCOUNT_COMMANDS.tokens };
@@ -33,6 +36,7 @@ export class IngotAccountContribution implements CommandContribution, MenuContri
         this.signedIn = this.contextKeys.createKey(SIGNED_IN_KEY, false);
         this.pending = this.contextKeys.createKey(SIGN_IN_PENDING_KEY, false);
         this.devSignIn = this.contextKeys.createKey(DEV_SIGN_IN_KEY, this.accounts.devSignInAvailable);
+        this.admin = this.contextKeys.createKey(ADMIN_KEY, false);
         this.accounts.onDidChange(() => this.sync());
         this.sync();
     }
@@ -42,14 +46,25 @@ export class IngotAccountContribution implements CommandContribution, MenuContri
         this.signedIn?.set(snap.signedIn);
         this.pending?.set(!!snap.pending);
         this.devSignIn?.set(this.accounts.devSignInAvailable);
-        if (snap.error && snap.error !== this.lastError && snap.updatedAt > 0) {
+        this.admin?.set(this.accounts.isAdmin);
+        if (snap.blocked && !this.hideBlocked) {
+            this.hideBlocked = showBlockedScreen(() => this.accounts.signOut());
+        } else if (!snap.blocked && this.hideBlocked) {
+            this.hideBlocked();
+            this.hideBlocked = undefined;
+        }
+        if (snap.error && !snap.blocked && snap.error !== this.lastError && snap.updatedAt > 0) {
             this.messages.warn(snap.error);
         }
         this.lastError = snap.error;
         const user = snap.user;
         this.who.label = user ? `${user.name}${user.plan ? ` · ${planLabel(user.plan)}` : ''}` : ACCOUNT_TEXT.signedOut;
         this.tokens.label = snap.tokens ? `${formatTokens(snap.tokens.used)} of ${formatTokens(snap.tokens.allowance)} tokens used · ${tokensLeftLabel(snap.tokens)}` : '';
-        if (snap.signedIn && snap.tokens) {
+        if (snap.blocked) {
+            this.statusBar.setElement(ACCOUNT_STATUS_ID, {
+                text: `$(error) ${ACCOUNT_TEXT.blockedStatus}`, tooltip: ACCOUNT_TEXT.blockedBody, alignment: StatusBarAlignment.RIGHT, priority: 200
+            });
+        } else if (snap.signedIn && snap.tokens) {
             this.statusBar.setElement(ACCOUNT_STATUS_ID, {
                 text: `$(sparkle) ${tokensLeftLabel(snap.tokens)}`,
                 tooltip: `Ingot${user ? ` · ${user.email} · ${planLabel(user.plan)}` : ''}\n${this.tokens.label}\nExactly ${snap.tokens.used.toLocaleString()} used · ${snap.tokens.remaining.toLocaleString()} left (updates after every request)`,
@@ -72,6 +87,7 @@ export class IngotAccountContribution implements CommandContribution, MenuContri
         registry.registerCommand(ACCOUNT_COMMANDS.signOut, { isVisible: signedIn, isEnabled: signedIn, execute: () => this.accounts.signOut() });
         registry.registerCommand(ACCOUNT_COMMANDS.refresh, { isVisible: signedIn, isEnabled: signedIn, execute: () => this.accounts.refresh() });
         registry.registerCommand(ACCOUNT_COMMANDS.dashboard, { execute: () => this.accounts.openDashboard() });
+        registry.registerCommand(ACCOUNT_COMMANDS.admin, { isVisible: () => this.accounts.isAdmin, isEnabled: () => this.accounts.isAdmin, execute: () => this.accounts.openAdmin() });
         registry.registerCommand(this.who, { isEnabled: () => false, execute: () => undefined });
         registry.registerCommand(this.tokens, { isVisible: () => !!this.accounts.snapshot.tokens, isEnabled: () => false, execute: () => undefined });
     }
@@ -91,6 +107,7 @@ export class IngotAccountContribution implements CommandContribution, MenuContri
         menus.registerMenuAction(ACCOUNT_MENU_ACTIONS, { commandId: ACCOUNT_COMMANDS.signInDev.id, order: 'b', when: `!${SIGNED_IN_KEY} && ${DEV_SIGN_IN_KEY}` });
         menus.registerMenuAction(ACCOUNT_MENU_ACTIONS, { commandId: ACCOUNT_COMMANDS.cancelSignIn.id, order: 'c', when: SIGN_IN_PENDING_KEY });
         menus.registerMenuAction(ACCOUNT_MENU_ACTIONS, { commandId: ACCOUNT_COMMANDS.dashboard.id, order: 'd' });
+        menus.registerMenuAction(ACCOUNT_MENU_ACTIONS, { commandId: ACCOUNT_COMMANDS.admin.id, order: 'd2', when: ADMIN_KEY });
         menus.registerMenuAction(ACCOUNT_MENU_ACTIONS, { commandId: ACCOUNT_COMMANDS.refresh.id, order: 'e', when: SIGNED_IN_KEY });
         menus.registerMenuAction(ACCOUNT_MENU_ACTIONS, { commandId: ACCOUNT_COMMANDS.signOut.id, order: 'f', when: SIGNED_IN_KEY });
     }

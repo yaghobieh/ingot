@@ -135,10 +135,18 @@ test.describe('IDEA-62 Rules & MCP page', () => {
         await openPage(page);
         await page.locator('#ingot-mcp-browse').click();
         const market = page.locator('#ingot-mcp-marketplace');
-        await expect(market.locator('.ingot-mcp-card')).toHaveCount(22);
-        for (const app of ['GitHub', 'GitLab', 'Linear', 'Slack', 'Supabase', 'Neon', 'Stripe', 'Resend', 'Gmail', 'Docker']) {
+        // IDEA-123: 50 servers in category sections.
+        await expect(market.locator('.ingot-mcp-card')).toHaveCount(50);
+        for (const app of ['GitHub', 'GitLab', 'Linear', 'Slack', 'Supabase', 'Neon', 'Stripe', 'Resend', 'Gmail', 'Docker', 'Google Calendar', 'AWS', 'Cloudflare', 'MongoDB', 'Context7']) {
             await expect(market).toContainText(app);
         }
+        await expect(market.locator('.ingot-mcp-category h4').first()).toContainText('Developer & Design');
+        await expect(market.locator('.ingot-mcp-category[data-category="databases"] [data-entry="redis"]')).toBeVisible();
+        await market.locator('.ingot-mcp-chip[data-category="cloud"]').click();
+        await expect(market.locator('.ingot-mcp-category')).toHaveCount(1);
+        await expect(market.locator('.ingot-mcp-category[data-category="cloud"] [data-entry="aws"]')).toBeVisible();
+        await expect(market.locator('[data-entry="github"]')).toHaveCount(0);
+        await market.locator('.ingot-mcp-chip[data-category="all"]').click();
         await page.locator('#ingot-mcp-search').fill('resend');
         await expect(market.locator('.ingot-mcp-card')).toHaveCount(1);
         await market.locator('.ingot-mcp-add').click();

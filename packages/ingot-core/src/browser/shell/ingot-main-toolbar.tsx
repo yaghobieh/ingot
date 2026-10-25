@@ -2,6 +2,7 @@ import * as React from '@theia/core/shared/react';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import { CommandRegistry } from '@theia/core/lib/common/command';
+import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
 import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-renderer';
 import { MAIN_MENU_BAR } from '@theia/core/lib/common/menu';
 import { environment } from '@theia/core/shared/@theia/application-package/lib/environment';
@@ -10,7 +11,9 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { IngotBranchService } from '../vcs/ingot-branch-service';
 import { AgentStore } from '../agents/agent-store';
-import { AGENT_COMMANDS } from '../agents/agents.consts';
+import { AGENT_COMMANDS, AGENTS_WIDGET_ID } from '../agents/agents.consts';
+import { GEAR_COMMANDS } from '../workbench/gear-menu.consts';
+import { TITLEBAR_COMMANDS, TITLEBAR_REFRESH_DELAYS_MS, TITLEBAR_TEXT, TOGGLE_BOTTOM_PANEL_COMMAND } from '../workbench/titlebar.consts';
 import { pickRunScript } from '../../common/vcs/vcs.utils';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import URI from '@theia/core/lib/common/uri';
@@ -48,13 +51,15 @@ interface IconButtonProps {
     readonly id: string;
     readonly codicon: string;
     readonly title: string;
-    readonly onClick: () => void;
+    readonly onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
     readonly disabled?: boolean;
     readonly className?: string;
+    readonly pressed?: boolean;
 }
 
-const IconButton = ({ id, codicon, title, onClick, disabled, className }: IconButtonProps): React.ReactElement => (
-    <button id={id} type='button' className={`ingot-tb-button ingot-tb-icon ${className ?? ''}`} title={title} aria-label={title} disabled={disabled} onClick={onClick}>
+const IconButton = ({ id, codicon, title, onClick, disabled, className, pressed }: IconButtonProps): React.ReactElement => (
+    <button id={id} type='button' className={`ingot-tb-button ingot-tb-icon ${pressed ? 'pressed' : ''} ${className ?? ''}`} title={title} aria-label={title}
+        aria-pressed={pressed} disabled={disabled} onClick={onClick}>
         <span className={`codicon codicon-${codicon}`} />
     </button>
 );
@@ -70,6 +75,7 @@ export class IngotMainToolbar extends ReactWidget {
     @inject(AgentStore) protected readonly agents: AgentStore;
     @inject(FileService) protected readonly files: FileService;
     @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
+    @inject(ApplicationShell) protected readonly shell: ApplicationShell;
 
     protected runScript?: string;
     protected projectPopupOpen = false;
@@ -101,6 +107,10 @@ export class IngotMainToolbar extends ReactWidget {
         this.toDispose.push(this.commands.onDidExecuteCommand(() => this.update()));
         this.loadRunScript();
         this.toDispose.push({ dispose: () => this.removePopupListeners() });
+        // The panel and chat toggles show whether their panel is open.
+        this.toDispose.push(this.shell.onDidChangeActiveWidget(() => this.refreshSoon()));
+        this.toDispose.push(this.shell.onDidChangeCurrentWidget(() => this.refreshSoon()));
+        this.shell.bottomPanel.layoutModified.connect(() => this.update());
     }
 
     protected async toggleProjectPopup(): Promise<void> {
@@ -183,6 +193,39 @@ export class IngotMainToolbar extends ReactWidget {
         }
     }
 
+    protected refreshSoon(): void {
+        this.update();
+        for (const delay of TITLEBAR_REFRESH_DELAYS_MS) {
+            setTimeout(() => !this.isDisposed && this.update(), delay);
+        }
+    }
+
+    protected get bottomPanelOpen(): boolean {
+        return this.shell.isExpanded('bottom');
+    }
+
+    protected get chatOpen(): boolean {
+        const chat = this.shell.getWidgetById(AGENTS_WIDGET_ID);
+        return !!chat?.isVisible;
+    }
+
+    protected toggle(commandId: string): void {
+        this.run(commandId);
+        this.refreshSoon();
+    }
+
+    /** Bottom panel, chat and settings icons, then the Agents Window pill (IDEA-118). */
+    protected renderWindowActions(): React.ReactNode {
+        return <div className='ingot-tb-window-actions'>
+            <IconButton id='ingot-tb-panel' codicon='layout-panel' title={TITLEBAR_TEXT.bottomPanel} pressed={this.bottomPanelOpen} onClick={() => this.toggle(TOGGLE_BOTTOM_PANEL_COMMAND)} />
+            <IconButton id='ingot-tb-chat' codicon='comment' title={TITLEBAR_TEXT.chat} pressed={this.chatOpen} onClick={() => this.toggle(AGENT_COMMANDS.toggle.id)} />
+            <IconButton id='ingot-tb-settings' codicon='settings-gear' title={TITLEBAR_TEXT.settings} onClick={e => this.run(GEAR_COMMANDS.open.id, e.currentTarget)} />
+            <button id='ingot-tb-agents-window' type='button' className='ingot-tb-pill' title={TITLEBAR_TEXT.agentsWindowTitle} onClick={() => this.run(TITLEBAR_COMMANDS.agentsWindow.id)}>
+                <span>{TITLEBAR_TEXT.agentsWindow}</span><span className='ingot-tb-pill-arrow' aria-hidden='true'>↗</span>
+            </button>
+        </div>;
+    }
+
     protected get showMainMenuButton(): boolean {
         return !(environment.electron.is() && isOSX);
     }
@@ -220,12 +263,13 @@ export class IngotMainToolbar extends ReactWidget {
                     <IconButton id='ingot-tb-stop' codicon='debug-stop' title='Stop' disabled={!this.commands.isEnabled(TOOLBAR_COMMANDS.stop)} onClick={() => this.run(TOOLBAR_COMMANDS.stop)} />
                 </div>
                 <span className='ingot-tb-sep' />
-                <IconButton id='ingot-tb-ai' codicon='sparkle' title={`Ask AI${active ? ` · ${active} running` : ''}`} onClick={() => this.run(AGENT_COMMANDS.toggle.id)} />
                 <button id='ingot-tb-search' type='button' className='ingot-tb-search' title='Search Everywhere (Double Shift)' onClick={() => this.run(TOOLBAR_COMMANDS.searchEverywhere)}>
                     <span className='ingot-icon ingot-icon-search' />
                     <span className='ingot-tb-search-text'>Search everywhere</span>
                     <span className='ingot-tb-search-kbd'>Shift Shift</span>
+                    {active > 0 && <span className='ingot-tb-running' title={`${active} agent${active === 1 ? '' : 's'} running`}>{active}</span>}
                 </button>
+                {this.renderWindowActions()}
             </div>
         </div>;
     }

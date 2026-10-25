@@ -100,3 +100,14 @@
 .ingot-mcp .ingot-mcp-icon:not([style]) { background: rgba(127, 127, 127, .16); }
 .ingot-mcp .ingot-mcp-badge { background: rgba(127, 127, 127, .16); color: var(--theia-descriptionForeground); }
 .ingot-mcp code { color: inherit; font-size: 11.5px; font-family: var(--theia-code-font-family, monospace); }
+
+/* IDEA-123: marketplace category chips and sections */
+.ingot-mcp-categories { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
+.ingot-mcp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--theia-panel-border); background: transparent; color: var(--theia-foreground); font-size: 12px; cursor: pointer; }
+.ingot-mcp-chip span { color: var(--theia-descriptionForeground); font-size: 11px; }
+.ingot-mcp-chip:hover { background: var(--theia-list-hoverBackground); }
+.ingot-mcp-chip.active { border-color: #3B6FD9; background: color-mix(in srgb, #3B6FD9 16%, transparent); }
+.ingot-mcp-chip.active span { color: inherit; }
+.ingot-mcp-category { margin-bottom: 18px; }
+.ingot-mcp-category h4 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--theia-descriptionForeground); }
+.ingot-mcp-category h4 span { margin-left: 4px; font-weight: 400; }

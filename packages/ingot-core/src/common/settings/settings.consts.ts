@@ -35,6 +35,7 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
             { id: 'editor-code-style', label: 'Code Style', preferences: ['editor.tabSize', 'editor.insertSpaces', 'editor.detectIndentation', 'files.insertFinalNewline', 'files.trimTrailingWhitespace'] }
         ]
     },
+    { id: 'account', label: 'Account', icon: 'account', preferences: ['ingot.account.syncSettings'], description: 'Your Ingot account on this device.' },
     { id: 'plugins', label: 'Plugins', icon: 'extensions', actions: [{ id: 'openPlugins', label: 'Open Marketplace…' }], description: 'Install themes and extensions from Open VSX.' },
     { id: 'vcs', label: 'Version Control', icon: 'source-control', preferences: ['scm.defaultViewMode', 'git.autofetch', 'git.confirmSync'] },
     {

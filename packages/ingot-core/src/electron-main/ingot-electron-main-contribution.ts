@@ -1,9 +1,11 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { execFile } from 'child_process';
-import { app, nativeImage, type BrowserWindow } from '@theia/core/electron-shared/electron';
+import { app, Menu, nativeImage, type BrowserWindow } from '@theia/core/electron-shared/electron';
 import { injectable } from '@theia/core/shared/inversify';
-import type { ElectronMainApplicationContribution } from '@theia/core/lib/electron-main/electron-main-application';
+import type { ElectronMainApplication, ElectronMainApplicationContribution } from '@theia/core/lib/electron-main/electron-main-application';
+import { parseRecentProjects, RECENT_WORKSPACE_FILE, type RecentProject } from '../common/recent/recent-projects';
 import { PRODUCT } from '../common/product.consts';
 
 /**
@@ -37,8 +39,13 @@ const prefersReducedMotion = (): Promise<boolean> => new Promise(resolve => {
 @injectable()
 export class IngotElectronMainContribution implements ElectronMainApplicationContribution {
 
-    onStart(): void {
+    protected application: ElectronMainApplication | undefined;
+    protected lastRecent = '';
+
+    onStart(application?: ElectronMainApplication): void {
+        this.application = application;
         app.setName(PRODUCT.name);
+        this.installRecentMenus();
         const icon = nativeImage.createFromPath(APP_ICON_PATH);
         if (icon.isEmpty()) {
             return;
@@ -64,5 +71,78 @@ export class IngotElectronMainContribution implements ElectronMainApplicationCon
             await new Promise(resolve => setTimeout(resolve, DOCK_FRAME_MS));
         }
         app.dock?.setIcon(finalIcon);
+    }
+
+    /** The config dir holding recentworkspace.json (the app package.json configurationFolder). */
+    protected recentFile(): string {
+        return path.join(process.env.THEIA_CONFIG_DIR ?? path.join(os.homedir(), '.ingot'), RECENT_WORKSPACE_FILE);
+    }
+
+    protected readRecent(): RecentProject[] {
+        try {
+            return parseRecentProjects(fs.readFileSync(this.recentFile(), 'utf8'));
+        } catch {
+            return [];
+        }
+    }
+
+    /** Dock menu (macOS) / jump list (Windows): New Window + recent projects (IDEA-75); refreshed when recents change. */
+    protected installRecentMenus(): void {
+        if (process.platform !== 'darwin' && process.platform !== 'win32') {
+            return;
+        }
+        const refresh = () => this.updateRecentMenus(this.readRecent());
+        app.whenReady().then(refresh);
+        fs.watchFile(this.recentFile(), { interval: 2000 }, refresh);
+        app.on('will-quit', () => fs.unwatchFile(this.recentFile()));
+    }
+
+    protected updateRecentMenus(recent: RecentProject[]): void {
+        const key = JSON.stringify(recent);
+        if (key === this.lastRecent) {
+            return;
+        }
+        this.lastRecent = key;
+        if (process.platform === 'darwin') {
+            app.dock?.setMenu(Menu.buildFromTemplate([
+                { label: 'New Window', click: () => this.newWindow() },
+                ...(recent.length ? [
+                    { type: 'separator' as const },
+                    { label: 'Recent', enabled: false },
+                    ...recent.map(r => ({ label: r.label, toolTip: r.path, click: () => this.openRecent(r.path) }))
+                ] : [])
+            ]));
+            for (const r of [...recent].reverse()) {
+                app.addRecentDocument(r.path);
+            }
+        } else {
+            const exe = process.execPath;
+            const appArgs = process.defaultApp && process.argv[1] ? [JSON.stringify(path.resolve(process.argv[1]))] : [];
+            const args = (...extra: string[]) => [...appArgs, ...extra].join(' ');
+            app.setUserTasks([{ program: exe, arguments: args('--new-window'), iconPath: exe, iconIndex: 0, title: 'New Window', description: 'Open a new Ingot window' }]);
+            try {
+                app.setJumpList([
+                    { type: 'tasks', items: [{ type: 'task', title: 'New Window', program: exe, args: args('--new-window'), iconPath: exe, iconIndex: 0, description: 'Open a new Ingot window' }] },
+                    ...(recent.length ? [{
+                        type: 'custom' as const, name: 'Recent',
+                        items: recent.map(r => ({ type: 'task' as const, title: r.label, description: r.path, program: exe, args: args(JSON.stringify(r.path)), iconPath: exe, iconIndex: 0 }))
+                    }] : [])
+                ]);
+            } catch {
+                // Jump lists can be disabled by policy; the user tasks above still work.
+            }
+        }
+    }
+
+    protected newWindow(): void {
+        this.application?.openDefaultWindow();
+    }
+
+    protected openRecent(fsPath: string): void {
+        if (!fs.existsSync(fsPath)) {
+            return;
+        }
+        // Protected in core, but it is the same path core uses for `ingot <folder>` from a second instance.
+        (this.application as unknown as { openWindowWithWorkspace(p: string): Promise<unknown> } | undefined)?.openWindowWithWorkspace(fsPath);
     }
 }
