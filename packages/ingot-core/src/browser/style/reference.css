@@ -107,14 +107,13 @@ button.ingot-tb-logo:hover { background: var(--ingot-primary-hover); }
 .ingot-rs-button.selected::before { content: ""; position: absolute; right: -4px; top: 6px; bottom: 6px; width: 2px; border-radius: 2px; background: var(--ingot-primary); }
 .ingot-rs-badge { position: absolute; top: 1px; right: 0; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; background: var(--ingot-primary); color: #fff; font: 600 8.5px/13px var(--theia-ui-font-family); text-align: center; }
 
-/* IDEA-61: top bar run/debug/stop, New Session and AI. */
+/* IDEA-61: top bar run/debug/stop and AI. */
 .ingot-tb-run-group { display: inline-flex; align-items: center; gap: 2px; margin-left: 2px; }
 .ingot-tb-icon { width: 26px; height: 26px; padding: 0; display: inline-grid; place-items: center; }
 .ingot-tb-icon .codicon { font-size: 15px; }
 .ingot-tb-icon:disabled { opacity: .35; cursor: default; }
 .ingot-tb-play .codicon { color: #3FA266; }
 .ingot-tb-sep { width: 1px; height: 16px; margin: 0 6px; background: var(--theia-panel-border); }
-#ingot-tb-new-session .codicon { font-size: 13px; margin-right: 3px; }
 
 /* IDEA-61: tool windows (Database, MCP, Services). */
 .ingot-tw { display: flex; flex-direction: column; height: 100%; overflow: auto; font-size: 12px; }
