@@ -1,6 +1,6 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
-import { DEFAULT_KEYCHAIN_SERVICE, PROVIDERS, REQUEST_TIMEOUT_MS } from '../common/models/models.consts';
+import { DEFAULT_KEYCHAIN_SERVICE, MAX_DICTATION_BYTES, PROVIDERS, REQUEST_TIMEOUT_MS, TRANSCRIBE_MODEL, TRANSCRIBE_PATH } from '../common/models/models.consts';
 import type { CompletionRequest, CompletionResult, ModelService, ProviderId, ProviderSettings, ProviderStatus, StreamPoll } from '../common/models/models.types';
 import { buildProviderRequest, findModel, findProvider, parseProviderError, parseProviderResponse, parseStreamLine, redactSecrets, resolveModelName } from '../common/models/models.utils';
 import type { CatalogModel, HttpRequestSpec, ProviderInfo } from '../common/models/models.types';
@@ -57,6 +57,30 @@ export class IngotModelService implements ModelService {
 
     async deleteKey(provider: ProviderId): Promise<void> {
         await this.keyStore.deletePassword(this.service, provider);
+    }
+
+    /** Transcribes dictation audio with the OpenAI key from the keychain; the key never leaves the backend. */
+    async transcribe(audioBase64: string, mimeType: string): Promise<string> {
+        const audio = Buffer.from(audioBase64, 'base64');
+        if (!audio.length || audio.length > MAX_DICTATION_BYTES) {
+            throw new Error('Recording is empty or too long.');
+        }
+        const key = await this.keyStore.getPassword(this.service, 'openai').catch(() => undefined);
+        if (!key) {
+            throw new Error('Voice dictation needs speech-to-text: sign in to Ingot or add an OpenAI key in Settings › Models.');
+        }
+        const form = new FormData();
+        const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+        form.append('file', new Blob([audio], { type: mimeType }), `dictation.${ext}`);
+        form.append('model', TRANSCRIBE_MODEL);
+        const response = await fetch(`${findProvider('openai').baseUrl}${TRANSCRIBE_PATH}`, {
+            method: 'POST', headers: { authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+        });
+        const json = await response.json().catch(() => ({})) as { text?: string };
+        if (!response.ok) {
+            throw new Error(redactSecrets(parseProviderError(json) ?? `Transcription failed (${response.status}).`, [key]));
+        }
+        return String(json.text ?? '').trim();
     }
 
     protected async prepare(request: CompletionRequest, stream: boolean): Promise<{ model: CatalogModel; info: ProviderInfo; key?: string; name: string; spec: HttpRequestSpec }> {

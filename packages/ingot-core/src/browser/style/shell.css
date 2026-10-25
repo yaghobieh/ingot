@@ -762,3 +762,136 @@ body.ingot-explorer-current .ingot-explorer-actions { display: flex; }
 .ingot-explorer-action { width: 22px; height: 22px; border: 0; border-radius: 4px; background: transparent; color: var(--theia-descriptionForeground); cursor: pointer; font-size: 14px; display: grid; place-items: center; padding: 0; }
 .ingot-explorer-action:hover { background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); color: var(--theia-foreground); }
 body.ingot-explorer-collapsed #explorer-view-container > .lm-SplitPanel { visibility: hidden; }
+
+/* IDEA-98: open chats as one compact row of tabs; + and History at the right end. */
+.ingot-agents .ingot-agents-header { gap: 2px; padding: 0 6px 0 0; height: 36px; }
+.ingot-agents .ingot-agents-header .ingot-icon-button { margin-left: 0; flex: none; }
+.ingot-chat-tabs-wrap { display: flex; align-items: stretch; flex: 1; min-width: 0; height: 100%; }
+.ingot-agents .ingot-chat-tabs { display: flex; flex: 1; min-width: 0; height: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-behavior: smooth; }
+.ingot-agents .ingot-chat-tab { position: relative; display: flex; align-items: center; gap: 5px; flex: none; min-width: 44px; max-width: 160px; height: 100%; padding: 0 4px 0 10px;
+    border: 0; border-right: 1px solid color-mix(in srgb, var(--theia-panel-border) 70%, transparent); box-shadow: none; font-size: 12px; color: var(--theia-descriptionForeground); cursor: pointer; user-select: none; }
+.ingot-agents .ingot-chat-tab:focus { outline: none; }
+.ingot-agents .ingot-chat-tab:focus-visible { outline: 1px solid var(--theia-focusBorder); outline-offset: -1px; }
+.ingot-agents .ingot-chat-tab:hover { background: color-mix(in srgb, var(--theia-foreground) 4%, transparent); color: var(--theia-foreground); }
+.ingot-agents .ingot-chat-tab.active { color: var(--theia-foreground); }
+.ingot-agents .ingot-chat-tab::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: 0; height: 2px; border-radius: 2px 2px 0 0; background: transparent; }
+.ingot-agents .ingot-chat-tab.active::after { background: var(--ingot-primary, var(--theia-tab-activeBorder)); }
+.ingot-agents .ingot-chat-tab.context-warn::after { background: #E0A100; }
+.ingot-agents .ingot-chat-tab.context-full::after { background: #E5484D; left: 0; right: 0; }
+.ingot-agents .ingot-chat-tab.untitled { min-width: 40px; }
+.ingot-chat-tab-blank { font-size: 13px; opacity: .55; }
+.ingot-chat-tab-pin { font-size: 11px; opacity: .7; }
+.ingot-agents .ingot-chat-tab .ingot-chat-tab-close { width: 18px; height: 18px; display: grid; place-items: center; opacity: 0; flex: none; }
+.ingot-agents .ingot-chat-tab:hover .ingot-chat-tab-close { opacity: .75; }
+.ingot-agents .ingot-chat-tab.active .ingot-chat-tab-close { opacity: 0; }
+.ingot-agents .ingot-chat-tab.active:hover .ingot-chat-tab-close { opacity: .75; }
+.ingot-chat-tabs-scroll { flex: none; width: 18px; border: 0; background: transparent; color: var(--theia-descriptionForeground); cursor: pointer; font-size: 12px; padding: 0; }
+.ingot-chat-tabs-scroll:hover { color: var(--theia-foreground); background: var(--theia-toolbar-hoverBackground); }
+.ingot-tab-menu-backdrop { position: fixed; inset: 0; z-index: 1000; }
+.ingot-tab-menu { position: fixed; min-width: 168px; padding: 4px; border-radius: 8px; background: var(--theia-menu-background, var(--theia-editorWidget-background));
+    border: 1px solid var(--theia-menu-border, var(--theia-panel-border)); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); display: flex; flex-direction: column; }
+.ingot-tab-menu-item { text-align: left; border: 0; background: transparent; color: var(--theia-menu-foreground, var(--theia-foreground)); font: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+.ingot-tab-menu-item:hover { background: var(--theia-menu-selectionBackground, var(--theia-list-hoverBackground)); color: var(--theia-menu-selectionForeground, inherit); }
+.ingot-tab-menu-item.danger { color: #E5484D; }
+.ingot-tab-menu-sep { height: 1px; margin: 4px 6px; background: var(--theia-panel-border); }
+
+/* IDEA-98: inline composer with code and image chips between the text. */
+.ingot-composer-input[contenteditable] { position: relative; white-space: pre-wrap; word-break: break-word; cursor: text; outline: none; padding: 2px 0; }
+.ingot-composer-input.empty::before { content: attr(data-placeholder); color: var(--theia-input-placeholderForeground, var(--theia-descriptionForeground)); pointer-events: none; position: absolute; }
+.ingot-chip.ingot-chip-inline { vertical-align: baseline; height: 18px; line-height: 18px; margin: 0 1px; padding: 0 3px 0 5px; gap: 4px; cursor: pointer; user-select: none; white-space: nowrap; }
+.ingot-chip-inline .codicon-code { font-size: 12px; opacity: .8; }
+.ingot-chip-inline .ingot-chip-remove { cursor: pointer; font-size: 11px; opacity: .55; border-radius: 3px; }
+.ingot-chip-inline .ingot-chip-remove:hover { opacity: 1; background: color-mix(in srgb, var(--theia-foreground) 12%, transparent); }
+.ingot-chip-sent.ingot-chip-inline { cursor: default; }
+.ingot-chip-image .ingot-chip-thumb { width: 16px; height: 16px; object-fit: cover; border-radius: 3px; }
+.ingot-chip-image .ingot-chip-label { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.ingot-chip-preview.ingot-chip-preview-floating { display: block; position: fixed; bottom: auto; z-index: 2000; pointer-events: none; }
+.ingot-chip-preview-floating img { display: block; max-width: 320px; max-height: 240px; border-radius: 4px; }
+.ingot-chat-parts { white-space: pre-wrap; word-break: break-word; }
+.ingot-chat-parts .ingot-chip-image { cursor: zoom-in; }
+.ingot-composer-attach { width: 24px; height: 24px; display: grid; place-items: center; cursor: pointer; color: var(--theia-descriptionForeground); }
+.ingot-composer-attach:hover { color: var(--theia-foreground); }
+.ingot-lightbox { position: fixed; inset: 0; z-index: 3000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: rgba(0, 0, 0, .6); cursor: zoom-out; }
+.ingot-lightbox img { max-width: 86vw; max-height: 80vh; border-radius: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, .4); }
+.ingot-lightbox-name { color: #fff; font-size: 12px; opacity: .85; }
+
+/* IDEA-100: agent replies as Markdown, assistant header, collapsible "Read rules" step. */
+.ingot-agents .ingot-chat-agent { display: flex; flex-direction: column; gap: 6px; }
+.ingot-chat-agent-head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--theia-foreground); }
+.ingot-chat-agent-head b { font-weight: 600; }
+.ingot-chat-logo { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; font: 700 9px/1 var(--theia-code-font-family, monospace); letter-spacing: -.5px;
+    color: #fff; background: linear-gradient(135deg, #4C82F7, #3B6FD9); }
+.ingot-md { font-size: 12.5px; line-height: 1.55; color: var(--theia-foreground); overflow-wrap: anywhere; }
+.ingot-md > :first-child { margin-top: 0; }
+.ingot-md > :last-child { margin-bottom: 0; }
+.ingot-md p { margin: 0 0 8px; }
+.ingot-md h1, .ingot-md h2, .ingot-md h3 { font-size: 14px; font-weight: 650; margin: 4px 0 6px; line-height: 1.35; }
+.ingot-md h4, .ingot-md h5, .ingot-md h6 { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--theia-descriptionForeground); margin: 14px 0 6px; }
+.ingot-md ul, .ingot-md ol { margin: 0 0 8px; padding-left: 18px; }
+.ingot-md li { margin: 2px 0; }
+.ingot-md li::marker { color: var(--theia-descriptionForeground); }
+.ingot-md strong { font-weight: 650; }
+.ingot-md a { color: var(--theia-textLink-foreground); text-decoration: none; }
+.ingot-md a:hover { text-decoration: underline; }
+.ingot-md :not(pre) > code { font-family: var(--theia-code-font-family, monospace); font-size: 11.5px; padding: 1px 5px; border-radius: 4px;
+    background: color-mix(in srgb, var(--theia-foreground) 9%, transparent); border: 1px solid color-mix(in srgb, var(--theia-foreground) 10%, transparent); }
+.ingot-md blockquote { margin: 0 0 8px; padding: 4px 10px; border-left: 3px solid #8B5CF6; color: var(--theia-descriptionForeground);
+    background: color-mix(in srgb, #8B5CF6 6%, transparent); border-radius: 0 6px 6px 0; }
+.ingot-md blockquote p { margin: 0; }
+.ingot-md hr { border: 0; border-top: 1px solid var(--theia-panel-border); margin: 10px 0; }
+.ingot-md-table { overflow-x: auto; margin: 0 0 10px; border: 1px solid color-mix(in srgb, var(--theia-foreground) 12%, transparent); border-radius: 7px; }
+.ingot-md table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.ingot-md th { text-align: left; font-weight: 600; font-size: 11px; color: var(--theia-descriptionForeground); background: color-mix(in srgb, var(--theia-foreground) 4%, transparent); }
+.ingot-md th, .ingot-md td { padding: 7px 10px; vertical-align: top; border-bottom: 1px solid color-mix(in srgb, var(--theia-foreground) 9%, transparent); }
+.ingot-md tr:last-child td { border-bottom: 0; }
+.ingot-md-code { margin: 0 0 10px; border: 1px solid color-mix(in srgb, var(--theia-foreground) 12%, transparent); border-radius: 7px; overflow: hidden;
+    background: var(--theia-editor-background); }
+.ingot-md-code-head { display: flex; align-items: center; justify-content: space-between; height: 26px; padding: 0 6px 0 10px; font-size: 11px; color: var(--theia-descriptionForeground);
+    border-bottom: 1px solid color-mix(in srgb, var(--theia-foreground) 8%, transparent); background: color-mix(in srgb, var(--theia-foreground) 3%, transparent); }
+.ingot-md-copy { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: inherit; font: inherit; font-size: 11px; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.ingot-md-copy:hover { color: var(--theia-foreground); background: var(--theia-toolbar-hoverBackground); }
+.ingot-md-copy.copied { color: var(--ingot-success, #2EA043); }
+.ingot-md-copy .codicon { font-size: 12px; }
+.ingot-md pre { margin: 0; padding: 8px 10px; overflow-x: auto; font-family: var(--theia-code-font-family, monospace); font-size: 11.5px; line-height: 1.5; white-space: pre; }
+.ingot-md pre code { background: none; border: 0; padding: 0; font: inherit; }
+.ingot-md pre .monaco-tokenized-source { white-space: pre; }
+.ingot-chat-read { display: flex; flex-direction: column; border: 1px solid color-mix(in srgb, var(--theia-foreground) 8%, transparent); border-radius: 6px; font-size: 11.5px; }
+.ingot-chat-read-row { display: flex; align-items: center; gap: 6px; min-width: 0; height: 26px; padding: 0 8px; border: 0; background: transparent; color: var(--theia-descriptionForeground); font: inherit; cursor: pointer; text-align: left; }
+.ingot-chat-read-row:hover { color: var(--theia-foreground); background: color-mix(in srgb, var(--theia-foreground) 4%, transparent); }
+.ingot-chat-read-mark { color: var(--ingot-success, #2EA043); font-size: 12px; }
+.ingot-chat-read-label { flex: none; }
+.ingot-chat-read-items { display: flex; gap: 4px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.ingot-chat-read-items code { font-family: var(--theia-code-font-family, monospace); font-size: 11px; color: var(--theia-foreground); }
+.ingot-chat-read-items code + code::before { content: ', '; color: var(--theia-descriptionForeground); }
+.ingot-chat-read-list { list-style: none; margin: 0; padding: 2px 10px 8px 28px; display: flex; flex-direction: column; gap: 3px; color: var(--theia-foreground); }
+.ingot-chat-read-list li { display: flex; align-items: center; gap: 6px; }
+.ingot-chat-read-list .codicon { font-size: 12px; color: var(--theia-descriptionForeground); }
+.ingot-composer-input.drop-target { outline: 1px dashed var(--ingot-primary, var(--theia-focusBorder)); outline-offset: 2px; border-radius: 4px; }
+
+/* IDEA-98: voice dictation + context ring breakdown */
+.ingot-composer-mic { position: relative; }
+.ingot-composer-mic.listening { color: #fff; background: #E5484D; border-radius: 50%; animation: ingot-mic-pulse 1.2s ease-in-out infinite; }
+@keyframes ingot-mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #E5484D 50%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+.ingot-dictation-interim { max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-style: italic; }
+button.ingot-context-ring { border: 0; background: transparent; padding: 0; cursor: pointer; border-radius: 50%; color: inherit; }
+button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true'] { background: var(--theia-toolbar-hoverBackground); opacity: 1; }
+.ingot-context-popover { right: 0; left: auto; bottom: calc(100% + 6px); top: auto; width: 290px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
+.ingot-context-head { display: flex; align-items: baseline; }
+.ingot-context-title { font-weight: 600; }
+.ingot-context-total { font-variant-numeric: tabular-nums; opacity: .8; }
+.ingot-context-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--theia-panel-border); }
+.ingot-context-seg { height: 100%; }
+.ingot-context-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ingot-context-row { display: flex; align-items: center; gap: 8px; }
+.ingot-context-tokens { font-variant-numeric: tabular-nums; opacity: .8; }
+.ingot-context-dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.seg-system { background: #6E8BFF; }
+.seg-rules { background: #B57BFF; }
+.seg-files { background: #3DB9CF; }
+.seg-history { background: #46A758; }
+.seg-tools { background: #E3B341; }
+.seg-memories { background: #F76B8A; }
+.ingot-context-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; border-top: 1px solid var(--theia-panel-border); padding-top: 8px; }
+.ingot-btn-secondary { border: 1px solid var(--theia-panel-border); background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; padding: 3px 10px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px; }
+.ingot-btn-secondary:hover { background: var(--theia-toolbar-hoverBackground); }
+.ingot-context-actions .ingot-btn-primary { display: inline-flex; align-items: center; gap: 4px; }
