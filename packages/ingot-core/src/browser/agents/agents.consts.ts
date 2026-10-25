@@ -1,5 +1,7 @@
 export const AGENTS_WIDGET_ID = 'ingot-agents';
 export const AGENTS_WIDGET_LABEL = 'Agents';
+/** Status bar item naming the active chat's model (IDEA-104). */
+export const CHAT_MODEL_STATUS_ID = 'ingot-chat-model-status';
 
 export const AGENT_COMMANDS = {
     toggle: { id: 'ingot.agents.toggle', label: 'Agents', category: 'View' },
