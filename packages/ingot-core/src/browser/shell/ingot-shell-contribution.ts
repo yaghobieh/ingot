@@ -14,9 +14,10 @@ import { WidgetManager } from '@theia/core/lib/browser/widget-manager';
 import { ViewContainer } from '@theia/core/lib/browser/view-container';
 import { IngotProjectTabsWidget } from '../groups/project-tabs-widget';
 import { pinProjectLabel } from '../navigator/project-label';
+import { IngotExplorerHeader } from '../navigator/explorer-header';
+import { EXPLORER_CONTAINER_ID } from '../navigator/navigator.consts';
 import { DEFAULT_LAYOUT_COMMANDS, INGOT_SHELL_COMMANDS } from './ingot-shell.consts';
 
-const EXPLORER_CONTAINER_ID = 'explorer-view-container';
 
 type SideArea = 'left' | 'right' | 'bottom';
 const SIDE_AREAS: readonly SideArea[] = ['left', 'right', 'bottom'];
@@ -52,6 +53,9 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     @inject(IngotProjectTabsWidget)
     protected readonly projectTabs: IngotProjectTabsWidget;
 
+    @inject(IngotExplorerHeader)
+    protected readonly explorerHeader: IngotExplorerHeader;
+
     onStart(_app: FrontendApplication): void {
         this.shell.addWidget(this.toolbar, { area: 'top' });
         this.shell.addWidget(this.projectTabs, { area: 'top' });
@@ -71,11 +75,13 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         this.shell.collapsePanel('bottom');
     }
 
-    /** Ingot calls the file tree "Project". */
+    /** The file tree is labelled with the project name, with a fold chevron and file actions (IDEA-93). */
     protected async renameProjectView(): Promise<void> {
         const explorer = await this.widgets.getWidget(EXPLORER_CONTAINER_ID);
         if (explorer instanceof ViewContainer) {
-            pinProjectLabel(explorer);
+            const refresh = pinProjectLabel(explorer, () => this.workspace.tryGetRoots()[0]?.resource.path.base);
+            this.workspace.onWorkspaceChanged(() => refresh());
+            this.explorerHeader.attach();
             // Only the file tree: no Open Editors or script sections under PROJECT (plugins add theirs later).
             const filesOnly = (): void => explorer.getParts().filter(part => part.wrapped.id !== 'files' && !part.isHidden).forEach(part => part.setHidden(true));
             filesOnly();
