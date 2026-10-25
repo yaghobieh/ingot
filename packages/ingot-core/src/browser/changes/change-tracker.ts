@@ -26,6 +26,8 @@ interface EditorView {
     readonly control: monaco.editor.ICodeEditor;
     readonly decorations: monaco.editor.IEditorDecorationsCollection;
     readonly zoneIds: string[];
+    readonly overlays: monaco.editor.IOverlayWidget[];
+    readonly listeners: { dispose(): void }[];
     readonly bar?: HTMLElement;
 }
 
@@ -375,6 +377,8 @@ export class ChangeTracker {
         for (const view of this.views.get(id) ?? []) {
             view.decorations.clear();
             view.control.changeViewZones(accessor => view.zoneIds.forEach(z => accessor.removeZone(z)));
+            view.overlays.forEach(o => view.control.removeOverlayWidget(o));
+            view.listeners.forEach(l => l.dispose());
             view.bar?.remove();
         }
         this.views.delete(id);
@@ -407,25 +411,52 @@ export class ChangeTracker {
         }
         const collection = control.createDecorationsCollection(decorations);
         const zoneIds: string[] = [];
+        const overlays: monaco.editor.IOverlayWidget[] = [];
+        const listeners: { dispose(): void }[] = [];
         if (!streaming) {
+            // The removed lines live in a view zone; the Accept / Reject row is an overlay widget on top of it,
+            // because Monaco's text layer sits above view zones and would swallow the clicks.
+            const rows: { node: HTMLElement; line: number; height: number }[] = [];
             control.changeViewZones(accessor => {
                 for (const hunk of pendingHunks) {
                     const start = positions.get(hunk.id)?.start ?? 0;
-                    zoneIds.push(accessor.addZone({ afterLineNumber: start, heightInLines: 1 + hunk.removed.length, domNode: this.hunkZone(change, hunk), suppressMouseDown: true }));
+                    const heightInLines = 1 + hunk.removed.length;
+                    zoneIds.push(accessor.addZone({ afterLineNumber: start, heightInLines, domNode: this.hunkZone(hunk, control.getOption(monaco.editor.EditorOption.lineHeight)), suppressMouseDown: true }));
+                    const node = this.hunkActions(change, hunk);
+                    const overlay: monaco.editor.IOverlayWidget = { getId: () => `ingot.hunk.${change.id}.${hunk.id}`, getDomNode: () => node, getPosition: () => null };
+                    control.addOverlayWidget(overlay);
+                    overlays.push(overlay);
+                    rows.push({ node, line: start + 1, height: heightInLines });
                 }
             });
+            const place = (): void => {
+                const lineHeight = control.getOption(monaco.editor.EditorOption.lineHeight);
+                const layout = control.getLayoutInfo();
+                const lines = control.getModel()?.getLineCount() ?? 0;
+                for (const row of rows) {
+                    // The zone sits right above `row.line` (or below the last line when the hunk ends the file).
+                    const below = row.line > lines ? control.getTopForLineNumber(lines) + lineHeight : control.getTopForLineNumber(row.line);
+                    const top = below - row.height * lineHeight - control.getScrollTop();
+                    const visible = top > -lineHeight && top < layout.height - lineHeight;
+                    row.node.style.display = visible ? '' : 'none';
+                    row.node.style.top = `${top}px`;
+                    row.node.style.left = `${layout.contentLeft}px`;
+                    row.node.style.height = `${lineHeight}px`;
+                }
+            };
+            listeners.push(control.onDidScrollChange(place), control.onDidLayoutChange(place), control.onDidChangeModelContent(place));
+            place();
+            requestAnimationFrame(place);
         }
         const bar = streaming ? undefined : this.fileBar(change);
         if (bar) {
             widget.node.appendChild(bar);
         }
-        return { control, decorations: collection, zoneIds, bar };
+        return { control, decorations: collection, zoneIds, overlays, listeners, bar };
     }
 
-    /** CodeLens-style row above a hunk (Accept / Reject) followed by the removed lines in red. */
-    protected hunkZone(change: CodeChange, hunk: ChangeHunk): HTMLElement {
-        const node = document.createElement('div');
-        node.className = 'ingot-hunk-zone';
+    /** CodeLens-style row above a hunk: Accept / Reject and the +/− counts (an overlay widget). */
+    protected hunkActions(change: CodeChange, hunk: ChangeHunk): HTMLElement {
         const actions = document.createElement('div');
         actions.className = 'ingot-hunk-actions';
         const button = (label: string, cls: string, id: string, state: HunkState): HTMLButtonElement => {
@@ -450,7 +481,17 @@ export class ChangeTracker {
         counts.className = 'ingot-hunk-counts';
         counts.innerHTML = `<span class="ingot-plus">+${hunk.added.length}</span> <span class="ingot-minus">−${hunk.removed.length}</span>`;
         actions.append(counts);
-        node.append(actions);
+        return actions;
+    }
+
+    /** The view zone above a hunk: room for the action row, then the removed lines in red. */
+    protected hunkZone(hunk: ChangeHunk, lineHeight: number): HTMLElement {
+        const node = document.createElement('div');
+        node.className = 'ingot-hunk-zone';
+        const spacer = document.createElement('div');
+        spacer.className = 'ingot-hunk-spacer';
+        spacer.style.height = `${lineHeight}px`;
+        node.append(spacer);
         if (hunk.removed.length) {
             const removed = document.createElement('div');
             removed.className = 'ingot-diff-removed-zone';

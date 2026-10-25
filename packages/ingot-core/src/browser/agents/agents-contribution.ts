@@ -1,14 +1,13 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
-import { AbstractViewContribution, type KeybindingContribution, type KeybindingRegistry } from '@theia/core/lib/browser';
+import { AbstractViewContribution } from '@theia/core/lib/browser';
 import type { CommandRegistry } from '@theia/core/lib/common';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
 import { AgentStore } from './agent-store';
 import { ChangeTracker } from '../changes/change-tracker';
-import { CHANGE_COMMANDS, NEXT_CHANGE_KEY, PREV_CHANGE_KEY } from '../changes/changes.browser-consts';
-import { CHANGES_PENDING_KEY } from '../../common/changes/changes.consts';
+import { CHANGE_COMMANDS } from '../changes/changes.browser-consts';
 import { IngotAgentsWidget } from './agents-widget';
-import { ACCEPT_EDIT_KEY, AGENT_COMMANDS, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL, DEMO_MARKER, REJECT_EDIT_KEY } from './agents.consts';
+import { AGENT_COMMANDS, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL, DEMO_MARKER } from './agents.consts';
 
 /** Demo transformation: annotate the first function-like line so the review UI can be tried without a model. */
 const demoEdit = (text: string): string => {
@@ -20,7 +19,7 @@ const demoEdit = (text: string): string => {
 };
 
 @injectable()
-export class IngotAgentsContribution extends AbstractViewContribution<IngotAgentsWidget> implements KeybindingContribution {
+export class IngotAgentsContribution extends AbstractViewContribution<IngotAgentsWidget> {
 
     @inject(AgentStore) protected readonly store: AgentStore;
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
@@ -53,15 +52,6 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
             }
         });
         registry.registerCommand(AGENT_COMMANDS.demoEdit, { execute: () => this.runDemo() });
-    }
-
-    override registerKeybindings(keybindings: KeybindingRegistry): void {
-        super.registerKeybindings(keybindings);
-        keybindings.registerKeybinding({ command: AGENT_COMMANDS.acceptEdit.id, keybinding: ACCEPT_EDIT_KEY, when: CHANGES_PENDING_KEY });
-        keybindings.registerKeybinding({ command: AGENT_COMMANDS.rejectEdit.id, keybinding: REJECT_EDIT_KEY, when: CHANGES_PENDING_KEY });
-        // While agent changes wait, ⌥↓ / ⌥↑ jump between them (instead of moving lines).
-        keybindings.registerKeybinding({ command: CHANGE_COMMANDS.next.id, keybinding: NEXT_CHANGE_KEY, when: CHANGES_PENDING_KEY });
-        keybindings.registerKeybinding({ command: CHANGE_COMMANDS.prev.id, keybinding: PREV_CHANGE_KEY, when: CHANGES_PENDING_KEY });
     }
 
     protected async runDemo(): Promise<void> {

@@ -688,7 +688,6 @@ export class IngotAgentsWidget extends ReactWidget {
         return <div className='ingot-changes-bar' id='ingot-changes-bar'>
             <span className='codicon codicon-diff' />
             <span id='ingot-changes-summary'>{changesSummary(pending.length)} · {hunks} {hunks === 1 ? 'change' : 'changes'} <span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
-            <span className='ingot-flex' />
             <button type='button' className='ingot-btn-ghost ingot-changes-nav' title='Previous change (⌥↑)' onClick={() => this.tracker.navigate(-1)}><span className='codicon codicon-arrow-up' /></button>
             <button type='button' className='ingot-btn-ghost ingot-changes-nav' title='Next change (⌥↓)' onClick={() => this.tracker.navigate(1)}><span className='codicon codicon-arrow-down' /></button>
             <button type='button' id='ingot-changes-reject-all' className='ingot-btn-ghost' onClick={() => this.tracker.decideAll('rejected', session.id)}>Reject All</button>

@@ -96,9 +96,9 @@ test.describe('IDEA-102 code-change blocks (desktop)', () => {
         await page.locator('.monaco-editor .view-lines').first().click();
         await page.keyboard.press('Meta+ArrowUp');
         await page.keyboard.press('Alt+ArrowDown');
-        await expect(page.locator('#theia-statusBar')).toContainText(/Ln 18\b/);
+        await expect(page.locator('#theia-statusBar')).toContainText(/(?<!\d)18:1\b/);
         await page.keyboard.press('Alt+ArrowUp');
-        await expect(page.locator('#theia-statusBar')).toContainText(/Ln 1\b/);
+        await expect(page.locator('#theia-statusBar')).toContainText(/(?<!\d)1:1\b/);
 
         // Accept the first hunk in the editor (CodeLens row), reject the second in the block.
         await page.locator('.ingot-hunk-accept').first().click();

@@ -921,7 +921,7 @@ button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true']
 .ingot-change-file { display: inline-flex; align-items: center; gap: 5px; padding: 0; min-width: 0; overflow: hidden; }
 .ingot-change-file:hover .ingot-change-name { text-decoration: underline; }
 .ingot-change-dir { color: var(--theia-descriptionForeground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ingot-change-name { font-weight: 600; white-space: nowrap; }
+.ingot-change-name { font-weight: 600; white-space: nowrap; flex-shrink: 0; }
 .ingot-change-stats { font-family: var(--theia-code-font-family); font-size: 12px; white-space: nowrap; }
 .ingot-change-status { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--theia-badge-background); color: var(--theia-badge-foreground); white-space: nowrap; }
 .ingot-change-status-streaming { background: rgba(59, 123, 240, .16); color: #3B7BF0; }
@@ -949,6 +949,8 @@ button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true']
 .ingot-mark.ingot-mark-still .im-shine { display: none; }
 
 .ingot-changes-bar { display: flex; align-items: center; gap: 6px; margin: 0 10px 6px; padding: 6px 8px; border: 1px solid var(--theia-panel-border); border-radius: 8px; background: var(--theia-sideBar-background); font-size: 12px; }
+#ingot-changes-summary { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-changes-bar button { white-space: nowrap; flex-shrink: 0; }
 .ingot-changes-nav { padding: 2px 4px; }
 .ingot-chat-revert { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; padding: 1px 6px; border-radius: 4px; font-size: 11px; color: var(--theia-descriptionForeground); opacity: 0; transition: opacity .15s; }
 .ingot-chat-msg:hover .ingot-chat-revert, .ingot-chat-revert:focus-visible { opacity: 1; }
@@ -956,6 +958,7 @@ button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true']
 
 /* Editor: CodeLens-style hunk rows, removed lines and the </> gutter mark */
 .ingot-hunk-zone { font-family: var(--theia-ui-font-family); }
+.monaco-editor .overlayWidgets .ingot-hunk-actions { position: absolute; z-index: 5; font-family: var(--theia-ui-font-family); }
 .ingot-hunk-actions { display: flex; align-items: center; gap: 4px; height: 100%; max-height: var(--ingot-line, 19px); font-size: 11px; padding-left: 4px; }
 .ingot-hunk-actions button { border: 0; border-radius: 3px; padding: 0 7px; font: inherit; font-size: 11px; line-height: 16px; cursor: pointer; }
 .ingot-hunk-accept { background: var(--theia-button-background); color: var(--theia-button-foreground); }
