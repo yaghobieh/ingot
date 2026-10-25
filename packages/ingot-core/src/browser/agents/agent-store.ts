@@ -34,6 +34,8 @@ import { applicableRules, expandCommand, formatRules } from '../../common/projec
 import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
 import type { ProjectCommand } from '../../common/project-config/project-config.types';
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
+import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
+import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
 
 let nextId = 1;
 const newChatId = (): string => `chat-${Date.now().toString(36)}-${nextId++}`;
@@ -51,6 +53,9 @@ export class AgentStore {
     @inject(FileService) protected readonly files: FileService;
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
+    @inject(PreferenceService) protected readonly preferences: PreferenceService;
+    /** IDEA-105: paused runs waiting for Continue (or the countdown), per session. */
+    protected readonly pauses = new Map<string, { resolve: (go: boolean) => void; timer?: ReturnType<typeof setTimeout> }>();
     /** Live edit views started while a reply streams, keyed by chat, message and path. */
     protected readonly streamingEdits = new Map<string, Promise<string | undefined>>();
     @inject(ProjectConfigService) protected readonly projectConfig: ProjectConfigService;
@@ -64,6 +69,11 @@ export class AgentStore {
     protected restore(): void {
         this.items = parseChats(localStorage.getItem(CHATS_STORAGE_KEY));
         this.selected = this.tabs[0]?.id;
+        this.preferences.onPreferenceChanged(e => {
+            if (e.preferenceName.startsWith('ingot.agent.review')) {
+                this.onDidChangeEmitter.fire();
+            }
+        });
     }
     protected readonly running = new Map<string, () => void>();
     /** Project /commands and skills for the composer menu (refreshed by `loadCommands`). */
@@ -377,7 +387,75 @@ export class AgentStore {
     stop(id: string): void {
         this.running.get(id)?.();
         this.running.delete(id);
+        this.releasePause(id, false);
         this.changed();
+    }
+
+    get review(): ReviewSettings {
+        return reviewSettings(key => this.preferences.get(key));
+    }
+
+    /** Composer quick toggle / Toggle Agent Review command (user settings). */
+    async setReviewEnabled(enabled: boolean): Promise<void> {
+        await this.preferences.set(REVIEW_PREFS.enabled, enabled, PreferenceScope.User);
+        this.changed();
+    }
+
+    /** IDEA-105: "Continue now" on a paused run (also what the countdown does). */
+    continueRun(id: string): void {
+        this.releasePause(id, true);
+    }
+
+    /** IDEA-105: "Wait" or any review interaction: stop the countdown, keep the run paused. */
+    holdPause(id: string): void {
+        const session = this.sessions.find(s => s.id === id);
+        const pause = this.pauses.get(id);
+        if (!session?.pause || session.pause.continueAt === undefined || !pause) {
+            return;
+        }
+        clearTimeout(pause.timer);
+        pause.timer = undefined;
+        session.pause = { ...session.pause, continueAt: undefined };
+        this.syncPause(session);
+        this.changed();
+    }
+
+    /** The floating review bar in the editor shows the paused run too (IDEA-105). */
+    protected syncPause(session: AgentSession): void {
+        const pause = session.pause;
+        this.tracker.setPause(pause ? { ...pause, onContinue: () => this.continueRun(session.id) } : undefined);
+    }
+
+    protected releasePause(id: string, go: boolean): void {
+        const pause = this.pauses.get(id);
+        if (pause) {
+            clearTimeout(pause.timer);
+            this.pauses.delete(id);
+            pause.resolve(go);
+        }
+    }
+
+    /** Waits at a checkpoint until Continue, the countdown, or Stop (false). */
+    protected waitAtCheckpoint(session: AgentSession, applied: number, total: number): Promise<boolean> {
+        const seconds = this.review.autoContinueSeconds;
+        session.status = 'paused';
+        session.pause = { applied, total, continueAt: seconds > 0 ? Date.now() + seconds * 1000 : undefined };
+        session.updatedAt = Date.now();
+        this.syncPause(session);
+        this.changed();
+        return new Promise<boolean>(resolve => {
+            const entry: { resolve: (go: boolean) => void; timer?: ReturnType<typeof setTimeout> } = { resolve };
+            if (seconds > 0) {
+                entry.timer = setTimeout(() => this.releasePause(session.id, true), seconds * 1000);
+            }
+            this.pauses.set(session.id, entry);
+        }).then(go => {
+            session.pause = undefined;
+            this.syncPause(session);
+            session.status = go ? 'editing' : 'idle';
+            this.changed();
+            return go;
+        });
     }
 
     /** Root the agent works in: its project (groups) or the first workspace root. */
@@ -638,19 +716,33 @@ export class AgentStore {
         session.plan = session.plan.map(p => ({ ...p, state: 'done' }));
         const messageIndex = session.messages.map(m => m.role).lastIndexOf('agent');
         const origin = this.originOf(session, messageIndex);
+        const review = this.review;
         const ids: string[] = [];
-        for (const edit of edits) {
-            if (!root || !isSafeRelativePath(edit.path)) {
-                session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": agents can only change files inside the project.` });
-                continue;
+        // IDEA-105: many files pause for review at checkpoints of `reviewPauseThreshold` files.
+        const batches = checkpoints(edits, review.pauseThreshold);
+        let applied = 0;
+        for (const [b, batch] of batches.entries()) {
+            for (const edit of batch) {
+                applied++;
+                if (!root || !isSafeRelativePath(edit.path)) {
+                    session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": agents can only change files inside the project.` });
+                    continue;
+                }
+                // Wait for the live view of this file (if it streamed) so the final text lands on the same change.
+                await this.streamingEdits.get(`${session.id}\u0000${messageIndex}\u0000${edit.path}`);
+                const change = await this.tracker.finalize(origin, edit.path, root.resolve(edit.path), edit.content);
+                const stats = this.tracker.stats(change);
+                session.steps = [...session.steps, { kind: 'edit', target: edit.path, done: true, added: stats.added, removed: stats.removed }];
+                ids.push(change.id);
+                if (review.autoAccept) {
+                    await this.tracker.decide(change.id, 'all', 'accepted');
+                }
+                this.changed();
             }
-            // Wait for the live view of this file (if it streamed) so the final text lands on the same change.
-            await this.streamingEdits.get(`${session.id}\u0000${messageIndex}\u0000${edit.path}`);
-            const change = await this.tracker.finalize(origin, edit.path, root.resolve(edit.path), edit.content);
-            const stats = this.tracker.stats(change);
-            session.steps = [...session.steps, { kind: 'edit', target: edit.path, done: true, added: stats.added, removed: stats.removed }];
-            ids.push(change.id);
-            this.changed();
+            if (b < batches.length - 1 && !await this.waitAtCheckpoint(session, applied, edits.length)) {
+                session.messages.push({ role: 'system', text: `Stopped at the review checkpoint: ${edits.length - applied} file(s) not applied.` });
+                break;
+            }
         }
         [...this.streamingEdits.keys()].filter(k => k.startsWith(`${session.id}\u0000`)).forEach(k => this.streamingEdits.delete(k));
         session.status = ids.some(id => this.tracker.pending().some(c => c.id === id)) ? 'review' : 'done';
