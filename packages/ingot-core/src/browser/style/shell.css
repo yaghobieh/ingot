@@ -421,3 +421,203 @@ body.ingot-has-group #theia-top-panel > .ingot-project-tabs { order: 2; height: 
 .ingot-push-status-R { color: var(--theia-gitDecoration-renamedResourceForeground, #3B9EA8); }
 .ingot-push-footer { display: flex; align-items: center; gap: 14px; padding: 8px 10px; border-top: 1px solid var(--theia-panel-border); }
 .ingot-push-footer label { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---- IDEA-77: chat tabs, History, mode & model pickers, context, memories ---- */
+.ingot-agents-header { position: relative; gap: 4px; padding: 0 6px 0 4px; }
+.ingot-chat-tabs { display: flex; flex: 1; min-width: 0; height: 100%; overflow-x: auto; scrollbar-width: none; }
+.ingot-chat-tabs::-webkit-scrollbar { display: none; }
+.ingot-chat-tab { display: flex; align-items: center; gap: 6px; max-width: 170px; min-width: 64px; padding: 0 4px 0 8px; height: 100%; cursor: pointer; font-size: 12px; color: var(--theia-descriptionForeground); border-right: 1px solid var(--theia-panel-border); flex: none; }
+.ingot-chat-tab:hover { background: var(--theia-list-hoverBackground); }
+.ingot-chat-tab.active { color: var(--theia-foreground); box-shadow: inset 0 -2px 0 var(--ingot-primary, var(--theia-tab-activeBorder)); }
+.ingot-chat-tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.ingot-chat-tab-close { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 2px; border-radius: 4px; font-size: 12px; opacity: 0; }
+.ingot-chat-tab:hover .ingot-chat-tab-close, .ingot-chat-tab.active .ingot-chat-tab-close { opacity: .8; }
+.ingot-chat-tab-close:hover { background: var(--theia-toolbar-hoverBackground); opacity: 1; }
+.ingot-chat-tab-rename { width: 110px; height: 20px; font-size: 12px; }
+.ingot-icon-button { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: var(--theia-icon-foreground, var(--theia-foreground)); cursor: pointer; flex: none; }
+.ingot-icon-button:hover, .ingot-icon-button.active { background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); }
+
+.ingot-popover-backdrop { position: fixed; inset: 0; z-index: 900; }
+.ingot-popover { position: absolute; z-index: 901; background: var(--theia-menu-background, var(--theia-editorWidget-background)); color: var(--theia-menu-foreground, var(--theia-foreground));
+    border: 1px solid var(--theia-menu-border, var(--theia-panel-border)); border-radius: 8px; box-shadow: 0 8px 28px rgba(0, 0, 0, .28); padding: 4px; display: flex; flex-direction: column; outline: none; font-size: 12px; }
+.ingot-popover-search { margin: 4px 4px 6px; height: 26px; }
+.ingot-popover-footer { border: 0; border-top: 1px solid var(--theia-panel-border); background: transparent; color: inherit; text-align: left; padding: 8px 8px 4px; margin-top: 4px; font: inherit; font-size: 12px; display: flex; gap: 6px; align-items: center; }
+button.ingot-popover-footer { cursor: pointer; }
+button.ingot-popover-footer:hover { color: var(--theia-textLink-foreground); }
+.ingot-dim { color: var(--theia-descriptionForeground); }
+
+.ingot-pill-anchor { position: relative; display: inline-flex; }
+.ingot-pill { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--theia-panel-border); background: var(--theia-list-inactiveSelectionBackground, transparent); color: var(--theia-foreground); font: inherit; font-size: 12px; cursor: pointer; max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-pill:hover { background: var(--theia-list-hoverBackground); }
+.ingot-pill-caret { font-size: 11px !important; opacity: .7; }
+.ingot-mode-pill .codicon:first-child { color: var(--ingot-mode-color); }
+.ingot-mode-pill { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ingot-mode-color) 35%, transparent); }
+.ingot-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--theia-editorWarning-foreground, #E3B341); }
+.ingot-composer-bar .ingot-popover { bottom: calc(100% + 6px); left: 0; }
+
+.ingot-mode-menu { width: 280px; }
+.ingot-mode-item { display: flex; align-items: flex-start; gap: 10px; padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.ingot-mode-item:hover, .ingot-mode-item.selected { background: var(--theia-list-hoverBackground); }
+.ingot-mode-icon { color: var(--ingot-mode-color); margin-top: 1px; }
+.ingot-mode-text { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.ingot-mode-label { font-weight: 600; }
+.ingot-mode-desc { color: var(--theia-descriptionForeground); font-size: 11px; line-height: 1.35; }
+.ingot-mode-check { color: var(--ingot-mode-color); }
+
+.ingot-model-picker { width: 340px; max-height: 420px; }
+.ingot-pick-list { overflow: auto; flex: 1; min-height: 0; }
+.ingot-pick-heading { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--theia-descriptionForeground); padding: 8px 8px 3px; }
+.ingot-pick-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px 5px 8px; border-radius: 6px; cursor: pointer; }
+.ingot-pick-row:hover { background: var(--theia-list-hoverBackground); }
+.ingot-pick-row.selected { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
+.ingot-pick-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-pick-nokey .ingot-pick-label { opacity: .7; }
+.ingot-pick-badges { display: inline-flex; gap: 3px; }
+.ingot-pick-badge { font-size: 10px; padding: 0 5px; border-radius: 4px; line-height: 16px; background: var(--theia-badge-background, rgba(127, 127, 127, .2)); color: var(--theia-badge-foreground, inherit); opacity: .85; }
+.ingot-pick-speed-fast { color: #3FB950; background: rgba(63, 185, 80, .14); }
+.ingot-pick-thinking { color: #B57BFF; background: rgba(181, 123, 255, .14); }
+.ingot-pick-addkey { border: 1px solid var(--theia-button-background); color: var(--theia-textLink-foreground); background: transparent; border-radius: 4px; font-size: 10px; padding: 0 5px; line-height: 16px; cursor: pointer; }
+.ingot-pick-star { border: 0; background: transparent; color: var(--theia-descriptionForeground); cursor: pointer; padding: 2px; opacity: .55; }
+.ingot-pick-row:hover .ingot-pick-star, .ingot-pick-star.codicon-star-full { opacity: 1; }
+.ingot-pick-star.codicon-star-full { color: #E3B341; }
+.ingot-pick-auto .codicon { color: var(--ingot-primary, #6E8BFF); }
+.ingot-pick-auto-hint { font-size: 11px; }
+.ingot-pick-empty { padding: 10px 8px; }
+
+.ingot-agents-header .ingot-chat-history { top: calc(100% + 4px); right: 6px; width: 320px; max-height: 420px; }
+.ingot-history-list { overflow: auto; }
+.ingot-history-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.ingot-history-row:hover, .ingot-history-row.selected { background: var(--theia-list-hoverBackground); }
+.ingot-history-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 4px; }
+.ingot-history-meta { display: inline-flex; gap: 4px; align-items: center; font-size: 11px; }
+.ingot-history-actions { display: none; gap: 2px; }
+.ingot-history-row:hover .ingot-history-actions { display: inline-flex; }
+.ingot-history-actions button { border: 0; background: transparent; color: var(--theia-descriptionForeground); cursor: pointer; padding: 2px; border-radius: 4px; }
+.ingot-history-actions button:hover { color: var(--theia-foreground); background: var(--theia-toolbar-hoverBackground); }
+.ingot-history-rename { flex: 1; height: 22px; }
+.ingot-history-pin-mark { font-size: 11px !important; color: var(--theia-descriptionForeground); }
+
+.ingot-composer-chips:empty { display: none; }
+.ingot-chip .codicon { font-size: 12px; margin-right: 3px; vertical-align: -2px; }
+.ingot-chip-file { border-style: solid; }
+.ingot-chip-ghost { border-style: dashed !important; opacity: .7; cursor: pointer; background: transparent; color: inherit; font: inherit; font-size: 11px; }
+.ingot-chip-rule .codicon { color: #E3B341; }
+.ingot-chip-memory .codicon { color: #B57BFF; }
+
+.ingot-context-ring { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; cursor: help; }
+.ingot-ring-track { fill: none; stroke: var(--theia-panel-border); stroke-width: 2.5; }
+.ingot-ring-value { fill: none; stroke: var(--ingot-primary, #6E8BFF); stroke-width: 2.5; stroke-linecap: round; transition: stroke-dasharray .3s; }
+.ingot-context-ring.near-full .ingot-ring-value { stroke: var(--theia-editorWarning-foreground, #E3B341); }
+.ingot-summarize { display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin-bottom: 6px; border-radius: 6px; font-size: 12px; background: color-mix(in srgb, var(--theia-editorWarning-foreground, #E3B341) 12%, transparent); }
+
+.ingot-chat-memory { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 4px 8px; border-radius: 6px; background: color-mix(in srgb, #B57BFF 10%, transparent); }
+.ingot-chat-memory > .codicon { color: #B57BFF; }
+.ingot-chat-memory.undone { opacity: .6; }
+.ingot-chat-memory-text { flex: 1; min-width: 0; }
+.ingot-memory-undo { height: 20px; padding: 0 6px; font-size: 11px; }
+
+.ingot-memories { display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
+.ingot-memories-head { display: flex; align-items: center; gap: 8px; }
+.ingot-memories-title { font-weight: 600; font-size: 13px; }
+.ingot-memories-generate { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.ingot-memories-filters { display: flex; gap: 6px; }
+.ingot-memories-filters .ingot-input { flex: 1; height: 26px; }
+.ingot-memories-list { display: flex; flex-direction: column; gap: 4px; }
+.ingot-memory-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border: 1px solid var(--theia-panel-border); border-radius: 6px; }
+.ingot-memory-row button { border: 0; background: transparent; color: var(--theia-descriptionForeground); cursor: pointer; padding: 2px; }
+.ingot-memory-row button:hover { color: var(--theia-foreground); }
+.ingot-memory-text { flex: 1; white-space: pre-wrap; }
+.ingot-memory-scope { font-size: 10px; padding: 0 5px; border-radius: 4px; line-height: 16px; flex: none; }
+.ingot-memory-scope-project { background: rgba(110, 139, 255, .15); color: #6E8BFF; }
+.ingot-memory-scope-global { background: rgba(63, 185, 80, .15); color: #3FB950; }
+.ingot-memory-edit { display: flex; flex-direction: column; gap: 6px; padding: 6px; border: 1px solid var(--theia-focusBorder); border-radius: 6px; }
+.ingot-memory-edit textarea { resize: vertical; font: inherit; }
+.ingot-memory-edit-bar { display: flex; gap: 6px; align-items: center; }
+.ingot-memories-note { font-size: 11px; }
+
+/* ---- Chat v2: Agents panel matched to docs/design/ide-reference.png (light + dark via theme tokens) ---- */
+.ingot-agents { --ingot-chat-line: color-mix(in srgb, var(--theia-foreground) 10%, transparent); --ingot-chat-fill: color-mix(in srgb, var(--theia-foreground) 7%, transparent); }
+.ingot-agents .ingot-agents-header { height: 40px; gap: 14px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--theia-panel-border); }
+.ingot-agents .ingot-agents-tab { height: 40px; padding: 0 1px; font-size: 12.5px; font-weight: 500; color: var(--theia-descriptionForeground); box-shadow: none; }
+.ingot-agents .ingot-agents-tab.active { color: var(--theia-foreground); box-shadow: inset 0 -2px 0 var(--ingot-primary); }
+.ingot-agents .ingot-agents-tab:focus, .ingot-agents .ingot-agents-tab:focus-visible { outline: none; }
+.ingot-agents .ingot-agents-header .ingot-flex { flex: 1; }
+.ingot-agents .ingot-agents-header .ingot-icon-button { width: 24px; height: 24px; margin-left: -8px; color: var(--theia-descriptionForeground); }
+.ingot-agents .ingot-agents-header .ingot-icon-button:hover { color: var(--theia-foreground); }
+
+.ingot-agents .ingot-agents-list { display: flex; flex-direction: column; gap: 2px; padding: 6px; height: auto; overflow-x: hidden; overflow-y: auto; max-height: 36%; border-bottom: 1px solid var(--theia-panel-border); flex: none; }
+.ingot-agents .ingot-agents-list .ingot-chat-tab { position: relative; display: flex; align-items: flex-start; gap: 10px; max-width: none; min-width: 0; height: auto; padding: 8px 28px 8px 12px; border: 0; border-radius: 7px; box-shadow: none; color: var(--theia-foreground); }
+.ingot-agents .ingot-agents-list .ingot-chat-tab:hover { background: color-mix(in srgb, var(--theia-foreground) 4%, transparent); }
+.ingot-agents .ingot-agents-list .ingot-chat-tab.active { background: var(--ingot-chat-fill); box-shadow: none; }
+.ingot-agents .ingot-agent-status { width: 7px; height: 7px; margin-top: 5px; }
+.ingot-agents .ingot-status-thinking, .ingot-agents .ingot-status-editing { background: var(--ingot-primary); }
+.ingot-agents .ingot-status-idle { background: color-mix(in srgb, var(--theia-foreground) 35%, transparent); }
+.ingot-agents .ingot-agent-item-text { flex: 1; min-width: 0; gap: 2px; }
+.ingot-agents .ingot-agent-item-title { font-size: 12.5px; font-weight: 600; line-height: 17px; }
+.ingot-agents .ingot-agent-item-sub { font-size: 11.5px; line-height: 15px; color: var(--theia-descriptionForeground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-agents .ingot-agents-list .ingot-chat-tab-close { position: absolute; right: 6px; top: 8px; opacity: 0; }
+.ingot-agents .ingot-agents-list .ingot-chat-tab:hover .ingot-chat-tab-close { opacity: .7; }
+.ingot-agents .ingot-agents-list .ingot-chat-tab.active:not(:hover) .ingot-chat-tab-close { opacity: 0; }
+
+.ingot-agents .ingot-agents-chat { padding: 14px 12px; gap: 10px; font-size: 12.5px; }
+.ingot-agents .ingot-chat-msg { line-height: 1.5; }
+.ingot-agents .ingot-chat-user { align-self: flex-end; max-width: 86%; padding: 7px 12px; border-radius: 10px; background: color-mix(in srgb, var(--theia-foreground) 10%, var(--theia-sideBar-background)); color: var(--theia-foreground); }
+.ingot-agents .ingot-chat-agent { color: var(--theia-foreground); }
+.ingot-agents .ingot-chat-plan { margin-top: 2px; }
+.ingot-agents .ingot-chat-label { font-size: 11px; font-weight: 600; letter-spacing: .07em; color: var(--theia-foreground); opacity: .85; margin-bottom: 4px; }
+.ingot-agents .ingot-plan-item { gap: 6px; line-height: 21px; font-size: 12.5px; }
+.ingot-agents .ingot-plan-done { color: color-mix(in srgb, var(--theia-foreground) 72%, transparent); }
+.ingot-agents .ingot-plan-done .ingot-plan-mark { color: color-mix(in srgb, var(--theia-foreground) 72%, transparent); }
+.ingot-agents .ingot-plan-active { color: var(--theia-foreground); }
+.ingot-agents .ingot-plan-active .ingot-plan-mark { color: var(--ingot-primary); }
+.ingot-agents .ingot-plan-todo, .ingot-agents .ingot-plan-todo .ingot-plan-mark { color: var(--theia-descriptionForeground); }
+.ingot-agents .ingot-chat-step { gap: 8px; padding: 6px 10px; border-radius: 5px; border: 1px solid color-mix(in srgb, var(--theia-foreground) 6%, transparent);
+    background: color-mix(in srgb, var(--theia-editor-background) 55%, var(--theia-sideBar-background)); font-family: var(--theia-code-font-family); font-size: 11.5px; color: var(--theia-descriptionForeground); }
+.ingot-agents .ingot-chat-step.running { color: var(--theia-foreground); }
+.ingot-agents .ingot-chat-step.done .ingot-step-mark { color: var(--theia-descriptionForeground); }
+.ingot-agents .ingot-chat-step.running .ingot-step-mark { color: var(--ingot-primary); }
+.ingot-agents .ingot-step-diff { font-weight: 500; }
+.ingot-agents .ingot-plus { color: var(--ingot-success); }
+.ingot-agents .ingot-minus { color: var(--ingot-danger); }
+.ingot-agents .ingot-chat-changes { margin-top: 4px; padding: 9px 10px 9px 12px; border: 1px solid var(--ingot-chat-line); border-radius: 8px; font-size: 12.5px; background: transparent; }
+.ingot-agents .ingot-chat-changes .ingot-btn-ghost { color: var(--theia-descriptionForeground); }
+.ingot-agents .ingot-btn-primary { background: var(--ingot-primary); color: #fff; border-radius: 5px; padding: 4px 10px; font-size: 12px; }
+
+.ingot-agents .ingot-composer { margin: 0 10px 10px; padding: 9px 10px 8px; border: 1px solid var(--ingot-chat-line); border-radius: 9px; background: color-mix(in srgb, var(--theia-editor-background) 60%, var(--theia-sideBar-background)); box-shadow: none; }
+.ingot-agents .ingot-composer:focus-within { border-color: color-mix(in srgb, var(--theia-foreground) 18%, transparent); box-shadow: none; }
+.ingot-agents .ingot-composer-input, .ingot-agents .ingot-composer-input:focus, .ingot-agents .ingot-composer-input:focus-visible { outline: none !important; box-shadow: none !important; border: 0 !important; }
+.ingot-agents .ingot-composer-input { font-size: 12.5px; line-height: 18px; padding: 0; }
+.ingot-agents .ingot-composer-input::placeholder { color: var(--theia-descriptionForeground); }
+.ingot-agents .ingot-composer-bar { gap: 6px; margin-top: 6px; }
+.ingot-agents .ingot-pill { height: 22px; padding: 0 7px; gap: 4px; border: 0; border-radius: 5px; background: var(--ingot-chat-fill); box-shadow: none; font-size: 12px; }
+.ingot-agents .ingot-pill:hover { background: color-mix(in srgb, var(--theia-foreground) 12%, transparent); }
+.ingot-agents .ingot-pill:focus, .ingot-agents .ingot-pill:focus-visible { outline: none; }
+.ingot-agents .ingot-mode-pill { box-shadow: none; }
+.ingot-agents .ingot-mode-pill .codicon:first-child { font-size: 12px; }
+.ingot-agents .ingot-pill-caret { font-size: 10px !important; opacity: .8; }
+.ingot-agents .ingot-pill-warn { color: var(--theia-editorWarning-foreground, #E3B341); }
+.ingot-agents .ingot-composer-send { width: 24px; height: 24px; border-radius: 6px; background: var(--ingot-primary); color: #fff; font-size: 13px; }
+.ingot-agents .ingot-composer-send:disabled { opacity: .55; }
+.ingot-agents .ingot-composer-chips:empty { display: none; }
+.ingot-agents .ingot-composer-resize { opacity: 0; }
+.ingot-agents .ingot-chat-changes > span:first-child, .ingot-agents .ingot-chat-changes button { white-space: nowrap; }
+.ingot-agents .ingot-chat-step + .ingot-chat-step { margin-top: -4px; }
+.ingot-agents .ingot-chat-plan + .ingot-chat-step { margin-top: 2px; }
+.ingot-agents .ingot-composer-input { min-height: 38px; }
+.ingot-agents .ingot-composer-bar { min-width: 0; }
+.ingot-agents .ingot-composer-bar .ingot-pill-anchor { min-width: 0; flex-shrink: 1; }
+.ingot-agents .ingot-composer-bar .ingot-pill { max-width: 100%; }
+.ingot-agents .ingot-composer-send { flex: none; }
+
+/* Chat v2 fixes (user screenshot): compact full-width rows, single composer border, muted idle send, quiet ring. */
+.ingot-agents .ingot-agents-list.ingot-chat-tabs { flex: none !important; height: auto !important; min-height: 0; max-height: 40%; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; align-items: stretch; }
+.ingot-agents .ingot-agents-list .ingot-chat-tab { flex: none !important; width: 100%; max-width: none !important; min-height: 0; height: auto !important; box-sizing: border-box; align-items: flex-start; justify-content: flex-start; text-align: left; border-right: 0 !important; }
+.ingot-agents .ingot-agents-list .ingot-agent-item-text { align-items: flex-start; }
+.ingot-agents .ingot-composer, .ingot-agents .ingot-composer:focus-within { border: 1px solid var(--ingot-chat-line) !important; box-shadow: none !important; outline: none !important; }
+.ingot-agents .ingot-composer:focus-within { border-color: color-mix(in srgb, var(--theia-foreground) 18%, transparent) !important; }
+.ingot-agents textarea.ingot-composer-input, .ingot-agents textarea.ingot-composer-input:focus, .ingot-agents textarea.ingot-composer-input:focus-visible { border: 0 !important; outline: none !important; box-shadow: none !important; background: transparent !important; }
+.ingot-agents .ingot-pill, .ingot-agents .ingot-pill:focus { border: 0 !important; box-shadow: none !important; outline: none !important; }
+.ingot-agents .ingot-composer-send:disabled { opacity: 1; background: color-mix(in srgb, var(--theia-foreground) 12%, transparent); color: var(--theia-descriptionForeground); cursor: default; }
+.ingot-agents .ingot-composer-send:not(:disabled) { background: var(--ingot-primary); color: #fff; }
+.ingot-agents .ingot-context-ring { opacity: .6; }
+.ingot-agents .ingot-agents-hint { padding: 6px 2px; line-height: 1.5; color: var(--theia-descriptionForeground); }
