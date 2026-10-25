@@ -1,0 +1,97 @@
+import type { KeymapEntry } from './keymap.types';
+
+/** Ingot commands the IntelliJ keymap points at (implemented in the browser keymap / run contributions). */
+export const INGOT_NAV_COMMANDS = {
+    searchEverywhere: { id: 'ingot.searchEverywhere', label: 'Search Everywhere', category: 'Navigate' },
+    recentFiles: { id: 'ingot.recentFiles', label: 'Recent Files', category: 'Navigate' },
+    recentLocations: { id: 'ingot.recentLocations', label: 'Recent Locations', category: 'Navigate' },
+    goToClass: { id: 'ingot.goToClass', label: 'Go to Class', category: 'Navigate' },
+    goToSymbol: { id: 'ingot.goToSymbol', label: 'Go to Symbol', category: 'Navigate' }
+} as const;
+
+export const INGOT_RUN_COMMANDS = {
+    run: { id: 'ingot.run', label: 'Run', category: 'Run' },
+    debug: { id: 'ingot.debug', label: 'Debug', category: 'Run' },
+    stop: { id: 'ingot.stop', label: 'Stop', category: 'Run' }
+} as const;
+
+/** Keeps IntelliJ shortcuts from stealing the agent review keys (Ctrl+Y / Ctrl+N) while an edit is pending. */
+const NOT_REVIEWING = '!ingotAgentEditPending';
+const EDITOR = 'editorTextFocus';
+const EDITOR_NOT_REVIEWING = `${EDITOR} && ${NOT_REVIEWING}`;
+
+/**
+ * IntelliJ IDEA / WebStorm default keymap (IDEA-18): "macOS" and "Windows/Linux" variants.
+ * Theia syntax: `ctrlcmd` = Cmd on macOS, `ctrl` = the real Control key, `alt` = Option.
+ */
+export const INTELLIJ_KEYMAP: readonly KeymapEntry[] = [
+    // Navigation (IDEA-19/20)
+    { action: 'Go to File', command: 'file-search.openFile', mac: 'ctrlcmd+shift+o', other: 'ctrl+shift+n' },
+    { action: 'Go to Class', command: INGOT_NAV_COMMANDS.goToClass.id, mac: 'ctrlcmd+o', other: 'ctrl+n', when: NOT_REVIEWING },
+    { action: 'Go to Symbol', command: INGOT_NAV_COMMANDS.goToSymbol.id, mac: 'ctrlcmd+alt+o', other: 'ctrl+alt+shift+n' },
+    { action: 'Go to Line:Column', command: 'editor.action.gotoLine', mac: 'ctrlcmd+l', other: 'ctrl+g', when: EDITOR },
+    { action: 'Find Action', command: 'workbench.action.showCommands', mac: 'ctrlcmd+shift+a', other: 'ctrl+shift+a' },
+    { action: 'Recent Files', command: INGOT_NAV_COMMANDS.recentFiles.id, mac: 'ctrlcmd+e', other: 'ctrl+e' },
+    { action: 'Recent Locations', command: INGOT_NAV_COMMANDS.recentLocations.id, mac: 'ctrlcmd+shift+e', other: 'ctrl+shift+e' },
+    { action: 'File Structure', command: 'editor.action.quickOutline', mac: 'ctrlcmd+f12', other: 'ctrl+f12', when: EDITOR },
+    { action: 'Back', command: 'textEditor.commands.go.back', mac: 'ctrlcmd+[', other: 'ctrl+alt+left' },
+    { action: 'Forward', command: 'textEditor.commands.go.forward', mac: 'ctrlcmd+]', other: 'ctrl+alt+right' },
+    { action: 'Declaration or Usages', command: 'editor.action.revealDefinition', mac: 'ctrlcmd+b', other: 'ctrl+b', when: EDITOR },
+    { action: 'Implementation(s)', command: 'editor.action.goToImplementation', mac: 'ctrlcmd+alt+b', other: 'ctrl+alt+b', when: EDITOR },
+    { action: 'Find Usages', command: 'editor.action.goToReferences', mac: 'alt+f7', other: 'alt+f7', when: EDITOR },
+    { action: 'Show Usages', command: 'editor.action.referenceSearch.trigger', mac: 'ctrlcmd+alt+f7', other: 'ctrl+alt+f7', when: EDITOR },
+    { action: 'Next Highlighted Error', command: 'editor.action.marker.nextInFiles', mac: 'f2', other: 'f2', when: EDITOR },
+    { action: 'Previous Highlighted Error', command: 'editor.action.marker.prevInFiles', mac: 'shift+f2', other: 'shift+f2', when: EDITOR },
+    // Tabs (IDEA-17)
+    { action: 'Close Tab', command: 'core.close.tab', mac: 'ctrlcmd+w', other: 'ctrl+f4' },
+    { action: 'Select Next Tab', command: 'core.nextTab', mac: 'ctrlcmd+shift+]', other: 'alt+right' },
+    { action: 'Select Previous Tab', command: 'core.previousTab', mac: 'ctrlcmd+shift+[', other: 'alt+left' },
+    // Find / replace (IDEA-21/22)
+    { action: 'Find', command: 'actions.find', mac: 'ctrlcmd+f', other: 'ctrl+f', when: EDITOR },
+    { action: 'Replace', command: 'editor.action.startFindReplaceAction', mac: 'ctrlcmd+r', other: 'ctrl+r', when: EDITOR },
+    { action: 'Find Next', command: 'editor.action.nextMatchFindAction', mac: 'ctrlcmd+g', other: 'f3', when: EDITOR },
+    { action: 'Find Previous', command: 'editor.action.previousMatchFindAction', mac: 'ctrlcmd+shift+g', other: 'shift+f3', when: EDITOR },
+    { action: 'Find in Files', command: 'search-in-workspace.open', mac: 'ctrlcmd+shift+f', other: 'ctrl+shift+f' },
+    { action: 'Replace in Files', command: 'search-in-workspace.replace', mac: 'ctrlcmd+shift+r', other: 'ctrl+shift+r' },
+    // Editing
+    { action: 'Duplicate Line or Selection', command: 'editor.action.duplicateSelection', mac: 'ctrlcmd+d', other: 'ctrl+d', when: EDITOR },
+    { action: 'Delete Line', command: 'editor.action.deleteLines', mac: 'ctrlcmd+backspace', other: 'ctrl+y', when: EDITOR_NOT_REVIEWING },
+    { action: 'Comment with Line Comment', command: 'editor.action.commentLine', mac: 'ctrlcmd+/', other: 'ctrl+/', when: EDITOR },
+    { action: 'Comment with Block Comment', command: 'editor.action.blockComment', mac: 'ctrlcmd+alt+/', other: 'ctrl+shift+/', when: EDITOR },
+    { action: 'Move Line Up', command: 'editor.action.moveLinesUpAction', mac: 'alt+shift+up', other: 'alt+shift+up', when: EDITOR },
+    { action: 'Move Line Down', command: 'editor.action.moveLinesDownAction', mac: 'alt+shift+down', other: 'alt+shift+down', when: EDITOR },
+    { action: 'Move Statement Up', command: 'editor.action.moveLinesUpAction', mac: 'ctrlcmd+shift+up', other: 'ctrl+shift+up', when: EDITOR },
+    { action: 'Move Statement Down', command: 'editor.action.moveLinesDownAction', mac: 'ctrlcmd+shift+down', other: 'ctrl+shift+down', when: EDITOR },
+    { action: 'Extend Selection', command: 'editor.action.smartSelect.expand', mac: 'alt+up', other: 'ctrl+w', when: EDITOR },
+    { action: 'Shrink Selection', command: 'editor.action.smartSelect.shrink', mac: 'alt+down', other: 'ctrl+shift+w', when: EDITOR },
+    { action: 'Add Selection for Next Occurrence', command: 'editor.action.addSelectionToNextFindMatch', mac: 'ctrl+g', other: 'alt+j', when: EDITOR },
+    { action: 'Select All Occurrences', command: 'editor.action.selectHighlights', mac: 'ctrlcmd+ctrl+g', other: 'ctrl+alt+shift+j', when: EDITOR },
+    { action: 'Join Lines', command: 'editor.action.joinLines', mac: 'ctrl+shift+j', other: 'ctrl+shift+j', when: EDITOR },
+    { action: 'Start New Line', command: 'editor.action.insertLineAfter', mac: 'shift+enter', other: 'shift+enter', when: EDITOR },
+    { action: 'Parameter Info', command: 'editor.action.triggerParameterHints', mac: 'ctrlcmd+p', other: 'ctrl+p', when: EDITOR },
+    { action: 'Quick Documentation', command: 'editor.action.showHover', mac: 'f1', other: 'ctrl+q', when: EDITOR },
+    { action: 'Show Context Actions', command: 'editor.action.quickFix', mac: 'alt+enter', other: 'alt+enter', when: EDITOR },
+    { action: 'Collapse', command: 'editor.fold', mac: 'ctrlcmd+-', other: 'ctrl+-', when: EDITOR },
+    { action: 'Expand', command: 'editor.unfold', mac: 'ctrlcmd+=', other: 'ctrl+=', when: EDITOR },
+    { action: 'Collapse All', command: 'editor.foldAll', mac: 'ctrlcmd+shift+-', other: 'ctrl+shift+-', when: EDITOR },
+    { action: 'Expand All', command: 'editor.unfoldAll', mac: 'ctrlcmd+shift+=', other: 'ctrl+shift+=', when: EDITOR },
+    // Refactoring (IDEA-23)
+    { action: 'Rename', command: 'editor.action.rename', mac: 'shift+f6', other: 'shift+f6', when: EDITOR },
+    { action: 'Refactor This', command: 'editor.action.refactor', mac: 'ctrl+t', other: 'ctrl+alt+shift+t', when: EDITOR },
+    { action: 'Reformat Code', command: 'editor.action.formatDocument', mac: 'ctrlcmd+alt+l', other: 'ctrl+alt+l', when: EDITOR },
+    { action: 'Optimize Imports', command: 'editor.action.organizeImports', mac: 'ctrl+alt+o', other: 'ctrl+alt+o', when: EDITOR },
+    // Run / debug (IDEA-24)
+    { action: 'Run', command: INGOT_RUN_COMMANDS.run.id, mac: 'ctrl+r', other: 'shift+f10' },
+    { action: 'Debug', command: INGOT_RUN_COMMANDS.debug.id, mac: 'ctrl+d', other: 'shift+f9' },
+    { action: 'Stop', command: INGOT_RUN_COMMANDS.stop.id, mac: 'ctrlcmd+f2', other: 'ctrl+f2' },
+    // Settings
+    { action: 'Settings', command: 'preferences:open', mac: 'ctrlcmd+,', other: 'ctrl+alt+s' },
+    { action: 'Keymap', command: 'keymaps:open', mac: 'ctrlcmd+k ctrlcmd+s', other: 'ctrl+k ctrl+s' }
+];
+
+export const KEYMAP_PREFERENCE = 'ingot.keymap';
+export const KEYMAP_OPTIONS = ['IntelliJ IDEA', 'VS Code'] as const;
+export type KeymapOption = typeof KEYMAP_OPTIONS[number];
+
+/** Double Shift opens Search Everywhere when both presses land within this window. */
+export const DOUBLE_SHIFT_MS = 400;

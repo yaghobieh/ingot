@@ -23,3 +23,21 @@ export const findConflicts = (bindings: readonly ResolvedKeybinding[]): string[]
     }
     return conflicts;
 };
+
+/** Tracks Shift presses and reports a "double Shift" (two lone Shift taps in a row within `windowMs`). */
+export const createDoubleShiftDetector = (windowMs: number, now: () => number = Date.now) => {
+    let lastShift: number | undefined;
+    return (key: string, otherModifiers: boolean): boolean => {
+        if (key !== 'Shift' || otherModifiers) {
+            lastShift = undefined;
+            return false;
+        }
+        const t = now();
+        if (lastShift !== undefined && t - lastShift <= windowMs) {
+            lastShift = undefined;
+            return true;
+        }
+        lastShift = t;
+        return false;
+    };
+};
