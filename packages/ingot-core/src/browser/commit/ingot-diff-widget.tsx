@@ -52,6 +52,8 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
     protected editor: monaco.editor.IStandaloneDiffEditor | undefined;
     protected readonly fileDisposables = new DisposableCollection();
     protected hunks: ChangeHunk[] = [];
+    /** Editable-side content from before each chunk revert, newest last (fallback for undo). */
+    protected reverted: string[] = [];
     protected decorations: monaco.editor.IEditorDecorationsCollection | undefined;
     protected headSha = '';
     protected viewer: Viewer = 'side-by-side';
@@ -95,14 +97,31 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
             return;
         }
         const next = revertHunk(original.getValue(), modified.getValue(), hunk.index);
+        this.reverted.push(modified.getValue());
         editor.getModifiedEditor().pushUndoStop();
         modified.pushEditOperations([], [{ range: modified.getFullModelRange(), text: next }], () => null);
         editor.getModifiedEditor().pushUndoStop();
         this.fileModel?.save().catch(() => undefined);
     }
 
+    /**
+     * Undo in the editable side. A chunk revert is one undo step; if the editor's own history no longer has it (the
+     * file was re-read after the save), the content from before the last revert is put back instead.
+     */
     undo(): void {
-        this.editor?.getModifiedEditor().trigger('keyboard', 'undo', undefined);
+        const model = this.editor?.getModifiedEditor().getModel();
+        if (!model) {
+            return;
+        }
+        if (model.canUndo()) {
+            this.editor?.getModifiedEditor().trigger('keyboard', 'undo', undefined);
+            this.reverted.pop();
+            return;
+        }
+        const previous = this.reverted.pop();
+        if (previous !== undefined) {
+            model.pushEditOperations([], [{ range: model.getFullModelRange(), text: previous }], () => null);
+        }
     }
 
     redo(): void {
@@ -192,6 +211,7 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
     /** Shows another file in this tab (prev/next file navigation). */
     async showFile(path: string): Promise<void> {
         this.fileDisposables.dispose();
+        this.reverted = [];
         this.path = path;
         this.title.label = path.split('/').pop() ?? path;
         this.title.caption = `${path} (HEAD ↔ Your version)`;
