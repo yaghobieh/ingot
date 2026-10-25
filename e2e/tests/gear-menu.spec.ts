@@ -34,6 +34,7 @@ test.describe('IDEA-117 gear menu', () => {
         await menuItem(page, 'Theme').hover();
         await menuItem(page, 'Dark').click();
         await expect(page.locator('body')).toHaveClass(/theia-dark/);
+        await expect(page.locator('#status-bar-ingot-appearance')).toContainText('Dark');
 
         await openGear(page);
         await menuItem(page, 'Theme').hover();
@@ -41,12 +42,14 @@ test.describe('IDEA-117 gear menu', () => {
         await expect(menuItem(page, 'Light')).not.toHaveClass(/lm-mod-toggled/);
         await menuItem(page, 'Light').click();
         await expect(page.locator('body')).toHaveClass(/theia-light/);
+        await expect(page.locator('#status-bar-ingot-appearance')).toContainText('Light');
 
         // Back to the default, System.
         await openGear(page);
         await menuItem(page, 'Theme').hover();
         await expect(menuItem(page, 'Light')).toHaveClass(/lm-mod-toggled/);
         await menuItem(page, 'System').click();
+        await expect(page.locator('#status-bar-ingot-appearance')).toContainText('System');
         await openGear(page);
         await menuItem(page, 'Theme').hover();
         await expect(menuItem(page, 'System')).toHaveClass(/lm-mod-toggled/);
@@ -70,7 +73,6 @@ test.describe('IDEA-117 gear menu', () => {
 
         await openGear(page);
         await menuItem(page, 'Check for Updates…').click();
-        await expect(page.locator('.theia-notification-list-item', { hasText: 'No release has been published yet' })).toBeVisible();
-        await dismissNotifications(page);
+        await expect(page.locator('.theia-notification-list-item', { hasText: 'No release has been published yet' }).first()).toBeVisible();
     });
 });
