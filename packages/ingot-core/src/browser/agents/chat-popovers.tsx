@@ -2,9 +2,10 @@ import * as React from '@theia/core/shared/react';
 import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
 import { AGENT_MODE_INFO } from '../../common/agents/agent-modes';
 import { chatTime, filterChats } from '../../common/agents/chat-history';
-import { formatTokens } from '../../common/agents/context-usage';
 import { AUTO_MODEL_ID, AUTO_MODEL_LABEL } from '../../common/models/models.consts';
-import type { CatalogModel } from '../../common/models/models.types';
+import type { CatalogModel, ModelFamilyGroup } from '../../common/models/models.types';
+import { groupModelsByFamily } from '../../common/models/models.utils';
+import { MODEL_PICKER_TEXT } from './agents.consts';
 import type { Memory, MemoryScope } from '../../common/memories/memories';
 import type { MemoryStore } from './memory-store';
 
@@ -61,7 +62,6 @@ export interface ModelPickerProps {
     readonly models: readonly CatalogModel[];
     readonly autoResolved?: string;
     readonly configured: (id: string) => boolean;
-    readonly isLocal: (model: CatalogModel) => boolean;
     readonly favorites: ReadonlySet<string>;
     readonly onToggleFavorite: (id: string) => void;
     readonly onPick: (id: string) => void;
@@ -70,10 +70,19 @@ export interface ModelPickerProps {
     readonly onClose: () => void;
 }
 
-const SPEED_LABEL = { fast: 'Fast', balanced: 'Balanced', slow: 'Deep' } as const;
+interface ModelPickerState {
+    readonly query: string;
+    /** Family opened with its `>` arrow; the list then shows that family's models. */
+    readonly open?: string;
+}
 
-export class ModelPicker extends React.Component<ModelPickerProps, { query: string }> {
-    override state = { query: '' };
+/**
+ * Model picker (IDEA-91): Auto, favorites, then one row per model family with a `>` arrow that opens the family's
+ * models (with a back row), so it fits a narrow chat panel. No speed, context-size, thinking or cost labels. Typing in
+ * the search box lists matching models directly.
+ */
+export class ModelPicker extends React.Component<ModelPickerProps, ModelPickerState> {
+    override state: ModelPickerState = { query: '' };
 
     protected row(m: CatalogModel, section: string): React.ReactNode {
         const { current, configured, favorites } = this.props;
@@ -81,51 +90,77 @@ export class ModelPicker extends React.Component<ModelPickerProps, { query: stri
         return <div key={`${section}-${m.id}`} role='option' aria-selected={current === m.id} id={`ingot-pick-${section}-${m.id}`} data-model={m.id}
             className={`ingot-pick-row${current === m.id ? ' selected' : ''}${ready ? '' : ' ingot-pick-nokey'}`} onClick={() => this.props.onPick(m.id)}>
             <span className='ingot-pick-label'>{m.label}</span>
-            <span className='ingot-pick-badges'>
-                <span className={`ingot-pick-badge ingot-pick-speed-${m.speed}`} title='Speed'>{SPEED_LABEL[m.speed]}</span>
-                <span className='ingot-pick-badge' title='Context window'>{formatTokens(m.contextWindow)}</span>
-                {m.thinking && <span className='ingot-pick-badge ingot-pick-thinking' title='Supports extended thinking'>Thinking</span>}
-            </span>
-            {!ready && <button type='button' className='ingot-pick-addkey' onClick={e => { e.stopPropagation(); this.props.onAddKey(m.id); }}>Add key</button>}
+            {current === m.id && <span className='codicon codicon-check ingot-pick-check' />}
+            {!ready && <button type='button' className='ingot-pick-addkey' onClick={e => { e.stopPropagation(); this.props.onAddKey(m.id); }}>{MODEL_PICKER_TEXT.addKey}</button>}
             <button type='button' className={`ingot-pick-star codicon ${favorites.has(m.id) ? 'codicon-star-full' : 'codicon-star-empty'}`}
-                aria-label={favorites.has(m.id) ? `Unfavorite ${m.label}` : `Favorite ${m.label}`} aria-pressed={favorites.has(m.id)}
+                aria-label={`${favorites.has(m.id) ? MODEL_PICKER_TEXT.unfavorite : MODEL_PICKER_TEXT.favorite} ${m.label}`} aria-pressed={favorites.has(m.id)}
                 onClick={e => { e.stopPropagation(); this.props.onToggleFavorite(m.id); }} />
         </div>;
     }
 
+    protected family(group: ModelFamilyGroup): React.ReactNode {
+        const { family, models } = group;
+        const active = models.find(m => m.id === this.props.current);
+        return <div key={family.provider} role='option' aria-haspopup='listbox' aria-selected={!!active} id={`ingot-pick-family-${family.provider}`} data-family={family.provider}
+            className={`ingot-pick-row ingot-pick-family${active ? ' has-current' : ''}`} tabIndex={0}
+            onClick={() => this.setState({ open: family.provider })}
+            onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); this.setState({ open: family.provider }); } }}>
+            <span className={`codicon codicon-${family.icon} ingot-pick-family-icon`} />
+            <span className='ingot-pick-label'>{family.label}</span>
+            {active && <span className='ingot-dim ingot-pick-family-current'>{active.label}</span>}
+            <span className='codicon codicon-chevron-right ingot-pick-arrow' aria-hidden />
+        </div>;
+    }
+
+    protected familyModels(group: ModelFamilyGroup): React.ReactNode {
+        return <div className='ingot-pick-section' id={`ingot-pick-sub-${group.family.provider}`} role='group' aria-label={group.family.label}>
+            <div role='button' tabIndex={0} id='ingot-pick-back' className='ingot-pick-row ingot-pick-back' onClick={() => this.setState({ open: undefined })}
+                onKeyDown={e => { if (e.key === 'ArrowLeft' || e.key === 'Enter' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); this.setState({ open: undefined }); } }}>
+                <span className='codicon codicon-chevron-left' />
+                <span className='ingot-pick-label'>{group.family.label}</span>
+            </div>
+            {group.models.map(m => this.row(m, group.family.provider))}
+        </div>;
+    }
+
     override render(): React.ReactNode {
-        const { models, favorites, isLocal, current, autoResolved, onClose } = this.props;
+        const { models, favorites, current, autoResolved, onClose } = this.props;
         const q = this.state.query.trim().toLowerCase();
-        const match = (m: CatalogModel) => !q || m.label.toLowerCase().includes(q);
-        const sections: [string, string, CatalogModel[]][] = [
-            ['favorites', 'Favorites', models.filter(m => favorites.has(m.id) && match(m))],
-            ['recommended', 'Recommended', models.filter(m => m.recommended && match(m))],
-            ['all', 'All models', models.filter(m => !isLocal(m) && match(m))],
-            ['local', 'Local', models.filter(m => isLocal(m) && match(m))]
-        ];
-        const showAuto = !q || AUTO_MODEL_LABEL.toLowerCase().includes(q);
-        const first = (showAuto ? AUTO_MODEL_ID : undefined) ?? sections.flatMap(s => s[2])[0]?.id;
+        const matches = models.filter(m => m.label.toLowerCase().includes(q));
+        const favs = models.filter(m => favorites.has(m.id));
+        const groups = groupModelsByFamily(models);
+        const openGroup = groups.find(g => g.family.provider === this.state.open);
+        const showAuto = (!q && !openGroup) || (!!q && AUTO_MODEL_LABEL.toLowerCase().includes(q));
+        const first = (showAuto ? AUTO_MODEL_ID : undefined) ?? (q ? matches[0]?.id : undefined);
         return <>
             <Backdrop onClose={onClose} />
             <div id='ingot-model-picker' className='ingot-popover ingot-model-picker' role='listbox' onKeyDown={onEscape(onClose)}>
-                <input id='ingot-model-search' className='ingot-input ingot-popover-search' placeholder='Search models' autoFocus value={this.state.query}
-                    onChange={e => this.setState({ query: e.currentTarget.value })}
+                <input id='ingot-model-search' className='ingot-input ingot-popover-search' placeholder={MODEL_PICKER_TEXT.search} autoFocus value={this.state.query}
+                    onChange={e => this.setState({ query: e.currentTarget.value, open: undefined })}
                     onKeyDown={e => { if (e.key === 'Enter' && first) { e.preventDefault(); this.props.onPick(first); } }} />
                 <div className='ingot-pick-list'>
                     {showAuto && <div role='option' aria-selected={current === AUTO_MODEL_ID} id='ingot-pick-auto' className={`ingot-pick-row ingot-pick-auto${current === AUTO_MODEL_ID ? ' selected' : ''}`}
                         onClick={() => this.props.onPick(AUTO_MODEL_ID)}>
                         <span className='codicon codicon-sparkle' />
                         <span className='ingot-pick-label'>{AUTO_MODEL_LABEL}</span>
-                        <span className='ingot-dim ingot-pick-auto-hint'>{autoResolved ? `Uses ${autoResolved}` : 'Best connected model for the task'}</span>
+                        <span className='ingot-dim ingot-pick-auto-hint'>{autoResolved ? `${MODEL_PICKER_TEXT.uses} ${autoResolved}` : MODEL_PICKER_TEXT.autoHint}</span>
                     </div>}
-                    {sections.filter(s => s[2].length).map(([id, label, list]) => <div key={id} className='ingot-pick-section' id={`ingot-pick-section-${id}`}>
-                        <div className='ingot-pick-heading'>{label}</div>
-                        {list.map(m => this.row(m, id))}
-                    </div>)}
-                    {!showAuto && sections.every(s => !s[2].length) && <div className='ingot-dim ingot-pick-empty'>No models match “{this.state.query}”.</div>}
+                    {q
+                        ? <div className='ingot-pick-section' id='ingot-pick-section-search'>{matches.map(m => this.row(m, 'search'))}</div>
+                        : openGroup ? this.familyModels(openGroup) : <>
+                            {favs.length > 0 && <div className='ingot-pick-section' id='ingot-pick-section-favorites'>
+                                <div className='ingot-pick-heading'>{MODEL_PICKER_TEXT.favorites}</div>
+                                {favs.map(m => this.row(m, 'favorites'))}
+                            </div>}
+                            <div className='ingot-pick-section' id='ingot-pick-section-models'>
+                                <div className='ingot-pick-heading'>{MODEL_PICKER_TEXT.models}</div>
+                                {groups.map(g => this.family(g))}
+                            </div>
+                        </>}
+                    {q && !showAuto && matches.length === 0 && <div className='ingot-dim ingot-pick-empty'>{MODEL_PICKER_TEXT.noMatch} “{this.state.query}”.</div>}
                 </div>
                 <button type='button' id='ingot-pick-manage' className='ingot-popover-footer ingot-pick-manage' onClick={this.props.onManage}>
-                    <span className='codicon codicon-settings-gear' /> Manage models…
+                    <span className='codicon codicon-settings-gear' /> {MODEL_PICKER_TEXT.manage}
                 </button>
             </div>
         </>;
