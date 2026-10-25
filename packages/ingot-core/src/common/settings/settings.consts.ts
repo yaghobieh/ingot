@@ -10,9 +10,9 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
     {
         id: 'appearance-behavior', label: 'Appearance & Behavior', children: [
             {
-                id: 'appearance', label: 'Appearance', preferences: [SETTINGS_PREFS.colorTheme, SETTINGS_PREFS.iconTheme, 'window.zoomLevel', 'workbench.tree.indent'],
+                id: 'appearance', label: 'Appearance', preferences: ['ingot.appearance', SETTINGS_PREFS.colorTheme, SETTINGS_PREFS.iconTheme, 'window.zoomLevel', 'workbench.tree.indent'],
                 actions: [{ id: 'importTheme', label: 'Import Color Theme…' }, { id: 'removeTheme', label: 'Remove Imported Theme…' }],
-                description: 'Color themes include Ingot Light, Ingot Dark, Ingot Ember, high contrast, themes from plugins and imported color themes.'
+                description: 'Theme follows Light, Dark or System (your OS, live). Choosing another color theme (Ember, high contrast, plugin or imported themes) switches to Custom theme.'
             },
             { id: 'system', label: 'System Settings', preferences: ['files.autoSave', 'files.autoSaveDelay', 'window.title'] }
         ]

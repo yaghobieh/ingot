@@ -51,20 +51,57 @@ test.describe('IDEA-34 Settings dialog', () => {
         await openIngot(page);
         await page.locator('#ingot-tb-settings').click();
         await expect(dialog(page)).toBeVisible();
-        await page.locator('#ingot-setting-workbench-colorTheme').selectOption({ label: 'Ingot Light' });
+        await page.locator('#ingot-setting-ingot-appearance').selectOption('light');
         await page.locator('#ingot-settings-ok').click();
         await expect(page.locator('body')).toHaveClass(/theia-light/);
         await expect(dialog(page)).toBeHidden();
 
         await openSettings(page);
-        await page.locator('#ingot-setting-workbench-colorTheme').selectOption({ label: 'Ingot Dark' });
-        await expect(page.locator('.ingot-setting.modified[data-key="workbench.colorTheme"]')).toBeVisible();
+        await page.locator('#ingot-setting-ingot-appearance').selectOption('dark');
+        await expect(page.locator('.ingot-setting.modified[data-key="ingot.appearance"]')).toBeVisible();
         await page.locator('#ingot-settings-apply').click();
         await expect(page.locator('body')).toHaveClass(/theia-dark/);
+        await page.locator('#ingot-setting-ingot-appearance').selectOption('system');
+        await page.locator('#ingot-settings-apply').click();
         await node(page, 'keymap').click();
         await expect(page.locator('#ingot-setting-ingot-keymap')).toHaveValue('Ingot (default)');
         await page.locator('#ingot-settings-action-openKeymap').click();
         await expect(dialog(page)).toBeHidden();
         await expect(page.locator('#theia-main-content-panel .lm-TabBar-tab', { hasText: 'Keyboard Shortcuts' })).toBeVisible();
+    });
+});
+
+test.describe('IDEA-35 Light / Dark / System theme', () => {
+    test('System follows the OS live; the toolbar and status bar pick Light or Dark', async ({ page }) => {
+        await page.emulateMedia({ colorScheme: 'light' });
+        await openIngot(page);
+        const status = page.locator('#theia-statusBar [id$="ingot-appearance"]');
+        const pick = async (label: string) => {
+            await page.locator('#ingot-tb-theme').click();
+            await page.locator('.quick-input-widget .monaco-list-row', { hasText: label }).first().click();
+        };
+        await pick('System');
+        await expect(status).toContainText('System');
+        await expect(page.locator('body')).toHaveClass(/ingot-light/);
+        await page.emulateMedia({ colorScheme: 'dark' });
+        await expect(page.locator('body')).toHaveClass(/ingot-dark/);
+        await page.emulateMedia({ colorScheme: 'light' });
+        await expect(page.locator('body')).toHaveClass(/ingot-light/);
+
+        await pick('Dark');
+        await expect(status).toContainText('Dark');
+        await expect(page.locator('body')).toHaveClass(/ingot-dark/);
+        await status.click();
+        await page.locator('.quick-input-widget .monaco-list-row', { hasText: 'Light' }).first().click();
+        await expect(page.locator('body')).toHaveClass(/ingot-light/);
+
+        // Picking a specific color theme in Settings switches the mode to Custom theme.
+        await actUntilVisible(() => page.keyboard.press('Control+Alt+S'), dialog(page));
+        await page.locator('#ingot-setting-workbench-colorTheme').selectOption({ label: 'Ingot Ember' });
+        await page.locator('#ingot-settings-ok').click();
+        await expect(page.locator('body')).toHaveClass(/ingot-ember/);
+        await expect(status).toContainText('Custom theme');
+        await pick('System');
+        await expect(page.locator('body')).toHaveClass(/ingot-light/);
     });
 });

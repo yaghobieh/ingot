@@ -142,9 +142,9 @@ body.ingot-shell #theia-statusBar .ingot-status-branch { color: var(--theia-fore
 .ingot-welcome-theme { display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 8px; border: 2px solid transparent; border-radius: 8px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .ingot-welcome-theme.active { border-color: var(--theia-focusBorder); }
 .ingot-welcome-theme-preview { width: 120px; height: 72px; border-radius: 6px; border: 1px solid var(--theia-panel-border); }
-.ingot-welcome-theme.ingot-light .ingot-welcome-theme-preview { background: linear-gradient(90deg, #EEF0F4 30%, #FFFFFF 30%); }
-.ingot-welcome-theme.ingot-dark .ingot-welcome-theme-preview { background: linear-gradient(90deg, #2A2D36 30%, #1E2027 30%); }
-.ingot-welcome-theme.ingot-ember .ingot-welcome-theme-preview { background: linear-gradient(90deg, #3C3F41 30%, #2B2B2B 30%); }
+.ingot-welcome-theme.light .ingot-welcome-theme-preview { background: linear-gradient(90deg, #EEF0F4 30%, #FFFFFF 30%); }
+.ingot-welcome-theme.dark .ingot-welcome-theme-preview { background: linear-gradient(90deg, #2A2D36 30%, #1E2027 30%); }
+.ingot-welcome-theme.system .ingot-welcome-theme-preview { background: linear-gradient(135deg, #FFFFFF 50%, #1E2027 50%); }
 .ingot-welcome-links a { color: var(--theia-textLink-foreground); line-height: 2; }
 
 /* ---------- About (IDEA-16) ---------- */

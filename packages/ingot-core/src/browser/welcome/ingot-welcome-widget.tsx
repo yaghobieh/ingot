@@ -9,7 +9,7 @@ import URI from '@theia/core/lib/common/uri';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service';
-import { THEME_IDS } from '../../common/theme/theme.consts';
+import { AppearanceContribution } from '../theme/appearance-contribution';
 import { WELCOME_TABS } from '../../common/welcome/welcome.consts';
 import type { RecentProject, WelcomeTab } from '../../common/welcome/welcome.types';
 import { repoNameFromUrl, toRecentProjects } from '../../common/welcome/welcome.utils';
@@ -17,9 +17,9 @@ import { PRODUCT } from '../../common/product.consts';
 import { CLONE_PROMPT, CLONE_TERMINAL_TITLE, LEARN_LINKS, WELCOME_COMMANDS, WELCOME_WIDGET_ID, WELCOME_WIDGET_LABEL } from './ingot-welcome.consts';
 
 const THEME_CHOICES = [
-    { id: THEME_IDS.light, label: 'Ingot Light' },
-    { id: THEME_IDS.dark, label: 'Ingot Dark' },
-    { id: THEME_IDS.ember, label: 'Ingot Ember' }
+    { id: 'light', label: 'Light' },
+    { id: 'dark', label: 'Dark' },
+    { id: 'system', label: 'System' }
 ] as const;
 
 /** IDE-style Welcome screen: Projects, Customize, Plugins, Learn (IDEA-15). */
@@ -32,6 +32,7 @@ export class IngotWelcomeWidget extends ReactWidget {
     @inject(TerminalService) protected readonly terminals: TerminalService;
     @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
     @inject(ThemeService) protected readonly themes: ThemeService;
+    @inject(AppearanceContribution) protected readonly appearance: AppearanceContribution;
     @inject(WindowService) protected readonly windows: WindowService;
 
     protected tab: WelcomeTab = 'projects';
@@ -142,12 +143,12 @@ export class IngotWelcomeWidget extends ReactWidget {
     }
 
     protected renderCustomize(): React.ReactNode {
-        const current = this.themes.getCurrentTheme().id;
+        const current = this.appearance.mode;
         return <div className='ingot-welcome-section'>
             <h2>Color theme</h2>
             <div className='ingot-welcome-themes'>
                 {THEME_CHOICES.map(t => (
-                    <button key={t.id} id={`ingot-theme-${t.id}`} type='button' className={`ingot-welcome-theme ${t.id} ${current === t.id ? 'active' : ''}`} onClick={() => this.themes.setCurrentTheme(t.id, true)}>
+                    <button key={t.id} id={`ingot-theme-${t.id}`} type='button' className={`ingot-welcome-theme ${t.id} ${current === t.id ? 'active' : ''}`} onClick={async () => { await this.appearance.setMode(t.id); this.update(); }}>
                         <span className='ingot-welcome-theme-preview' />
                         <span>{t.label}</span>
                     </button>

@@ -69,6 +69,7 @@ import { UserThemeContribution } from './theme/user-theme-contribution';
 import { IngotIconTheme } from './icons/ingot-icon-theme';
 import { IconThemeContribution } from '@theia/core/lib/browser/icon-theme-contribution';
 import { LabelProviderContribution } from '@theia/core/lib/browser/label-provider';
+import { AppearanceContribution, appearancePreferenceSchema } from './theme/appearance-contribution';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
@@ -82,6 +83,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     }
     bindModelPreferences(bind);
     bind(PreferenceContribution).toConstantValue({ schema: keymapPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: appearancePreferenceSchema });
+    bind(AppearanceContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(AppearanceContribution);
+    bind(CommandContribution).toService(AppearanceContribution);
     bind(NavigationHistory).toSelf().inSingletonScope();
     bind(ProjectConfigService).toSelf().inSingletonScope();
     bind(GitService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<GitService>(ctx.container, GIT_SERVICE_PATH)).inSingletonScope();
