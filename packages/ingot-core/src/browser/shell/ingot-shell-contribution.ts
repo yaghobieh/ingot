@@ -5,7 +5,6 @@ import { isOSX } from '@theia/core/lib/common/os';
 import { TOOL_WINDOW_KEYMAP } from '../../common/keymap/tool-windows.keymap.consts';
 import { resolveKeymap } from '../../common/keymap/keymap.utils';
 import type { PanelLayout } from '@theia/core/shared/@lumino/widgets';
-import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { IngotMainToolbar } from './ingot-main-toolbar';
 import { IngotStripeWidget } from '../stripe/ingot-stripe-widget';
@@ -37,9 +36,6 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     @inject(IngotStripeWidget)
     protected readonly stripe: IngotStripeWidget;
 
-    @inject(TerminalService)
-    protected readonly terminals: TerminalService;
-
     @inject(WorkspaceService)
     protected readonly workspace: WorkspaceService;
 
@@ -62,12 +58,12 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         // Electron hides the top panel on macOS (native menu); the Ingot main toolbar lives there.
         this.shell.topPanel.show();
         this.attachStripe();
+        // The Agents panel owns the right column; no side tab strip there.
+        this.shell.rightPanelHandler.tabBar.parent?.hide();
         await this.agents.openView({ activate: false, reveal: true });
         this.renameProjectView();
-        await this.workspace.ready;
-        if (this.workspace.opened) {
-            await this.ensureTerminal();
-        }
+        // The reference layout keeps the bottom panel closed; the Terminal opens from the stripe or ⌥F12.
+        this.shell.collapsePanel('bottom');
     }
 
     /** Ingot calls the file tree "Project". */
@@ -75,6 +71,10 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         const explorer = await this.widgets.getWidget(EXPLORER_CONTAINER_ID);
         if (explorer instanceof ViewContainer) {
             pinProjectLabel(explorer);
+            // Only the file tree: no Open Editors or script sections under PROJECT (plugins add theirs later).
+            const filesOnly = (): void => explorer.getParts().filter(part => part.wrapped.id !== 'files' && !part.isHidden).forEach(part => part.setHidden(true));
+            filesOnly();
+            explorer.onDidChangeTrackableWidgets(() => filesOnly());
         }
     }
 
@@ -85,19 +85,8 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         if (!layout || layout.widgets.includes(this.stripe)) {
             return;
         }
-        layout.insertWidget(layout.widgets.indexOf(bottomMenu), this.stripe);
-    }
-
-    /** Ingot keeps a Terminal docked at the bottom; make sure one exists without stealing focus. */
-    protected async ensureTerminal(): Promise<void> {
-        let [terminal] = this.terminals.all;
-        if (!terminal) {
-            terminal = await this.terminals.newTerminal({ title: 'Local' });
-            await terminal.start();
-            this.terminals.open(terminal, { widgetOptions: { area: 'bottom' }, mode: 'reveal' });
-        }
-        this.shell.expandPanel('bottom');
-        await this.shell.revealWidget(terminal.id);
+        // Directly under the side bar tabs, so the stripe reads Project, Search, Git, Terminal.
+        layout.insertWidget(layout.widgets.indexOf(this.shell.leftPanelHandler.tabBar) + 1, this.stripe);
     }
 
     async initializeLayout(_app: FrontendApplication): Promise<void> {

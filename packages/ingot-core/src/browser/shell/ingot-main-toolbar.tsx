@@ -30,6 +30,12 @@ interface ToolbarButtonProps {
     readonly className?: string;
 }
 
+/** Monochrome Ingot mark drawn on the accent logo square. */
+const LOGO_GLYPH = <svg viewBox='0 0 256 256' width='14' height='14' aria-hidden='true'>
+    <polygon points='88,76 168,76 186,110 70,110' fill='currentColor' opacity='.75' />
+    <polygon points='70,110 186,110 210,190 46,190' fill='currentColor' />
+</svg>;
+
 const ToolbarButton = ({ id, icon, title, onClick, label, dropdown, className }: ToolbarButtonProps): React.ReactElement => (
     <button id={id} type='button' className={`ingot-tb-button ${label ? 'ingot-tb-widget' : ''} ${className ?? ''}`} title={title} aria-label={title} onClick={onClick}>
         {icon && <span className={`ingot-icon ingot-icon-${icon}`} />}
@@ -182,8 +188,9 @@ export class IngotMainToolbar extends ReactWidget {
         const active = this.agents.activeCount;
         return <div className='ingot-tb'>
             <div className='ingot-tb-left'>
-                {this.showMainMenuButton && <ToolbarButton id='ingot-tb-menu' icon='menu' title='Main menu' onClick={e => this.openMainMenu(e)} className='ingot-tb-menu' />}
-                <span className='ingot-tb-logo ingot-brand-mark' title='Ingot' />
+                {this.showMainMenuButton
+                    ? <button id='ingot-tb-menu' type='button' className='ingot-tb-logo' title='Main menu' aria-label='Main menu' onClick={e => this.openMainMenu(e)}>{LOGO_GLYPH}</button>
+                    : <span className='ingot-tb-logo' title='Ingot'>{LOGO_GLYPH}</span>}
                 <ToolbarButton id='ingot-tb-project' title='Project' label={this.projectLabel} dropdown onClick={() => this.toggleProjectPopup()} />
                 {this.renderProjectPopup()}
                 <ToolbarButton id='ingot-tb-vcs' icon='branch' title='Git branch' label={this.branches.branch ?? NO_VCS_LABEL} dropdown onClick={() => this.run(this.branches.branch ? TOOLBAR_COMMANDS.branches : TOOLBAR_COMMANDS.git)} />
@@ -201,7 +208,6 @@ export class IngotMainToolbar extends ReactWidget {
                 <button id='ingot-tb-theme' type='button' className='ingot-tb-button' title='Theme: Light, Dark or System' aria-label='Theme' onClick={() => this.run(TOOLBAR_COMMANDS.theme)}>
                     <span className='codicon codicon-color-mode' />
                 </button>
-                <ToolbarButton id='ingot-tb-settings' icon='settings' title='Settings' onClick={() => this.run(TOOLBAR_COMMANDS.settings)} />
             </div>
         </div>;
     }
