@@ -46,6 +46,9 @@
       "frontend": "lib/browser/ingot-core-frontend-module",
       "backend": "lib/node/ingot-core-backend-module",
       "electronMain": "lib/electron-main/ingot-electron-main-module"
+    },
+    {
+      "frontendElectron": "lib/electron-browser/ingot-electron-frontend-module"
     }
   ]
 }
