@@ -1,0 +1,29 @@
+/* IDEA-105 agent review: checkpoint card, changed-files list, inline review comments. */
+.ingot-review { display: flex; flex-direction: column; gap: 6px; margin: 0 10px 6px; }
+.ingot-review-pause { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--theia-focusBorder); border-radius: 8px; background: var(--theia-editorWidget-background); font-size: 12px; }
+.ingot-review-pause-text { font-weight: 500; }
+.ingot-review-countdown { color: var(--theia-descriptionForeground); font-variant-numeric: tabular-nums; }
+.ingot-review-files { border: 1px solid var(--theia-panel-border); border-radius: 8px; overflow: hidden; max-height: 180px; overflow-y: auto; }
+.ingot-review-files-head { padding: 5px 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--theia-descriptionForeground); border-bottom: 1px solid var(--theia-panel-border); }
+.ingot-review-file { display: flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 12px; cursor: pointer; min-width: 0; }
+.ingot-review-file:hover { background: var(--theia-list-hoverBackground); }
+.ingot-review-file .ingot-ficon { flex: none; width: 14px; height: 14px; }
+.ingot-review-file-name { white-space: nowrap; }
+.ingot-review-file-dir { color: var(--theia-descriptionForeground); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ingot-review-file-stats { flex: none; font-variant-numeric: tabular-nums; }
+.ingot-review-file-state { flex: none; font-size: 10.5px; padding: 1px 6px; border-radius: 9px; background: var(--theia-badge-background); color: var(--theia-badge-foreground); }
+.ingot-review-file-state.accepted { background: color-mix(in srgb, var(--theia-testing-iconPassed, #3fb950) 22%, transparent); color: var(--theia-foreground); }
+.ingot-review-file-state.rejected { background: color-mix(in srgb, var(--theia-errorForeground) 22%, transparent); color: var(--theia-foreground); }
+.ingot-review-file-state.applied { background: transparent; color: var(--theia-descriptionForeground); }
+.ingot-review-file button { flex: none; padding: 0 3px; min-width: 0; height: 18px; }
+.ingot-review-comments-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--theia-editorWidget-background); border: 1px solid var(--theia-panel-border); font-size: 12px; }
+.ingot-composer-review { opacity: .6; }
+.ingot-composer-review.on { opacity: 1; color: var(--theia-focusBorder); }
+
+.monaco-editor .ingot-review-plus { cursor: pointer; color: #fff !important; background: var(--theia-focusBorder); border-radius: 4px; font-size: 12px !important; display: flex !important; align-items: center; justify-content: center; width: 16px !important; height: 16px !important; margin-top: 2px; }
+.ingot-review-comment, .ingot-review-compose { position: absolute; z-index: 5; box-sizing: border-box; border: 1px solid var(--theia-panel-border); border-left: 3px solid var(--theia-focusBorder); border-radius: 6px; background: var(--theia-editorWidget-background); padding: 6px 10px; font-family: var(--theia-ui-font-family); font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+.ingot-review-comment.submitted { border-left-color: var(--theia-descriptionForeground); }
+.ingot-review-comment-text { white-space: pre-wrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-review-comment-meta { display: flex; align-items: center; gap: 8px; color: var(--theia-descriptionForeground); font-size: 11px; }
+.ingot-review-compose-input { flex: 1; resize: none; font: inherit; color: var(--theia-input-foreground); background: var(--theia-input-background); border: 1px solid var(--theia-input-border, var(--theia-panel-border)); border-radius: 4px; padding: 4px 6px; }
+.ingot-review-compose-actions { display: flex; justify-content: flex-end; gap: 6px; }

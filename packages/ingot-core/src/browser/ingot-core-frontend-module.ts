@@ -64,6 +64,9 @@ import { IngotKeymapContribution, keymapPreferenceSchema } from './keymap/ingot-
 import { IngotRunContribution } from './run/ingot-run-contribution';
 import { PreferenceContribution } from '@theia/core/lib/common/preferences';
 import { layoutPreferenceSchema } from './layout/layout-preferences';
+import { reviewPreferenceSchema } from './review/review-preferences';
+import { ReviewContribution } from './review/review-contribution';
+import { ReviewComments } from './review/review-comments';
 import { IngotLayoutContribution } from './layout/layout-contribution';
 import { ProjectConfigService } from './project-config/project-config-service';
 import { IngotMcpClient } from './project-config/mcp-client';
@@ -123,6 +126,12 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: keymapPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: appearancePreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: layoutPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: reviewPreferenceSchema });
+    bind(ReviewComments).toSelf().inSingletonScope();
+    bind(ReviewContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(ReviewContribution);
+    bind(MenuContribution).toService(ReviewContribution);
+    bind(FrontendApplicationContribution).toService(ReviewContribution);
     bind(IngotLayoutContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(IngotLayoutContribution);
     bind(MenuContribution).toService(IngotLayoutContribution);

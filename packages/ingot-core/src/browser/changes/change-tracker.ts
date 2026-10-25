@@ -87,6 +87,13 @@ export class ChangeTracker {
         return this.items.filter(c => c.sessionId === sessionId && c.messageIndex === messageIndex);
     }
 
+    /** IDEA-105: the files of a chat's latest run that changed files (the review list). */
+    lastRun(sessionId: string): CodeChange[] {
+        const mine = this.items.filter(c => c.sessionId === sessionId);
+        const last = Math.max(-1, ...mine.map(c => c.messageIndex));
+        return mine.filter(c => c.messageIndex === last);
+    }
+
     pending(sessionId?: string): CodeChange[] {
         return this.items.filter(c => isPending(c) && (!sessionId || c.sessionId === sessionId));
     }

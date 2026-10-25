@@ -45,7 +45,10 @@ import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-render
 import { LAYOUT_CONTEXT_MENU } from '../layout/layout.browser-consts';
 import { ChangeTracker } from '../changes/change-tracker';
 import { CodeChangeBlock } from '../changes/code-change-block';
-import { changeStats } from '../../common/changes/changes.utils';
+import { changeStats, isPending } from '../../common/changes/changes.utils';
+import { formatCountdown, reviewFileState } from '../../common/review/review';
+import { ReviewComments } from '../review/review-comments';
+import type { CodeChange } from '../../common/changes/changes.types';
 import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
 
 type Popover = 'mode' | 'model' | 'history' | 'context' | undefined;
@@ -57,6 +60,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     @inject(AgentStore) protected readonly store: AgentStore;
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
+    @inject(ReviewComments) protected readonly reviewComments: ReviewComments;
     /** Code-change blocks the user collapsed (they start open). */
     protected readonly collapsedChanges = new Set<string>();
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
@@ -164,8 +168,19 @@ export class IngotAgentsWidget extends ReactWidget {
         this.title.iconClass = 'ingot-icon ingot-icon-ai';
         this.addClass('ingot-agents');
         this.toDispose.push(this.store.onDidChange(() => this.update()));
-        this.toDispose.push(this.tracker.onDidChange(() => this.update()));
+        this.toDispose.push(this.tracker.onDidChange(() => {
+            // IDEA-105: deciding a file during a checkpoint is review activity, so the countdown stops.
+            const current = this.store.current;
+            if (current?.pause?.continueAt !== undefined && this.reviewTouched) {
+                this.store.holdPause(current.id);
+            }
+            this.reviewTouched = false;
+            this.update();
+        }));
+        const ticker = setInterval(() => { if (this.store.current?.pause?.continueAt !== undefined) { this.update(); } }, 500);
+        this.toDispose.push({ dispose: () => clearInterval(ticker) });
         this.toDispose.push(this.models.onDidChange(() => this.update()));
+        this.toDispose.push(this.reviewComments.onDidChange(() => this.update()));
         this.toDispose.push(this.editors.onCurrentEditorChanged(() => this.update()));
         this.focusKey = this.contextKeys.createKey<boolean>(AGENTS_FOCUS_KEY, false);
         this.node.addEventListener('focusin', () => this.focusKey?.set(true));
@@ -678,21 +693,96 @@ export class IngotAgentsWidget extends ReactWidget {
         </>;
     }
 
-    /** Accept All / Reject All bar above the composer while agent changes wait (IDEA-102). */
+    /** Set by review clicks so the tracker update that follows counts as interaction (stops the countdown). */
+    protected reviewTouched = false;
+
+    protected touchReview(session: AgentSession): void {
+        this.reviewTouched = true;
+        this.store.holdPause(session.id);
+    }
+
+    /**
+     * IDEA-105 review panel above the composer: the checkpoint card (countdown, Continue now / Wait / Stop), the
+     * changed-files list (+/−, status, per-file Accept / Reject, click opens the diff) and Accept All / Reject All.
+     * With review off the list is information only.
+     */
     protected renderChangesBar(session: AgentSession | undefined): React.ReactNode {
-        const pending = session ? this.tracker.pending(session.id).filter(c => c.status !== 'streaming') : [];
-        if (!session || !pending.length) {
+        if (!session) {
+            return undefined;
+        }
+        const review = this.store.review;
+        const run = this.tracker.lastRun(session.id).filter(c => c.status !== 'streaming');
+        const pending = run.filter(isPending);
+        const paused = session.status === 'paused' && session.pause;
+        const drafts = this.reviewComments.drafts(session.id);
+        if (!pending.length && !paused && !drafts.length && !(run.length && !review.enabled && this.lastRunVisible(session))) {
             return undefined;
         }
         const stats = pending.map(c => changeStats(c.hunks.filter(h => h.state === 'pending'))).reduce((a, b) => ({ added: a.added + b.added, removed: a.removed + b.removed }), { added: 0, removed: 0 });
         const hunks = pending.reduce((n, c) => n + c.hunks.filter(h => h.state === 'pending').length, 0);
-        return <div className='ingot-changes-bar' id='ingot-changes-bar'>
-            <span className='codicon codicon-diff' />
-            <span id='ingot-changes-summary'>{changesSummary(pending.length)} · {hunks} {hunks === 1 ? 'change' : 'changes'} <span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
-            <button type='button' className='ingot-btn-ghost ingot-changes-nav' title='Previous change (⌥↑)' onClick={() => this.tracker.navigate(-1)}><span className='codicon codicon-arrow-up' /></button>
-            <button type='button' className='ingot-btn-ghost ingot-changes-nav' title='Next change (⌥↓)' onClick={() => this.tracker.navigate(1)}><span className='codicon codicon-arrow-down' /></button>
-            <button type='button' id='ingot-changes-reject-all' className='ingot-btn-ghost' onClick={() => this.tracker.decideAll('rejected', session.id)}>Reject All</button>
-            <button type='button' id='ingot-changes-accept-all' className='ingot-btn-primary' onClick={() => this.tracker.decideAll('accepted', session.id)}>Accept All</button>
+        return <div className='ingot-review' id='ingot-review'>
+            {paused && session.pause && this.renderPause(session, session.pause)}
+            <div className={`ingot-review-files${review.enabled ? '' : ' info'}`} id='ingot-review-files'>
+                <div className='ingot-review-files-head'>Changed files <span className='ingot-dim'>{run.length}</span></div>
+                {run.map((change, i) => this.renderReviewFile(session, change, i, review.enabled))}
+            </div>
+            {drafts.length > 0 && <div className='ingot-review-comments-bar' id='ingot-review-comments-bar'>
+                <span className='codicon codicon-comment' />
+                <span id='ingot-review-comments-count'>{drafts.length} pending {drafts.length === 1 ? 'comment' : 'comments'}</span>
+                <span className='ingot-flex' />
+                <button type='button' id='ingot-review-submit' className='ingot-btn-primary' onClick={() => this.reviewComments.submit(session.id)}>Finish review</button>
+            </div>}
+            {pending.length > 0 && review.enabled && <div className='ingot-changes-bar' id='ingot-changes-bar'>
+                <span className='codicon codicon-diff' />
+                <span id='ingot-changes-summary'>{changesSummary(pending.length)} · {hunks} {hunks === 1 ? 'change' : 'changes'} <span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
+                <button type='button' className='ingot-btn-ghost ingot-changes-nav' title='Previous change (⌥↑)' onClick={() => this.tracker.navigate(-1)}><span className='codicon codicon-arrow-up' /></button>
+                <button type='button' className='ingot-btn-ghost ingot-changes-nav' title='Next change (⌥↓)' onClick={() => this.tracker.navigate(1)}><span className='codicon codicon-arrow-down' /></button>
+                <button type='button' id='ingot-changes-reject-all' className='ingot-btn-ghost' onClick={() => { this.touchReview(session); void this.tracker.decideAll('rejected', session.id); }}>Reject All</button>
+                <button type='button' id='ingot-changes-accept-all' className='ingot-btn-primary' onClick={() => { this.touchReview(session); void this.tracker.decideAll('accepted', session.id); }}>Accept All</button>
+            </div>}
+        </div>;
+    }
+
+    /** Review off: the info list stays until the next message. */
+    protected lastRunVisible(session: AgentSession): boolean {
+        const lastAgent = session.messages.map(m => m.role).lastIndexOf('agent');
+        const lastUser = session.messages.map(m => m.role).lastIndexOf('user');
+        return lastAgent > lastUser;
+    }
+
+    protected renderPause(session: AgentSession, pause: NonNullable<AgentSession['pause']>): React.ReactNode {
+        const left = pause.continueAt === undefined ? undefined : (pause.continueAt - Date.now()) / 1000;
+        return <div className='ingot-review-pause' id='ingot-review-pause' role='status'>
+            <span className='codicon codicon-debug-pause' />
+            <span className='ingot-review-pause-text'>Paused for review · {pause.applied} of {pause.total} files applied</span>
+            {left !== undefined && <span className='ingot-review-countdown' id='ingot-review-countdown'>Continuing in {formatCountdown(left)}</span>}
+            <span className='ingot-flex' />
+            <button type='button' id='ingot-review-stop' className='ingot-btn-ghost' onClick={() => this.store.stop(session.id)}>Stop</button>
+            {left !== undefined && <button type='button' id='ingot-review-wait' className='ingot-btn-ghost' onClick={() => this.store.holdPause(session.id)}>Wait</button>}
+            <button type='button' id='ingot-review-continue' className='ingot-btn-primary' onClick={() => this.store.continueRun(session.id)}>Continue now</button>
+        </div>;
+    }
+
+    protected renderReviewFile(session: AgentSession, change: CodeChange, index: number, enabled: boolean): React.ReactNode {
+        const name = change.path.split('/').pop() ?? change.path;
+        const stats = this.tracker.stats(change);
+        const state = isPending(change) ? 'pending' : reviewFileState(change.status);
+        const label = !enabled ? 'Applied' : state === 'pending' ? 'Pending' : state === 'accepted' ? 'Accepted' : state === 'rejected' ? 'Rejected' : 'Partly kept';
+        return <div key={change.id} id={`ingot-review-file-${index}`} data-path={change.path} className={`ingot-review-file ${enabled ? state : 'applied'}`}
+            role='button' tabIndex={0} title={change.path}
+            onClick={() => { this.touchReview(session); void this.tracker.reveal(change.id); }}>
+            <span className={fileIconClass(name)} />
+            <span className='ingot-review-file-name'>{name}</span>
+            <span className='ingot-review-file-dir'>{change.path.includes('/') ? change.path.slice(0, change.path.lastIndexOf('/')) : ''}</span>
+            <span className='ingot-flex' />
+            <span className='ingot-review-file-stats'><span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
+            <span className={`ingot-review-file-state ${enabled ? state : 'applied'}`}>{label}</span>
+            {enabled && state === 'pending' && <>
+                <button type='button' className='ingot-btn-ghost ingot-review-file-reject' title='Reject this file'
+                    onClick={e => { e.stopPropagation(); this.touchReview(session); void this.tracker.decide(change.id, 'all', 'rejected'); }}><span className='codicon codicon-close' /></button>
+                <button type='button' className='ingot-btn-ghost ingot-review-file-accept' title='Accept this file'
+                    onClick={e => { e.stopPropagation(); this.touchReview(session); void this.tracker.decide(change.id, 'all', 'accepted'); }}><span className='codicon codicon-check' /></button>
+            </>}
         </div>;
     }
 
@@ -743,6 +833,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 {this.renderMic()}
                 {this.renderModePill()}
                 {this.renderModelPill()}
+                {this.renderReviewToggle()}
                 <span className='ingot-flex' />
                 {this.renderUsageRing()}
                 {this.store.isRunning(this.store.current?.id)
@@ -759,6 +850,14 @@ export class IngotAgentsWidget extends ReactWidget {
             {current?.context?.rules.map(r => <span key={`r-${r}`} className='ingot-chip ingot-chip-rule' title={`Rule applied: ${r}`}><span className='codicon codicon-law' />{r}</span>)}
             {current?.context?.memories.map(m => <span key={`m-${m.id}`} className='ingot-chip ingot-chip-memory' title={m.text}><span className='codicon codicon-lightbulb' />{m.text.length > 28 ? `${m.text.slice(0, 27)}…` : m.text}</span>)}
         </>;
+    }
+
+    /** IDEA-105 quick toggle: agent review on / off (Settings › Agent review has the rest). */
+    protected renderReviewToggle(): React.ReactNode {
+        const on = this.store.review.enabled;
+        return <button type='button' id='ingot-composer-review' className={`ingot-icon-button codicon ${on ? 'codicon-eye' : 'codicon-eye-closed'} ingot-composer-review${on ? ' on' : ''}`}
+            aria-pressed={on} title={on ? 'Agent review on: edits wait for Accept / Reject (click to apply edits right away)' : 'Agent review off: edits apply right away (click to review them)'}
+            onClick={() => void this.store.setReviewEnabled(!on)} />;
     }
 
     protected renderModePill(): React.ReactNode {
