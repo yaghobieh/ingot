@@ -53,7 +53,7 @@ test.describe('IDEA-29 inline agent edit review', () => {
         await runCommand(page, 'Try Agent Edit Review (demo)');
         const bar = page.locator('.ingot-agent-edit-bar');
         await expect(bar).toBeVisible();
-        await expect(bar).toContainText('Agent edit');
+        await expect(bar.locator('.ingot-agent-edit-accept')).toContainText('Accept');
         await expect(bar).toContainText('math.ts');
         await expect(page.locator('.ingot-diff-added-line').first()).toBeVisible();
         await expect(page.locator('.ingot-diff-removed-zone').first()).toBeVisible();
