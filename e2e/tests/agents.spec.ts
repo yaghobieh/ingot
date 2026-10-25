@@ -3,6 +3,7 @@ import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { FIXTURE_WORKSPACE } from '../src/e2e.consts';
 import { openIngot, runCommand } from '../src/app.utils';
+import { pickModel, pickMode } from '../src/chat.e2e-utils';
 
 const DEMO_MARKER = 'reviewed by Ingot agent (demo)';
 const MATH_FILE = path.join(FIXTURE_WORKSPACE, 'src', 'math.ts');
@@ -23,13 +24,13 @@ test.describe('IDEA-27/28 Agents tool window', () => {
         const panel = page.locator('#ingot-agents');
         await expect(panel).toBeVisible();
         await page.locator('#ingot-agents-new').click();
-        await expect(panel.locator('.ingot-agent-item')).toHaveCount(1);
-        await page.locator('#ingot-composer-mode').selectOption('plan');
-        await page.locator('#ingot-composer-model').selectOption('gpt-5');
+        await expect(panel.locator('.ingot-chat-tab')).toHaveCount(1);
+        await pickMode(page, 'plan');
+        await pickModel(page, 'gpt-5');
         await page.locator('#ingot-composer-input').fill('make addItem optimistic and add qty support');
         await page.keyboard.press('Enter');
         await expect(panel.locator('.ingot-chat-user')).toHaveText('make addItem optimistic and add qty support');
-        await expect(panel.locator('.ingot-agent-item-title').first()).toHaveText('Make addItem optimistic and add qty support');
+        await expect(panel.locator('.ingot-chat-tab-title').first()).toHaveText('Make addItem optimistic and add qty support');
         await expect(panel.locator('.ingot-chat-system')).toContainText('not connected yet');
     });
 
@@ -71,7 +72,7 @@ test.describe('IDEA-29 inline agent edit review', () => {
         await page.keyboard.press('Control+y');
         await expect(bar).toBeHidden();
         await expect(page.locator('.monaco-editor .view-lines').first()).toContainText(DEMO_MARKER);
-        await page.locator('#ingot-agents-tab-history').click();
-        await expect(page.locator('#ingot-agents .ingot-agent-status.ingot-status-done').first()).toBeVisible();
+        await page.locator('#ingot-agents-history').click();
+        await expect(page.locator('#ingot-chat-history .ingot-agent-status.ingot-status-done').first()).toBeVisible();
     });
 });
