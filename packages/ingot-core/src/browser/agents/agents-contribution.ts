@@ -7,7 +7,7 @@ import { lineDiff, diffStats } from '../../common/diff/diff.utils';
 import { AgentStore } from './agent-store';
 import { AGENT_EDIT_PENDING_KEY, AgentEditReview } from './agent-edit-review';
 import { IngotAgentsWidget } from './agents-widget';
-import { ACCEPT_EDIT_KEY, AGENT_COMMANDS, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL, DEMO_MARKER, REJECT_EDIT_KEY, ADD_TO_CHAT_KEY } from './agents.consts';
+import { ACCEPT_EDIT_KEY, AGENT_COMMANDS, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL, DEMO_MARKER, REJECT_EDIT_KEY } from './agents.consts';
 
 /** Demo transformation: annotate the first function-like line so the review UI can be tried without a model. */
 const demoEdit = (text: string): string => {
@@ -48,7 +48,6 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
 
     override registerKeybindings(keybindings: KeybindingRegistry): void {
         super.registerKeybindings(keybindings);
-        keybindings.registerKeybinding({ command: AGENT_COMMANDS.addSelectionToChat.id, keybinding: ADD_TO_CHAT_KEY, when: 'editorTextFocus' });
         keybindings.registerKeybinding({ command: AGENT_COMMANDS.acceptEdit.id, keybinding: ACCEPT_EDIT_KEY, when: AGENT_EDIT_PENDING_KEY });
         keybindings.registerKeybinding({ command: AGENT_COMMANDS.rejectEdit.id, keybinding: REJECT_EDIT_KEY, when: AGENT_EDIT_PENDING_KEY });
     }

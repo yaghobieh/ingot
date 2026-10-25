@@ -42,8 +42,20 @@ export class IngotGitService implements GitService {
         switch (op.kind) {
             case 'apply':
                 return { output: await this.git(root, args, { input: op.patch }) };
-            case 'pull': case 'fetch': case 'push':
+            case 'pull': case 'fetch': case 'push': case 'pushTo':
                 return { output: await this.git(root, args, remoteTimeout) };
+            case 'commit':
+                return { output: await this.git(root, args, { input: op.message, timeout: 120_000 }) };
+            case 'stageContent': {
+                const sha = (await this.git(root, args, { input: op.content })).trim();
+                const staged = (await this.git(root, ['ls-files', '-s', '--', op.path])).trim();
+                const mode = /^(\d{6}) /.exec(staged)?.[1] ?? '100644';
+                await this.git(root, ['update-index', '--add', '--cacheinfo', `${mode},${sha},${op.path}`]);
+                return { output: sha };
+            }
+            case 'outgoing': case 'recentMessages': case 'headMessage':
+                // A repository without commits has nothing to push or recall.
+                return { output: await this.git(root, args).catch(() => '') };
             case 'upstream':
                 return { output: (await this.git(root, args).catch(() => '')).trim() };
             case 'isAncestorOfHead':

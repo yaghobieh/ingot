@@ -6,6 +6,7 @@ import { isRepoRelativePath, isValidBranchName, isValidRef } from './git.utils';
  * validates it and builds the argument list itself, so no free-form arguments ever reach `git`.
  */
 export type ResetMode = 'soft' | 'mixed' | 'hard';
+export type PushTags = 'none' | 'current' | 'all';
 
 export type GitOperation =
     | { kind: 'add'; paths: string[] }
@@ -47,6 +48,20 @@ export type GitOperation =
     | { kind: 'parents'; commit: string }
     | { kind: 'isAncestorOfHead'; commit: string }
     | { kind: 'status' }
+    /** Commit dialog (IDEA-74): commit the selected paths (or the index when `paths` is omitted). Message goes via stdin. */
+    | { kind: 'commit'; message: string; paths?: string[]; amend: boolean; signoff: boolean; noVerify: boolean }
+    /** Puts exact content into the index for one path (partial commit of selected chunks). */
+    | { kind: 'stageContent'; path: string; content: string }
+    /** Unstages everything (keeps the working tree). */
+    | { kind: 'resetIndex' }
+    /** Push dialog (IDEA-74). */
+    | { kind: 'pushTo'; remote: string; localBranch: string; remoteBranch: string; tags: PushTags; force: boolean; setUpstream: boolean }
+    /** Commits on HEAD that `remoteRef` does not have (all remotes when omitted). */
+    | { kind: 'outgoing'; remoteRef?: string }
+    /** Recent commit messages for the message history. */
+    | { kind: 'recentMessages' }
+    /** Full message of HEAD (Amend). */
+    | { kind: 'headMessage' }
     /** Commits on a branch that are not on HEAD (cherry-pick candidates). */
     | { kind: 'logOnly'; branch: string };
 
@@ -124,9 +139,22 @@ export const gitArgs = (op: GitOperation): string[] => {
         case 'parents': return ['rev-list', '--parents', '-n', '1', commit(op.commit)];
         case 'isAncestorOfHead': return ['merge-base', '--is-ancestor', commit(op.commit), 'HEAD'];
         case 'status': return ['status', '--porcelain=v1', '-z'];
+        case 'commit': return ['commit', '-F', '-', ...(op.amend ? ['--amend'] : []), ...(op.signoff ? ['--signoff'] : []), ...(op.noVerify ? ['--no-verify'] : []),
+            ...(op.paths === undefined ? [] : op.paths.length ? ['--only', '--', ...paths(op.paths)] : ['--only'])];
+        case 'stageContent': return ['hash-object', '-w', '--stdin', '--path', paths([op.path])[0]];
+        case 'resetIndex': return ['reset', '-q'];
+        case 'pushTo': return ['push', '--porcelain', ...(op.force ? ['--force-with-lease'] : []), ...(op.tags === 'all' ? ['--tags'] : op.tags === 'current' ? ['--follow-tags'] : []),
+            ...(op.setUpstream ? ['--set-upstream'] : []), remoteName(op.remote), `${branch(op.localBranch)}:refs/heads/${branch(op.remoteBranch)}`];
+        case 'outgoing': return ['log', '--max-count=500', `--format=${LOG_FORMAT}`, '--decorate=short', 'HEAD', '--not', ...(op.remoteRef ? [ref(op.remoteRef)] : ['--remotes']), '--'];
+        case 'recentMessages': return ['log', '--max-count=30', '--format=%B%x1e'];
+        case 'headMessage': return ['log', '-1', '--format=%B'];
         case 'logOnly': return ['log', '--max-count=200', `--format=${LOG_FORMAT}`, '--decorate=short', branch(op.branch), '--not', 'HEAD', '--'];
     }
 };
+
+/** Messages from `recentMessages`: trimmed, de-duplicated, newest first. */
+export const parseRecentMessages = (output: string): string[] =>
+    [...new Set(output.split('\x1e').map(m => m.trim()).filter(Boolean))];
 
 export interface StashEntry { readonly index: number; readonly message: string; readonly date: string }
 
