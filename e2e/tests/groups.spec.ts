@@ -27,7 +27,7 @@ test.describe('IDEA-52 project groups', () => {
         await page.locator('#ingot-agents-new').click();
         await page.locator('#ingot-composer-input').fill('Agent in sample-project');
         await page.keyboard.press('Enter');
-        await expect(page.locator('.ingot-agent-item', { hasText: 'Agent in sample-project' })).toBeVisible();
+        await expect(page.locator('.ingot-chat-tab', { hasText: 'Agent in sample-project' })).toBeVisible();
         const terminalsInA = await terminalTabs(page).count();
 
         // Switch to project B: everything swaps.
@@ -36,7 +36,7 @@ test.describe('IDEA-52 project groups', () => {
         await expect(tree(page).getByText('second-project', { exact: true })).toBeVisible();
         await expect(tree(page).getByText('sample-project', { exact: true })).toHaveCount(0);
         await expect(editorTab(page, 'package.json')).toHaveCount(0);
-        await expect(page.locator('.ingot-agent-item', { hasText: 'Agent in sample-project' })).toHaveCount(0);
+        await expect(page.locator('.ingot-chat-tab', { hasText: 'Agent in sample-project' })).toHaveCount(0);
         await expect(terminalTabs(page)).toHaveCount(1);
 
         // And back with the "Previous Project Window" shortcut.
@@ -44,7 +44,7 @@ test.describe('IDEA-52 project groups', () => {
         await page.keyboard.press('Control+Alt+BracketLeft');
         await expect(tab(page, 'sample-project')).toHaveClass(/active/);
         await expect(editorTab(page, 'package.json')).toBeVisible();
-        await expect(page.locator('.ingot-agent-item', { hasText: 'Agent in sample-project' })).toBeVisible();
+        await expect(page.locator('.ingot-chat-tab', { hasText: 'Agent in sample-project' })).toBeVisible();
         await expect(terminalTabs(page)).toHaveCount(terminalsInA);
     });
 
