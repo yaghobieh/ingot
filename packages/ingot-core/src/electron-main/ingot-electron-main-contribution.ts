@@ -2,9 +2,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import { app, nativeImage, type BrowserWindow } from '@theia/core/electron-shared/electron';
-import { injectable } from '@theia/core/shared/inversify';
-import type { ElectronMainApplicationContribution } from '@theia/core/lib/electron-main/electron-main-application';
+import { inject, injectable } from '@theia/core/shared/inversify';
+import { ElectronSecurityToken } from '@theia/core/lib/electron-common/electron-token';
+import type { ElectronMainApplication, ElectronMainApplicationContribution } from '@theia/core/lib/electron-main/electron-main-application';
 import { PRODUCT } from '../common/product.consts';
+import { registerDeepLinks, setDeepLinkBackend } from './ingot-deep-link';
+
+registerDeepLinks();
 
 /** Packaged with @ingot/core so dev runs and builds both show the Ingot icon. */
 export const APP_ICON_PATH = path.resolve(__dirname, '..', '..', 'resources', 'app-icon.png');
@@ -21,7 +25,10 @@ const prefersReducedMotion = (): Promise<boolean> => new Promise(resolve => {
 @injectable()
 export class IngotElectronMainContribution implements ElectronMainApplicationContribution {
 
-    onStart(): void {
+    @inject(ElectronSecurityToken) protected readonly securityToken: ElectronSecurityToken;
+
+    onStart(application?: ElectronMainApplication): void {
+        application?.backendPort.then(port => setDeepLinkBackend(port, this.securityToken), () => undefined);
         app.setName(PRODUCT.name);
         const icon = nativeImage.createFromPath(APP_ICON_PATH);
         if (icon.isEmpty()) {

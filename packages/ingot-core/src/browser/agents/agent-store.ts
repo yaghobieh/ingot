@@ -13,7 +13,7 @@ import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-servi
 import { postConstruct } from '@theia/core/shared/inversify';
 import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
-import { DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE } from '../../common/agents/agents.consts';
+import { DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
 import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
 import { activeAgentCount, titleFromPrompt } from '../../common/agents/agents.utils';
 import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
@@ -312,7 +312,9 @@ export class AgentStore {
             return session;
         }
         if (!this.models.isModelConfigured(this.resolveModel(session.model))) {
-            session.messages.push({ role: 'system', text: NO_MODEL_MESSAGE });
+            const resolved = this.resolveModel(session.model);
+            const needsAccount = !this.models.isProviderConfigured('ingot') && (resolved === AUTO_MODEL_ID || resolved.startsWith('ingot:') || !this.models.byok);
+            session.messages.push({ role: 'system', text: needsAccount ? SIGN_IN_MESSAGE : NO_MODEL_MESSAGE });
             session.status = 'idle';
             session.updatedAt = Date.now();
             this.changed();
