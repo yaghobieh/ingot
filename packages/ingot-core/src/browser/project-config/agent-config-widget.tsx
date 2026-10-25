@@ -9,7 +9,7 @@ import { ProjectConfigService } from './project-config-service';
 import { AGENT_CONFIG_WIDGET_ID, AGENT_CONFIG_WIDGET_LABEL } from './project-config.browser-consts';
 import { SOURCE_LABELS } from '../../common/project-config/project-config.consts';
 
-const STATE_LABEL = { disabled: 'Disabled', starting: 'Starting…', connected: 'Connected', error: 'Error' } as const;
+const STATE_LABEL = { disabled: 'Disabled', starting: 'Starting…', connected: 'Connected', error: 'Error', 'needs-auth': 'Needs authentication' } as const;
 
 /** Settings › Rules, Commands & MCP servers for the open project (IDEA-30/31). */
 @injectable()

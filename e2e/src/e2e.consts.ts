@@ -9,6 +9,9 @@ export const GROUP_FIXTURE = path.join(FIXTURES_DIR, 'fullstack.ingot-group');
 export const CONFIG_PROJECT = path.join(FIXTURES_DIR, 'config-project');
 export const E2E_KEYCHAIN_SERVICE = 'dev.ingot.ide.e2e';
 export const E2E_CONFIG_DIR = path.resolve(__dirname, '..', '.ingot-e2e-config');
+/** Stands in for the home folder whose imported global config (rules, mcp.json) Ingot reads. */
+export const IMPORT_HOME = path.join(FIXTURES_DIR, 'import-home');
+export const CALC_SERVER = path.join(FIXTURES_DIR, 'mcp', 'calc-server.mjs');
 export const APP_READY_TIMEOUT_MS = 120_000;
 export const SHELL_SELECTOR = '#theia-app-shell';
 /**

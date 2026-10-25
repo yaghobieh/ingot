@@ -5,7 +5,7 @@ import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 
 const composer = (page: Page) => page.locator('#ingot-composer-input');
-const config = (page: Page) => page.locator('#ingot-agent-config');
+const config = (page: Page) => page.locator('.ingot-mcp');
 
 const newOllamaAgent = async (page: Page): Promise<void> => {
     await page.locator('#ingot-agents-new').click();
@@ -65,18 +65,23 @@ test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => 
         await dismissNotifications(page);
         await runCommand(page, 'Rules, Commands & MCP Servers');
         await expect(config(page)).toBeVisible();
-        await expect(config(page).locator('#ingot-config-rules')).toContainText('AGENTS.md');
-        await expect(config(page).locator('#ingot-config-rules')).toContainText('always');
-        await expect(config(page).locator('#ingot-config-rules')).toContainText('**/*.ts');
-        await expect(config(page).locator('#ingot-config-commands')).toContainText('/release-notes');
-        const status = config(page).locator('#ingot-mcp-status-calc');
-        await expect(status).toHaveText('Disabled');
-        await expect(config(page).locator('#ingot-mcp-server-calc')).toContainText('CALC_MODE (values hidden)');
+        await config(page).locator('#ingot-mcp-tab-rules').click();
+        const rules = config(page).locator('#ingot-mcp-items-rule');
+        await expect(rules).toContainText('AGENTS.md');
+        await expect(rules).toContainText('always');
+        await expect(rules).toContainText('**/*.ts');
+        await config(page).locator('#ingot-mcp-tab-skills').click();
+        await expect(config(page).locator('#ingot-mcp-items-skill')).toContainText('release-notes');
+        await config(page).locator('#ingot-mcp-tab-mcps').click();
+        const calc = config(page).locator('#ingot-mcp-row-calc');
+        await expect(calc.locator('.ingot-mcp-summary')).toHaveText('Disabled');
 
-        await config(page).locator('#ingot-mcp-toggle-calc').check();
-        await expect(status).toHaveText('Connected', { timeout: 15_000 });
-        await expect(config(page).locator('#ingot-mcp-tools-calc')).toContainText('add');
-        await expect(config(page).locator('#ingot-mcp-tools-calc')).toContainText('mode');
+        await calc.locator('.ingot-mcp-toggle').check({ force: true });
+        await expect(calc.locator('.ingot-mcp-summary')).toHaveText(/2 tools enabled/, { timeout: 15_000 });
+        await calc.locator('.ingot-mcp-row-main').click();
+        await expect(calc.locator('.ingot-mcp-tools')).toContainText('add');
+        await expect(calc.locator('.ingot-mcp-tools')).toContainText('mode');
+        await expect(calc).toContainText('CALC_MODE');
 
         await connectOllama(page, server);
         await newOllamaAgent(page);
@@ -87,6 +92,7 @@ test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => 
         await expect(page.locator('#ingot-agents .ingot-chat-agent').last()).toHaveText('The sum is 5.');
         expect(server.requests.find(r => r.user.includes('calculator'))?.system).toContain('calc/add');
 
-        await config(page).locator('#ingot-mcp-toggle-calc').uncheck({ force: true }).catch(() => undefined);
+        await page.locator('#ingot-rs-mcp').click();
+        await config(page).locator('#ingot-mcp-row-calc .ingot-mcp-toggle').uncheck({ force: true }).catch(() => undefined);
     });
 });
