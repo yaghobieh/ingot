@@ -13,7 +13,7 @@ export const LIGHT_SYNTAX: SyntaxColors = {
 };
 
 export const DARK_SYNTAX: SyntaxColors = {
-    keyword: '#CF8E6D', string: '#6AAB73', number: '#2AACB8', comment: '#7A7E85', function: '#56A8F5',
+    keyword: '#CF8E6D', string: '#6AAB73', number: '#2AACB8', comment: '#8C9096', function: '#56A8F5',
     type: '#BCBEC4', property: '#C77DBB', variable: '#BCBEC4', constant: '#C77DBB', tag: '#D5B778', attribute: '#BABABA'
 };
 
@@ -35,4 +35,12 @@ export const ALPHA = {
     strong: '33',
     scrollbar: '40',
     scrollbarHover: '66'
+} as const;
+
+/** Agent / VCS diff backgrounds from the design reference. */
+export const DIFF = {
+    added: '#5FAD562E',
+    addedText: '#5FAD564D',
+    removed: '#F7546429',
+    removedText: '#F754644D'
 } as const;

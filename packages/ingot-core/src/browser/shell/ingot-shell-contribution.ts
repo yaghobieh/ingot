@@ -4,8 +4,18 @@ import { CommandRegistry, type CommandContribution } from '@theia/core/lib/commo
 import { isOSX } from '@theia/core/lib/common/os';
 import { TOOL_WINDOW_KEYMAP } from '../../common/keymap/tool-windows.keymap.consts';
 import { resolveKeymap } from '../../common/keymap/keymap.utils';
+import type { PanelLayout } from '@theia/core/shared/@lumino/widgets';
+import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service';
+import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { IngotMainToolbar } from './ingot-main-toolbar';
+import { IngotStripeWidget } from '../stripe/ingot-stripe-widget';
+import { IngotAgentsContribution } from '../agents/agents-contribution';
+import { WidgetManager } from '@theia/core/lib/browser/widget-manager';
+import { ViewContainer } from '@theia/core/lib/browser/view-container';
+import { pinProjectLabel } from '../navigator/project-label';
 import { DEFAULT_LAYOUT_COMMANDS, INGOT_SHELL_COMMANDS } from './ingot-shell.consts';
+
+const EXPLORER_CONTAINER_ID = 'explorer-view-container';
 
 type SideArea = 'left' | 'right' | 'bottom';
 const SIDE_AREAS: readonly SideArea[] = ['left', 'right', 'bottom'];
@@ -23,9 +33,66 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     @inject(IngotMainToolbar)
     protected readonly toolbar: IngotMainToolbar;
 
+    @inject(IngotStripeWidget)
+    protected readonly stripe: IngotStripeWidget;
+
+    @inject(TerminalService)
+    protected readonly terminals: TerminalService;
+
+    @inject(WorkspaceService)
+    protected readonly workspace: WorkspaceService;
+
+    @inject(IngotAgentsContribution)
+    protected readonly agents: IngotAgentsContribution;
+
+    @inject(WidgetManager)
+    protected readonly widgets: WidgetManager;
+
     onStart(_app: FrontendApplication): void {
         this.shell.addWidget(this.toolbar, { area: 'top' });
         document.body.classList.add('ingot-shell');
+    }
+
+    async onDidInitializeLayout(_app: FrontendApplication): Promise<void> {
+        // Electron hides the top panel on macOS (native menu); the JetBrains main toolbar lives there.
+        this.shell.topPanel.show();
+        this.attachStripe();
+        await this.agents.openView({ activate: false, reveal: true });
+        this.renameProjectView();
+        await this.workspace.ready;
+        if (this.workspace.opened) {
+            await this.ensureTerminal();
+        }
+    }
+
+    /** JetBrains calls the file tree "Project". */
+    protected async renameProjectView(): Promise<void> {
+        const explorer = await this.widgets.getWidget(EXPLORER_CONTAINER_ID);
+        if (explorer instanceof ViewContainer) {
+            pinProjectLabel(explorer);
+        }
+    }
+
+    /** Puts the bottom tool window group (Terminal, Run, Problems, Ports, Git) into the left stripe. */
+    protected attachStripe(): void {
+        const bottomMenu = this.shell.leftPanelHandler.bottomMenu;
+        const layout = bottomMenu.parent?.layout as PanelLayout | undefined;
+        if (!layout || layout.widgets.includes(this.stripe)) {
+            return;
+        }
+        layout.insertWidget(layout.widgets.indexOf(bottomMenu), this.stripe);
+    }
+
+    /** JetBrains keeps a Terminal docked at the bottom; make sure one exists without stealing focus. */
+    protected async ensureTerminal(): Promise<void> {
+        let [terminal] = this.terminals.all;
+        if (!terminal) {
+            terminal = await this.terminals.newTerminal({ title: 'Local' });
+            await terminal.start();
+            this.terminals.open(terminal, { widgetOptions: { area: 'bottom' }, mode: 'reveal' });
+        }
+        this.shell.expandPanel('bottom');
+        await this.shell.revealWidget(terminal.id);
     }
 
     async initializeLayout(_app: FrontendApplication): Promise<void> {

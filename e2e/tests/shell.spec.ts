@@ -10,8 +10,10 @@ test.describe('IDEA-13/14 main toolbar and tool windows', () => {
         const toolbar = page.locator('#ingot-main-toolbar');
         await expect(toolbar).toBeVisible();
         await expect(toolbar.locator('.ingot-tb-logo')).toBeVisible();
+        await expect(page.locator('#ingot-tb-search')).toContainText('Shift Shift');
+        await expect(page.locator('#ingot-tb-run-config')).toContainText('dev');
         await expect(page.locator('#ingot-tb-project')).toContainText('sample-project');
-        for (const id of ['vcs', 'run-config', 'run', 'debug', 'stop', 'search', 'plugins', 'settings']) {
+        for (const id of ['vcs', 'run-config', 'search', 'agents', 'settings']) {
             await expect(page.locator(`#ingot-tb-${id}`)).toBeVisible();
         }
     });

@@ -10,6 +10,22 @@ import { IngotWelcomeWidget } from './welcome/ingot-welcome-widget';
 import { IngotWelcomeContribution } from './welcome/ingot-welcome-contribution';
 import { WELCOME_WIDGET_ID } from './welcome/ingot-welcome.consts';
 import { IngotAboutDialog } from './about/ingot-about-dialog';
+import { ServiceConnectionProvider } from '@theia/core/lib/browser/messaging/service-connection-provider';
+import { PORTS_SERVICE_PATH } from '../common/ports/ports.consts';
+import { PortsService } from '../common/ports/ports.types';
+import { IngotPortsWidget } from './ports/ingot-ports-widget';
+import { IngotPortsContribution } from './ports/ingot-ports-contribution';
+import { PORTS_WIDGET_ID } from './ports/ingot-ports.consts';
+import { AgentStore } from './agents/agent-store';
+import { AgentEditReview } from './agents/agent-edit-review';
+import { IngotAgentsWidget } from './agents/agents-widget';
+import { IngotAgentsContribution } from './agents/agents-contribution';
+import { AGENTS_WIDGET_ID } from './agents/agents.consts';
+import { IngotStripeWidget } from './stripe/ingot-stripe-widget';
+import { IngotBranchService } from './vcs/ingot-branch-service';
+import { IngotStatusBarContribution } from './status/ingot-status-bar-contribution';
+import { IngotEditorContribution } from './status/ingot-editor-contribution';
+import { EditorContribution } from '@theia/editor/lib/browser/editor-contribution';
 
 import '../../src/browser/style/index.css';
 
@@ -31,6 +47,25 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: WELCOME_WIDGET_ID, createWidget: () => ctx.container.get(IngotWelcomeWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotWelcomeContribution);
     bind(FrontendApplicationContribution).toService(IngotWelcomeContribution);
+
+    bind(PortsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<PortsService>(ctx.container, PORTS_SERVICE_PATH)).inSingletonScope();
+    bind(IngotPortsWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: PORTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotPortsWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotPortsContribution);
+
+    bind(AgentStore).toSelf().inSingletonScope();
+    bind(AgentEditReview).toSelf().inSingletonScope();
+    bind(IngotAgentsWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentsWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotAgentsContribution);
+
+    bind(IngotStripeWidget).toSelf().inSingletonScope();
+    bind(IngotBranchService).toSelf().inSingletonScope();
+    bind(IngotStatusBarContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(IngotStatusBarContribution);
+
+    bind(IngotEditorContribution).toSelf().inSingletonScope();
+    rebind(EditorContribution).toService(IngotEditorContribution);
 
     bind(IngotAboutDialog).toSelf().inSingletonScope();
     rebind(AboutDialog).toService(IngotAboutDialog);

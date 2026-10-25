@@ -1,4 +1,4 @@
-/* Generated from assets/brand/palette.json — keep in sync. */
+/* Brand colours from assets/brand/palette.json; UI tokens follow JetBrains Int UI / Islands with Ingot accents. */
 export const BRAND = {
     'ingotGold': '#D9A04E',
     'ingotGoldDeep': '#B9772A',
@@ -11,47 +11,47 @@ export const BRAND = {
 export const LIGHT_TOKENS = {
     'bg': '#F7F8FA',
     'surface': '#FFFFFF',
-    'panel': '#EEF0F4',
-    'toolbar': '#F2F3F6',
-    'border': '#DCDFE6',
-    'text': '#1F2329',
-    'textMuted': '#5E6673',
+    'panel': '#DFE1E5',
+    'toolbar': '#F7F8FA',
+    'border': '#EBECF0',
+    'text': '#1E1F22',
+    'textMuted': '#6C707E',
     'primary': '#3B6FD9',
     'primaryHover': '#2F5DBF',
     'primaryText': '#FFFFFF',
-    'selection': '#DCE6FA',
+    'selection': '#D5E1FF',
     'focusRing': '#8FB0F0',
     'accent': '#C9822E',
-    'success': '#2F8F5B',
-    'warning': '#B7791F',
-    'danger': '#C9423D',
+    'success': '#208A3C',
+    'warning': '#C27D04',
+    'danger': '#DB3B4B',
     'info': '#2F7FB8',
     'editorBg': '#FFFFFF',
-    'editorLineHighlight': '#F3F5F9',
-    'editorGutter': '#9AA0AB'
+    'editorLineHighlight': '#F5F8FE',
+    'editorGutter': '#AEB3C2'
 } as const;
 
 export const DARK_TOKENS = {
-    'bg': '#1C1E24',
-    'surface': '#23262E',
-    'panel': '#2A2D36',
-    'toolbar': '#202229',
-    'border': '#3A3E49',
+    'bg': '#2B2D30',
+    'surface': '#2B2D30',
+    'panel': '#34363A',
+    'toolbar': '#2B2D30',
+    'border': '#393B40',
     'text': '#DFE1E5',
-    'textMuted': '#9AA0AB',
-    'primary': '#5B8DEF',
-    'primaryHover': '#7AA3F3',
-    'primaryText': '#0F1420',
-    'selection': '#2E3E5E',
-    'focusRing': '#4E77C9',
+    'textMuted': '#9DA0A8',
+    'primary': '#3574F0',
+    'primaryHover': '#548AF7',
+    'primaryText': '#FFFFFF',
+    'selection': '#2E436E',
+    'focusRing': '#3574F0',
     'accent': '#E0A458',
-    'success': '#5FB884',
-    'warning': '#D9A23B',
-    'danger': '#E06C66',
-    'info': '#5AA9DE',
-    'editorBg': '#1E2027',
-    'editorLineHighlight': '#262932',
-    'editorGutter': '#5E6673'
+    'success': '#5FAD56',
+    'warning': '#E8A93B',
+    'danger': '#F75464',
+    'info': '#56A8F5',
+    'editorBg': '#1E1F22',
+    'editorLineHighlight': '#26282E',
+    'editorGutter': '#8C9096'
 } as const;
 
 /** Darcula-like variant: warmer greys, classic JetBrains feel. */

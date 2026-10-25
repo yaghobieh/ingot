@@ -61,7 +61,8 @@ The mark is an ingot with a text caret: raw material, ready to be shaped into co
 Requirements: Node 22 (`nvm use`), Xcode CLT on macOS / build-essential + libsecret + libxkbfile on Linux.
 
 ```bash
-npm install            # installs and builds the Ingot extensions
+npm install            # builds the Ingot extensions, downloads builtin language plugins into plugins/,
+                       # and (macOS) renames the dev Electron.app to Ingot with the Ingot icon
 npm run build:browser  # bundle the browser app
 npm run start:browser  # http://127.0.0.1:3100
 npm run build:electron # bundle the desktop app
@@ -69,6 +70,10 @@ npm run start:electron # opens the Ingot desktop window
 npm run gate           # lint + typecheck + unit tests
 npm run e2e            # Playwright click-through tests (starts the browser app)
 ```
+
+Re-download language plugins with `npm run download:plugins` (syntax highlighting needs them). Electron and browser builds swap native modules in the shared `node_modules`; run `npm run build:browser` again before `npm run e2e` if you built Electron last.
+
+The UI follows [`docs/design/ide-reference.png`](docs/design/ide-reference.png) (JetBrains New UI density, Ingot gold/blue accent, Ingot Light/Dark).
 
 Layout: `packages/*` are Ingot Theia extensions, `applications/browser` and `applications/electron` are the two app targets, `e2e/` holds Playwright tests and fixture workspaces.
 

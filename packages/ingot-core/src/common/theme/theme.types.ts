@@ -36,4 +36,6 @@ export interface VsCodeThemeJson {
     readonly type: 'light' | 'dark';
     readonly colors: Record<string, string>;
     readonly tokenColors: TokenColorRule[];
+    readonly semanticHighlighting: boolean;
+    readonly semanticTokenColors: Record<string, string>;
 }
