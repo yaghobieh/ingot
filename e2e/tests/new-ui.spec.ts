@@ -15,10 +15,11 @@ test.describe('IDEA-13/14 Ingot UI shell', () => {
         await expect(page.locator('#ingot-stripe-terminal')).toHaveClass(/selected/);
     });
 
-    test('names the window Ingot and the file tree Project', async ({ page }) => {
+    test('names the window Ingot and the file tree after the project', async ({ page }) => {
         await openIngot(page);
         await expect(page).toHaveTitle(/^Ingot/);
-        await expect(page.locator('#theia-left-content-panel .theia-sidepanel-title')).toHaveText(/project/i);
+        // IDEA-93: just the project name, no 'Project:' prefix.
+        await expect(page.locator('#theia-left-content-panel .theia-sidepanel-title')).toHaveText('sample-project');
         await expect(page.locator('#theia-left-content-panel .theia-sidepanel-title')).not.toHaveText(/explorer/i);
     });
 
