@@ -40,7 +40,8 @@ export class IngotGearMenuContribution implements CommandContribution, MenuContr
         let point = { x: 48, y: window.innerHeight - 48 };
         if (anchor instanceof HTMLElement) {
             const rect = anchor.getBoundingClientRect();
-            point = { x: rect.right + 4, y: rect.top };
+            // From the bottom-left stripe the menu opens beside the gear; from the title bar it drops down.
+            point = rect.top < window.innerHeight / 2 ? { x: rect.left, y: rect.bottom + 4 } : { x: rect.right + 4, y: rect.top };
         } else if (anchor) {
             point = anchor;
         }

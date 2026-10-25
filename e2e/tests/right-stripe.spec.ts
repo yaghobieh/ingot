@@ -71,12 +71,12 @@ test.describe('IDEA-61 right tool window stripe', () => {
         await page.keyboard.press('Escape');
     });
 
-    test('top bar has run/debug/stop, AI and search, but no New Session, settings or theme', async ({ page }) => {
+    test('top bar has run/debug/stop, search and the window actions, but no New Session or theme', async ({ page }) => {
         await openIngot(page);
         await dismissNotifications(page);
         await expect(page.locator('#ingot-tb-run-config')).toContainText('dev');
         await expect(page.locator('#ingot-tb-stop')).toBeDisabled();
-        await expect(page.locator('#ingot-tb-settings, #ingot-tb-theme, #ingot-tb-agents')).toHaveCount(0);
+        await expect(page.locator('#ingot-tb-theme, #ingot-tb-agents')).toHaveCount(0);
 
         await page.locator('#ingot-tb-run').click();
         await expect(page.locator('.lm-TabBar-tab', { hasText: 'Run: dev' })).toBeVisible();
@@ -84,9 +84,9 @@ test.describe('IDEA-61 right tool window stripe', () => {
         await page.locator('#ingot-tb-stop').click();
 
         await expect(page.locator('#ingot-tb-new-session')).toHaveCount(0);
-        // AI toggles the Agents panel (it opens a chat; New Session duplicated it).
+        // The chat icon (IDEA-118) toggles the Agents panel (it opens a chat; New Session duplicated it).
         const wasOpen = await page.locator('#ingot-agents').isVisible();
-        await page.locator('#ingot-tb-ai').click();
+        await page.locator('#ingot-tb-chat').click();
         await expect(page.locator('#ingot-agents')).toBeVisible({ visible: !wasOpen });
 
         await page.locator('#ingot-tb-search').click();

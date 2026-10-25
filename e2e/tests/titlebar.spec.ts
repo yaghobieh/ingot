@@ -1,0 +1,67 @@
+import { expect, test } from '@playwright/test';
+import { dismissNotifications, openIngot } from '../src/app.utils';
+import { SHELL_SELECTOR } from '../src/e2e.consts';
+
+/** IDEA-118: title bar right — bottom panel, chat and settings icons, then the Agents Window pill. */
+test.describe('IDEA-118 title bar window actions', () => {
+    test('icons sit left of the Agents Window pill and toggle their panels', async ({ page }) => {
+        await openIngot(page);
+        await dismissNotifications(page);
+        const ids = ['#ingot-tb-panel', '#ingot-tb-chat', '#ingot-tb-settings', '#ingot-tb-agents-window'];
+        const boxes = [];
+        for (const id of ids) {
+            await expect(page.locator(id)).toBeVisible();
+            boxes.push((await page.locator(id).boundingBox())!);
+        }
+        for (let i = 1; i < boxes.length; i++) {
+            expect(boxes[i].x).toBeGreaterThan(boxes[i - 1].x);
+        }
+        await expect(page.locator('#ingot-tb-agents-window')).toHaveText(/Agents Window/);
+
+        // Bottom panel toggle.
+        const panel = page.locator('#ingot-tb-panel');
+        const wasOpen = (await panel.getAttribute('aria-pressed')) === 'true';
+        await panel.click();
+        await expect(panel).toHaveAttribute('aria-pressed', String(!wasOpen));
+        await expect(page.locator('#theia-bottom-content-panel')).toBeVisible({ visible: !wasOpen });
+        await panel.click();
+        await expect(panel).toHaveAttribute('aria-pressed', String(wasOpen));
+
+        // Chat toggle.
+        const chat = page.locator('#ingot-tb-chat');
+        const chatOpen = await page.locator('#ingot-agents').isVisible();
+        await chat.click();
+        await expect(page.locator('#ingot-agents')).toBeVisible({ visible: !chatOpen });
+        await expect(chat).toHaveAttribute('aria-pressed', String(!chatOpen));
+        await chat.click();
+        await expect(page.locator('#ingot-agents')).toBeVisible({ visible: chatOpen });
+
+        // Settings opens the same Manage menu as the bottom-left gear, dropping down from the title bar.
+        await page.locator('#ingot-tb-settings').click();
+        const menu = page.locator('.lm-Menu').first();
+        await expect(menu.locator('.lm-Menu-itemLabel', { hasText: 'Settings…' })).toBeVisible();
+        expect((await menu.boundingBox())!.y).toBeGreaterThan(boxes[2].y + boxes[2].height - 2);
+        await page.keyboard.press('Escape');
+    });
+
+    test('Agents Window opens a window with only the chat, and leaves the main layout alone', async ({ page, context }) => {
+        await openIngot(page);
+        await dismissNotifications(page);
+        const popup = context.waitForEvent('page');
+        await page.locator('#ingot-tb-agents-window').click();
+        const agents = await popup;
+        expect(agents.url()).toContain('ingotWindow=agents');
+        await expect(agents.locator(SHELL_SELECTOR)).toBeVisible({ timeout: 60_000 });
+        await expect(agents.locator('body')).toHaveClass(/ingot-agents-window/);
+        await expect(agents.locator('#theia-main-content-panel #ingot-agents')).toBeVisible({ timeout: 30_000 });
+        await expect(agents.locator('#theia-left-content-panel')).toBeHidden();
+        await expect(agents.locator('#ingot-tb-agents-window')).toBeHidden();
+        await expect(agents).toHaveTitle(/Agents/);
+        await agents.close();
+
+        // The main window keeps the project tree and the chat in its side panel.
+        await openIngot(page);
+        await expect(page.locator('#theia-left-content-panel')).toBeVisible();
+        await expect(page.locator('#theia-main-content-panel #ingot-agents')).toHaveCount(0);
+    });
+});

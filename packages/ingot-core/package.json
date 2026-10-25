@@ -53,6 +53,9 @@
     },
     {
       "frontend": "lib/browser/workbench/ingot-workbench-frontend-module"
+    },
+    {
+      "frontendElectron": "lib/electron-browser/ingot-workbench-electron-module"
     }
   ]
 }
