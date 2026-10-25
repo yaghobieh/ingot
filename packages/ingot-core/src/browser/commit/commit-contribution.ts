@@ -10,6 +10,7 @@ import { GIT_FILE_COMMANDS } from '../git/git-actions.consts';
 import { toGitUri } from '../git/git-resource-resolver';
 import { IngotBranchService } from '../vcs/ingot-branch-service';
 import { COMMIT_COMMANDS, DIFF_FOCUS, DEFAULT_CHANGELIST, DIFF_WIDGET_ID, LOCAL_CHANGES_CONTEXT_MENU, LOCAL_CHANGES_FOCUS, LOCAL_CHANGES_LABEL, LOCAL_CHANGES_WIDGET_ID } from './commit.consts';
+import { MERGE_COMMANDS } from '../merge/merge.consts';
 import { IngotDiffWidget, type DiffWidgetOptions } from './ingot-diff-widget';
 import { LocalChangesModel } from './local-changes-model';
 import { LocalChangesWidget } from './local-changes-widget';
@@ -59,6 +60,9 @@ export class IngotCommitContribution extends AbstractViewContribution<LocalChang
         registry.registerCommand(C.showDiff, {
             execute: (arg?: unknown) => {
                 const path = this.selection(arg)[0] ?? this.model.entries[0]?.path;
+                if (path && this.model.entries.find(e => e.path === path)?.status === 'conflicted') {
+                    return registry.executeCommand(MERGE_COMMANDS.open.id, path);
+                }
                 return path ? this.showDiff(path) : this.messages.info('No local changes.');
             }
         });
