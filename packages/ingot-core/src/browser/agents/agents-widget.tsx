@@ -2,25 +2,34 @@ import * as React from '@theia/core/shared/react';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
-import { AGENT_MODES, COMPOSER_PLACEHOLDER, MODEL_OPTIONS, NO_MODEL_MESSAGE } from '../../common/agents/agents.consts';
+import { COMPOSER_PLACEHOLDER, NO_MODEL_MESSAGE } from '../../common/agents/agents.consts';
+import { modeInfo, nextMode } from '../../common/agents/agent-modes';
+import { CONTEXT_NEAR_FULL, usageBreakdown, usageRatio } from '../../common/agents/context-usage';
+import { AUTO_MODEL_ID, AUTO_MODEL_LABEL, FAVORITE_MODELS_KEY } from '../../common/models/models.consts';
+import { findModel } from '../../common/models/models.utils';
+import { ContextKeyService, type ContextKey } from '@theia/core/lib/browser/context-key-service';
+import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding';
+import { ChatHistory, MemoriesManager, ModeMenu, ModelPicker } from './chat-popovers';
+import { MemoryStore } from './memory-store';
 import { CommandRegistry } from '@theia/core/lib/common/command';
 import { IngotModelClient } from '../models/model-client';
 import { MODELS_OPEN_COMMAND } from '../models/models.browser-consts';
-import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
-import { agentSubtitle, changesSummary, stepVerb } from '../../common/agents/agents.utils';
+import type { AgentSession } from '../../common/agents/agents.types';
+import { changesSummary, stepVerb } from '../../common/agents/agents.utils';
 import { AgentStore } from './agent-store';
 import { EditorManager } from '@theia/editor/lib/browser';
-import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import URI from '@theia/core/lib/common/uri';
-import { chipLabel, chipPreview, composerHeight, lineCount, sameClipboardText, type ContextChip } from '../../common/agents/context-chips';
+import { agentSubtitle } from '../../common/agents/chat-history';
+import { chipLabel, chipPreview, composerHeight, INGOT_REF_MIME, insertedText, type ContextChip } from '../../common/agents/context-chips';
+import { EditorCopyTracker } from './editor-copy-tracker';
 import { AgentEditReview } from './agent-edit-review';
-import { AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
+import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
 
-type AgentsTab = 'agents' | 'history';
+type Popover = 'mode' | 'model' | 'history' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
-/** Right tool window: agent list, conversation with plan and tool steps, composer (IDEA-27/28, design reference). */
+/** Right tool window: chats as tabs with History, conversation with plan and tool steps, composer with mode, model and context (IDEA-27/28, IDEA-77). */
 @injectable()
 export class IngotAgentsWidget extends ReactWidget {
 
@@ -30,16 +39,22 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
+    @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
+    @inject(ContextKeyService) protected readonly contextKeys: ContextKeyService;
+    @inject(KeybindingRegistry) protected readonly keybindings: KeybindingRegistry;
+    @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
 
-    protected tab: AgentsTab = 'agents';
+    protected popover: Popover;
+    protected showMemories = false;
+    protected renamingTab?: string;
+    protected focusKey?: ContextKey<boolean>;
+    protected favorites = new Set<string>(JSON.parse(localStorage.getItem(FAVORITE_MODELS_KEY) ?? '[]') as string[]);
     protected draft = '';
     protected composer?: HTMLTextAreaElement | null;
     protected slashIndex = 0;
     protected slashDismissed = false;
     /** Context chips waiting to be sent with the next message (IDEA-65). */
     protected chips: ContextChip[] = [];
-    /** The last copy/cut made in an editor, so pasting it here becomes a chip. */
-    protected lastEditorCopy?: Omit<ContextChip, 'id'>;
     /** Height set by dragging the handle (IDEA-67); persisted. */
     protected manualHeight?: number;
 
@@ -72,12 +87,12 @@ export class IngotAgentsWidget extends ReactWidget {
         this.toDispose.push(this.store.onDidChange(() => this.update()));
         this.toDispose.push(this.review.onDidChange(() => this.update()));
         this.toDispose.push(this.models.onDidChange(() => this.update()));
+        this.toDispose.push(this.editors.onCurrentEditorChanged(() => this.update()));
+        this.focusKey = this.contextKeys.createKey<boolean>(AGENTS_FOCUS_KEY, false);
+        this.node.addEventListener('focusin', () => this.focusKey?.set(true));
+        this.node.addEventListener('focusout', e => { if (!this.node.contains(e.relatedTarget as Node | null)) { this.focusKey?.set(false); } });
         const stored = Number(localStorage.getItem(COMPOSER_HEIGHT_KEY));
         this.manualHeight = stored > 0 ? stored : undefined;
-        const onCopy = () => this.trackEditorCopy();
-        document.addEventListener('copy', onCopy, true);
-        document.addEventListener('cut', onCopy, true);
-        this.toDispose.push({ dispose: () => { document.removeEventListener('copy', onCopy, true); document.removeEventListener('cut', onCopy, true); } });
         this.update();
     }
 
@@ -128,32 +143,6 @@ export class IngotAgentsWidget extends ReactWidget {
         this.fitComposer();
     }
 
-    /** The current editor's selection as chip data, if the editor has focus and a non-empty selection. */
-    protected editorSelection(requireFocus: boolean): Omit<ContextChip, 'id'> | undefined {
-        const editor = this.editors.currentEditor?.editor;
-        if (!(editor instanceof MonacoEditor) || (requireFocus && !editor.isFocused())) {
-            return undefined;
-        }
-        const control = editor.getControl();
-        const selection = control.getSelection();
-        const model = control.getModel();
-        if (!selection || !model || selection.isEmpty()) {
-            return undefined;
-        }
-        const text = model.getValueInRange(selection);
-        // A selection ending at column 1 of the next line does not include that line.
-        const end = selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber ? selection.endLineNumber - 1 : selection.endLineNumber;
-        const uri = new URI(model.uri.toString());
-        const root = this.workspace.tryGetRoots().find(r => r.resource.isEqualOrParent(uri));
-        const path = root ? root.resource.relative(uri)?.toString() ?? uri.path.base : uri.path.base;
-        return { path, uri: uri.toString(), start: selection.startLineNumber, end, text };
-    }
-
-    protected trackEditorCopy(): void {
-        // The copy event fires before the clipboard is written; read the editor selection it is about to copy.
-        this.lastEditorCopy = this.editorSelection(true);
-    }
-
     /** Adds a chip (Add to Chat ⌘L, editor paste) unless the same range is already attached. */
     addChip(data: Omit<ContextChip, 'id'>): void {
         if (!this.chips.some(c => c.uri === data.uri && c.start === data.start && c.end === data.end)) {
@@ -165,7 +154,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     /** Add to Chat: the current editor selection becomes a chip; returns false when nothing is selected. */
     addSelectionChip(): boolean {
-        const selection = this.editorSelection(false);
+        const selection = this.copies.selection();
         if (selection) {
             this.addChip(selection);
         }
@@ -184,12 +173,25 @@ export class IngotAgentsWidget extends ReactWidget {
 
     /** Multi-line text copied from an editor pastes as a chip; anything else pastes as plain text. */
     protected onPaste(e: React.ClipboardEvent<HTMLTextAreaElement>): void {
-        const text = e.clipboardData.getData('text/plain');
-        const copy = this.lastEditorCopy;
-        if (copy && text && lineCount(text) > 1 && sameClipboardText(text, copy.text)) {
+        const chip = this.copies.match(e.clipboardData.getData('text/plain'), e.clipboardData.getData(INGOT_REF_MIME) || undefined);
+        if (chip) {
             e.preventDefault();
-            this.addChip(copy);
+            this.addChip(chip);
         }
+    }
+
+    /**
+     * The desktop app's paste command (⌘V, Edit > Paste) inserts clipboard text with `execCommand('insertText')`, which
+     * fires neither `paste` nor `beforeinput`; only the resulting change. A multi-line insertion that matches the last
+     * editor copy is therefore taken back out of the draft and becomes a chip.
+     */
+    protected pastedChip(e: React.ChangeEvent<HTMLTextAreaElement>): ContextChip | Omit<ContextChip, 'id'> | undefined {
+        const inputType = (e.nativeEvent as InputEvent).inputType;
+        if (inputType !== 'insertText' && inputType !== 'insertFromPaste') {
+            return undefined;
+        }
+        const inserted = insertedText(this.draft, e.currentTarget.value);
+        return inserted && inserted.includes('\n') ? this.copies.match(inserted) : undefined;
     }
 
     protected override onActivateRequest(msg: Message): void {
@@ -214,33 +216,104 @@ export class IngotAgentsWidget extends ReactWidget {
         this.update();
     }
 
+    /** Keybinding label for a command, for tooltips (follows the user's keymap). */
+    protected shortcut(commandId: string): string {
+        const binding = this.keybindings.getKeybindingsForCommand(commandId)[0];
+        return binding ? this.keybindings.acceleratorFor(binding, '+').join(' ') : '';
+    }
+
+    newChat(): void {
+        this.popover = undefined;
+        this.showMemories = false;
+        this.store.create();
+        this.update();
+        this.composer?.focus();
+    }
+
+    cycleMode(): void {
+        this.store.mode = nextMode(this.store.mode);
+        this.store.changed();
+    }
+
+    toggleHistory(): void {
+        this.popover = this.popover === 'history' ? undefined : 'history';
+        this.update();
+    }
+
+    toggleMemories(): void {
+        this.showMemories = !this.showMemories;
+        this.popover = undefined;
+        this.update();
+    }
+
+    protected closePopover(): void {
+        this.popover = undefined;
+        this.update();
+        this.composer?.focus();
+    }
+
+    protected toggleFavorite(id: string): void {
+        if (this.favorites.has(id)) {
+            this.favorites.delete(id);
+        } else {
+            this.favorites.add(id);
+        }
+        localStorage.setItem(FAVORITE_MODELS_KEY, JSON.stringify([...this.favorites]));
+        this.update();
+    }
+
+    protected modelLabel(id: string): string {
+        return id === AUTO_MODEL_ID ? AUTO_MODEL_LABEL : findModel(id)?.label ?? id;
+    }
+
     protected render(): React.ReactNode {
-        const now = Date.now();
         const current = this.store.current;
-        const sessions = this.tab === 'agents' ? this.store.sessions.filter(s => s.status !== 'done') : this.store.sessions.filter(s => s.status === 'done');
+        const tabs = this.store.tabs;
         return <div className='ingot-agents-root'>
             <div className='ingot-agents-header'>
-                {(['agents', 'history'] as const).map(t => (
-                    <button key={t} type='button' id={`ingot-agents-tab-${t}`} className={`ingot-agents-tab ${this.tab === t ? 'active' : ''}`} onClick={() => { this.tab = t; this.update(); }}>
-                        {t === 'agents' ? 'Agents' : 'History'}
-                    </button>
-                ))}
+                <button type='button' className={`ingot-agents-tab${this.popover !== 'history' ? ' active' : ''}`} id='ingot-agents-tab-agents'
+                    onClick={() => { this.popover = undefined; this.showMemories = false; this.update(); }}>Agents</button>
+                <button type='button' className={`ingot-agents-tab${this.popover === 'history' ? ' active' : ''}`} id='ingot-agents-tab-history'
+                    onClick={() => this.toggleHistory()}>History</button>
                 <span className='ingot-flex' />
-                <button type='button' id='ingot-agents-new' className='ingot-agents-new' onClick={() => { this.store.create(); this.composer?.focus(); }}>+ New agent</button>
+                <button type='button' id='ingot-agents-new' className='ingot-icon-button codicon codicon-add' aria-label='New chat'
+                    title={`New chat${this.shortcut(AGENT_COMMANDS.newAgent.id) ? ` (${this.shortcut(AGENT_COMMANDS.newAgent.id)})` : ''}`} onClick={() => this.newChat()} />
+                <button type='button' id='ingot-agents-history' className={`ingot-icon-button codicon codicon-history${this.popover === 'history' ? ' active' : ''}`} aria-label='Chat history'
+                    title={`Chat history${this.shortcut(AGENT_COMMANDS.history.id) ? ` (${this.shortcut(AGENT_COMMANDS.history.id)})` : ''}`} onClick={() => this.toggleHistory()} />
+                {this.popover === 'history' && <ChatHistory chats={this.store.sessions} current={current?.id}
+                    onOpen={id => { this.store.reopen(id); this.popover = undefined; this.update(); }}
+                    onRename={(id, title) => this.store.rename(id, title)} onDelete={id => this.store.remove(id)} onPin={id => this.store.togglePin(id)}
+                    onMemories={() => this.toggleMemories()}
+                    onClose={() => this.closePopover()} />}
             </div>
-            <div className='ingot-agents-list'>
-                {sessions.length === 0 && <div className='ingot-agents-empty'>{this.tab === 'agents' ? 'No running agents. Start one below.' : 'Finished agents appear here.'}</div>}
-                {sessions.map(s => (
-                    <button key={s.id} type='button' className={`ingot-agent-item ${current?.id === s.id ? 'selected' : ''}`} onClick={() => this.store.select(s.id)}>
-                        <span className={`ingot-agent-status ingot-status-${s.status}`} />
+            {tabs.length > 0 && <div className='ingot-agents-list ingot-chat-tabs' role='tablist'>
+                {tabs.map(t => (
+                    <div key={t.id} role='tab' aria-selected={current?.id === t.id} data-id={t.id} title={t.title}
+                        className={`ingot-agent-item ingot-chat-tab${current?.id === t.id ? ' active selected' : ''}`}
+                        onClick={() => this.store.select(t.id)}
+                        onMouseDown={e => { if (e.button === 1) { e.preventDefault(); this.store.closeTab(t.id); } }}
+                        onDoubleClick={() => { this.renamingTab = t.id; this.update(); }}>
+                        <span className={`ingot-agent-status ingot-status-${t.status}`} />
                         <span className='ingot-agent-item-text'>
-                            <span className='ingot-agent-item-title'>{s.title}</span>
-                            <span className='ingot-agent-item-sub'>{agentSubtitle(s, now)}</span>
+                            {this.renamingTab === t.id
+                                ? <input className='ingot-input ingot-chat-tab-rename' autoFocus defaultValue={t.title} aria-label='Chat title'
+                                    onBlur={e => { this.store.rename(t.id, e.currentTarget.value); this.renamingTab = undefined; this.update(); }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') { e.currentTarget.blur(); }
+                                        if (e.key === 'Escape') { this.renamingTab = undefined; this.update(); }
+                                    }} />
+                                : <span className='ingot-agent-item-title ingot-chat-tab-title'>{t.title}</span>}
+                            <span className='ingot-agent-item-sub'>{agentSubtitle(t, Date.now(), current?.id === t.id && this.review.pending ? this.review.queued + 1 : 0)}</span>
                         </span>
-                    </button>
+                        <button type='button' className='ingot-chat-tab-close codicon codicon-close' aria-label={`Close ${t.title}`}
+                            onClick={e => { e.stopPropagation(); this.store.closeTab(t.id); }} />
+                    </div>
                 ))}
-            </div>
-            <div className='ingot-agents-chat'>{current ? this.renderSession(current) : <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>}</div>
+            </div>}
+            {this.showMemories
+                ? <div className='ingot-agents-chat ingot-agents-memories-pane'><MemoriesManager store={this.memoryStore} onClose={() => this.toggleMemories()} /></div>
+                : <div className='ingot-agents-chat'>{current && current.messages.length ? this.renderSession(current)
+                    : <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>}</div>}
             {this.renderComposer()}
         </div>;
     }
@@ -250,12 +323,21 @@ export class IngotAgentsWidget extends ReactWidget {
         // While edits wait in the inline review, the card already counts the files under review.
         const reviewing = pending ? new Set(session.steps.filter(st => st.kind === 'edit').map(st => st.target)).size + this.review.queued - session.changes.length : 0;
         return <>
-            {session.messages.map((m, i) => (
+            {session.messages.map((m, i) => m.memory
+                ? <div key={i} className={`ingot-chat-memory${m.memory.undone ? ' undone' : ''}`}>
+                    <span className='codicon codicon-lightbulb' />
+                    <span className='ingot-chat-memory-text'>{m.memory.undone ? 'Memory removed' : 'Memory saved'} · <span className='ingot-dim'>{m.text}</span></span>
+                    {!m.memory.undone && <button type='button' className='ingot-btn-ghost ingot-memory-undo' onClick={() => this.store.undoMemory(session.id, i)}>Undo</button>}
+                </div>
+                : (
                 <div key={i} className={`ingot-chat-msg ingot-chat-${m.role}`}>
                     {m.from && <div className='ingot-chat-from'>{m.from}</div>}
-                    {m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className='ingot-chip ingot-chip-sent' title={c.path}>{c.label}</span>)}</div>}
+                    {m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className={`ingot-chip ingot-chip-sent ingot-chip-${c.kind ?? 'code'}`} title={c.kind === 'memory' ? 'Memory' : c.kind === 'rule' ? `Rule ${c.path}` : c.path}>
+                        {c.kind === 'memory' && <span className='codicon codicon-lightbulb' />}{c.kind === 'rule' && <span className='codicon codicon-law' />}{c.label}</span>)}</div>}
                     {m.text || (m.role === 'agent' && this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')}
                     {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
+                    {m.buildable && session.mode === 'plan' && <div><button type='button' id='ingot-plan-build' className='ingot-btn-primary ingot-chat-action'
+                        onClick={() => this.store.build(session.id)}><span className='codicon codicon-play' /> Build</button></div>}
                     {m.text === NO_MODEL_MESSAGE && <div><button type='button' id='ingot-open-models' className='ingot-btn-primary ingot-chat-action' onClick={() => this.commands.executeCommand(MODELS_OPEN_COMMAND.id)}>Open Models</button></div>}
                 </div>
             ))}
@@ -275,8 +357,10 @@ export class IngotAgentsWidget extends ReactWidget {
             {(reviewing > 0 || session.changes.length > 0) && <div className='ingot-chat-changes'>
                 <span>{changesSummary(reviewing || session.changes.length)}</span>
                 <span className='ingot-flex' />
-                <button type='button' id='ingot-agents-undo' className='ingot-btn-ghost' disabled={!pending} onClick={() => this.review.reject()}>Undo</button>
-                <button type='button' id='ingot-agents-keep' className='ingot-btn-primary' disabled={!pending} onClick={() => this.keepAll()}>Keep all</button>
+                {pending ? <>
+                    <button type='button' id='ingot-agents-undo' className='ingot-btn-ghost' onClick={() => this.review.reject()}>Undo</button>
+                    <button type='button' id='ingot-agents-keep' className='ingot-btn-primary' onClick={() => this.keepAll()}>Keep all</button>
+                </> : <span className='ingot-dim'>Kept</span>}
             </div>}
         </>;
     }
@@ -296,9 +380,11 @@ export class IngotAgentsWidget extends ReactWidget {
         const items = this.slashItems;
         return <div className='ingot-composer'>
             <div className='ingot-composer-resize' id='ingot-composer-resize' title='Drag to resize · double-click to reset' onMouseDown={e => this.startResize(e)} onDoubleClick={() => this.resetHeight()} />
-            {this.chips.length > 0 && <div className='ingot-composer-chips' id='ingot-composer-chips'>
+            {this.renderSummarize()}
+            <div className='ingot-composer-chips' id='ingot-composer-chips'>
+                {this.renderContextChips()}
                 {this.chips.map(chip => (
-                    <span key={chip.id} className='ingot-chip' data-path={chip.path}>
+                    <span key={chip.id} className='ingot-chip ingot-chip-code' data-path={chip.path}>
                         <button type='button' className='ingot-chip-remove' aria-label={`Remove ${chipLabel(chip)}`} onClick={() => this.removeChip(chip.id)}>✕</button>
                         <button type='button' className='ingot-chip-label' onClick={() => this.openChip(chip)}>{chipLabel(chip)}</button>
                         <span className='ingot-chip-preview' role='tooltip'>
@@ -307,7 +393,7 @@ export class IngotAgentsWidget extends ReactWidget {
                         </span>
                     </span>
                 ))}
-            </div>}
+            </div>
             {items.length > 0 && <div id='ingot-slash-menu' className='ingot-slash-menu' role='listbox'>
                 {items.map((item, i) => (
                     <div key={item.name} id={`ingot-slash-item-${item.name}`} role='option' aria-selected={i === this.slashIndex}
@@ -316,9 +402,15 @@ export class IngotAgentsWidget extends ReactWidget {
                     </div>
                 ))}
             </div>}
-            <textarea id='ingot-composer-input' ref={el => { this.composer = el; }} className='ingot-composer-input' placeholder={COMPOSER_PLACEHOLDER} value={this.draft} rows={4}
+            <textarea id='ingot-composer-input' ref={el => { this.composer = el; }} className='ingot-composer-input' placeholder={COMPOSER_PLACEHOLDER} value={this.draft} rows={2}
                 onPaste={e => this.onPaste(e)}
                 onChange={e => {
+                    const pasted = this.pastedChip(e);
+                    if (pasted) {
+                        e.currentTarget.value = this.draft;
+                        this.addChip(pasted);
+                        return;
+                    }
                     const value = e.currentTarget.value;
                     if (value === '/' && this.draft === '') {
                         this.slashDismissed = false;
@@ -353,17 +445,89 @@ export class IngotAgentsWidget extends ReactWidget {
                     if (e.key === 'Escape' && this.store.current && this.store.isRunning(this.store.current.id)) { e.preventDefault(); this.store.stop(this.store.current.id); }
                 }} />
             <div className='ingot-composer-bar'>
-                <select id='ingot-composer-mode' className='ingot-select' value={this.store.mode} aria-label='Agent mode' onChange={e => { this.store.mode = e.currentTarget.value as AgentMode; this.store.changed(); }}>
-                    {AGENT_MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                </select>
-                <select id='ingot-composer-model' className='ingot-select' value={this.store.model} aria-label='Model' onChange={e => { this.store.model = e.currentTarget.value; this.store.changed(); }}>
-                    {MODEL_OPTIONS.map(m => <option key={m.id} value={m.id}>{m.label}{this.models.isModelConfigured(m.id) ? '' : ' (no key)'}</option>)}
-                </select>
+                {this.renderModePill()}
+                {this.renderModelPill()}
                 <span className='ingot-flex' />
+                {this.renderUsageRing()}
                 {this.store.isRunning(this.store.current?.id)
                     ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}>■</button>
                     : <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' disabled={!this.draft.trim() && !this.chips.length} onClick={() => this.submit()}>↑</button>}
             </div>
+        </div>;
+    }
+
+    /** Rules and memories the last request used (IDEA-77). Files come only from pasted code and @ mentions. */
+    protected renderContextChips(): React.ReactNode {
+        const current = this.store.current;
+        return <>
+            {current?.context?.rules.map(r => <span key={`r-${r}`} className='ingot-chip ingot-chip-rule' title={`Rule applied: ${r}`}><span className='codicon codicon-law' />{r}</span>)}
+            {current?.context?.memories.map(m => <span key={`m-${m.id}`} className='ingot-chip ingot-chip-memory' title={m.text}><span className='codicon codicon-lightbulb' />{m.text.length > 28 ? `${m.text.slice(0, 27)}…` : m.text}</span>)}
+        </>;
+    }
+
+    protected renderModePill(): React.ReactNode {
+        const info = modeInfo(this.store.mode);
+        const key = this.shortcut(AGENT_COMMANDS.cycleMode.id);
+        return <span className='ingot-pill-anchor'>
+            <button type='button' id='ingot-composer-mode' className='ingot-pill ingot-mode-pill' data-mode={info.id} aria-haspopup='menu' aria-expanded={this.popover === 'mode'}
+                style={{ '--ingot-mode-color': info.color } as React.CSSProperties} title={`${info.description}${key ? ` (${key} to switch)` : ''}`}
+                onClick={() => { this.popover = this.popover === 'mode' ? undefined : 'mode'; this.update(); }}>
+                <span className={`codicon codicon-${info.icon}`} />{info.label}<span className='codicon codicon-chevron-down ingot-pill-caret' />
+            </button>
+            {this.popover === 'mode' && <ModeMenu mode={info.id} shortcut={key} onClose={() => this.closePopover()}
+                onPick={mode => { this.store.mode = mode; this.store.changed(); this.closePopover(); }} />}
+        </span>;
+    }
+
+    protected renderModelPill(): React.ReactNode {
+        const model = this.store.model;
+        const resolved = this.store.resolveModel(model);
+        const ready = this.models.isModelConfigured(resolved);
+        return <span className='ingot-pill-anchor'>
+            <button type='button' id='ingot-composer-model' className={`ingot-pill ingot-model-pill${ready ? '' : ' ingot-pill-warn'}`} data-model={model} aria-haspopup='listbox'
+                aria-expanded={this.popover === 'model'} title={ready ? this.modelLabel(resolved) : 'No key for this model yet'}
+                onClick={() => { this.popover = this.popover === 'model' ? undefined : 'model'; this.update(); }}>
+                {this.modelLabel(model)}<span className='codicon codicon-chevron-down ingot-pill-caret' />
+            </button>
+            {this.popover === 'model' && <ModelPicker current={model} models={this.models.catalog}
+                autoResolved={resolved !== AUTO_MODEL_ID && model === AUTO_MODEL_ID ? this.modelLabel(resolved) : undefined}
+                configured={id => this.models.isModelConfigured(id)} isLocal={m => m.provider === 'ollama'} favorites={this.favorites}
+                onToggleFavorite={id => this.toggleFavorite(id)}
+                onPick={id => { this.store.model = id; this.store.changed(); this.closePopover(); }}
+                onAddKey={() => { this.closePopover(); this.commands.executeCommand(MODELS_OPEN_COMMAND.id); }}
+                onManage={() => { this.closePopover(); this.commands.executeCommand(MODELS_OPEN_COMMAND.id); }}
+                onClose={() => this.closePopover()} />}
+        </span>;
+    }
+
+    /** Ring showing how full the context window was on the last request; hover for the breakdown. */
+    protected renderUsageRing(): React.ReactNode {
+        const usage = this.store.current?.context?.usage;
+        const ratio = usageRatio(usage);
+        const r = 7;
+        const c = 2 * Math.PI * r;
+        if (!usage || ratio <= 0) {
+            // Nothing sent yet: no ring (an empty ring reads as a spinner).
+            return undefined;
+        }
+        return <span id='ingot-context-ring' className={`ingot-context-ring${ratio >= CONTEXT_NEAR_FULL ? ' near-full' : ''}`} data-ratio={ratio.toFixed(3)}
+            title={usage ? usageBreakdown(usage) : 'Context usage appears after the first message'} aria-label={`Context ${Math.round(ratio * 100)}% used`}>
+            <svg width='18' height='18' viewBox='0 0 18 18'>
+                <circle cx='9' cy='9' r={r} className='ingot-ring-track' />
+                <circle cx='9' cy='9' r={r} className='ingot-ring-value' strokeDasharray={`${c * ratio} ${c}`} transform='rotate(-90 9 9)' />
+            </svg>
+        </span>;
+    }
+
+    protected renderSummarize(): React.ReactNode {
+        const current = this.store.current;
+        if (!current || usageRatio(current.context?.usage) < CONTEXT_NEAR_FULL || this.store.isRunning(current.id)) {
+            return undefined;
+        }
+        return <div className='ingot-summarize' id='ingot-summarize'>
+            <span className='codicon codicon-warning' /> Context is nearly full.
+            <span className='ingot-flex' />
+            <button type='button' id='ingot-summarize-continue' className='ingot-btn-primary' onClick={() => this.store.summarizeAndContinue(current.id)}>Summarize &amp; continue</button>
         </div>;
     }
 }

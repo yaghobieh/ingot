@@ -12,6 +12,8 @@ export interface SettingsPage {
     readonly icon?: string;
     /** Optional card grouping of `preferences`; ungrouped keys go to a 'General' card. */
     readonly groups?: readonly SettingsGroup[];
+    /** A page with its own UI instead of preferences (e.g. the Memories manager). */
+    readonly custom?: 'memories';
 }
 
 export interface SettingsGroup {
