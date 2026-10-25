@@ -1,4 +1,8 @@
-export type ConfigSource = 'ingot' | 'legacy' | 'external' | 'agents';
+/**
+ * Where a rule / command / skill / server came from. `global*` are loaded from the user's home for every project
+ * (`~/.ingot`, and imported global folders); project sources win on name conflicts.
+ */
+export type ConfigSource = 'ingot' | 'legacy' | 'external' | 'agents' | 'global' | 'global-imported';
 
 export interface ProjectRule {
     readonly name: string;
@@ -8,6 +12,8 @@ export interface ProjectRule {
     readonly globs: readonly string[];
     readonly alwaysApply: boolean;
     readonly body: string;
+    /** Absolute file URI (for open / delete). */
+    readonly uri?: string;
 }
 
 export interface ProjectCommand {
@@ -17,6 +23,7 @@ export interface ProjectCommand {
     readonly description?: string;
     readonly body: string;
     readonly kind: 'command' | 'skill';
+    readonly uri?: string;
 }
 
 export interface McpServerConfig {
@@ -28,6 +35,10 @@ export interface McpServerConfig {
     readonly env?: Readonly<Record<string, string>>;
     readonly url?: string;
     readonly headers?: Readonly<Record<string, string>>;
+    /** Env vars whose values live in the OS keychain (written as `"${keychain}"` in mcp.json). */
+    readonly secretEnv?: readonly string[];
+    /** HTTP headers whose values live in the OS keychain (e.g. Authorization). */
+    readonly secretHeaders?: readonly string[];
 }
 
 export interface ProjectConfig {
@@ -36,7 +47,7 @@ export interface ProjectConfig {
     readonly mcpServers: readonly McpServerConfig[];
 }
 
-export type McpState = 'disabled' | 'starting' | 'connected' | 'error';
+export type McpState = 'disabled' | 'starting' | 'connected' | 'error' | 'needs-auth';
 
 export interface McpTool {
     readonly name: string;
@@ -49,6 +60,12 @@ export interface McpServerStatus {
     readonly state: McpState;
     readonly tools: readonly McpTool[];
     readonly error?: string;
+    /** Number of resources the server exposes (0 when it has none or does not support resources). */
+    readonly resources?: number;
+    /** Keychain-backed env vars that have no value yet (state `needs-auth`). */
+    readonly missingSecrets?: readonly string[];
+    /** Recent server stderr / connection log, secrets redacted (for "Show Output"). */
+    readonly output?: string;
 }
 
 export interface McpToolResult {
@@ -62,4 +79,8 @@ export interface McpService {
     sync(servers: McpServerConfig[], cwd: string): Promise<McpServerStatus[]>;
     status(): Promise<McpServerStatus[]>;
     callTool(server: string, tool: string, args: Record<string, unknown>): Promise<McpToolResult>;
+    /** Stores an MCP secret in the OS keychain. Values never go to files or back to the frontend. */
+    setSecret(server: string, name: string, value: string): Promise<void>;
+    /** Removes all keychain secrets of a server. */
+    deleteSecrets(server: string, names: string[]): Promise<void>;
 }
