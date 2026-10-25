@@ -5,7 +5,8 @@
   "license": "Apache-2.0",
   "scripts": {
     "test": "playwright test",
-    "test:headed": "playwright test --headed"
+    "test:headed": "playwright test --headed",
+    "test:electron": "playwright test -c playwright.electron.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",

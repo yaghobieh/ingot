@@ -44,6 +44,10 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                 actions: [{ id: 'openModels', label: 'Manage API Keys…' }]
             },
             { id: 'agent-config', label: 'Rules & MCP', actions: [{ id: 'openAgentConfig', label: 'Open Rules, Commands & MCP Servers…' }] },
+            {
+                id: 'memories', label: 'Memories', custom: 'memories',
+                description: 'Facts and preferences agents remember between chats. Project memories stay on this machine (git-ignored); global ones apply to every project.'
+            },
             { id: 'terminal', label: 'Terminal', preferences: ['terminal.integrated.fontSize', 'terminal.integrated.cursorBlinking'] }
         ]
     },

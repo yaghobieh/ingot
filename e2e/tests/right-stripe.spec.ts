@@ -81,10 +81,10 @@ test.describe('IDEA-61 right tool window stripe', () => {
         await expect(page.locator('#ingot-tb-stop')).toBeEnabled();
         await page.locator('#ingot-tb-stop').click();
 
-        const before = await page.locator('.ingot-agent-item').count();
+        const before = await page.locator('.ingot-chat-tab').count();
         await page.locator('#ingot-tb-new-session').click();
         await expect(page.locator('#ingot-agents')).toBeVisible();
-        await expect(page.locator('.ingot-agent-item')).toHaveCount(before + 1);
+        await expect(page.locator('.ingot-chat-tab')).toHaveCount(before + 1);
 
         await page.locator('#ingot-tb-search').click();
         await expect(page.locator('.quick-input-widget')).toBeVisible();
