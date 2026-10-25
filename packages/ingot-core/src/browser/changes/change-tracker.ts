@@ -14,6 +14,11 @@ import { CHANGES_PENDING_KEY, STREAM_APPLY_MS } from '../../common/changes/chang
 import type { ChangeHunk, Checkpoint, CodeChange, HunkState } from '../../common/changes/changes.types';
 import { buildHunks, changeStats, composeText, decide, hunkLines, isPending, streamingPreview } from '../../common/changes/changes.utils';
 import { ACCEPT_EDIT_KEY_LABEL, REJECT_EDIT_KEY_LABEL } from './changes.browser-consts';
+import { formatCountdown } from '../../common/review/review';
+
+/** Last markup per review bar. */
+const barHtml = new WeakMap<HTMLElement, string>();
+const escapeHtml = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** Where an edit comes from: the chat, the agent message it renders under, and the user message it answers. */
 export interface ChangeOrigin {
@@ -29,6 +34,14 @@ interface EditorView {
     readonly overlays: monaco.editor.IOverlayWidget[];
     readonly listeners: { dispose(): void }[];
     readonly bar?: HTMLElement;
+}
+
+/** A paused run as the floating review bar shows it (IDEA-105). */
+export interface ReviewBarPause {
+    readonly applied: number;
+    readonly total: number;
+    readonly continueAt?: number;
+    readonly onContinue: () => void;
 }
 
 interface StreamState {
@@ -57,6 +70,9 @@ export class ChangeTracker {
     protected checkpointList: Checkpoint[] = [];
     protected readonly refs = new Map<string, Promise<IReference<MonacoEditorModel>>>();
     protected readonly views = new Map<string, EditorView[]>();
+    /** IDEA-105: a paused agent run, shown inline in the floating review bar. */
+    protected pause?: ReviewBarPause;
+    protected pauseTicker?: ReturnType<typeof setInterval>;
     protected readonly streams = new Map<string, StreamState>();
     protected pendingKey?: ContextKey<boolean>;
     protected counter = 0;
@@ -405,7 +421,34 @@ export class ChangeTracker {
     protected fire(): void {
         this.pendingKey ??= this.contextKeys.createKey<boolean>(CHANGES_PENDING_KEY, false);
         this.pendingKey.set(this.items.some(c => isPending(c) && c.status !== 'streaming'));
+        this.refreshBars();
         this.onDidChangeEmitter.fire();
+    }
+
+    /** IDEA-105: the agent store reports a paused run (or undefined when it continues) for the review bar. */
+    setPause(pause: ReviewBarPause | undefined): void {
+        this.pause = pause;
+        clearInterval(this.pauseTicker);
+        this.pauseTicker = pause?.continueAt !== undefined ? setInterval(() => this.refreshBars(), 500) : undefined;
+        this.refreshBars();
+    }
+
+    /** Re-renders every open review bar (file counts, pause countdown). */
+    protected refreshBars(): void {
+        for (const [id, views] of this.views) {
+            const change = this.find(id);
+            views.forEach(v => v.bar && change && this.renderBar(v.bar, change));
+        }
+    }
+
+    /** Previous / next changed file (the review bar's ‹ ›). */
+    async stepFile(fromId: string, direction: 1 | -1): Promise<void> {
+        const files = this.pending().filter(c => c.status !== 'streaming');
+        const at = files.findIndex(c => c.id === fromId);
+        const next = files[((at < 0 ? 0 : at) + direction + files.length) % files.length];
+        if (next) {
+            await this.reveal(next.id);
+        }
     }
 
     protected redrawAll(): void {
@@ -557,20 +600,69 @@ export class ChangeTracker {
         return node;
     }
 
-    /** Floating per-file bar: Accept / Reject the whole file (Ctrl+Y / Ctrl+N). */
+    /**
+     * IDEA-105 floating review bar, bottom-right of the editor: "X of Y files" with ‹ › to step files and ↑ ↓ to step
+     * changes, Reject / Accept for this file (Ctrl+N / Ctrl+Y), Reject All / Accept All, and a paused run's countdown.
+     */
     protected fileBar(change: CodeChange): HTMLElement {
-        const stats = changeStats(change.hunks.filter(h => h.state === 'pending'));
         const bar = document.createElement('div');
         bar.className = 'ingot-agent-edit-bar';
-        bar.innerHTML = `
-            <span class="ingot-agent-dot"></span>
-            <span class="ingot-agent-edit-text">Agent edit · <span class="ingot-plus">+${stats.added}</span> <span class="ingot-minus">−${stats.removed}</span> in <span class="ingot-agent-edit-file"></span></span>
-            <span class="ingot-agent-edit-spacer"></span>
-            <button type="button" class="ingot-agent-edit-reject">Reject file <kbd>${REJECT_EDIT_KEY_LABEL}</kbd></button>
-            <button type="button" class="ingot-agent-edit-accept">Accept file <kbd>${ACCEPT_EDIT_KEY_LABEL}</kbd></button>`;
-        (bar.querySelector('.ingot-agent-edit-file') as HTMLElement).textContent = new URI(change.uri).path.base;
-        bar.querySelector('.ingot-agent-edit-reject')?.addEventListener('click', () => this.decide(change.id, 'all', 'rejected'));
-        bar.querySelector('.ingot-agent-edit-accept')?.addEventListener('click', () => this.decide(change.id, 'all', 'accepted'));
+        bar.setAttribute('role', 'toolbar');
+        bar.setAttribute('aria-label', 'Review agent changes');
+        bar.addEventListener('click', event => {
+            const action = (event.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action;
+            const current = this.find(change.id);
+            switch (action) {
+                case 'prev-file': void this.stepFile(change.id, -1); break;
+                case 'next-file': void this.stepFile(change.id, 1); break;
+                case 'prev-change': void this.navigate(-1); break;
+                case 'next-change': void this.navigate(1); break;
+                case 'reject': void this.decide(change.id, 'all', 'rejected'); break;
+                case 'accept': void this.decide(change.id, 'all', 'accepted'); break;
+                case 'reject-all': void this.decideAll('rejected', current?.sessionId); break;
+                case 'accept-all': void this.decideAll('accepted', current?.sessionId); break;
+                case 'continue': this.pause?.onContinue(); break;
+            }
+        });
+        this.renderBar(bar, change);
         return bar;
     }
+
+    protected renderBar(bar: HTMLElement, change: CodeChange): void {
+        const stats = changeStats(change.hunks.filter(h => h.state === 'pending'));
+        const files = this.pending(change.sessionId).filter(c => c.status !== 'streaming');
+        const index = Math.max(0, files.findIndex(c => c.id === change.id));
+        const name = escapeHtml(new URI(change.uri).path.base);
+        const pause = this.pause;
+        const left = pause?.continueAt !== undefined ? Math.max(0, (pause.continueAt - Date.now()) / 1000) : undefined;
+        const icon = (codicon: string, action: string, title: string): string =>
+            `<button type="button" class="ingot-rb-icon codicon codicon-${codicon}" data-action="${action}" title="${title}" aria-label="${title}"></button>`;
+        const html = `
+            ${pause ? `<span class="ingot-rb-pause" title="Paused for review · ${pause.applied} of ${pause.total} files applied"><span class="codicon codicon-debug-pause"></span>`
+                + `${left !== undefined ? '<span class="ingot-rb-countdown"></span>' : '<span>Paused</span>'}`
+                + `<button type="button" class="ingot-rb-continue" data-action="continue">Continue</button></span><span class="ingot-rb-sep"></span>` : ''}
+            <span class="ingot-rb-files">
+                ${files.length > 1 ? icon('chevron-left', 'prev-file', 'Previous file') : ''}
+                <span class="ingot-rb-count" title="${name} +${stats.added} −${stats.removed}">${files.length > 1
+                    ? `<span class="ingot-rb-of">${index + 1} of ${files.length} files</span>`
+                    : `<span class="ingot-agent-edit-file">${name}</span> <span class="ingot-plus">+${stats.added}</span> <span class="ingot-minus">−${stats.removed}</span>`}</span>
+                ${files.length > 1 ? icon('chevron-right', 'next-file', 'Next file') : ''}
+            </span>
+            <span class="ingot-rb-sep"></span>
+            ${icon('arrow-up', 'prev-change', 'Previous change (⌥↑)')}${icon('arrow-down', 'next-change', 'Next change (⌥↓)')}
+            <span class="ingot-rb-sep"></span>
+            <button type="button" class="ingot-agent-edit-reject" data-action="reject" title="Reject this file (${REJECT_EDIT_KEY_LABEL})">Reject${files.length > 1 ? '' : ` <kbd>${REJECT_EDIT_KEY_LABEL}</kbd>`}</button>
+            <button type="button" class="ingot-agent-edit-accept" data-action="accept" title="Accept this file (${ACCEPT_EDIT_KEY_LABEL})">Accept${files.length > 1 ? '' : ` <kbd>${ACCEPT_EDIT_KEY_LABEL}</kbd>`}</button>
+            ${files.length > 1 ? `<span class="ingot-rb-sep"></span><button type="button" class="ingot-rb-all" data-action="reject-all">Reject All</button><button type="button" class="ingot-rb-all ingot-rb-all-accept" data-action="accept-all">Accept All</button>` : ''}`;
+        // Only rebuild when something but the countdown changed, so a click in progress never loses its button.
+        if (barHtml.get(bar) !== html) {
+            bar.innerHTML = html;
+            barHtml.set(bar, html);
+        }
+        const countdown = bar.querySelector('.ingot-rb-countdown');
+        if (countdown && left !== undefined) {
+            countdown.textContent = formatCountdown(left);
+        }
+    }
+
 }
