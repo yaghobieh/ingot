@@ -10,6 +10,19 @@ export interface ProviderInfo {
     readonly keyHint: string;
 }
 
+/** A model family row in the picker; its `>` submenu lists the family's models (IDEA-91). */
+export interface ModelFamily {
+    readonly provider: ProviderId;
+    /** Family name as shown to the user (model naming only, never a company name). */
+    readonly label: string;
+    readonly icon: string;
+}
+
+export interface ModelFamilyGroup {
+    readonly family: ModelFamily;
+    readonly models: readonly CatalogModel[];
+}
+
 export interface CatalogModel {
     /** Stable id used by the picker and preferences. */
     readonly id: string;
