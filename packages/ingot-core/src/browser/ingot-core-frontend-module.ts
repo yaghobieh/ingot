@@ -69,6 +69,11 @@ import { IngotGitLogWidget } from './git/git-log-widget';
 import { IngotGitContribution } from './git/git-contribution';
 import { IngotGitActionsContribution } from './git/git-actions-contribution';
 import { IngotFileMenusContribution } from './files/file-menus-contribution';
+import { IngotCommitContribution, createDiffWidgetFactory } from './commit/commit-contribution';
+import { LocalChangesModel } from './commit/local-changes-model';
+import { LocalChangesWidget } from './commit/local-changes-widget';
+import { IngotDiffWidget } from './commit/ingot-diff-widget';
+import { LOCAL_CHANGES_WIDGET_ID } from './commit/commit.consts';
 import { GIT_LOG_WIDGET_ID } from './git/git.browser-consts';
 import { IngotSettingsDialog } from './settings/ingot-settings-dialog';
 import { IngotSettingsContribution } from './settings/ingot-settings-contribution';
@@ -108,6 +113,17 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     for (const id of [CommandContribution, MenuContribution, KeybindingContribution]) {
         bind(id).toService(IngotGitActionsContribution);
     }
+    // IDEA-74: Local Changes / Commit tool window, diff viewer, Push dialog
+    bind(LocalChangesModel).toSelf().inSingletonScope();
+    bind(LocalChangesWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: LOCAL_CHANGES_WIDGET_ID, createWidget: () => ctx.container.get(LocalChangesWidget) })).inSingletonScope();
+    bind(IngotDiffWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => createDiffWidgetFactory(options => {
+        const widget = ctx.container.get(IngotDiffWidget);
+        widget.init(options);
+        return widget;
+    })).inSingletonScope();
+    bindViewContribution(bind, IngotCommitContribution);
     bind(IngotFileMenusContribution).toSelf().inSingletonScope();
     for (const id of [CommandContribution, MenuContribution, KeybindingContribution, FrontendApplicationContribution]) {
         bind(id).toService(IngotFileMenusContribution);
