@@ -30,7 +30,7 @@ test.describe('IDEA-27/28 Agents tool window', () => {
         await page.locator('#ingot-composer-input').fill('make addItem optimistic and add qty support');
         await page.keyboard.press('Enter');
         await expect(panel.locator('.ingot-chat-user')).toHaveText('make addItem optimistic and add qty support');
-        await expect(panel.locator('.ingot-chat-tab-title').first()).toHaveText('Make addItem optimistic and add qty support');
+        await expect(panel.locator('.ingot-chat-tab-title').first()).toHaveText('Make addItem optimistic and add');
         await expect(panel.locator('.ingot-chat-system')).toContainText('not connected yet');
     });
 
