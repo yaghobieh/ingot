@@ -1,4 +1,6 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
+import { KeyStoreService } from '@theia/core/lib/common/key-store';
+import { DEV_FILE_KEYSTORE_ENV, DevFileKeyStoreService } from './dev-file-key-store';
 import { IngotEditorImportService } from './editor-import-backend';
 import { EDITOR_IMPORT_SERVICE_PATH, EditorImportService } from '../common/import/editor-import.types';
 import { ConnectionHandler, RpcConnectionHandler } from '@theia/core/lib/common/messaging';
@@ -25,6 +27,12 @@ import { AccountDeepLinkEndpoint } from './account/account-deeplink-endpoint';
 import { ACCOUNT_SERVICE_PATH, AccountBackend, type AccountClient } from '../common/account/account-protocol';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
+    // Dev preview only: keep secrets in a 0600 file instead of the OS keychain (no keychain prompt after each rebuild).
+    const devKeyStore = process.env[DEV_FILE_KEYSTORE_ENV];
+    if (devKeyStore) {
+        rebind(KeyStoreService).toConstantValue(new DevFileKeyStoreService(devKeyStore));
+        console.warn(`Ingot dev build: secrets are stored in a local file (${DEV_FILE_KEYSTORE_ENV}), not the OS keychain.`);
+    }
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
     rebind(WorkspaceFileService).toService(IngotWorkspaceFileService);
     bind(IngotPortsService).toSelf().inSingletonScope();
