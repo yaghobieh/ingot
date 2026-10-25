@@ -56,7 +56,7 @@ test.describe('IDEA-105 agent review (desktop)', () => {
     });
 
     test('checkpoint pause at the threshold, review list with per-file Accept / Reject, Continue now, Accept All', async () => {
-        const page = await start({ 'ingot.agent.reviewPauseThreshold': 2, 'ingot.agent.reviewAutoContinueSeconds': 0 }, () => editsReply(FILES));
+        const page = await start({ 'ingot.agent.reviewPauseThreshold': 2, 'ingot.agent.reviewAutoContinueSeconds': 0, 'ingot.appearance': 'light' }, () => editsReply(FILES));
         await ask(page, 'Bump every constant');
         const pause = page.locator('#ingot-review-pause');
         await expect(pause).toContainText('Paused for review · 2 of 5 files applied', { timeout: 20_000 });
