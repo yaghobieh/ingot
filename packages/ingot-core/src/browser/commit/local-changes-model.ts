@@ -188,6 +188,13 @@ export class LocalChangesModel {
         return !this.excludedHunks.get(path)?.has(index);
     }
 
+    /** Excludes (or re-includes) one chunk from the commit without touching the file. */
+    setHunkIncluded(path: string, index: number, included: boolean): void {
+        if (this.isHunkIncluded(path, index) !== included) {
+            this.toggleHunk(path, index);
+        }
+    }
+
     toggleHunk(path: string, index: number): void {
         const set = this.excludedHunks.get(path) ?? new Set<number>();
         if (set.has(index)) { set.delete(index); } else { set.add(index); }
