@@ -29,11 +29,20 @@ import { EditorContribution } from '@theia/editor/lib/browser/editor-contributio
 
 import { WorkspaceFileService } from '@theia/workspace/lib/common/workspace-file-service';
 import { IngotWorkspaceFileService } from '../common/workspace/ingot-workspace-file-service';
+import { IngotGroupService } from './groups/ingot-group-service';
+import { IngotProjectTabsWidget } from './groups/project-tabs-widget';
+import { IngotGroupsContribution } from './groups/groups-contribution';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
     rebind(WorkspaceFileService).toService(IngotWorkspaceFileService);
+    bind(IngotGroupService).toSelf().inSingletonScope();
+    bind(IngotProjectTabsWidget).toSelf().inSingletonScope();
+    bind(IngotGroupsContribution).toSelf().inSingletonScope();
+    for (const id of [FrontendApplicationContribution, CommandContribution, KeybindingContribution]) {
+        bind(id).toService(IngotGroupsContribution);
+    }
     bind(IngotCoreContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(IngotCoreContribution);
     bind(MenuContribution).toService(IngotCoreContribution);

@@ -41,6 +41,8 @@ export interface AgentSession {
     changes: FileChange[];
     /** File the agent is currently working on, for the list subtitle. */
     activeFile?: string;
+    /** Project root URI the agent works in; set inside project groups (IDEA-52). */
+    project?: string;
 }
 
 export interface ModelOption {

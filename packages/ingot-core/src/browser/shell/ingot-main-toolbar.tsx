@@ -127,7 +127,7 @@ export class IngotMainToolbar extends ReactWidget {
                 <button key={p.uri} type='button' role='menuitem' className='ingot-project-popup-item ingot-project-popup-recent' title={p.path} onClick={() => this.openRecent(p)}>
                     <span className='ingot-welcome-initials'>{p.initials}</span>
                     <span className='ingot-project-popup-text'>
-                        <span className='ingot-project-popup-name'>{p.name}{p.kind === 'workspace' && <span className='ingot-badge'>workspace</span>}</span>
+                        <span className='ingot-project-popup-name'>{p.name}{p.kind !== 'folder' && <span className='ingot-badge'>{p.kind}</span>}</span>
                         <span className='ingot-project-popup-path'>{p.path}</span>
                     </span>
                 </button>

@@ -15,25 +15,45 @@ export class AgentStore {
 
     protected items: AgentSession[] = [];
     protected selected?: string;
+    protected projectScope?: string;
     mode: AgentMode = 'agent';
     model = DEFAULT_MODEL;
 
+    /** Sessions of the active project tab (all sessions outside project groups). */
     get sessions(): readonly AgentSession[] {
+        return this.projectScope ? this.items.filter(s => s.project === this.projectScope) : this.items;
+    }
+
+    get allSessions(): readonly AgentSession[] {
         return this.items;
     }
 
     get current(): AgentSession | undefined {
-        return this.items.find(s => s.id === this.selected);
+        return this.sessions.find(s => s.id === this.selected);
     }
 
     get activeCount(): number {
         return activeAgentCount(this.items);
     }
 
+    get scope(): string | undefined {
+        return this.projectScope;
+    }
+
+    /** Shows only the agents of one project (project groups); `undefined` shows all. */
+    setScope(project: string | undefined): void {
+        if (this.projectScope === project) {
+            return;
+        }
+        this.projectScope = project;
+        this.selected = this.sessions[0]?.id;
+        this.changed();
+    }
+
     create(title = NEW_AGENT_TITLE): AgentSession {
         const session: AgentSession = {
             id: `agent-${nextId++}`, title, status: 'idle', updatedAt: Date.now(), mode: this.mode, model: this.model,
-            messages: [], plan: [], steps: [], changes: []
+            messages: [], plan: [], steps: [], changes: [], project: this.projectScope
         };
         this.items = [session, ...this.items];
         this.selected = session.id;

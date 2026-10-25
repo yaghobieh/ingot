@@ -131,7 +131,7 @@ export class IngotWelcomeWidget extends ReactWidget {
                             <button type='button' className='ingot-welcome-project' title={p.path} onClick={() => this.openProject(p)}>
                                 <span className='ingot-welcome-initials'>{p.initials}</span>
                                 <span className='ingot-welcome-project-text'>
-                                    <span className='ingot-welcome-project-name'>{p.name}{p.kind === 'workspace' && <span className='ingot-badge'>workspace</span>}</span>
+                                    <span className='ingot-welcome-project-name'>{p.name}{p.kind !== 'folder' && <span className='ingot-badge'>{p.kind}</span>}</span>
                                     <span className='ingot-welcome-project-path'>{p.path}</span>
                                 </span>
                             </button>
