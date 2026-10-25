@@ -18,6 +18,7 @@ build/
 # test output
 test-results/
 playwright-report/
+playwright-report-electron/
 coverage/
 
 # os / editor

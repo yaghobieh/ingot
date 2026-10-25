@@ -103,6 +103,8 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         }
         document.body.classList.add('ingot-right-stripe-on');
         layout.addWidget(this.rightStripe);
+        // The Agents window draws its own header (Agents | History); the empty side panel title bar is not part of the design.
+        handler.toolBar.hide();
     }
 
     async initializeLayout(_app: FrontendApplication): Promise<void> {
@@ -111,6 +113,8 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
                 await this.commands.executeCommand(commandId);
             }
         }
+        // Default Agents width per the reference (~27% of the window).
+        this.shell.resize(Math.round(Math.max(320, window.innerWidth * 0.27)), 'right');
     }
 
     /** Areas that were open before "Hide All Tool Windows", restored on the next toggle like classic IDEs. */

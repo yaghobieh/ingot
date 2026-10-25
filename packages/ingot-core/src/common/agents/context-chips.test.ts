@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chipLabel, chipPreview, COMPOSER_MIN_HEIGHT, composerHeight, expandWithChips, lineCount, sameClipboardText } from './context-chips';
+import { chipLabel, chipPreview, COMPOSER_MIN_HEIGHT, composerHeight, expandWithChips, lineCount, insertedText, normalizeClipboardText, parseIngotRef, sameClipboardText } from './context-chips';
 
 const chip = { id: '1', path: 'scripts/dev-db.mjs', uri: 'file:///p/scripts/dev-db.mjs', start: 25, end: 28, text: 'a\nb\nc\nd\n' };
 
@@ -27,5 +27,22 @@ describe('context chips', () => {
         expect(composerHeight(900, 800)).toBe(400);
         expect(composerHeight(10, 800, 500)).toBe(500);
         expect(composerHeight(10, 800, 2000)).toBe(640);
+    });
+    it('matches desktop clipboard text loosely (CRLF, trailing spaces, trailing newlines)', () => {
+        expect(normalizeClipboardText('a  \r\n  b\t\r\n\n')).toBe('a\n  b');
+        expect(sameClipboardText('export const x = 1;\r\n};\r\n', 'export const x = 1; \n};')).toBe(true);
+        expect(sameClipboardText('a\nb', 'a\nc')).toBe(false);
+    });
+    it('parses the application/x-ingot-ref clipboard entry', () => {
+        expect(parseIngotRef(JSON.stringify({ path: 'a.ts', uri: 'file:///a.ts', start: 2, end: 4, text: 'x\ny' }))).toEqual({ path: 'a.ts', uri: 'file:///a.ts', start: 2, end: 4, text: 'x\ny' });
+        expect(parseIngotRef('{"path":1}')).toBeUndefined();
+        expect(parseIngotRef('not json')).toBeUndefined();
+        expect(parseIngotRef(undefined)).toBeUndefined();
+    });
+    it('finds the text a paste inserted into the draft', () => {
+        expect(insertedText('', 'a\nb')).toBe('a\nb');
+        expect(insertedText('explain  please', 'explain a\nb please')).toBe('a\nb');
+        expect(insertedText('ab', 'ab\ncd')).toBe('\ncd');
+        expect(insertedText('abc', 'ab')).toBeUndefined();
     });
 });
