@@ -9,7 +9,7 @@ import { GitService, type GitCommit, type GitFileChange } from '../../common/git
 import { GIT_FILE_COMMANDS } from '../git/git-actions.consts';
 import { toGitUri } from '../git/git-resource-resolver';
 import { IngotBranchService } from '../vcs/ingot-branch-service';
-import { COMMIT_COMMANDS, DEFAULT_CHANGELIST, DIFF_WIDGET_ID, LOCAL_CHANGES_CONTEXT_MENU, LOCAL_CHANGES_FOCUS, LOCAL_CHANGES_LABEL, LOCAL_CHANGES_WIDGET_ID } from './commit.consts';
+import { COMMIT_COMMANDS, DIFF_FOCUS, DEFAULT_CHANGELIST, DIFF_WIDGET_ID, LOCAL_CHANGES_CONTEXT_MENU, LOCAL_CHANGES_FOCUS, LOCAL_CHANGES_LABEL, LOCAL_CHANGES_WIDGET_ID } from './commit.consts';
 import { IngotDiffWidget, type DiffWidgetOptions } from './ingot-diff-widget';
 import { LocalChangesModel } from './local-changes-model';
 import { LocalChangesWidget } from './local-changes-widget';
@@ -63,6 +63,10 @@ export class IngotCommitContribution extends AbstractViewContribution<LocalChang
             }
         });
         registry.registerCommand(C.rollback, { execute: (arg?: unknown) => this.rollback(this.selection(arg)) });
+        const diff = () => [this.appShell.activeWidget, this.appShell.currentWidget].find(w => w instanceof IngotDiffWidget) as IngotDiffWidget | undefined;
+        registry.registerCommand(C.revertChunk, { execute: () => diff()?.revertChunk(), isEnabled: () => !!diff() });
+        registry.registerCommand(C.ignoreChunk, { execute: () => diff()?.ignoreChunk(), isEnabled: () => !!diff() });
+        registry.registerCommand(C.revertFile, { execute: () => { const d = diff(); return d ? this.rollback([d.path]) : undefined; }, isEnabled: () => !!diff() });
         registry.registerCommand(C.jumpToSource, {
             execute: async (arg?: unknown) => {
                 for (const path of this.selection(arg)) {
@@ -125,6 +129,7 @@ export class IngotCommitContribution extends AbstractViewContribution<LocalChang
             { command: COMMIT_COMMANDS.jumpToSource.id, keybinding: 'f4', when },
             { command: 'ingot.commit.submit', keybinding: 'ctrlcmd+enter', when },
             { command: COMMIT_COMMANDS.rollback.id, keybinding: 'ctrlcmd+alt+z', when },
+            { command: COMMIT_COMMANDS.revertChunk.id, keybinding: 'ctrlcmd+alt+z', when: DIFF_FOCUS },
             { command: COMMIT_COMMANDS.refresh.id, keybinding: 'ctrlcmd+r', when }
         );
     }
