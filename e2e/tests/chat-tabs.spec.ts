@@ -116,4 +116,24 @@ test.describe('IDEA-98 chat tabs', () => {
             await page.screenshot({ path: path.join(process.env.SHOTS_DIR, 'chat-tabs.png') });
         }
     });
+
+    test('IDEA-120: a tab whose chat fills the context window gets a red underline; + and History stay', async ({ page }) => {
+        await openIngot(page, project);
+        await dismissNotifications(page);
+        await connectOllama(page, server);
+        await expect(page.locator('#ingot-agents-new')).toBeVisible();
+        await expect(page.locator('#ingot-agents-history')).toBeVisible();
+        await page.locator('#ingot-agents-new').click();
+        await pickModel(page, 'ollama-local');
+        await send(page, 'short question about the cart');
+        const active = agents(page).locator('.ingot-chat-tab.active');
+        await expect(agents(page).locator('.ingot-chat-agent')).toContainText('Echo:');
+        await expect(active).not.toHaveClass(/context-full/);
+        // The local model has a 32k-token window (~4 characters a token): one huge message fills it.
+        await send(page, `fill the context ${'lorem ipsum dolor sit amet '.repeat(5000)}`);
+        await expect(active).toHaveClass(/context-full/, { timeout: 30_000 });
+        const underline = await active.evaluate(el => getComputedStyle(el, '::after').backgroundColor);
+        expect(underline).toBe('rgb(229, 72, 77)');
+        await expect(active).not.toHaveAttribute('title', 'New chat');
+    });
 });
