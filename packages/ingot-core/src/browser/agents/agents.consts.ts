@@ -28,6 +28,9 @@ export const MODEL_PICKER_TEXT = {
     favorites: 'Favorites',
     models: 'Models',
     addKey: 'Add key',
+    /** Ingot (hosted) models never take a key; one the gateway does not offer right now is marked instead. */
+    unavailable: 'Unavailable',
+    unavailableHint: 'Not available on Ingot right now',
     favorite: 'Favorite',
     unfavorite: 'Unfavorite',
     uses: 'Uses',
