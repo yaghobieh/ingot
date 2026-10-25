@@ -52,8 +52,8 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
     protected editor: monaco.editor.IStandaloneDiffEditor | undefined;
     protected readonly fileDisposables = new DisposableCollection();
     protected hunks: ChangeHunk[] = [];
-    /** Editable-side content from before each chunk revert, newest last (fallback for undo). */
-    protected reverted: string[] = [];
+    /** Editable-side content before and after each chunk revert, newest last, so undo can put a revert back exactly. */
+    protected reverted: { before: string; after: string }[] = [];
     protected decorations: monaco.editor.IEditorDecorationsCollection | undefined;
     protected headSha = '';
     protected viewer: Viewer = 'side-by-side';
@@ -97,7 +97,7 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
             return;
         }
         const next = revertHunk(original.getValue(), modified.getValue(), hunk.index);
-        this.reverted.push(modified.getValue());
+        this.reverted.push({ before: modified.getValue(), after: next });
         editor.getModifiedEditor().pushUndoStop();
         modified.pushEditOperations([], [{ range: modified.getFullModelRange(), text: next }], () => null);
         editor.getModifiedEditor().pushUndoStop();
@@ -105,27 +105,33 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
     }
 
     /**
-     * Undo in the editable side. A chunk revert is one undo step; if the editor's own history no longer has it (the
-     * file was re-read after the save), the content from before the last revert is put back instead.
+     * Undo in the editable side. Right after a chunk revert the content from before it is put back directly (the
+     * editor's history can be reset when the saved file is re-read); otherwise the model's own undo runs.
      */
     undo(): void {
         const model = this.editor?.getModifiedEditor().getModel();
         if (!model) {
             return;
         }
-        if (model.canUndo()) {
-            this.editor?.getModifiedEditor().trigger('keyboard', 'undo', undefined);
+        const last = this.reverted[this.reverted.length - 1];
+        if (last && model.getValue() === last.after) {
             this.reverted.pop();
+            model.pushStackElement();
+            model.pushEditOperations([], [{ range: model.getFullModelRange(), text: last.before }], () => null);
+            model.pushStackElement();
+            this.fileModel?.save().catch(() => undefined);
             return;
         }
-        const previous = this.reverted.pop();
-        if (previous !== undefined) {
-            model.pushEditOperations([], [{ range: model.getFullModelRange(), text: previous }], () => null);
+        if (model.canUndo()) {
+            model.undo();
         }
     }
 
     redo(): void {
-        this.editor?.getModifiedEditor().trigger('keyboard', 'redo', undefined);
+        const model = this.editor?.getModifiedEditor().getModel();
+        if (model?.canRedo()) {
+            model.redo();
+        }
     }
 
     /** × on a chunk: exclude it from the commit (click again to include); the file is not changed. */
