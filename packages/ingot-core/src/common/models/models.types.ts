@@ -1,4 +1,5 @@
-export type ProviderId = 'anthropic' | 'openai' | 'gemini' | 'deepseek' | 'openrouter' | 'ollama';
+/** `ingot` = the Ingot model gateway (signed in, no provider keys). The rest are BYOK / local (IDEA-101). */
+export type ProviderId = 'ingot' | 'anthropic' | 'openai' | 'gemini' | 'deepseek' | 'openrouter' | 'ollama';
 
 export interface ProviderInfo {
     readonly id: ProviderId;
@@ -65,6 +66,10 @@ export interface CompletionRequest {
 export interface ProviderSettings {
     readonly ollamaBaseUrl?: string;
     readonly modelOverrides?: Partial<Record<ProviderId, string>>;
+    /** Ingot gateway base (`<server>/v1`); set by the backend from the account settings. */
+    readonly ingotBaseUrl?: string;
+    /** Feature tag sent to the Ingot gateway for usage breakdowns (agent, chat, autocomplete). */
+    readonly feature?: string;
 }
 
 export interface StreamPoll {
