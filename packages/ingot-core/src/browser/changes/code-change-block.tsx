@@ -1,6 +1,6 @@
 import * as React from '@theia/core/shared/react';
 import * as monaco from '@theia/monaco-editor-core';
-import { AnimatedMark } from '../brand/animated-mark';
+import { ChangeMark } from '../brand/change-mark';
 import { MINI_DIFF_CONTEXT, MINI_DIFF_MAX_LINES } from '../../common/changes/changes.consts';
 import type { CodeChange, HunkState } from '../../common/changes/changes.types';
 import { changeStats, miniDiff } from '../../common/changes/changes.utils';
@@ -55,7 +55,7 @@ export const CodeChangeBlock = ({ change, expanded, onToggle, onOpen, onDecide }
             <button type='button' className='ingot-change-toggle' aria-expanded={expanded} title={expanded ? 'Hide diff' : 'Show diff'} onClick={onToggle}>
                 <span className={`codicon codicon-chevron-${expanded ? 'down' : 'right'}`} />
             </button>
-            <AnimatedMark size={16} tone='blue' loop={streaming} still={!streaming} className='ingot-change-mark' />
+            <ChangeMark loop={streaming} still={!streaming} className='ingot-change-mark' />
             <button type='button' className='ingot-change-file' title={`Open ${change.path}`} onClick={() => onOpen()}>
                 <span className='codicon codicon-file-code' />
                 <span className='ingot-change-dir'>{dir}</span><span className='ingot-change-name'>{name}</span>
