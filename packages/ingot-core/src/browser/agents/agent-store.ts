@@ -3,7 +3,7 @@ import { IngotModelClient } from '../models/model-client';
 import { AGENT_SYSTEM_PROMPTS, AUTO_MODEL_ID, DEFAULT_CONTEXT_WINDOW } from '../../common/models/models.consts';
 import { findModel, supportsVision } from '../../common/models/models.utils';
 import type { ComposedMessage } from '../../common/agents/composer-parts.types';
-import { pinnedFirst, reorderTabs, tabTitleFromText } from '../../common/agents/chat-tabs';
+import { reorderTabs, tabTitleFromText, togglePinOrder } from '../../common/agents/chat-tabs';
 import { BUILD_PROMPT, MAX_SUB_AGENTS, TERMINAL_CONTEXT_LINES, modeInfo } from '../../common/agents/agent-modes';
 import { CHATS_STORAGE_KEY, parseChats, serializeChats } from '../../common/agents/chat-history';
 import { SUMMARIZE_PROMPT, contextUsage, estimateTokens } from '../../common/agents/context-usage';
@@ -188,9 +188,10 @@ export class AgentStore {
     togglePin(id: string): void {
         const session = this.items.find(s => s.id === id);
         if (session) {
-            session.pinned = !session.pinned;
             const tabs = this.tabs;
-            this.applyOrder(pinnedFirst(tabs.map(t => t.id), new Set(tabs.filter(t => t.pinned).map(t => t.id))));
+            const order = togglePinOrder(tabs.map(t => t.id), new Set(tabs.filter(t => t.pinned).map(t => t.id)), id);
+            session.pinned = !session.pinned;
+            this.applyOrder(order);
         }
     }
 
