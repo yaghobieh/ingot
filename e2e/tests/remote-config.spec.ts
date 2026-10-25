@@ -2,10 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { dismissNotifications, openIngot, runCommand, signOutIfSignedIn } from '../src/app.utils';
-import { CONFIG_PROJECT } from '../src/e2e.consts';
+import { CONFIG_PROJECT, E2E_CONFIG_DIR } from '../src/e2e.consts';
 import { startFakeIngotServer, type FakeIngotServer } from '../src/fake-ingot-server';
 
 const SHOTS = process.env.INGOT_SCREENSHOT_DIR;
+/** Same name as CONFIG_CACHE_FILE in the app. */
+const REMOTE_CONFIG_CACHE = 'remote-config.json';
 const shot = async (page: Page, name: string): Promise<void> => {
     if (SHOTS) {
         fs.mkdirSync(SHOTS, { recursive: true });
@@ -20,6 +22,8 @@ test.describe('IDEA-125 remote config, flags and updates', () => {
     test.afterEach(async ({ page }) => {
         await signOutIfSignedIn(page);
         await server.close();
+        // The app caches the last config for offline use; a cached force update would block every later spec.
+        fs.rmSync(path.join(E2E_CONFIG_DIR, REMOTE_CONFIG_CACHE), { force: true });
     });
 
     test('flags gate the mic and the MCP marketplace; config is fetched signed out and again after sign-in', async ({ page }) => {
