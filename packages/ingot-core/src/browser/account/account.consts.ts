@@ -24,5 +24,6 @@ export const ACCOUNT_COMMANDS = {
 export const ACCOUNT_TEXT = {
     signedOut: 'Account: not signed in',
     signInPending: 'Finish signing in in your browser…',
-    settings: 'Settings (Ctrl+Alt+S)'
+    settings: 'Settings (Ctrl+Alt+S)',
+    manage: 'Manage: Settings, Theme, Extensions, MCP…'
 } as const;

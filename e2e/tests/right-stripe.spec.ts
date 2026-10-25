@@ -66,6 +66,7 @@ test.describe('IDEA-61 right tool window stripe', () => {
         // IDEA-92: Settings lives at the bottom-left of the left stripe, under Account.
         await expect(stripe(page, 'settings')).toHaveCount(0);
         await page.locator('#ingot-stripe-settings').click();
+        await page.locator('.lm-Menu .lm-Menu-itemLabel', { hasText: 'Settings…' }).click();
         await expect(page.locator('.ingot-settings-top')).toBeVisible();
         await page.keyboard.press('Escape');
     });
