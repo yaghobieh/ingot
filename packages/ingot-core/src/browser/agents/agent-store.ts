@@ -141,7 +141,8 @@ export class AgentStore {
 
     /** `auto` becomes the first connected recommended model, then any connected model. */
     resolveModel(id: string): string {
-        if (id !== AUTO_MODEL_ID) {
+        // A remembered BYOK / local model while BYOK is off falls back to Auto (Ingot models), not a "not connected" error.
+        if (id !== AUTO_MODEL_ID && (this.models.byok || this.models.isModelConfigured(id) || id.startsWith('ingot:'))) {
             return id;
         }
         const catalog = this.models.catalog;
