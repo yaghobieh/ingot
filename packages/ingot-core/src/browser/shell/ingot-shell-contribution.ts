@@ -10,6 +10,7 @@ import { IngotMainToolbar } from './ingot-main-toolbar';
 import { IngotStripeWidget } from '../stripe/ingot-stripe-widget';
 import { IngotRightStripeWidget } from '../tool-windows/right-stripe-widget';
 import { IngotAgentsContribution } from '../agents/agents-contribution';
+import { IngotLayoutContribution } from '../layout/layout-contribution';
 import { WidgetManager } from '@theia/core/lib/browser/widget-manager';
 import { ViewContainer } from '@theia/core/lib/browser/view-container';
 import { IngotProjectTabsWidget } from '../groups/project-tabs-widget';
@@ -56,6 +57,9 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     @inject(IngotExplorerHeader)
     protected readonly explorerHeader: IngotExplorerHeader;
 
+    @inject(IngotLayoutContribution)
+    protected readonly layout: IngotLayoutContribution;
+
     onStart(_app: FrontendApplication): void {
         this.shell.addWidget(this.toolbar, { area: 'top' });
         this.shell.addWidget(this.projectTabs, { area: 'top' });
@@ -73,6 +77,9 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         this.renameProjectView();
         // The reference layout keeps the bottom panel closed; the Terminal opens from the stripe or ⌥F12.
         this.shell.collapsePanel('bottom');
+        // Chat on the right or at the bottom, as the user chose (IDEA-85).
+        await this.layout.start();
+        this.rightStripe.refreshSoon();
     }
 
     /** The file tree is labelled with the project name, with a fold chevron and file actions (IDEA-93). */
