@@ -27,6 +27,11 @@ const openModels = async (page: Page): Promise<void> => {
             await page.locator('#explorer-view-container .theia-TreeNode', { hasText: /^src$/ }).first().click({ timeout: 2_000 });
         }
         await file.dblclick({ timeout: 2_000 });
+        const editor = page.locator('#theia-main-content-panel .monaco-editor').first();
+        await expect(editor).toBeVisible({ timeout: 2_000 });
+        // The editor sometimes opens scrolled to its last line; go to the top so lines 3-5 are on screen.
+        await editor.click({ position: { x: 60, y: 10 } });
+        await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home');
         await expect(page.locator('.monaco-editor .view-line', { hasText: 'export const pickModel' }).first()).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: 60_000 });
 };
@@ -131,6 +136,8 @@ test.describe('IDEA-65 desktop paste → chip', () => {
         await page.keyboard.press(`${MOD}+c`);
         await expect.poll(() => readClipboard(app)).toMatch(/await page\.click\(id\);\n\};/);
         await composer(page).click();
+        // The paste must land in the composer, not the editor the copy came from.
+        await expect(composer(page)).toBeFocused();
         // Caret to the end of the composer (⌘↓ on macOS, Ctrl+End elsewhere).
         await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End');
         await page.keyboard.press(`${MOD}+v`);
