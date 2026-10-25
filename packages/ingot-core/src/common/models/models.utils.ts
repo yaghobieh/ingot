@@ -1,8 +1,12 @@
-import { MODEL_CATALOG, PROVIDERS } from './models.consts';
-import type { CatalogModel, ChatMessage, CompletionRequest, HttpRequestSpec, ProviderId, ProviderInfo, ProviderSettings } from './models.types';
+import { MODEL_CATALOG, MODEL_FAMILIES, PROVIDERS } from './models.consts';
+import type { CatalogModel, ModelFamilyGroup, ChatMessage, CompletionRequest, HttpRequestSpec, ProviderId, ProviderInfo, ProviderSettings } from './models.types';
 
 export const findModel = (id: string): CatalogModel | undefined => MODEL_CATALOG.find(m => m.id === id);
 export const findProvider = (id: ProviderId): ProviderInfo => PROVIDERS.find(p => p.id === id) ?? PROVIDERS[0];
+
+/** Picker families with their models, in family order; families without models are left out (IDEA-91). */
+export const groupModelsByFamily = (models: readonly CatalogModel[]): ModelFamilyGroup[] =>
+    MODEL_FAMILIES.map(family => ({ family, models: models.filter(m => m.provider === family.provider) })).filter(g => g.models.length > 0);
 
 export const resolveModelName = (model: CatalogModel, settings?: ProviderSettings): string =>
     settings?.modelOverrides?.[model.provider]?.trim() || model.model;
