@@ -21,3 +21,17 @@ export const DEMO_MARKER = 'reviewed by Ingot agent (demo)';
 
 /** Context key: focus is inside the Agents tool window. */
 export const AGENTS_FOCUS_KEY = 'ingotAgentsFocus';
+
+/** Model picker copy (IDEA-91). */
+export const MODEL_PICKER_TEXT = {
+    search: 'Search models',
+    favorites: 'Favorites',
+    models: 'Models',
+    addKey: 'Add key',
+    favorite: 'Favorite',
+    unfavorite: 'Unfavorite',
+    uses: 'Uses',
+    autoHint: 'Best connected model for the task',
+    noMatch: 'No models match',
+    manage: 'Manage models…'
+} as const;

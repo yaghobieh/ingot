@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseStreamLine, buildCompletionMessages, buildProviderRequest, cleanCompletion, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel } from './models.utils';
+import { parseStreamLine, buildCompletionMessages, buildProviderRequest, cleanCompletion, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel, groupModelsByFamily } from './models.utils';
+import { MODEL_CATALOG } from './models.consts';
 import type { CompletionRequest } from './models.types';
 
 const request: CompletionRequest = { modelId: 'x', messages: [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }], maxTokens: 10 };
@@ -91,5 +92,14 @@ describe('streaming', () => {
         expect(buildProviderRequest('openai', 'gpt-5', request, KEY, true).body).toMatchObject({ stream: true });
         expect(buildProviderRequest('ollama', 'q', request, undefined, true).body).toMatchObject({ stream: true });
         expect(buildProviderRequest('anthropic', 'c', request, KEY, true).body).toMatchObject({ stream: true });
+    });
+});
+
+describe('model families (IDEA-91)', () => {
+    it('groups the catalog by family in picker order and drops empty families', () => {
+        const groups = groupModelsByFamily(MODEL_CATALOG);
+        expect(groups.map(g => g.family.label)).toEqual(['Claude', 'GPT', 'Gemini', 'DeepSeek', 'Routed', 'Local']);
+        expect(groups[0].models.map(m => m.id)).toEqual(['claude-sonnet-4-5', 'claude-opus-4-1']);
+        expect(groupModelsByFamily(MODEL_CATALOG.filter(m => m.provider === 'openai')).map(g => g.family.label)).toEqual(['GPT']);
     });
 });
