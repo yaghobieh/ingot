@@ -31,5 +31,6 @@ export const ACCOUNT_TEXT = {
     blockedTitle: 'This account is blocked',
     blockedBody: 'An administrator blocked this Ingot account, so Ingot models, sync and account features are off. Contact support if you think this is a mistake.',
     blockedSignOut: 'Sign out',
-    blockedStatus: 'Account blocked'
+    blockedStatus: 'Account blocked',
+    manage: 'Manage: Settings, Theme, Extensions, MCP…'
 } as const;

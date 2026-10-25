@@ -7,6 +7,7 @@ import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-render
 import { IngotAccountService } from '../account/account-service';
 import { ACCOUNT_MENU, ACCOUNT_TEXT } from '../account/account.consts';
 import { accountInitials } from '../../common/account/account.utils';
+import { GEAR_COMMANDS } from '../workbench/gear-menu.consts';
 import { BOTTOM_STRIPE, STRIPE_WIDGET_ID, type StripeButton } from './ingot-stripe.consts';
 
 /** Bottom group of the left tool window stripe (Terminal, Run, Problems, Ports, Git). */
@@ -38,7 +39,7 @@ export class IngotStripeWidget extends ReactWidget {
         this.contextMenu.render({ menuPath: ACCOUNT_MENU, anchor: { x: rect.right + 4, y: rect.top }, context: event.currentTarget, includeAnchorArg: false });
     }
 
-    /** Account and Settings sit at the very bottom of the left stripe (IDEA-92). */
+    /** Account and Settings sit at the very bottom of the left stripe (IDEA-92); the gear opens the Manage menu (IDEA-117). */
     protected renderAccount(): React.ReactNode {
         const account = this.accounts.account;
         const title = account ? `${account.name}${account.email ? ` (${account.email})` : ''}` : ACCOUNT_TEXT.signedOut;
@@ -46,8 +47,8 @@ export class IngotStripeWidget extends ReactWidget {
             <button id='ingot-stripe-account' type='button' title={title} aria-label={title} className='ingot-stripe-button' onClick={e => this.openAccountMenu(e)}>
                 {account ? <span className='ingot-avatar'>{accountInitials(account)}</span> : <span className='codicon codicon-account' />}
             </button>
-            <button id='ingot-stripe-settings' type='button' title={ACCOUNT_TEXT.settings} aria-label={ACCOUNT_TEXT.settings} className='ingot-stripe-button'
-                onClick={() => this.commands.executeCommand('ingot.settings.open')}>
+            <button id='ingot-stripe-settings' type='button' title={ACCOUNT_TEXT.manage} aria-label={ACCOUNT_TEXT.manage} aria-haspopup='menu' className='ingot-stripe-button'
+                onClick={e => this.commands.executeCommand(GEAR_COMMANDS.open.id, e.currentTarget)}>
                 <span className='codicon codicon-settings-gear' />
             </button>
         </div>;

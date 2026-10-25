@@ -73,6 +73,8 @@ export class IngotSettingsDialog extends ReactDialog<void> {
             this.selected = pageId;
         }
         this.updateApply();
+        // Attaching does not re-render, so render the requested page now (IDEA-117: gear menu › Keymap).
+        this.update();
         await this.open(false);
         const command = this.afterClose;
         if (command) {

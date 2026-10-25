@@ -11,9 +11,9 @@ import type { ConfigSource, McpServerConfig, ProjectConfig } from '../../common/
 import { CONFIG_DIRS, HOOKS_DIR, SUBAGENTS_DIR } from '../../common/project-config/project-config.consts';
 import { scopeLabel, slugify } from '../../common/project-config/project-config.utils';
 import {
-    ATTENTION_PREVIEW, CUSTOMIZE_TABS, EMPTY_SERVER_FORM, MCP_CATALOG, catalogEntryFor, catalogToConfig, configToForm, customToConfig, isValidServerName,
+    ATTENTION_PREVIEW, CUSTOMIZE_TABS, EMPTY_SERVER_FORM, MCP_CATALOG, MCP_CATEGORIES, catalogEntryFor, groupByCategory, catalogToConfig, configToForm, customToConfig, isValidServerName,
     matchesQuery, newItemFile, rowGroup, rowSummary,
-    type ConfigItemKind, type CustomServerForm, type CustomizeTab, type McpCatalogEntry, type McpKeyValue, type McpScope
+    type ConfigItemKind, type CustomServerForm, type CustomizeTab, type McpCatalogEntry, type McpCategory, type McpKeyValue, type McpScope
 } from '../../common/mcp/mcp-catalog';
 import { IngotMcpClient } from '../project-config/mcp-client';
 import { ProjectConfigService } from '../project-config/project-config-service';
@@ -51,6 +51,7 @@ export class IngotMcpWidget extends ReactWidget {
     protected scope: ScopeFilter = 'all';
     protected showAllAttention = false;
     protected marketplace = false;
+    protected category: McpCategory | 'all' = 'all';
     protected expanded = new Set<string>();
     protected output = new Set<string>();
     protected addForm?: AddForm;
@@ -387,23 +388,37 @@ export class IngotMcpWidget extends ReactWidget {
     // ---- Marketplace ----
 
     protected renderMarketplace(): React.ReactNode {
-        const entries = MCP_CATALOG.filter(e => matchesQuery(this.query, e.name, e.description, e.id));
+        const matching = MCP_CATALOG.filter(e => matchesQuery(this.query, e.name, e.description, e.id));
+        const groups = groupByCategory(matching.filter(e => this.category === 'all' || e.category === this.category));
+        const count = (id: McpCategory | 'all') => id === 'all' ? matching.length : matching.filter(e => e.category === id).length;
+        const chips: { id: McpCategory | 'all'; label: string }[] = [{ id: 'all', label: 'All' }, ...MCP_CATEGORIES];
         return <section className='ingot-mcp-section' id='ingot-mcp-marketplace'>
-            <h3>MCP Marketplace <span>{entries.length}</span></h3>
-            <div className='ingot-mcp-cards'>
-                {entries.map(e => {
-                    const added = this.mcp.servers.some(s => s.name === e.id || catalogEntryFor(s)?.id === e.id);
-                    return <div key={e.id} className='ingot-mcp-card' data-entry={e.id}>
-                        <div className='ingot-mcp-card-head'>{this.renderIcon({ name: e.id })}<span className='ingot-mcp-name'>{e.name}</span></div>
-                        <p>{e.description}</p>
-                        <div className='ingot-mcp-card-foot'>
-                            <span className='ingot-mcp-card-meta'>{e.signIn ? 'Browser sign-in' : e.fields.some(f => f.secret) ? 'Needs a token' : 'No setup'}</span>
-                            <button type='button' className='ingot-mcp-primary ingot-mcp-add' disabled={added} onClick={() => this.startAdd(e)}>{added ? 'Added' : 'Add'}</button>
-                        </div>
-                    </div>;
-                })}
+            <h3>MCP Marketplace <span>{matching.length}</span></h3>
+            <div className='ingot-mcp-categories' id='ingot-mcp-categories' role='tablist'>
+                {chips.map(c => <button key={c.id} type='button' role='tab' data-category={c.id} aria-selected={this.category === c.id}
+                    className={`ingot-mcp-chip ${this.category === c.id ? 'active' : ''}`} onClick={() => { this.category = c.id; this.update(); }}>
+                    {c.label} <span>{count(c.id)}</span>
+                </button>)}
             </div>
+            {groups.length === 0 && <p className='ingot-mcp-hint'>No servers match “{this.query}”.</p>}
+            {groups.map(g => <div key={g.id} className='ingot-mcp-category' data-category={g.id}>
+                <h4>{g.label} <span>{g.entries.length}</span></h4>
+                <div className='ingot-mcp-cards'>{g.entries.map(e => this.renderCatalogCard(e))}</div>
+            </div>)}
         </section>;
+    }
+
+    protected renderCatalogCard(e: McpCatalogEntry): React.ReactNode {
+        const added = this.mcp.servers.some(s => s.name === e.id || catalogEntryFor(s)?.id === e.id);
+        const setup = e.signIn ? 'Browser sign-in' : e.fields.some(f => f.secret && !f.optional) ? 'Needs a token' : e.command === 'uvx' ? 'Needs uv' : 'No setup';
+        return <div key={e.id} className='ingot-mcp-card' data-entry={e.id}>
+            <div className='ingot-mcp-card-head'>{this.renderIcon({ name: e.id })}<span className='ingot-mcp-name'>{e.name}</span></div>
+            <p>{e.description}</p>
+            <div className='ingot-mcp-card-foot'>
+                <span className='ingot-mcp-card-meta'>{setup}</span>
+                <button type='button' className='ingot-mcp-primary ingot-mcp-add' disabled={added} onClick={() => this.startAdd(e)}>{added ? 'Added' : 'Add'}</button>
+            </div>
+        </div>;
     }
 
     protected startAdd(entry: McpCatalogEntry): void {

@@ -23,6 +23,7 @@
     "@theia/monaco-editor-core": "1.108.201",
     "@theia/navigator": "1.76.0",
     "@theia/outline-view": "1.76.0",
+    "@theia/plugin-ext": "1.76.0",
     "@theia/process": "1.76.0",
     "@theia/scm": "1.76.0",
     "@theia/terminal": "1.76.0",
@@ -50,6 +51,12 @@
     },
     {
       "frontendElectron": "lib/electron-browser/ingot-electron-frontend-module"
+    },
+    {
+      "frontend": "lib/browser/workbench/ingot-workbench-frontend-module"
+    },
+    {
+      "frontendElectron": "lib/electron-browser/ingot-workbench-electron-module"
     }
   ]
 }

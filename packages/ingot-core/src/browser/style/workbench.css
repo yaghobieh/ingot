@@ -1,0 +1,29 @@
+/* Workbench chrome (IDEA-117+): title bar window actions, Agents Window. Colors come from tokens.css. */
+
+/* IDEA-118: bottom panel / chat / settings icons and the Agents Window pill, per titlebar-right-reference.png. */
+.ingot-tb-window-actions { display: flex; align-items: center; gap: 2px; margin-left: 4px; }
+.ingot-tb-window-actions .ingot-tb-icon { color: var(--ingot-text-muted); border-radius: 6px; }
+.ingot-tb-window-actions .ingot-tb-icon:hover { color: var(--ingot-text); background: var(--theia-toolbar-hoverBackground); }
+.ingot-tb-window-actions .ingot-tb-icon.pressed { color: var(--ingot-text); }
+.ingot-tb-pill {
+    display: inline-flex; align-items: center; gap: 6px; height: 24px; margin-left: 8px; padding: 0 10px 0 12px;
+    border: 0; border-radius: 12px; background: var(--ingot-panel); color: var(--ingot-text);
+    font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.ingot-tb-pill:hover { background: var(--ingot-selection); }
+.ingot-tb-pill:focus-visible { outline: 2px solid var(--ingot-forge-blue); outline-offset: 1px; }
+.ingot-tb-pill-arrow { font-size: 12px; opacity: .85; }
+.ingot-tb-running {
+    min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--ingot-ingot-gold); color: var(--ingot-forge-navy);
+    font-size: 10px; font-weight: 600; display: inline-grid; place-items: center;
+}
+
+/* IDEA-118: the Agents Window shows only the chat, full size. */
+body.ingot-agents-window #theia-left-content-panel,
+body.ingot-agents-window #theia-right-content-panel,
+body.ingot-agents-window #theia-bottom-content-panel,
+body.ingot-agents-window .theia-app-sides,
+body.ingot-agents-window .ingot-right-stripe,
+body.ingot-agents-window .ingot-stripe,
+body.ingot-agents-window .ingot-tb-window-actions,
+body.ingot-agents-window #theia-main-content-panel > .lm-DockPanel > .lm-TabBar { display: none !important; }
