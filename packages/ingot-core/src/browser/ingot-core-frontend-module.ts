@@ -20,6 +20,7 @@ import { AgentStore } from './agents/agent-store';
 import { MemoryStore } from './agents/memory-store';
 import { AgentEditReview } from './agents/agent-edit-review';
 import { IngotAgentsWidget } from './agents/agents-widget';
+import { EditorCopyTracker } from './agents/editor-copy-tracker';
 import { IngotAgentsContribution } from './agents/agents-contribution';
 import { AGENTS_WIDGET_ID } from './agents/agents.consts';
 import { IngotStripeWidget } from './stripe/ingot-stripe-widget';
@@ -206,6 +207,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(AgentStore).toSelf().inSingletonScope();
     bind(MemoryStore).toSelf().inSingletonScope();
     bind(AgentEditReview).toSelf().inSingletonScope();
+    bind(EditorCopyTracker).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(EditorCopyTracker);
     bind(IngotAgentsWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentsWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotAgentsContribution);
