@@ -895,3 +895,5 @@ button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true']
 .ingot-btn-secondary { border: 1px solid var(--theia-panel-border); background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; padding: 3px 10px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px; }
 .ingot-btn-secondary:hover { background: var(--theia-toolbar-hoverBackground); }
 .ingot-context-actions .ingot-btn-primary { display: inline-flex; align-items: center; gap: 4px; }
+.ingot-pill-anchor:has(> #ingot-context-ring) { position: static; }
+.ingot-composer-bar .ingot-popover.ingot-context-popover { left: auto; right: 0; width: 100%; max-width: 320px; box-sizing: border-box; }
