@@ -26,6 +26,7 @@
     "test": "npm run test -w packages/ingot-core",
     "gate": "npm run lint && npm run typecheck && npm run test",
     "e2e": "npm run test -w e2e",
+    "e2e:electron": "npm run build:electron && npm run test:electron -w e2e",
     "secret-scan": "node scripts/secret-scan.mjs",
     "brand:electron-dev": "node scripts/brand-electron-dev.mjs",
     "brand:app-icon": "node scripts/build-app-icon.mjs",
