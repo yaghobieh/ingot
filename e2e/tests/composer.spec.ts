@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
+import { composerPlainText } from '../src/composer.e2e-utils';
 import { dismissNotifications, openIngot } from '../src/app.utils';
 
 /** IDEA-67 taller, resizable composer and IDEA-65 context chips, clicked through. */
@@ -59,7 +60,7 @@ test.describe('IDEA-65 / IDEA-67 agent composer', () => {
         await composer(page).fill('first');
         await composer(page).press('Shift+Enter');
         await composer(page).type('second');
-        await expect(composer(page)).toHaveValue('first\nsecond');
+        await expect.poll(() => composerPlainText(page)).toBe('first\nsecond');
     });
 
     test('editor paste and Add to Chat make chips; outside text pastes as text', async ({ page }) => {
@@ -85,13 +86,13 @@ test.describe('IDEA-65 / IDEA-67 agent composer', () => {
 
         await openAgents(page);
         await paste(page, copied);
-        const chip = page.locator('#ingot-composer-chips .ingot-chip-code');
+        const chip = page.locator('#ingot-composer-input .ingot-chip-code');
         await expect(chip).toHaveCount(1);
         await expect(chip.locator('.ingot-chip-label')).toHaveText('dev-db.mjs (2-3)');
-        await expect(composer(page)).toHaveValue('');
+        await expect.poll(() => composerPlainText(page)).toBe('');
         await chip.hover();
-        await expect(chip.locator('.ingot-chip-preview')).toBeVisible();
-        await expect(chip.locator('.ingot-chip-preview pre')).toContainText('const b = 2;');
+        await expect(page.locator('.ingot-chip-preview-floating')).toBeVisible();
+        await expect(page.locator('.ingot-chip-preview-floating pre')).toContainText('const b = 2;');
 
         // Outside multi-line text stays text.
         await paste(page, 'from a web page\nsecond line');

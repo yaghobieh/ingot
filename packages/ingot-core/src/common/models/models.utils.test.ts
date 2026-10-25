@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStreamLine, buildCompletionMessages, buildProviderRequest, cleanCompletion, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel, groupModelsByFamily } from './models.utils';
+import { parseStreamLine, buildCompletionMessages, buildProviderRequest, cleanCompletion, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel, groupModelsByFamily, supportsVision } from './models.utils';
 import { MODEL_CATALOG } from './models.consts';
 import type { CompletionRequest } from './models.types';
 
@@ -101,5 +101,26 @@ describe('model families (IDEA-91)', () => {
         expect(groups.map(g => g.family.label)).toEqual(['Claude', 'GPT', 'Gemini', 'DeepSeek', 'Routed', 'Local']);
         expect(groups[0].models.map(m => m.id)).toEqual(['claude-sonnet-4-5', 'claude-opus-4-1']);
         expect(groupModelsByFamily(MODEL_CATALOG.filter(m => m.provider === 'openai')).map(g => g.family.label)).toEqual(['GPT']);
+    });
+});
+
+describe('image parts (IDEA-98)', () => {
+    const image = { mediaType: 'image/png', data: 'iVBOR' };
+    const request = { modelId: 'x', messages: [{ role: 'user' as const, content: 'what is this?', images: [image] }] };
+    const body = (provider: Parameters<typeof buildProviderRequest>[0]) => JSON.stringify(buildProviderRequest(provider, 'm', request, 'k').body);
+
+    it('sends images in each provider\'s shape', () => {
+        expect(body('anthropic')).toContain('"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBOR"}');
+        expect(body('gemini')).toContain('"inline_data":{"mime_type":"image/png","data":"iVBOR"}');
+        expect(body('ollama')).toContain('"images":["iVBOR"]');
+        expect(body('openai')).toContain('"image_url":{"url":"data:image/png;base64,iVBOR"}');
+        expect(body('openrouter')).toContain('"type":"text","text":"what is this?"');
+    });
+
+    it('keeps text-only messages as plain strings and knows which providers read images', () => {
+        const plain = JSON.stringify(buildProviderRequest('openai', 'm', { modelId: 'x', messages: [{ role: 'user', content: 'hi' }] }, 'k').body);
+        expect(plain).toContain('"content":"hi"');
+        expect(supportsVision('anthropic')).toBe(true);
+        expect(supportsVision('deepseek')).toBe(false);
     });
 });
