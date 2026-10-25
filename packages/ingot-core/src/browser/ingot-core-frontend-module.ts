@@ -100,7 +100,7 @@ import { IngotSettingsDialog } from './settings/ingot-settings-dialog';
 import { IngotSettingsContribution } from './settings/ingot-settings-contribution';
 import { SettingsDialogProps, SettingsDialogProvider } from './settings/settings.browser-consts';
 import { UserThemeContribution } from './theme/user-theme-contribution';
-import { IngotBadgeIconTheme, IngotIconTheme } from './icons/ingot-icon-theme';
+import { IngotBadgeIconTheme, IngotFilesIconTheme, IngotIconTheme } from './icons/ingot-icon-theme';
 import { IconThemeContribution } from '@theia/core/lib/browser/icon-theme-contribution';
 import { LabelProviderContribution } from '@theia/core/lib/browser/label-provider';
 import { AppearanceContribution, appearancePreferenceSchema } from './theme/appearance-contribution';
@@ -284,4 +284,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotBadgeIconTheme).toSelf().inSingletonScope();
     bind(IconThemeContribution).toService(IngotBadgeIconTheme);
     bind(LabelProviderContribution).toService(IngotBadgeIconTheme);
+    bind(IngotFilesIconTheme).toSelf().inSingletonScope();
+    bind(IconThemeContribution).toService(IngotFilesIconTheme);
+    bind(LabelProviderContribution).toService(IngotFilesIconTheme);
 });

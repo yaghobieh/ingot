@@ -1,3 +1,4 @@
+import { fileIconClass } from '../../common/icons/file-icon-map';
 import { chipLabel, chipPreview, type ContextChip } from '../../common/agents/context-chips';
 import type { ComposerPart, ImageChip } from '../../common/agents/composer-parts.types';
 import { normalizeParts } from '../../common/agents/composer-parts';
@@ -294,7 +295,7 @@ export class InlineComposer {
         const span = this.chipShell(chip.id, `ingot-chip ingot-chip-code ingot-chip-inline${chip.whole ? ' ingot-chip-file' : ''}`);
         span.dataset.path = chip.path;
         const icon = document.createElement('span');
-        icon.className = `codicon codicon-${chip.whole ? 'file' : 'code'}`;
+        icon.className = chip.path ? fileIconClass(chip.path.split('/').pop() ?? chip.path) : 'codicon codicon-code';
         const label = document.createElement('span');
         label.className = 'ingot-chip-label';
         label.textContent = chipLabel(chip);

@@ -1,3 +1,4 @@
+import { fileIconClass } from '../../common/icons/file-icon-map';
 import * as React from '@theia/core/shared/react';
 import * as monaco from '@theia/monaco-editor-core';
 import { ChangeMark } from '../brand/change-mark';
@@ -56,6 +57,7 @@ export const CodeChangeBlock = ({ change, expanded, onToggle, onOpen, onDecide }
             </button>
             <ChangeMark loop={streaming} still={!streaming} className='ingot-change-mark' />
             <button type='button' className='ingot-change-file' title={change.path} aria-label={`Open ${change.path}`} onClick={() => onOpen()}>
+                <span className={fileIconClass(name)} aria-hidden='true' />
                 <span className='ingot-change-name'>{name}</span>
             </button>
             <span className='ingot-change-stats'><span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
