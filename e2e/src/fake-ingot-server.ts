@@ -39,7 +39,21 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
             const authed = req.headers.authorization === `Bearer ${access}`;
             if (url.pathname === '/api/dev/login') {
                 state.authorizations.push({ devLogin: true });
-                res.writeHead(302, { location: `${state.url}${url.searchParams.get('next') ?? '/'}` }).end();
+                res.writeHead(302, { location: `${state.url}${url.searchParams.get('next') ?? '/'}`, 'set-cookie': 'ingot_session=e2e-session; Path=/; HttpOnly' }).end();
+                return;
+            }
+            // The portal's Approve button (IDEA-101 headless dev sign-in posts here with the dev-login session).
+            if (url.pathname === '/api/ide/authorize' && req.method === 'POST') {
+                if (!/ingot_session=e2e-session/.test(req.headers.cookie ?? '')) {
+                    send(res, 401, { error: 'unauthorized' });
+                    return;
+                }
+                state.authorizations.push({ devLogin: false });
+                const body = JSON.parse(raw || '{}') as { redirectUri?: string; state?: string };
+                const redirect = new URL(body.redirectUri ?? '');
+                redirect.searchParams.set('code', 'e2e-code');
+                redirect.searchParams.set('state', body.state ?? '');
+                send(res, 200, { redirectTo: redirect.toString() });
                 return;
             }
             if (url.pathname === '/ide/authorize') {
