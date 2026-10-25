@@ -57,6 +57,8 @@ test.describe('IDEA-15/16 welcome screen, brand and themes', () => {
         const welcome = page.locator('#ingot-welcome');
         await expect(welcome).toBeVisible();
         await expect(welcome.locator('.ingot-welcome-logo.ingot-app-icon')).toBeVisible();
+        // IDEA-63 v3: the animated </> mark (brackets, dots, slash, shimmer).
+        await expect(welcome.locator('svg.ingot-mark .im-slash').first()).toBeAttached();
         await expect(welcome.locator('#ingot-welcome-open')).toBeVisible();
         await expect(welcome.locator('#ingot-welcome-clone')).toBeVisible();
         await welcome.locator('#ingot-welcome-tab-plugins').click();

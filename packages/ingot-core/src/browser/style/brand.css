@@ -1,0 +1,30 @@
+/* IDEA-63 v3: animated </> mark. One 1.6 s intro; .ingot-mark-loop repeats a gentle shimmer (agent running). */
+.ingot-mark { display: block; overflow: visible; }
+.ingot-mark .im-left { animation: im-left 1.6s cubic-bezier(.2,.8,.2,1) both; }
+.ingot-mark .im-right { animation: im-right 1.6s cubic-bezier(.2,.8,.2,1) both; }
+.ingot-mark .im-slash { animation: im-slash 1.6s cubic-bezier(.2,.8,.2,1) both; }
+.ingot-mark .im-dots circle { opacity: 0; animation: im-dot 1.6s ease both; }
+.ingot-mark .im-dots circle:nth-child(2) { animation-name: im-dot2; }
+.ingot-mark .im-dots circle:nth-child(3) { animation-name: im-dot3; }
+.ingot-mark .im-shine { animation: im-shine 1.6s ease-in-out both; }
+.ingot-mark .im-glow { animation: im-glow 1.6s ease both; opacity: .55; }
+.ingot-mark.ingot-mark-loop .im-shine { animation: im-shine 2.4s ease-in-out 1.6s infinite; }
+.ingot-mark.ingot-mark-loop .im-glow { animation: im-pulse 2.4s ease-in-out 1.6s infinite; }
+
+@keyframes im-left { 0% { transform: translateX(150px); } 35%, 100% { transform: translateX(0); } }
+@keyframes im-right { 0% { transform: translateX(-150px); } 35%, 100% { transform: translateX(0); } }
+@keyframes im-slash { 0%, 70% { transform: translateY(-260px); opacity: 0; } 90%, 100% { transform: translateY(0); opacity: 1; } }
+@keyframes im-dot { 0%, 35% { opacity: 0; } 45%, 72% { opacity: 1; } 82%, 100% { opacity: 0; } }
+@keyframes im-dot2 { 0%, 42% { opacity: 0; } 52%, 72% { opacity: 1; } 82%, 100% { opacity: 0; } }
+@keyframes im-dot3 { 0%, 50% { opacity: 0; } 60%, 72% { opacity: 1; } 82%, 100% { opacity: 0; } }
+@keyframes im-shine { 0%, 80% { transform: translateX(0); } 100% { transform: translateX(1500px); } }
+@keyframes im-glow { 0%, 80% { opacity: .35; } 90% { opacity: .85; } 100% { opacity: .55; } }
+@keyframes im-pulse { 0%, 100% { opacity: .45; } 50% { opacity: .85; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ingot-mark *, .ingot-mark.ingot-mark-loop * { animation: none !important; }
+  .ingot-mark .im-dots { display: none; }
+}
+
+/* The animated mark sits on top of the static icon background (kept for consistency and fallbacks). */
+.ingot-app-icon.ingot-mark-host { background-size: 0 0 !important; display: inline-flex; align-items: center; justify-content: center; }

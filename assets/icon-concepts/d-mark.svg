@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><title>Ingot app icon</title>
+  <defs>
+    <linearGradient id="fill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8DB2FF"/><stop offset=".5" stop-color="#3B6FD9"/><stop offset="1" stop-color="#2A4FB0"/></linearGradient>
+    <linearGradient id="shine" gradientUnits="userSpaceOnUse" x1="1140" y1="0" x2="1460" y2="300">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#E3EEFF" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="28"/></filter>
+  </defs>
+  
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#5E8FFF" stroke-width="116"><g filter="url(#glow)" opacity="0.55">
+      <path d="M336 300 L124 512 L336 724" transform="translate(0 0)"/><path d="M688 300 L900 512 L688 724" transform="translate(0 0)"/>
+      <line x1="578" y1="250" x2="446" y2="774" opacity="1"/>
+    </g></g>
+    <g stroke="#1B2647" stroke-opacity=".92" stroke-width="110">
+      <path d="M336 300 L124 512 L336 724" transform="translate(0 0)"/><path d="M688 300 L900 512 L688 724" transform="translate(0 0)"/>
+      <line x1="578" y1="250" x2="446" y2="774" opacity="1"/>
+    </g>
+    <g stroke="url(#fill)" stroke-width="92">
+      <path d="M336 300 L124 512 L336 724" transform="translate(0 0)"/><path d="M688 300 L900 512 L688 724" transform="translate(0 0)"/>
+      <line x1="578" y1="250" x2="446" y2="774" opacity="1"/>
+    </g>
+    
+  </g>
+  
+</svg>
