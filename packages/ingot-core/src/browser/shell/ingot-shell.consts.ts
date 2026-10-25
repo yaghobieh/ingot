@@ -20,7 +20,7 @@ export const TOOLBAR_COMMANDS = {
     debugStart: 'workbench.action.debug.start',
     debugStop: 'workbench.action.debug.stop',
     searchEverywhere: 'ingot.searchEverywhere',
-    settings: 'preferences:open',
+    settings: 'ingot.settings.open',
     plugins: 'vsxExtensions.toggle'
 } as const;
 

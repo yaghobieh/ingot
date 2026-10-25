@@ -85,7 +85,7 @@ export const INTELLIJ_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Debug', command: INGOT_RUN_COMMANDS.debug.id, mac: 'ctrl+d', other: 'shift+f9' },
     { action: 'Stop', command: INGOT_RUN_COMMANDS.stop.id, mac: 'ctrlcmd+f2', other: 'ctrl+f2' },
     // Settings
-    { action: 'Settings', command: 'preferences:open', mac: 'ctrlcmd+,', other: 'ctrl+alt+s' },
+    { action: 'Settings', command: 'ingot.settings.open', mac: 'ctrlcmd+,', other: 'ctrl+alt+s' },
     { action: 'Keymap', command: 'keymaps:open', mac: 'ctrlcmd+k ctrlcmd+s', other: 'ctrl+k ctrl+s' }
 ];
 
