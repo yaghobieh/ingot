@@ -15,5 +15,3 @@ export const ACCEPT_EDIT_KEY = 'ctrl+y';
 export const REJECT_EDIT_KEY = 'ctrl+n';
 export const DEMO_MARKER = 'reviewed by Ingot agent (demo)';
 
-/** Add to Chat (IDEA-65); rebindable in the keymap. */
-export const ADD_TO_CHAT_KEY = 'ctrlcmd+l';
