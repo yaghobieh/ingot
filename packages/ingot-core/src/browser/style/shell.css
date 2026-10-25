@@ -687,3 +687,41 @@ button.ingot-popover-footer:hover { color: var(--theia-textLink-foreground); }
 .ingot-agents .ingot-composer-send:not(:disabled) { background: var(--ingot-primary); color: #fff; }
 .ingot-agents .ingot-context-ring { opacity: .6; }
 .ingot-agents .ingot-agents-hint { padding: 6px 2px; line-height: 1.5; color: var(--theia-descriptionForeground); }
+
+/* ---- Annotate with Git Blame (IDEA-83) ---- */
+.monaco-editor.ingot-annotated .margin-view-overlays .line-numbers {
+    text-align: left;
+    white-space: pre;
+    font-size: 11px;
+    color: var(--theia-descriptionForeground);
+    cursor: pointer;
+    padding-left: 6px;
+    box-sizing: border-box;
+}
+.monaco-editor.ingot-annotated .margin-view-overlays .line-numbers.active-line-number { color: var(--theia-editorLineNumber-activeForeground); }
+.monaco-editor .ingot-annotation { border-left: 3px solid transparent; }
+.monaco-editor .ingot-annotation-age-new { border-left-color: var(--theia-editorGutter-modifiedBackground, #1b81a8); }
+.monaco-editor .ingot-annotation-age-0 { background: color-mix(in srgb, var(--theia-charts-blue, #3794ff) 16%, transparent); }
+.monaco-editor .ingot-annotation-age-1 { background: color-mix(in srgb, var(--theia-charts-blue, #3794ff) 11%, transparent); }
+.monaco-editor .ingot-annotation-age-2 { background: color-mix(in srgb, var(--theia-charts-blue, #3794ff) 7%, transparent); }
+.monaco-editor .ingot-annotation-age-3 { background: color-mix(in srgb, var(--theia-charts-blue, #3794ff) 3%, transparent); }
+.monaco-editor .ingot-annotation-age-4 { background: transparent; }
+.ingot-annotation-hover { max-width: 420px; font-size: 12px; line-height: 1.5; }
+.ingot-annotation-hover-message { margin-top: 4px; color: var(--theia-foreground); white-space: pre-wrap; }
+.ingot-annotation-hover-hint { margin-top: 6px; color: var(--theia-descriptionForeground); font-size: 11px; }
+.ingot-annotation-hash { font-family: var(--theia-code-font-family); color: var(--theia-textLink-foreground); }
+.ingot-annotation-dialog .dialogContent { min-width: 560px; max-width: 720px; }
+.ingot-annotation-details { display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
+.ingot-annotation-meta { display: flex; gap: 10px; align-items: baseline; color: var(--theia-descriptionForeground); }
+.ingot-annotation-message { margin: 6px 0; padding: 8px; max-height: 160px; overflow: auto; white-space: pre-wrap; font-family: inherit;
+    background: var(--theia-editor-background); border: 1px solid var(--theia-panel-border); border-radius: 4px; color: var(--theia-foreground); }
+.ingot-annotation-actions { display: flex; gap: 6px; }
+.ingot-annotation-actions .theia-button { margin: 0; }
+.ingot-annotation-history-title { font-weight: 600; color: var(--theia-descriptionForeground); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
+.ingot-annotation-history { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; border: 1px solid var(--theia-panel-border); border-radius: 4px; }
+.ingot-annotation-history-row { display: grid; grid-template-columns: 70px 1fr 130px 90px; gap: 8px; padding: 4px 8px; cursor: pointer; }
+.ingot-annotation-history-row:hover { background: var(--theia-list-hoverBackground); }
+.ingot-annotation-history-row.selected { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
+.ingot-annotation-subject, .ingot-annotation-author { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-annotation-first { color: var(--theia-descriptionForeground); }
+.ingot-annotation-date { color: var(--theia-descriptionForeground); text-align: right; }
