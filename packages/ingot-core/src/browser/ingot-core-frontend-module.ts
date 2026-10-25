@@ -76,6 +76,13 @@ import { LocalChangesModel } from './commit/local-changes-model';
 import { LocalChangesWidget } from './commit/local-changes-widget';
 import { IngotDiffWidget } from './commit/ingot-diff-widget';
 import { IngotMergeWidget } from './merge/merge-tool-widget';
+import { BreadcrumbRenderer, BreadcrumbsRenderer, BreadcrumbsRendererFactory } from '@theia/core/lib/browser/breadcrumbs';
+import { FilepathBreadcrumbsContribution } from '@theia/filesystem/lib/browser/breadcrumbs/filepath-breadcrumbs-contribution';
+import { OutlineBreadcrumbsContribution } from '@theia/outline-view/lib/browser/outline-breadcrumbs-contribution';
+import { BreadcrumbHover } from './breadcrumbs/breadcrumb-hover';
+import { IngotBreadcrumbRenderer } from './breadcrumbs/ingot-breadcrumb-renderer';
+import { IngotWorkspaceBreadcrumbs } from './breadcrumbs/ingot-workspace-breadcrumbs';
+import { IngotOutlineBreadcrumbs } from './breadcrumbs/ingot-outline-breadcrumbs';
 import { IngotMergeContribution, createMergeWidgetFactory } from './merge/merge-contribution';
 import { LOCAL_CHANGES_WIDGET_ID } from './commit/commit.consts';
 import { GIT_LOG_WIDGET_ID } from './git/git.browser-consts';
@@ -134,6 +141,16 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         widget.init(options);
         return widget;
     })).inSingletonScope();
+    // IDEA-76: breadcrumbs bar (root › folders › file › symbol chain), outline tree popup and info hovers.
+    bind(BreadcrumbHover).toSelf().inSingletonScope();
+    bind(IngotBreadcrumbRenderer).toSelf().inSingletonScope();
+    rebind(BreadcrumbsRendererFactory).toFactory(ctx => () => {
+        const child = ctx.container.createChild();
+        child.bind(BreadcrumbRenderer).toDynamicValue(() => ctx.container.get(IngotBreadcrumbRenderer)).inSingletonScope();
+        return child.get(BreadcrumbsRenderer);
+    });
+    rebind(FilepathBreadcrumbsContribution).to(IngotWorkspaceBreadcrumbs).inSingletonScope();
+    rebind(OutlineBreadcrumbsContribution).to(IngotOutlineBreadcrumbs).inSingletonScope();
     bind(IngotMergeContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(IngotMergeContribution);
     bind(KeybindingContribution).toService(IngotMergeContribution);
