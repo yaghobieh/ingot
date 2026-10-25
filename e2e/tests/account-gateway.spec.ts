@@ -61,6 +61,15 @@ test.describe('IDEA-101 Ingot models by default', () => {
         await expect(status).toContainText('1M left');
 
         await page.locator('#ingot-agents-new').click();
+        // Signed in, Ingot models never ask for a key; one the gateway does not offer is marked Unavailable.
+        await page.locator('#ingot-composer-model').click();
+        await page.locator('#ingot-model-picker .ingot-pick-family', { hasText: 'Ingot' }).first().click();
+        const ingotRows = page.locator('#ingot-model-picker [data-model^="ingot:"]');
+        await expect(ingotRows.first()).toBeVisible();
+        await expect(ingotRows.locator('.ingot-pick-addkey')).toHaveCount(0);
+        await expect(page.locator('#ingot-model-picker [data-model="ingot:ingot-reasoning"] .ingot-pick-unavailable')).toHaveText('Unavailable');
+        await expect(page.locator('#ingot-model-picker [data-model="ingot:ingot-mock"] .ingot-pick-unavailable')).toHaveCount(0);
+        await page.keyboard.press('Escape');
         await pickModel(page, 'ingot:ingot-mock');
         await page.locator('#ingot-composer-input').click();
         await page.keyboard.type('summarize the cart module');

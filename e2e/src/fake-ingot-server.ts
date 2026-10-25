@@ -74,7 +74,9 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
             if (url.pathname === '/v1/models') {
                 send(res, 200, { object: 'list', data: [
                     { id: 'ingot-fast', name: 'Ingot Fast', context_window: 128000, available: true },
-                    { id: 'ingot-mock', name: 'Ingot Mock', context_window: 32000, available: true }
+                    { id: 'ingot-mock', name: 'Ingot Mock', context_window: 32000, available: true },
+                    // Listed but not offered right now (no provider key on the server): the picker marks it Unavailable.
+                    { id: 'ingot-reasoning', name: 'Ingot Reasoning', context_window: 200000, available: false }
                 ] });
                 return;
             }
