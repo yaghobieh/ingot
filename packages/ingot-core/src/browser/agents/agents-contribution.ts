@@ -32,7 +32,10 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
 
     override registerCommands(registry: CommandRegistry): void {
         super.registerCommands(registry);
-        registry.registerCommand(AGENT_COMMANDS.newAgent, { execute: async () => { await this.openView({ activate: true, reveal: true }); this.store.create(); } });
+        registry.registerCommand(AGENT_COMMANDS.newAgent, { execute: async () => (await this.openView({ activate: true, reveal: true })).newChat() });
+        registry.registerCommand(AGENT_COMMANDS.cycleMode, { execute: async () => (await this.openView({ activate: false, reveal: true })).cycleMode() });
+        registry.registerCommand(AGENT_COMMANDS.history, { execute: async () => (await this.openView({ activate: true, reveal: true })).toggleHistory() });
+        registry.registerCommand(AGENT_COMMANDS.memories, { execute: async () => (await this.openView({ activate: true, reveal: true })).toggleMemories() });
         registry.registerCommand(AGENT_COMMANDS.acceptEdit, { execute: () => this.review.accept(), isEnabled: () => !!this.review.pending });
         registry.registerCommand(AGENT_COMMANDS.rejectEdit, { execute: () => this.review.reject(), isEnabled: () => !!this.review.pending });
         registry.registerCommand(AGENT_COMMANDS.addSelectionToChat, {
@@ -67,7 +70,7 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
             status: 'review',
             activeFile: uri.path.base,
             messages: [{ role: 'user', text: `Annotate the first function in ${uri.path.base}` }],
-            plan: [{ text: `Read ${uri.path.base}`, state: 'done' }, { text: 'Annotate the first function', state: 'done' }, { text: 'Ask for review', state: 'active' }],
+            plan: [{ text: `Read ${uri.path.base}`, state: 'done' }, { text: 'Annotate the first function', state: 'active' }, { text: 'Ask for review', state: 'todo' }],
             steps: [{ kind: 'read', target: uri.path.base, done: true }, { kind: 'edit', target: uri.path.base, done: false, added: stats.added, removed: stats.removed }],
             changes: [{ uri: uri.toString(), label: uri.path.base, added: stats.added, removed: stats.removed }]
         });
