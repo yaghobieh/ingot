@@ -11,6 +11,9 @@ describe('gitArgs', () => {
         expect(gitArgs({ kind: 'reset', ref: 'HEAD~1', mode: 'hard' })).toEqual(['reset', '--hard', 'HEAD~1']);
         expect(gitArgs({ kind: 'push', setUpstream: true })).toEqual(['push', '--set-upstream', 'origin', 'HEAD']);
         expect(gitArgs({ kind: 'logLines', path: 'a.ts', start: 3, end: 7 })).toContain('-L3,7:a.ts');
+        expect(gitArgs({ kind: 'blameAt', path: 'src/a.ts', rev: 'abc123~1' })).toEqual(['blame', '--line-porcelain', 'abc123~1', '--', 'src/a.ts']);
+        expect(gitArgs({ kind: 'commitInfo', commit: 'abc123' })).toContain('abc123');
+        expect(() => gitArgs({ kind: 'blameAt', path: 'a.ts', rev: '--output=x' })).toThrow();
         expect(gitArgs({ kind: 'createTag', name: 'v1.0', commit: 'abc1234', message: 'Release' })).toEqual(['tag', '-a', 'v1.0', '-m', 'Release', 'abc1234']);
         expect(gitArgs({ kind: 'dropCommit', commit: 'abc1234' })).toEqual(['rebase', '--onto', 'abc1234~1', 'abc1234']);
         expect(gitArgs({ kind: 'fixup', commit: 'abc1234', squash: false })).toEqual(['commit', '--fixup=abc1234', '--no-edit']);
