@@ -1,4 +1,4 @@
-import type { CatalogModel, ProviderInfo } from './models.types';
+import type { CatalogModel, ModelFamily, ProviderInfo } from './models.types';
 
 export const MODEL_SERVICE_PATH = '/services/ingot/models';
 /** Keychain service name (macOS Keychain, Windows Credential Manager, libsecret). Overridable for e2e. */
@@ -25,6 +25,16 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     { id: 'deepseek-v3', label: 'DeepSeek V3', provider: 'deepseek', model: 'deepseek-chat', speed: 'fast', cost: '$', contextWindow: 128_000, thinking: false, recommended: false },
     { id: 'openrouter-auto', label: 'Routed (best available)', provider: 'openrouter', model: 'openrouter/auto', speed: 'balanced', cost: '$$', contextWindow: 128_000, thinking: false, recommended: false },
     { id: 'ollama-local', label: 'Qwen2.5 Coder (local)', provider: 'ollama', model: 'qwen2.5-coder', speed: 'fast', cost: 'free', contextWindow: 32_000, thinking: false, recommended: false }
+];
+
+/** Picker families, top to bottom (IDEA-91). Labels are model family names. */
+export const MODEL_FAMILIES: readonly ModelFamily[] = [
+    { provider: 'anthropic', label: 'Claude', icon: 'sparkle' },
+    { provider: 'openai', label: 'GPT', icon: 'sparkle' },
+    { provider: 'gemini', label: 'Gemini', icon: 'sparkle' },
+    { provider: 'deepseek', label: 'DeepSeek', icon: 'sparkle' },
+    { provider: 'openrouter', label: 'Routed', icon: 'arrow-swap' },
+    { provider: 'ollama', label: 'Local', icon: 'device-desktop' }
 ];
 
 /** Picker entry that resolves to the first connected recommended model, then any connected model. */
