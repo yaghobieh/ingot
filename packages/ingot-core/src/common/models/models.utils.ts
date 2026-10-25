@@ -1,5 +1,5 @@
 import { MODEL_CATALOG, MODEL_FAMILIES, PROVIDERS } from './models.consts';
-import type { CatalogModel, ModelFamilyGroup, ChatMessage, CompletionRequest, HttpRequestSpec, ProviderId, ProviderInfo, ProviderSettings } from './models.types';
+import type { CatalogModel, ModelFamilyGroup, ChatImage, ChatMessage, CompletionRequest, HttpRequestSpec, ProviderId, ProviderInfo, ProviderSettings } from './models.types';
 
 export const findModel = (id: string): CatalogModel | undefined => MODEL_CATALOG.find(m => m.id === id);
 export const findProvider = (id: ProviderId): ProviderInfo => PROVIDERS.find(p => p.id === id) ?? PROVIDERS[0];
@@ -22,6 +22,24 @@ const splitSystem = (messages: readonly ChatMessage[]): { system: string; rest: 
     rest: messages.filter(m => m.role !== 'system')
 });
 
+/** Providers whose chat models read images (IDEA-98). DeepSeek's chat API is text only. */
+export const VISION_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>(['anthropic', 'openai', 'gemini', 'openrouter', 'ollama']);
+export const supportsVision = (provider: ProviderId): boolean => VISION_PROVIDERS.has(provider);
+
+const hasImages = (m: ChatMessage): boolean => !!m.images?.length;
+const dataUrl = (i: ChatImage): string => `data:${i.mediaType};base64,${i.data}`;
+
+/** Message content in each provider's shape: plain text, or text plus image parts. */
+const anthropicContent = (m: ChatMessage): unknown => hasImages(m)
+    ? [...m.images!.map(i => ({ type: 'image', source: { type: 'base64', media_type: i.mediaType, data: i.data } })), { type: 'text', text: m.content }]
+    : m.content;
+const geminiParts = (m: ChatMessage): unknown[] =>
+    [...(m.images ?? []).map(i => ({ inline_data: { mime_type: i.mediaType, data: i.data } })), { text: m.content }];
+const ollamaMessage = (m: ChatMessage): unknown => hasImages(m) ? { role: m.role, content: m.content, images: m.images!.map(i => i.data) } : { role: m.role, content: m.content };
+const openAiMessage = (m: ChatMessage): unknown => hasImages(m)
+    ? { role: m.role, content: [{ type: 'text', text: m.content }, ...m.images!.map(i => ({ type: 'image_url', image_url: { url: dataUrl(i) } }))] }
+    : { role: m.role, content: m.content };
+
 /** Builds the HTTP request for a provider. Keys only go to the provider's fixed endpoint. */
 export const buildProviderRequest = (provider: ProviderId, model: string, request: CompletionRequest, apiKey: string | undefined, stream = false): HttpRequestSpec => {
     const maxTokens = request.maxTokens ?? 2048;
@@ -34,7 +52,7 @@ export const buildProviderRequest = (provider: ProviderId, model: string, reques
             return {
                 url: `${info.baseUrl}/messages`,
                 headers: { 'content-type': 'application/json', 'x-api-key': apiKey ?? '', 'anthropic-version': '2023-06-01' },
-                body: { model, max_tokens: maxTokens, temperature, ...(stream ? { stream: true } : {}), ...(system ? { system } : {}), messages: rest.map(m => ({ role: m.role, content: m.content })), ...(stop ? { stop_sequences: stop } : {}) }
+                body: { model, max_tokens: maxTokens, temperature, ...(stream ? { stream: true } : {}), ...(system ? { system } : {}), messages: rest.map(m => ({ role: m.role, content: anthropicContent(m) })), ...(stop ? { stop_sequences: stop } : {}) }
             };
         }
         case 'gemini': {
@@ -44,7 +62,7 @@ export const buildProviderRequest = (provider: ProviderId, model: string, reques
                 headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey ?? '' },
                 body: {
                     ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
-                    contents: rest.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+                    contents: rest.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: geminiParts(m) })),
                     generationConfig: { maxOutputTokens: maxTokens, temperature, ...(stop ? { stopSequences: stop } : {}) }
                 }
             };
@@ -53,7 +71,7 @@ export const buildProviderRequest = (provider: ProviderId, model: string, reques
             return {
                 url: `${resolveOllamaUrl(request.settings)}/api/chat`,
                 headers: { 'content-type': 'application/json' },
-                body: { model, stream, messages: request.messages, options: { temperature, num_predict: maxTokens, ...(stop ? { stop } : {}) } }
+                body: { model, stream, messages: request.messages.map(ollamaMessage), options: { temperature, num_predict: maxTokens, ...(stop ? { stop } : {}) } }
             };
         default: {
             // OpenAI-compatible: OpenAI, DeepSeek, OpenRouter.
@@ -63,7 +81,7 @@ export const buildProviderRequest = (provider: ProviderId, model: string, reques
                 headers['X-Title'] = 'Ingot';
             }
             const tokens = provider === 'openai' ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens, temperature };
-            return { url: `${info.baseUrl}/chat/completions`, headers, body: { model, messages: request.messages, ...tokens, ...(stop ? { stop } : {}), ...(stream ? { stream: true } : {}) } };
+            return { url: `${info.baseUrl}/chat/completions`, headers, body: { model, messages: request.messages.map(openAiMessage), ...tokens, ...(stop ? { stop } : {}), ...(stream ? { stream: true } : {}) } };
         }
     }
 };
