@@ -6,6 +6,8 @@ export const TAB_CONTEXT_FULL = 0.95;
 /** A fresh chat is named after this many words of the first message. */
 export const TAB_TITLE_WORDS = 5;
 export const TAB_TITLE_MIN_WORDS = 3;
+/** Tooltip of a tab that has no words yet (IDEA-120: never "New chat"). */
+export const UNTITLED_TAB_TOOLTIP = 'Untitled: the first words you type name it';
 export const TAB_TITLE_MAX = 32;
 
 /** Short tab title from a message: the first few words, capitalized, truncated. */
