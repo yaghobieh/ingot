@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { actUntilVisible, openIngot } from '../src/app.utils';
+import { actUntilVisible, openIngot, quickInput, quickOptions } from '../src/app.utils';
 
 // Playwright's Desktop Chrome reports Windows, so Settings is Ctrl+Alt+S.
 const dialog = (page: Page) => page.locator('#ingot-settings');
@@ -102,5 +102,15 @@ test.describe('IDEA-35 Light / Dark / System theme', () => {
         await expect(status).toContainText('Custom theme');
         await pick('System');
         await expect(page.locator('body')).toHaveClass(/ingot-light/);
+    });
+
+    test('generic Open Settings entry points open Ingot Settings, never the legacy list', async ({ page }) => {
+        await openIngot(page);
+        await page.keyboard.press('F1');
+        await expect(quickInput(page)).toBeVisible();
+        await quickInput(page).fill('>Open Settings (UI)');
+        await quickOptions(page).first().click();
+        await expect(dialog(page)).toBeVisible();
+        await expect(page.locator('#settings_widget')).toHaveCount(0);
     });
 });
