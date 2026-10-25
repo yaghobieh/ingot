@@ -32,6 +32,12 @@ import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.cons
 import type { ProjectCommand } from '../../common/project-config/project-config.types';
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
+import {
+    APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunMap, updateAlwaysRun,
+    type AgentAction, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
+} from '../../common/agents/agent-actions';
+import { AgentActionsService, type AgentActionResult } from '../../common/agents/agent-actions-service';
+import { GitService } from '../../common/git/git.types';
 import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
 
 let nextId = 1;
@@ -50,6 +56,10 @@ export class AgentStore {
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
+    @inject(AgentActionsService) protected readonly actions: AgentActionsService;
+    @inject(GitService) protected readonly git: GitService;
+    /** IDEA-109: runs waiting on the approval card, per session. */
+    protected readonly approvals = new Map<string, (choice: { decision: ApprovalDecision; reason?: string; stopped?: boolean }) => void>();
     /** IDEA-105: paused runs waiting for Continue (or the countdown), per session. */
     protected readonly pauses = new Map<string, { resolve: (go: boolean) => void; timer?: ReturnType<typeof setTimeout> }>();
     /** Live edit views started while a reply streams, keyed by chat, message and path. */
@@ -350,7 +360,40 @@ export class AgentStore {
         this.running.get(id)?.();
         this.running.delete(id);
         this.releasePause(id, false);
+        this.approvals.get(id)?.({ decision: 'skip', stopped: true });
         this.changed();
+    }
+
+    /** IDEA-109: the approval card's choice (Run ⏎, Skip with an optional reason, Always Run). */
+    decideApproval(id: string, decision: ApprovalDecision, reason?: string): void {
+        this.approvals.get(id)?.({ decision, reason });
+    }
+
+    get alwaysRun(): AlwaysRunMap {
+        return toAlwaysRunMap(this.preferences.get(APPROVAL_PREFS.alwaysRun));
+    }
+
+    /** Settings › Agent approvals: revoke (or grant) "Always Run" for a project and action kind. */
+    async setAlwaysRun(project: string, kind: ApprovalKind, enabled: boolean): Promise<void> {
+        await this.preferences.set(APPROVAL_PREFS.alwaysRun, updateAlwaysRun(this.alwaysRun, project, kind, !enabled), PreferenceScope.User);
+        this.changed();
+    }
+
+    protected askApproval(session: AgentSession, action: AgentAction): Promise<{ decision: ApprovalDecision; reason?: string; stopped?: boolean }> {
+        const previous = session.status;
+        session.approval = { ...action, id: `approval-${Date.now().toString(36)}-${nextId++}` };
+        session.status = 'approval';
+        session.updatedAt = Date.now();
+        this.changed();
+        return new Promise(resolve => {
+            this.approvals.set(session.id, choice => {
+                this.approvals.delete(session.id);
+                session.approval = undefined;
+                session.status = choice.stopped ? 'idle' : previous === 'approval' ? 'thinking' : previous;
+                this.changed();
+                resolve(choice);
+            });
+        });
     }
 
     get review(): ReviewSettings {
@@ -522,7 +565,7 @@ export class AgentStore {
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
-        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', toolProtocol(tools), this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
+        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol() : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
         const rulesText = formatRules(rules);
         const memoriesText = formatMemories(memories);
         const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
@@ -549,7 +592,13 @@ export class AgentStore {
                 return;
             }
             if (parsed.toolCalls.length && round < MAX_TOOL_ROUNDS) {
-                await this.runTools(session, parsed.toolCalls);
+                if (!await this.runTools(session, parsed.toolCalls)) {
+                    session.messages.push({ role: 'system', text: 'Stopped while waiting for approval.' });
+                    session.status = 'idle';
+                    session.updatedAt = Date.now();
+                    this.changed();
+                    return;
+                }
                 continue;
             }
             await this.saveMemories(session, parsed.memories, root);
@@ -623,16 +672,77 @@ export class AgentStore {
         return stopped ? { ...parsed, toolCalls: [], edits: [], memories: [] } : { ...parsed, memories };
     }
 
-    protected async runTools(session: AgentSession, calls: readonly AgentToolCall[]): Promise<void> {
+    /**
+     * Runs a round of tool calls. Actions that need approval (IDEA-109) wait on the card first; Skip returns the
+     * reason to the agent as the tool result. Returns false when the user stopped the run on the card.
+     */
+    protected async runTools(session: AgentSession, calls: readonly AgentToolCall[]): Promise<boolean> {
+        const root = this.rootFor(session);
+        const rootPath = root?.path.fsPath();
         for (const call of calls) {
             const target = `${call.server}/${call.tool}`;
+            const isGit = call.server === BUILTIN_TOOL_SERVER && call.tool === 'git';
+            const branch = isGit && rootPath && call.args.op === 'push' && !call.args.branch
+                ? (await this.git.run(rootPath, { kind: 'currentBranch' }).catch(() => ({ output: '' }))).output.trim() || undefined : undefined;
+            const action = describeAction(call, branch);
+            const requireGit = this.preferences.get<boolean>(APPROVAL_PREFS.gitRequireApproval, true) !== false;
+            if (action && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit)) {
+                const choice = await this.askApproval(session, action);
+                if (choice.stopped) {
+                    return false;
+                }
+                if (choice.decision === 'skip') {
+                    session.messages.push({ role: 'tool', from: target, text: skippedResult(action, choice.reason) });
+                    this.changed();
+                    continue;
+                }
+                if (choice.decision === 'always' && rootPath) {
+                    await this.setAlwaysRun(rootPath, action.kind, true);
+                }
+            }
             session.steps = [...session.steps, { kind: 'run', target, done: false }];
             session.status = 'thinking';
             this.changed();
-            const result = await this.mcp.callTool(call.server, call.tool, call.args);
+            const result = call.server === BUILTIN_TOOL_SERVER ? await this.runBuiltin(call, root) : await this.mcp.callTool(call.server, call.tool, call.args);
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
             session.messages.push({ role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}` });
             this.changed();
+        }
+        return true;
+    }
+
+    /** Ingot's built-in agent tools (IDEA-109): git, terminal command, web search / fetch, file delete. */
+    protected async runBuiltin(call: AgentToolCall, root: URI | undefined): Promise<AgentActionResult> {
+        const rootPath = root?.path.fsPath();
+        if (!root || !rootPath) {
+            return { text: 'Open a project first.', isError: true };
+        }
+        const str = (v: unknown): string => typeof v === 'string' ? v : '';
+        try {
+            switch (call.tool) {
+                case 'git': {
+                    if (call.args.op === 'log') {
+                        const commits = await this.git.log(rootPath, 20);
+                        return { text: commits.map(c => `${c.hash.slice(0, 8)} ${c.subject}`).join('\n') || 'No commits.', isError: false };
+                    }
+                    const result = await this.git.run(rootPath, gitOperationFor(call.args));
+                    return { text: result.output.trim() || 'Done.', isError: false };
+                }
+                case 'run': return await this.actions.runCommand(rootPath, str(call.args.command));
+                case 'web_search': return await this.actions.search(str(call.args.query));
+                case 'web_fetch': return await this.actions.fetchUrl(str(call.args.url));
+                case 'delete': {
+                    const path = str(call.args.path);
+                    if (!isSafeRelativePath(path)) {
+                        return { text: `Refusing to delete "${path}": use a path inside the project.`, isError: true };
+                    }
+                    await this.files.delete(root.resolve(path), { recursive: false, useTrash: true });
+                    return { text: `Deleted ${path}.`, isError: false };
+                }
+                default: return { text: `Unknown Ingot tool "${call.tool}".`, isError: true };
+            }
+        } catch (error) {
+            return { text: error instanceof Error ? error.message : String(error), isError: true };
         }
     }
 

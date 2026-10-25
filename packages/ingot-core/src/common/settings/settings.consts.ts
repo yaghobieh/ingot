@@ -48,6 +48,11 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                 description: 'How agent edits are reviewed: checkpoints on big runs, the auto-continue countdown, auto-accept and inline review comments. Also editable in the Ingot settings file under ~/.ingot.',
                 preferences: ['ingot.agent.review.enabled', 'ingot.agent.reviewPauseThreshold', 'ingot.agent.reviewAutoContinueSeconds', 'ingot.agent.review.autoAccept', 'ingot.agent.review.inlineComments']
             },
+            {
+                id: 'agent-approvals', label: 'Agent approvals', custom: 'approvals',
+                description: 'Git writes, terminal commands, web search / fetch, MCP tool calls and file deletes wait on an approval card (Skip / Always Run / Run). "Always Run" choices are listed here per project; revoke one to be asked again.',
+                preferences: ['ingot.agent.git.requireApproval']
+            },
             { id: 'agent-config', label: 'Rules & MCP', actions: [{ id: 'openAgentConfig', label: 'Open Rules, Commands & MCP Servers…' }] },
             {
                 id: 'memories', label: 'Memories', custom: 'memories',
