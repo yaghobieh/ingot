@@ -25,6 +25,10 @@ export interface AgentMessage {
     readonly expanded?: string;
     /** Context chips attached to a user message (IDEA-65), shown under it. */
     readonly chips?: readonly { readonly label: string; readonly path: string; readonly kind?: 'code' | 'file' | 'rule' | 'memory' }[];
+    /** A user message's text and chips in the order they were typed (IDEA-98). */
+    readonly parts?: readonly import('./composer-parts.types').SentPart[];
+    /** Images on a user message (IDEA-98). Data is kept for this session only, not in saved history. */
+    readonly images?: readonly import('./composer-parts.types').ImageChip[];
     /** A memory the agent saved from this reply (IDEA-77), with Undo. */
     readonly memory?: { readonly id: string; readonly scope: 'project' | 'global'; readonly undone?: boolean };
     /** A Plan-mode reply that can be built (IDEA-77). */

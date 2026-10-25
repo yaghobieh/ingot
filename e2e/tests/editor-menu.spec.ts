@@ -92,7 +92,7 @@ test.describe('IDEA-56 editor context menu', () => {
 
         // AI: the symbol under the cursor goes to the agent composer.
         await run(page, 'Add Symbol to Current Chat');
-        await expect(page.locator('#ingot-composer-input')).toHaveValue(/@src\/cart\.ts:1 addItem/);
+        await expect(page.locator('#ingot-composer-input')).toHaveText(/@src\/cart\.ts:1 addItem/);
 
         // Copy As: path, reference and markdown land on the clipboard.
         await run(page, 'Copy As', 'Copy Relative Path');
