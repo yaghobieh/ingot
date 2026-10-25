@@ -695,7 +695,8 @@ export class IngotGitActionsContribution implements CommandContribution, MenuCon
         }
     }
 
-    registerKeybindings(keybindings: KeybindingRegistry): void {
-        keybindings.registerKeybinding({ command: GIT_FILE_COMMANDS.push.id, keybinding: 'ctrlcmd+shift+k' });
+    /** Push… (⇧⌘K) opens the Push dialog from the keymap (IDEA-74); the Git menu entries have no own shortcuts. */
+    registerKeybindings(_keybindings: KeybindingRegistry): void {
+        // Intentionally empty.
     }
 }
