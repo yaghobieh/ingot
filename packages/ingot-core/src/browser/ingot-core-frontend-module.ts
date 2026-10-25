@@ -18,7 +18,7 @@ import { IngotPortsContribution } from './ports/ingot-ports-contribution';
 import { PORTS_WIDGET_ID } from './ports/ingot-ports.consts';
 import { AgentStore } from './agents/agent-store';
 import { MemoryStore } from './agents/memory-store';
-import { AgentEditReview } from './agents/agent-edit-review';
+import { ChangeTracker } from './changes/change-tracker';
 import { IngotAgentsWidget } from './agents/agents-widget';
 import { EditorCopyTracker } from './agents/editor-copy-tracker';
 import { IngotAgentsContribution } from './agents/agents-contribution';
@@ -224,7 +224,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
 
     bind(AgentStore).toSelf().inSingletonScope();
     bind(MemoryStore).toSelf().inSingletonScope();
-    bind(AgentEditReview).toSelf().inSingletonScope();
+    bind(ChangeTracker).toSelf().inSingletonScope();
     bind(EditorCopyTracker).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(EditorCopyTracker);
     bind(IngotAgentsWidget).toSelf();
