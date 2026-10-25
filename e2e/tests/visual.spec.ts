@@ -65,7 +65,7 @@ test.describe('Reference look screenshots', () => {
             fs.mkdirSync(SHOTS_DIR!, { recursive: true });
             await page.emulateMedia({ colorScheme: scheme });
             await openIngot(page, SHOP);
-            await page.locator('#ingot-tb-theme').click();
+            await page.locator('#ingot-rs-theme').click();
             await page.locator('.quick-input-widget .monaco-list-row', { hasText: 'System' }).first().click();
             await expect(page.locator('body')).toHaveClass(new RegExp(`ingot-${scheme}`));
             await connectOllama(page, server);

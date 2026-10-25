@@ -8,6 +8,7 @@ import type { PanelLayout } from '@theia/core/shared/@lumino/widgets';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { IngotMainToolbar } from './ingot-main-toolbar';
 import { IngotStripeWidget } from '../stripe/ingot-stripe-widget';
+import { IngotRightStripeWidget } from '../tool-windows/right-stripe-widget';
 import { IngotAgentsContribution } from '../agents/agents-contribution';
 import { WidgetManager } from '@theia/core/lib/browser/widget-manager';
 import { ViewContainer } from '@theia/core/lib/browser/view-container';
@@ -36,6 +37,9 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     @inject(IngotStripeWidget)
     protected readonly stripe: IngotStripeWidget;
 
+    @inject(IngotRightStripeWidget)
+    protected readonly rightStripe: IngotRightStripeWidget;
+
     @inject(WorkspaceService)
     protected readonly workspace: WorkspaceService;
 
@@ -58,9 +62,10 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         // Electron hides the top panel on macOS (native menu); the Ingot main toolbar lives there.
         this.shell.topPanel.show();
         this.attachStripe();
-        // The Agents panel owns the right column; no side tab strip there.
-        this.shell.rightPanelHandler.tabBar.parent?.hide();
+        // The right edge gets Ingot's own slim stripe instead of Theia's side tabs (IDEA-61).
+        this.attachRightStripe();
         await this.agents.openView({ activate: false, reveal: true });
+        this.rightStripe.refreshSoon();
         this.renameProjectView();
         // The reference layout keeps the bottom panel closed; the Terminal opens from the stripe or ⌥F12.
         this.shell.collapsePanel('bottom');
@@ -87,6 +92,17 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         }
         // Directly under the side bar tabs, so the stripe reads Project, Search, Git, Terminal.
         layout.insertWidget(layout.widgets.indexOf(this.shell.leftPanelHandler.tabBar) + 1, this.stripe);
+    }
+
+    /** Replaces the right side tab bar with the tool window stripe: Settings, Notifications, Agents, Database, MCP, Services. */
+    protected attachRightStripe(): void {
+        const handler = this.shell.rightPanelHandler;
+        const layout = handler.tabBar.parent?.layout as PanelLayout | undefined;
+        if (!layout || layout.widgets.includes(this.rightStripe)) {
+            return;
+        }
+        document.body.classList.add('ingot-right-stripe-on');
+        layout.addWidget(this.rightStripe);
     }
 
     async initializeLayout(_app: FrontendApplication): Promise<void> {

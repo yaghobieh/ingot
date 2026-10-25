@@ -33,11 +33,13 @@ test.describe('IDEA-27/28 Agents tool window', () => {
         await expect(panel.locator('.ingot-chat-system')).toContainText('not connected yet');
     });
 
-    test('toolbar Agents button toggles the panel', async ({ page }) => {
+    test('right stripe Agents button toggles the panel', async ({ page }) => {
         await openIngot(page);
         await expect(page.locator('#ingot-agents')).toBeVisible();
-        await page.locator('#ingot-tb-agents').click();
-        await page.locator('#ingot-tb-agents').click();
+        await expect(page.locator('#ingot-rs-agents')).toHaveClass(/selected/);
+        await page.locator('#ingot-rs-agents').click();
+        await expect(page.locator('#ingot-agents')).toBeHidden();
+        await page.locator('#ingot-rs-agents').click();
         await expect(page.locator('#ingot-agents')).toBeVisible();
     });
 });

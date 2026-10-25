@@ -84,3 +84,44 @@ button.ingot-tb-logo:hover { background: var(--ingot-primary-hover); }
 .ingot-shell #explorer-view-container .theia-TreeNodeSegment .codicon-folder,
 .ingot-shell #explorer-view-container .theia-TreeNodeSegment .codicon-folder-opened { display: none; }
 .ingot-blame-annotation { color: var(--theia-descriptionForeground); opacity: .7; font-style: italic; }
+
+/* IDEA-61: right-edge tool window stripe replaces Theia's right side tabs. */
+.ingot-shell #theia-right-content-panel .theia-app-sidebar-container > .lm-TabBar,
+.ingot-shell #theia-right-content-panel .theia-app-sidebar-container > .theia-sidebar-menu { display: none !important; }
+.ingot-shell #theia-right-content-panel .theia-app-sidebar-container { display: flex; flex-direction: column; width: 36px; min-width: 36px; border-left: 1px solid var(--theia-panel-border); background: var(--theia-activityBar-background, var(--theia-sideBar-background)); }
+.ingot-shell #theia-right-content-panel .theia-app-sidebar-container.lm-mod-hidden { display: flex !important; }
+.ingot-right-stripe { flex: 1 1 auto; display: flex; min-height: 0; }
+.ingot-rs { flex: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 6px 0; }
+.ingot-rs-group { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.ingot-rs-button { position: relative; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--theia-descriptionForeground); cursor: pointer; opacity: .85; }
+.ingot-rs-button .codicon { font-size: 16px; }
+.ingot-rs-button:hover { background: var(--theia-list-hoverBackground); color: var(--theia-foreground); opacity: 1; }
+.ingot-rs-button.selected { background: color-mix(in srgb, var(--ingot-primary) 16%, transparent); color: var(--ingot-primary); opacity: 1; }
+.ingot-rs-button.selected::before { content: ""; position: absolute; right: -4px; top: 6px; bottom: 6px; width: 2px; border-radius: 2px; background: var(--ingot-primary); }
+.ingot-rs-badge { position: absolute; top: 1px; right: 0; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; background: var(--ingot-primary); color: #fff; font: 600 8.5px/13px var(--theia-ui-font-family); text-align: center; }
+
+/* IDEA-61: top bar run/debug/stop, New Session and AI. */
+.ingot-tb-run-group { display: inline-flex; align-items: center; gap: 2px; margin-left: 2px; }
+.ingot-tb-icon { width: 26px; height: 26px; padding: 0; display: inline-grid; place-items: center; }
+.ingot-tb-icon .codicon { font-size: 15px; }
+.ingot-tb-icon:disabled { opacity: .35; cursor: default; }
+.ingot-tb-play .codicon { color: #3FA266; }
+.ingot-tb-sep { width: 1px; height: 16px; margin: 0 6px; background: var(--theia-panel-border); }
+#ingot-tb-new-session .codicon { font-size: 13px; margin-right: 3px; }
+
+/* IDEA-61: tool windows (Database, MCP, Services). */
+.ingot-tw { display: flex; flex-direction: column; height: 100%; overflow: auto; font-size: 12px; }
+.ingot-tw-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 6px; }
+.ingot-tw-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--theia-descriptionForeground); }
+.ingot-tw-section { padding: 8px 10px 2px; font-size: 11px; font-weight: 600; color: var(--theia-descriptionForeground); }
+.ingot-tw-empty { padding: 6px 10px; color: var(--theia-descriptionForeground); line-height: 1.5; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.ingot-tw-list { list-style: none; margin: 0; padding: 0 4px; }
+.ingot-tw-row { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 5px; min-height: 22px; }
+.ingot-tw-row:hover { background: var(--theia-list-hoverBackground); }
+.ingot-tw-name { font-weight: 500; white-space: nowrap; }
+.ingot-tw-detail { color: var(--theia-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.ingot-tw-icon-button { border: 0; background: transparent; color: var(--theia-foreground); border-radius: 4px; width: 20px; height: 20px; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.ingot-tw-icon-button:hover { background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); }
+.ingot-tw-link { border: 0; background: none; padding: 0; color: var(--ingot-primary); cursor: pointer; text-align: left; font: inherit; }
+.ingot-tw-live { color: #3FA266; font-size: 8px !important; }
+.ingot-db-kind { font-size: 9.5px; font-weight: 600; padding: 1px 5px; border-radius: 4px; background: color-mix(in srgb, var(--ingot-primary) 14%, transparent); color: var(--ingot-primary); }

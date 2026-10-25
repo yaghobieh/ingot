@@ -76,7 +76,7 @@ test.describe('IDEA-35 Light / Dark / System theme', () => {
         await openIngot(page);
         const status = page.locator('#theia-statusBar [id$="ingot-appearance"]');
         const pick = async (label: string) => {
-            await page.locator('#ingot-tb-theme').click();
+            await page.locator('#ingot-rs-theme').click();
             await page.locator('.quick-input-widget .monaco-list-row', { hasText: label }).first().click();
         };
         await pick('System');

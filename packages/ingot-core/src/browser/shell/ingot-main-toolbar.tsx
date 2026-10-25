@@ -44,6 +44,21 @@ const ToolbarButton = ({ id, icon, title, onClick, label, dropdown, className }:
     </button>
 );
 
+interface IconButtonProps {
+    readonly id: string;
+    readonly codicon: string;
+    readonly title: string;
+    readonly onClick: () => void;
+    readonly disabled?: boolean;
+    readonly className?: string;
+}
+
+const IconButton = ({ id, codicon, title, onClick, disabled, className }: IconButtonProps): React.ReactElement => (
+    <button id={id} type='button' className={`ingot-tb-button ingot-tb-icon ${className ?? ''}`} title={title} aria-label={title} disabled={disabled} onClick={onClick}>
+        <span className={`codicon codicon-${codicon}`} />
+    </button>
+);
+
 /** Slim Ingot UI main toolbar matching docs/design/ide-reference.png (IDEA-13). */
 @injectable()
 export class IngotMainToolbar extends ReactWidget {
@@ -82,6 +97,8 @@ export class IngotMainToolbar extends ReactWidget {
         this.toDispose.push(this.workspace.onWorkspaceLocationChanged(() => this.update()));
         this.toDispose.push(this.branches.onDidChange(() => this.update()));
         this.toDispose.push(this.agents.onDidChange(() => this.update()));
+        // Stop is enabled only while a run session is alive.
+        this.toDispose.push(this.commands.onDidExecuteCommand(() => this.update()));
         this.loadRunScript();
         this.toDispose.push({ dispose: () => this.removePopupListeners() });
     }
@@ -166,6 +183,12 @@ export class IngotMainToolbar extends ReactWidget {
         }
     }
 
+    protected async newSession(): Promise<void> {
+        if (this.commands.getCommand(AGENT_COMMANDS.newAgent.id)) {
+            await this.commands.executeCommand(AGENT_COMMANDS.newAgent.id);
+        }
+    }
+
     protected get showMainMenuButton(): boolean {
         return !(environment.electron.is() && isOSX);
     }
@@ -196,19 +219,22 @@ export class IngotMainToolbar extends ReactWidget {
                 <ToolbarButton id='ingot-tb-vcs' icon='branch' title='Git branch' label={this.branches.branch ?? NO_VCS_LABEL} dropdown onClick={() => this.run(this.branches.branch ? TOOLBAR_COMMANDS.branches : TOOLBAR_COMMANDS.git)} />
             </div>
             <div className='ingot-tb-right'>
-                <ToolbarButton id='ingot-tb-run-config' icon='run' title='Run configuration' label={this.runScript ?? RUN_CONFIGURATION_LABEL} className='ingot-tb-run' onClick={() => this.run(TOOLBAR_COMMANDS.runTask)} />
+                <ToolbarButton id='ingot-tb-run-config' icon='run' title='Run configuration' label={this.runScript ?? RUN_CONFIGURATION_LABEL} dropdown className='ingot-tb-run' onClick={() => this.run(TOOLBAR_COMMANDS.runTask)} />
+                <div className='ingot-tb-run-group'>
+                    <IconButton id='ingot-tb-run' codicon='play' title={`Run '${this.runScript ?? RUN_CONFIGURATION_LABEL}'`} className='ingot-tb-play' onClick={() => this.run(TOOLBAR_COMMANDS.run)} />
+                    <IconButton id='ingot-tb-debug' codicon='debug-alt-small' title={`Debug '${this.runScript ?? RUN_CONFIGURATION_LABEL}'`} onClick={() => this.run(TOOLBAR_COMMANDS.debug)} />
+                    <IconButton id='ingot-tb-stop' codicon='debug-stop' title='Stop' disabled={!this.commands.isEnabled(TOOLBAR_COMMANDS.stop)} onClick={() => this.run(TOOLBAR_COMMANDS.stop)} />
+                </div>
+                <span className='ingot-tb-sep' />
+                <button id='ingot-tb-new-session' type='button' className='ingot-tb-button ingot-tb-widget' title='New agent session' onClick={() => this.newSession()}>
+                    <span className='codicon codicon-add' /><span className='ingot-tb-label'>New Session</span>
+                </button>
+                <IconButton id='ingot-tb-ai' codicon='sparkle' title={`Ask AI${active ? ` · ${active} running` : ''}`} onClick={() => this.run(AGENT_COMMANDS.toggle.id)} />
                 <button id='ingot-tb-search' type='button' className='ingot-tb-search' title='Search Everywhere (Double Shift)' onClick={() => this.run(TOOLBAR_COMMANDS.searchEverywhere)}>
                     <span className='ingot-icon ingot-icon-search' />
                     <span className='ingot-tb-search-text'>Search everywhere</span>
                     <span className='ingot-tb-search-kbd'>Shift Shift</span>
                 </button>
-                <button id='ingot-tb-agents' type='button' className='ingot-tb-agents' title='Agents' onClick={() => this.run(AGENT_COMMANDS.toggle.id)}>
-                    Agents{active ? ` · ${active}` : ''}
-                </button>
-                <button id='ingot-tb-theme' type='button' className='ingot-tb-button' title='Theme: Light, Dark or System' aria-label='Theme' onClick={() => this.run(TOOLBAR_COMMANDS.theme)}>
-                    <span className='codicon codicon-color-mode' />
-                </button>
-                <ToolbarButton id='ingot-tb-settings' icon='settings' title='Settings' onClick={() => this.run(TOOLBAR_COMMANDS.settings)} />
             </div>
         </div>;
     }
