@@ -1,6 +1,9 @@
 import type { SettingsAction } from '../../common/settings/settings.types';
 
 export const SETTINGS_OPEN_COMMAND = { id: 'ingot.settings.open', label: 'Settings…', category: 'Ingot' } as const;
+/** The full settings list behind the dialog's "All settings" link; the only way the generic list opens. */
+export const ADVANCED_SETTINGS_COMMAND = { id: 'ingot.settings.advanced', label: 'All Settings (Advanced)', category: 'Ingot' } as const;
+export const LEGACY_SETTINGS_WIDGET_ID = 'settings_widget';
 export const THEME_IMPORT_COMMAND = { id: 'ingot.theme.import', label: 'Import Color Theme…', category: 'Ingot' } as const;
 export const THEME_REMOVE_COMMAND = { id: 'ingot.theme.remove', label: 'Remove Imported Color Theme…', category: 'Ingot' } as const;
 export const PLUGINS_OPEN_COMMAND = 'vsxExtensions.toggle';
@@ -13,7 +16,7 @@ export const SETTINGS_ACTION_COMMANDS: Record<SettingsAction, string> = {
     openPlugins: PLUGINS_OPEN_COMMAND,
     importTheme: THEME_IMPORT_COMMAND.id,
     removeTheme: 'ingot.theme.remove',
-    openAllSettings: 'preferences:open',
+    openAllSettings: 'ingot.settings.advanced',
     openSettingsJson: 'preferences:openJson.toUser'
 };
 
