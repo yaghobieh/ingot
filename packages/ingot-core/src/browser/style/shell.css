@@ -769,7 +769,7 @@ body.ingot-explorer-collapsed #explorer-view-container > .lm-SplitPanel { visibi
 .ingot-agents .ingot-agents-header .ingot-icon-button { margin-left: 0; flex: none; }
 .ingot-chat-tabs-wrap { display: flex; align-items: stretch; flex: 1; min-width: 0; height: 100%; }
 .ingot-agents .ingot-chat-tabs { display: flex; flex: 1; min-width: 0; height: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-behavior: smooth; }
-.ingot-agents .ingot-chat-tab { position: relative; display: flex; align-items: center; gap: 5px; flex: none; min-width: 44px; max-width: 160px; height: 100%; padding: 0 4px 0 10px;
+.ingot-agents .ingot-chat-tab { position: relative; display: flex; align-items: center; gap: 5px; flex: none; min-width: 44px; max-width: 260px; height: 100%; padding: 0 4px 0 10px;
     border: 0; border-right: 1px solid color-mix(in srgb, var(--theia-panel-border) 70%, transparent); box-shadow: none; font-size: 12px; color: var(--theia-descriptionForeground); cursor: pointer; user-select: none; }
 .ingot-agents .ingot-chat-tab:focus { outline: none; }
 .ingot-agents .ingot-chat-tab:focus-visible { outline: 1px solid var(--theia-focusBorder); outline-offset: -1px; }
