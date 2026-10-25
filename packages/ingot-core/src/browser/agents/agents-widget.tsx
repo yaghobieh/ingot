@@ -18,11 +18,11 @@ import type { AgentSession } from '../../common/agents/agents.types';
 import { changesSummary, stepVerb } from '../../common/agents/agents.utils';
 import { AgentStore } from './agent-store';
 import { EditorManager } from '@theia/editor/lib/browser';
-import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import URI from '@theia/core/lib/common/uri';
 import { agentSubtitle } from '../../common/agents/chat-history';
-import { chipLabel, chipPreview, composerHeight, lineCount, sameClipboardText, type ContextChip } from '../../common/agents/context-chips';
+import { chipLabel, chipPreview, composerHeight, INGOT_REF_MIME, insertedText, type ContextChip } from '../../common/agents/context-chips';
+import { EditorCopyTracker } from './editor-copy-tracker';
 import { AgentEditReview } from './agent-edit-review';
 import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
 
@@ -42,6 +42,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(ContextKeyService) protected readonly contextKeys: ContextKeyService;
     @inject(KeybindingRegistry) protected readonly keybindings: KeybindingRegistry;
+    @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
 
     protected popover: Popover;
     protected showMemories = false;
@@ -54,8 +55,6 @@ export class IngotAgentsWidget extends ReactWidget {
     protected slashDismissed = false;
     /** Context chips waiting to be sent with the next message (IDEA-65). */
     protected chips: ContextChip[] = [];
-    /** The last copy/cut made in an editor, so pasting it here becomes a chip. */
-    protected lastEditorCopy?: Omit<ContextChip, 'id'>;
     /** Height set by dragging the handle (IDEA-67); persisted. */
     protected manualHeight?: number;
 
@@ -94,10 +93,6 @@ export class IngotAgentsWidget extends ReactWidget {
         this.node.addEventListener('focusout', e => { if (!this.node.contains(e.relatedTarget as Node | null)) { this.focusKey?.set(false); } });
         const stored = Number(localStorage.getItem(COMPOSER_HEIGHT_KEY));
         this.manualHeight = stored > 0 ? stored : undefined;
-        const onCopy = () => this.trackEditorCopy();
-        document.addEventListener('copy', onCopy, true);
-        document.addEventListener('cut', onCopy, true);
-        this.toDispose.push({ dispose: () => { document.removeEventListener('copy', onCopy, true); document.removeEventListener('cut', onCopy, true); } });
         this.update();
     }
 
@@ -148,32 +143,6 @@ export class IngotAgentsWidget extends ReactWidget {
         this.fitComposer();
     }
 
-    /** The current editor's selection as chip data, if the editor has focus and a non-empty selection. */
-    protected editorSelection(requireFocus: boolean): Omit<ContextChip, 'id'> | undefined {
-        const editor = this.editors.currentEditor?.editor;
-        if (!(editor instanceof MonacoEditor) || (requireFocus && !editor.isFocused())) {
-            return undefined;
-        }
-        const control = editor.getControl();
-        const selection = control.getSelection();
-        const model = control.getModel();
-        if (!selection || !model || selection.isEmpty()) {
-            return undefined;
-        }
-        const text = model.getValueInRange(selection);
-        // A selection ending at column 1 of the next line does not include that line.
-        const end = selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber ? selection.endLineNumber - 1 : selection.endLineNumber;
-        const uri = new URI(model.uri.toString());
-        const root = this.workspace.tryGetRoots().find(r => r.resource.isEqualOrParent(uri));
-        const path = root ? root.resource.relative(uri)?.toString() ?? uri.path.base : uri.path.base;
-        return { path, uri: uri.toString(), start: selection.startLineNumber, end, text };
-    }
-
-    protected trackEditorCopy(): void {
-        // The copy event fires before the clipboard is written; read the editor selection it is about to copy.
-        this.lastEditorCopy = this.editorSelection(true);
-    }
-
     /** Adds a chip (Add to Chat ⌘L, editor paste) unless the same range is already attached. */
     addChip(data: Omit<ContextChip, 'id'>): void {
         if (!this.chips.some(c => c.uri === data.uri && c.start === data.start && c.end === data.end)) {
@@ -185,7 +154,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     /** Add to Chat: the current editor selection becomes a chip; returns false when nothing is selected. */
     addSelectionChip(): boolean {
-        const selection = this.editorSelection(false);
+        const selection = this.copies.selection();
         if (selection) {
             this.addChip(selection);
         }
@@ -204,12 +173,25 @@ export class IngotAgentsWidget extends ReactWidget {
 
     /** Multi-line text copied from an editor pastes as a chip; anything else pastes as plain text. */
     protected onPaste(e: React.ClipboardEvent<HTMLTextAreaElement>): void {
-        const text = e.clipboardData.getData('text/plain');
-        const copy = this.lastEditorCopy;
-        if (copy && text && lineCount(text) > 1 && sameClipboardText(text, copy.text)) {
+        const chip = this.copies.match(e.clipboardData.getData('text/plain'), e.clipboardData.getData(INGOT_REF_MIME) || undefined);
+        if (chip) {
             e.preventDefault();
-            this.addChip(copy);
+            this.addChip(chip);
         }
+    }
+
+    /**
+     * The desktop app's paste command (⌘V, Edit > Paste) inserts clipboard text with `execCommand('insertText')`, which
+     * fires neither `paste` nor `beforeinput`; only the resulting change. A multi-line insertion that matches the last
+     * editor copy is therefore taken back out of the draft and becomes a chip.
+     */
+    protected pastedChip(e: React.ChangeEvent<HTMLTextAreaElement>): ContextChip | Omit<ContextChip, 'id'> | undefined {
+        const inputType = (e.nativeEvent as InputEvent).inputType;
+        if (inputType !== 'insertText' && inputType !== 'insertFromPaste') {
+            return undefined;
+        }
+        const inserted = insertedText(this.draft, e.currentTarget.value);
+        return inserted && inserted.includes('\n') ? this.copies.match(inserted) : undefined;
     }
 
     protected override onActivateRequest(msg: Message): void {
@@ -423,6 +405,12 @@ export class IngotAgentsWidget extends ReactWidget {
             <textarea id='ingot-composer-input' ref={el => { this.composer = el; }} className='ingot-composer-input' placeholder={COMPOSER_PLACEHOLDER} value={this.draft} rows={2}
                 onPaste={e => this.onPaste(e)}
                 onChange={e => {
+                    const pasted = this.pastedChip(e);
+                    if (pasted) {
+                        e.currentTarget.value = this.draft;
+                        this.addChip(pasted);
+                        return;
+                    }
                     const value = e.currentTarget.value;
                     if (value === '/' && this.draft === '') {
                         this.slashDismissed = false;
