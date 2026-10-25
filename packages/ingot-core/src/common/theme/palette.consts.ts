@@ -1,4 +1,4 @@
-/* Brand colours from assets/brand/palette.json; UI tokens follow JetBrains Int UI / Islands with Ingot accents. */
+/* Brand colours from assets/brand/palette.json; UI tokens follow a calm, compact IDE palette with Ingot accents. */
 export const BRAND = {
     'ingotGold': '#D9A04E',
     'ingotGoldDeep': '#B9772A',
@@ -54,8 +54,8 @@ export const DARK_TOKENS = {
     'editorGutter': '#8C9096'
 } as const;
 
-/** Darcula-like variant: warmer greys, classic JetBrains feel. */
-export const DARCULA_TOKENS = {
+/** Ember variant: warmer greys. */
+export const EMBER_TOKENS = {
     ...DARK_TOKENS,
     bg: '#2B2B2B',
     surface: '#313335',

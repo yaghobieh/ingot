@@ -9,11 +9,11 @@ const openSettings = async (page: Page): Promise<void> => {
 };
 
 test.describe('IDEA-34 Settings dialog', () => {
-    test('Ctrl+Alt+S opens a searchable tree; Apply, OK and Cancel behave like IntelliJ', async ({ page }) => {
+    test('Ctrl+Alt+S opens a searchable tree; Apply, OK and Cancel behave like classic IDEs', async ({ page }) => {
         await openIngot(page);
         await openSettings(page);
         await expect(page.locator('#ingot-settings-crumbs')).toHaveText('Appearance & Behavior › Appearance');
-        await expect(page.locator('#ingot-setting-workbench-colorTheme option', { hasText: 'Ingot Darcula' })).toHaveCount(1);
+        await expect(page.locator('#ingot-setting-workbench-colorTheme option', { hasText: 'Ingot Ember' })).toHaveCount(1);
         await expect(page.locator('#ingot-settings-apply')).toBeDisabled();
 
         // Search narrows the tree to Editor › Font and the matching setting.
@@ -62,7 +62,7 @@ test.describe('IDEA-34 Settings dialog', () => {
         await page.locator('#ingot-settings-apply').click();
         await expect(page.locator('body')).toHaveClass(/theia-dark/);
         await node(page, 'keymap').click();
-        await expect(page.locator('#ingot-setting-ingot-keymap')).toHaveValue('IntelliJ IDEA');
+        await expect(page.locator('#ingot-setting-ingot-keymap')).toHaveValue('Ingot (default)');
         await page.locator('#ingot-settings-action-openKeymap').click();
         await expect(dialog(page)).toBeHidden();
         await expect(page.locator('#theia-main-content-panel .lm-TabBar-tab', { hasText: 'Keyboard Shortcuts' })).toBeVisible();

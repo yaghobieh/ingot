@@ -9,7 +9,7 @@ import { MessageService } from '@theia/core/lib/common/message-service';
 import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import URI from '@theia/core/lib/common/uri';
-import { DOUBLE_SHIFT_MS, INGOT_NAV_COMMANDS, INTELLIJ_KEYMAP, KEYMAP_OPTIONS, KEYMAP_PREFERENCE } from '../../common/keymap/intellij.keymap.consts';
+import { DOUBLE_SHIFT_MS, INGOT_NAV_COMMANDS, INGOT_KEYMAP, KEYMAP_OPTIONS, KEYMAP_PREFERENCE } from '../../common/keymap/ingot.keymap.consts';
 import { createDoubleShiftDetector, resolveKeymap } from '../../common/keymap/keymap.utils';
 import { NavigationHistory } from './navigation-history';
 
@@ -17,13 +17,13 @@ export const keymapPreferenceSchema: PreferenceSchema = {
     properties: {
         [KEYMAP_PREFERENCE]: {
             type: 'string', enum: [...KEYMAP_OPTIONS], default: KEYMAP_OPTIONS[0],
-            description: 'Keyboard shortcuts: IntelliJ IDEA / WebStorm (default) or VS Code. Individual shortcuts can be changed in Keymap (Keyboard Shortcuts).'
+            description: 'Keyboard shortcuts: Ingot (default) or Alternative (the platform defaults). Individual shortcuts can be changed in Keymap (Keyboard Shortcuts).'
         }
     }
 };
 
 /**
- * IntelliJ IDEA keymap (IDEA-18), Search Everywhere on double Shift (IDEA-19), Go to Class / Symbol (IDEA-20),
+ * Ingot keymap (IDEA-18), Search Everywhere on double Shift (IDEA-19), Go to Class / Symbol (IDEA-20),
  * Recent Files / Recent Locations (IDEA-17).
  */
 @injectable()
@@ -63,7 +63,7 @@ export class IngotKeymapContribution implements FrontendApplicationContribution,
             if (event.repeat) {
                 return;
             }
-            if (this.keymap === KEYMAP_OPTIONS[0] && this.detectDoubleShift(event.key, event.ctrlKey || event.altKey || event.metaKey)) {
+            if (this.keymap !== KEYMAP_OPTIONS[1] && this.detectDoubleShift(event.key, event.ctrlKey || event.altKey || event.metaKey)) {
                 this.quickInput.open('');
             }
         }, true);
@@ -75,8 +75,8 @@ export class IngotKeymapContribution implements FrontendApplicationContribution,
 
     protected applyKeymap(): void {
         this.bindings.dispose();
-        if (this.keymap === KEYMAP_OPTIONS[0]) {
-            this.bindings.push(this.keybindings.registerKeybindings(...resolveKeymap(INTELLIJ_KEYMAP, isOSX)));
+        if (this.keymap !== KEYMAP_OPTIONS[1]) {
+            this.bindings.push(this.keybindings.registerKeybindings(...resolveKeymap(INGOT_KEYMAP, isOSX)));
         }
     }
 
@@ -87,7 +87,7 @@ export class IngotKeymapContribution implements FrontendApplicationContribution,
 
     protected async showRecentFiles(): Promise<void> {
         const current = this.editors.currentEditor?.editor.uri.toString();
-        // Like IntelliJ, the first entry is the previous file so Cmd+E, Enter switches back.
+        // Like classic IDEs, the first entry is the previous file so Cmd+E, Enter switches back.
         const files = this.history.files.filter(u => u.toString() !== current);
         const picked = await this.quickInput.showQuickPick(files.map(uri => ({
             label: this.labels.getName(uri), description: this.relative(uri), iconClasses: this.labels.getIcon(uri).split(' ').filter(Boolean), uri

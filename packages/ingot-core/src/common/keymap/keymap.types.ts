@@ -1,9 +1,9 @@
 export interface KeymapEntry {
-    /** Theia / VS Code command id to run. */
+    /** Theia command id to run. */
     readonly command: string;
-    /** IntelliJ macOS keymap (Theia syntax: ctrlcmd = Cmd, ctrl = Control, alt = Option). */
+    /** Ingot macOS keymap (Theia syntax: ctrlcmd = Cmd, ctrl = Control, alt = Option). */
     readonly mac: string;
-    /** IntelliJ Windows/Linux keymap. */
+    /** Ingot Windows/Linux keymap. */
     readonly other: string;
     /** Optional `when` context. */
     readonly when?: string;

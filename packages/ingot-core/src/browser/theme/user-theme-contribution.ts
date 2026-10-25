@@ -16,7 +16,7 @@ import { SETTINGS_PREFS } from '../../common/settings/settings.consts';
 import { parseVsCodeTheme, upsertTheme, USER_THEMES_STORAGE_KEY, type ImportedTheme } from '../../common/theme/theme-import.utils';
 import { THEME_IMPORT_COMMAND, THEME_REMOVE_COMMAND } from '../settings/settings.browser-consts';
 
-/** User color themes imported from VS Code theme files (IDEA-35), kept in browser storage and re-registered on start. */
+/** User color themes imported from color theme files (IDEA-35), kept in browser storage and re-registered on start. */
 @injectable()
 export class UserThemeContribution implements FrontendApplicationContribution, CommandContribution {
 
@@ -56,7 +56,7 @@ export class UserThemeContribution implements FrontendApplicationContribution, C
     async importTheme(given?: URI): Promise<ImportedTheme | undefined> {
         const root = this.workspace.tryGetRoots()[0];
         const uri = given ?? await this.fileDialog.showOpenDialog({
-            title: 'Import VS Code Color Theme', canSelectFiles: true, canSelectFolders: false, openLabel: 'Import',
+            title: 'Import Color Theme', canSelectFiles: true, canSelectFolders: false, openLabel: 'Import',
             filters: { 'Color theme': ['json', 'jsonc'] }
         }, root);
         if (!uri) {

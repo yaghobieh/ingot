@@ -19,10 +19,10 @@ import { CLONE_PROMPT, CLONE_TERMINAL_TITLE, LEARN_LINKS, WELCOME_COMMANDS, WELC
 const THEME_CHOICES = [
     { id: THEME_IDS.light, label: 'Ingot Light' },
     { id: THEME_IDS.dark, label: 'Ingot Dark' },
-    { id: THEME_IDS.darcula, label: 'Ingot Darcula' }
+    { id: THEME_IDS.ember, label: 'Ingot Ember' }
 ] as const;
 
-/** JetBrains-style Welcome screen: Projects, Customize, Plugins, Learn (IDEA-15). */
+/** IDE-style Welcome screen: Projects, Customize, Plugins, Learn (IDEA-15). */
 @injectable()
 export class IngotWelcomeWidget extends ReactWidget {
 
@@ -154,7 +154,7 @@ export class IngotWelcomeWidget extends ReactWidget {
                 ))}
             </div>
             <h2>Keymap</h2>
-            <p>IntelliJ IDEA ({navigator.platform.toLowerCase().includes('mac') ? 'macOS' : 'Windows/Linux'}) is the default keymap.</p>
+            <p>Ingot ({navigator.platform.toLowerCase().includes('mac') ? 'macOS' : 'Windows/Linux'}) is the default keymap.</p>
             <button type='button' className='theia-button secondary' onClick={() => this.run(WELCOME_COMMANDS.keymap)}>Configure keymap</button>
             <button type='button' className='theia-button secondary' onClick={() => this.run(WELCOME_COMMANDS.settings)}>All settings…</button>
         </div>;

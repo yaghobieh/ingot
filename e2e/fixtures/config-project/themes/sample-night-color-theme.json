@@ -1,5 +1,5 @@
 {
-    // A small VS Code color theme used by the theme import e2e test.
+    // A small color theme used by the theme import e2e test.
     "name": "Sample Night",
     "type": "dark",
     "colors": {

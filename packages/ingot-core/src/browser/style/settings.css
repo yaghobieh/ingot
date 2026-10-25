@@ -1,4 +1,4 @@
-/* JetBrains-style Settings dialog (IDEA-34) */
+/* IDE-style Settings dialog (IDEA-34) */
 .ingot-settings-dialog .dialogBlock { width: min(920px, 92vw); max-width: none; height: min(620px, 86vh); }
 .ingot-settings-dialog .dialogContent { flex: 1; min-height: 0; padding: 0; }
 .ingot-settings { display: flex; height: 100%; min-height: 0; }

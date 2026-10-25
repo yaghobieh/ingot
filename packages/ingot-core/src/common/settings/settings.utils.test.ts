@@ -10,7 +10,7 @@ describe('settings', () => {
         expect(font.path).toEqual(['Editor', 'Font']);
     });
 
-    it('labels keys like IntelliJ', () => {
+    it('labels keys like classic IDEs', () => {
         expect(settingLabel('editor.fontSize')).toBe('Font Size');
         expect(settingLabel('workbench.colorTheme')).toBe('Color Theme');
     });

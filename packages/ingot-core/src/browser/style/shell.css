@@ -1,4 +1,4 @@
-/* Ingot shell — JetBrains New UI look built on Theia's theme variables (IDEA-13/14). */
+/* Ingot shell — Ingot UI look built on Theia's theme variables (IDEA-13/14). */
 
 body.ingot-shell {
   --ingot-radius: 6px;
@@ -27,7 +27,7 @@ body.ingot-shell {
 .ingot-tb-agents { height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: var(--theia-button-background); color: var(--theia-button-foreground); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
 .ingot-tb-agents:hover { background: var(--theia-button-hoverBackground); }
 
-/* ---------- JetBrains New UI layout (see docs/design/ide-reference.png) ---------- */
+/* ---------- Ingot UI layout (see docs/design/ide-reference.png) ---------- */
 body.ingot-shell {
   --ingot-canvas: var(--theia-titleBar-activeBackground);
   --theia-ui-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -46,7 +46,7 @@ body.ingot-shell .theia-app-main, body.ingot-shell .theia-app-centers { border: 
 body.ingot-shell .theia-sidepanel-toolbar { height: 34px; padding-left: 12px; }
 body.ingot-shell .theia-sidepanel-toolbar .theia-sidepanel-title { font-size: 11px !important; font-weight: 600; letter-spacing: .04em; text-transform: uppercase !important; color: var(--theia-descriptionForeground); }
 
-/* ---------- Tool window stripes (replace the VS Code activity bar) ---------- */
+/* ---------- Tool window stripes (replace the default activity bar) ---------- */
 body.ingot-shell .theia-app-sidebar-container { background: var(--ingot-canvas); width: 40px; min-width: 40px; display: flex; flex-direction: column; border: 0 !important; }
 body.ingot-shell #theia-left-content-panel .theia-app-sidebar-container { border-right: 1px solid var(--theia-panel-border) !important; }
 body.ingot-shell [id^='shell-tab-test-view-container'] { display: none !important; }
@@ -80,7 +80,7 @@ body.ingot-shell .lm-TabBar.theia-app-sides [id^='shell-tab-'] .lm-TabBar-tabIco
 .ingot-stripe-button:hover { background: var(--theia-list-hoverBackground); }
 .ingot-stripe-button.selected { background: var(--theia-list-activeSelectionBackground); }
 
-/* ---------- Tool window headers and tabs: Title Case, compact (not VS Code UPPERCASE) ---------- */
+/* ---------- Tool window headers and tabs: Title Case, compact (no UPPERCASE) ---------- */
 body.ingot-shell .theia-view-container-part-title { font-weight: 600; font-size: 13px; text-transform: none !important; letter-spacing: 0; }
 body.ingot-shell .theia-header, body.ingot-shell .theia-view-container-part-header { text-transform: none !important; font-weight: 600; }
 body.ingot-shell .lm-TabBar.theia-app-centers .lm-TabBar-tab { height: 30px; line-height: 30px; font-size: 13px; border: 0 !important; background: transparent; }
@@ -88,7 +88,7 @@ body.ingot-shell .lm-TabBar.theia-app-centers .lm-TabBar-tab.lm-mod-current { bo
 body.ingot-shell #theia-bottom-content-panel .lm-TabBar-tab .lm-TabBar-tabLabel { text-transform: none !important; }
 body.ingot-shell #theia-bottom-content-panel .lm-TabBar.theia-app-centers .lm-TabBar-tab.lm-mod-current { box-shadow: none; background: var(--theia-list-activeSelectionBackground); border-radius: 6px; height: 24px; line-height: 24px; margin: 3px 2px; }
 
-/* ---------- Status bar: flat, JetBrains style ---------- */
+/* ---------- Status bar: flat ---------- */
 body.ingot-shell #theia-statusBar { font-size: 12px; border-top: 0; background: var(--ingot-canvas); height: 24px; }
 body.ingot-shell #theia-statusBar .element { padding: 0 6px; }
 body.ingot-shell #theia-statusBar .ingot-status-agents { color: var(--ingot-ingot-gold); }
@@ -144,7 +144,7 @@ body.ingot-shell #theia-statusBar .ingot-status-branch { color: var(--theia-fore
 .ingot-welcome-theme-preview { width: 120px; height: 72px; border-radius: 6px; border: 1px solid var(--theia-panel-border); }
 .ingot-welcome-theme.ingot-light .ingot-welcome-theme-preview { background: linear-gradient(90deg, #EEF0F4 30%, #FFFFFF 30%); }
 .ingot-welcome-theme.ingot-dark .ingot-welcome-theme-preview { background: linear-gradient(90deg, #2A2D36 30%, #1E2027 30%); }
-.ingot-welcome-theme.ingot-darcula .ingot-welcome-theme-preview { background: linear-gradient(90deg, #3C3F41 30%, #2B2B2B 30%); }
+.ingot-welcome-theme.ingot-ember .ingot-welcome-theme-preview { background: linear-gradient(90deg, #3C3F41 30%, #2B2B2B 30%); }
 .ingot-welcome-links a { color: var(--theia-textLink-foreground); line-height: 2; }
 
 /* ---------- About (IDEA-16) ---------- */

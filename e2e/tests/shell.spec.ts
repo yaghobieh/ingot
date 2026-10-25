@@ -5,7 +5,7 @@ import { EXPLORER_TAB, LEFT_PANEL, TOOL_WINDOW_MOD } from '../src/e2e.consts';
 const explorerVisible = (page: Page) => page.locator(`${LEFT_PANEL} #explorer-view-container`);
 
 test.describe('IDEA-13/14 main toolbar and tool windows', () => {
-    test('renders the JetBrains-style main toolbar with project and VCS widgets', async ({ page }) => {
+    test('renders the IDE-style main toolbar with project and VCS widgets', async ({ page }) => {
         await openIngot(page);
         const toolbar = page.locator('#ingot-main-toolbar');
         await expect(toolbar).toBeVisible();
@@ -21,7 +21,7 @@ test.describe('IDEA-13/14 main toolbar and tool windows', () => {
     test('opens the Project tool window by default and toggles it with Cmd/Alt+1', async ({ page }) => {
         await openIngot(page);
         await expect(explorerVisible(page)).toBeVisible();
-        // Like IntelliJ: the shortcut focuses the tool window, pressing it again while focused hides it.
+        // Like classic IDEs: the shortcut focuses the tool window, pressing it again while focused hides it.
         await actUntilHidden(() => page.keyboard.press(`${TOOL_WINDOW_MOD}+1`), explorerVisible(page));
         await page.keyboard.press(`${TOOL_WINDOW_MOD}+1`);
         await expect(explorerVisible(page)).toBeVisible();

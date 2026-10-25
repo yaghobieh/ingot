@@ -39,7 +39,7 @@ test.describe('IDEA-52 project groups', () => {
         await expect(page.locator('.ingot-agent-item', { hasText: 'Agent in sample-project' })).toHaveCount(0);
         await expect(terminalTabs(page)).toHaveCount(1);
 
-        // And back with the IntelliJ "Previous Project Window" shortcut.
+        // And back with the "Previous Project Window" shortcut.
         await page.locator('#files').click();
         await page.keyboard.press('Control+Alt+BracketLeft');
         await expect(tab(page, 'sample-project')).toHaveClass(/active/);

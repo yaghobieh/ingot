@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createWorkspaceFile, isWorkspaceFileName, projectDisplayName } from './workspace.utils';
 
 describe('workspace utils', () => {
-    it('recognises Ingot, VS Code and Theia workspace files', () => {
+    it('recognises Ingot and other workspace files', () => {
         expect(isWorkspaceFileName('/a/team.ingot-workspace')).toBe(true);
         expect(isWorkspaceFileName('/a/team.code-workspace')).toBe(true);
         expect(isWorkspaceFileName('/a/team.theia-workspace')).toBe(true);

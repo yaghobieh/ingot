@@ -6,7 +6,7 @@ import { IngotGroupService } from './ingot-group-service';
 import { GROUP_COMMANDS, PROJECT_TABS_ID } from '../../common/groups/groups.consts';
 import { projectInitials } from '../../common/welcome/welcome.utils';
 
-/** WebStorm-like project tabs under the main toolbar, visible while a project group is open (IDEA-52). */
+/** full IDE-like project tabs under the main toolbar, visible while a project group is open (IDEA-52). */
 @injectable()
 export class IngotProjectTabsWidget extends ReactWidget {
 

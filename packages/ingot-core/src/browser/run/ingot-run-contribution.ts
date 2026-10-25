@@ -6,13 +6,13 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service';
 import type { TerminalWidget } from '@theia/terminal/lib/browser/base/terminal-widget';
-import { INGOT_RUN_COMMANDS } from '../../common/keymap/intellij.keymap.consts';
+import { INGOT_RUN_COMMANDS } from '../../common/keymap/ingot.keymap.consts';
 import { pickRunScript } from '../../common/vcs/vcs.utils';
 import { runCommandLine } from '../../common/vcs/run.utils';
 
 type RunKind = 'run' | 'debug';
 
-/** Run / Debug the project's default run configuration (its dev/start npm script) like WebStorm (IDEA-24). */
+/** Run / Debug the project's default run configuration (its dev/start npm script) like a full IDE (IDEA-24). */
 @injectable()
 export class IngotRunContribution implements CommandContribution {
 
@@ -49,7 +49,7 @@ export class IngotRunContribution implements CommandContribution {
             this.messages.info('No run configuration: add a "dev" or "start" script to package.json, or run a task.');
             return;
         }
-        // Like IntelliJ's single-instance run configurations: rerunning stops the previous process.
+        // Like classic IDE single-instance run configurations: rerunning stops the previous process.
         this.stop();
         this.session?.dispose();
         const title = `${kind === 'run' ? 'Run' : 'Debug'}: ${target.script}`;

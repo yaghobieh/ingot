@@ -23,7 +23,7 @@ export const groupFolderPath = (groupDir: string, projectPath: string): string =
     return project.startsWith(`${dir}/`) ? project.slice(dir.length + 1) : project;
 };
 
-/** Cycles through project tabs like JetBrains "Next/Previous Project Window". */
+/** Cycles through project tabs like classic IDEs "Next/Previous Project Window". */
 export const cycleProject = (projects: readonly string[], current: string | undefined, delta: 1 | -1): string | undefined => {
     if (projects.length === 0) {
         return undefined;

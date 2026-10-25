@@ -10,7 +10,7 @@ export const parseGitHead = (content: string): string | undefined => {
     return /^[0-9a-f]{40}$/i.test(text) ? text.slice(0, SHORT_SHA) : undefined;
 };
 
-/** JetBrains status bar breadcrumbs: project › folder › file. */
+/** Status bar breadcrumbs: project › folder › file. */
 export const breadcrumbs = (rootPath: string, rootName: string, filePath: string): string[] => {
     const relative = filePath.startsWith(rootPath) ? filePath.slice(rootPath.length).replace(/^\/+/, '') : filePath;
     return [rootName, ...relative.split('/').filter(Boolean)];

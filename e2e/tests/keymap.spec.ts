@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { actUntilVisible, dismissNotifications, openIngot } from '../src/app.utils';
 import { FIXTURE_WORKSPACE } from '../src/e2e.consts';
 
-// Playwright's Desktop Chrome reports Windows, so the IntelliJ Windows/Linux keymap applies.
+// Playwright's Desktop Chrome reports Windows, so the Ingot Windows/Linux keymap applies.
 const SRC = path.join(FIXTURE_WORKSPACE, 'src');
 const editorTab = (page: Page, label: string) => page.locator('#theia-main-content-panel .lm-TabBar-tab', { hasText: label });
 const activeTab = (page: Page) => page.locator('#theia-main-content-panel .lm-TabBar-tab.lm-mod-current.theia-mod-active, #theia-main-content-panel .lm-TabBar-tab.lm-mod-current').first();
@@ -25,7 +25,7 @@ const focusEditor = async (page: Page): Promise<void> => {
     await lines(page).click();
 };
 
-test.describe('IDEA-17-24 IntelliJ keymap, navigation, find/replace and run', () => {
+test.describe('IDEA-17-24 Ingot keymap, navigation, find/replace and run', () => {
     test.afterEach(() => {
         execFileSync('git', ['checkout', '--', SRC], { cwd: FIXTURE_WORKSPACE });
     });
@@ -80,7 +80,7 @@ test.describe('IDEA-17-24 IntelliJ keymap, navigation, find/replace and run', ()
         await expect(cursor(page)).toHaveText(/^9:/);
     });
 
-    test('find and replace in the file (Ctrl+F / Ctrl+R) and IntelliJ editing keys', async ({ page }) => {
+    test('find and replace in the file (Ctrl+F / Ctrl+R) and IDE editing keys', async ({ page }) => {
         await openIngot(page);
         await goToFile(page, 'math.ts');
         await focusEditor(page);
