@@ -65,7 +65,7 @@ export class IngotWelcomeWidget extends ReactWidget {
     }
 
     protected openProject(project: RecentProject): void {
-        this.workspace.open(new URI(project.uri));
+        this.workspace.open(new URI(project.uri), { preserveWindow: true });
     }
 
     protected async cloneRepository(): Promise<void> {
@@ -120,6 +120,7 @@ export class IngotWelcomeWidget extends ReactWidget {
                     onChange={e => { this.filter = e.currentTarget.value; this.update(); }} />
                 <button id='ingot-welcome-new' type='button' className='theia-button secondary' onClick={() => this.run(WELCOME_COMMANDS.newFile)}>New File</button>
                 <button id='ingot-welcome-open' type='button' className='theia-button secondary' onClick={() => this.run(WELCOME_COMMANDS.openFolder)}>Open</button>
+                <button id='ingot-welcome-open-workspace' type='button' className='theia-button secondary' onClick={() => this.run(WELCOME_COMMANDS.openWorkspace)}>Open Workspace</button>
                 <button id='ingot-welcome-clone' type='button' className='theia-button secondary' onClick={() => this.cloneRepository()}>Get from VCS</button>
             </div>
             {projects.length === 0
@@ -130,7 +131,7 @@ export class IngotWelcomeWidget extends ReactWidget {
                             <button type='button' className='ingot-welcome-project' title={p.path} onClick={() => this.openProject(p)}>
                                 <span className='ingot-welcome-initials'>{p.initials}</span>
                                 <span className='ingot-welcome-project-text'>
-                                    <span className='ingot-welcome-project-name'>{p.name}</span>
+                                    <span className='ingot-welcome-project-name'>{p.name}{p.kind === 'workspace' && <span className='ingot-badge'>workspace</span>}</span>
                                     <span className='ingot-welcome-project-path'>{p.path}</span>
                                 </span>
                             </button>

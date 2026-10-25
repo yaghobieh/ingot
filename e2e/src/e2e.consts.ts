@@ -3,6 +3,8 @@ import * as path from 'path';
 export const E2E_PORT = Number(process.env.INGOT_PORT ?? 3100);
 export const E2E_BASE_URL = `http://127.0.0.1:${E2E_PORT}`;
 export const FIXTURE_WORKSPACE = path.resolve(__dirname, '..', 'fixtures', 'sample-project');
+export const FIXTURES_DIR = path.resolve(__dirname, '..', 'fixtures');
+export const MULTI_ROOT_WORKSPACE = path.join(FIXTURES_DIR, 'multi-root.ingot-workspace');
 export const E2E_CONFIG_DIR = path.resolve(__dirname, '..', '.ingot-e2e-config');
 export const APP_READY_TIMEOUT_MS = 120_000;
 export const SHELL_SELECTOR = '#theia-app-shell';

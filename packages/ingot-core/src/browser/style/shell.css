@@ -216,3 +216,15 @@ body.ingot-shell #theia-statusBar .ingot-status-branch { color: var(--theia-fore
 .ingot-agent-edit-reject { background: transparent; color: var(--theia-descriptionForeground); }
 .ingot-agent-edit-reject:hover { background: var(--theia-list-hoverBackground); }
 .ingot-agent-edit-accept { background: var(--theia-button-background); color: var(--theia-button-foreground); }
+
+/* IDEA-51 project ▾ popup */
+.ingot-project-popup { position: fixed; z-index: 10000; min-width: 300px; max-width: 420px; padding: 6px; border: 1px solid var(--theia-menu-border, var(--theia-panel-border)); border-radius: 8px; background: var(--theia-menu-background); color: var(--theia-menu-foreground); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); display: flex; flex-direction: column; }
+.ingot-project-popup-heading { padding: 4px 8px; font-size: 11px; color: var(--theia-descriptionForeground); }
+.ingot-project-popup-item { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.ingot-project-popup-item:hover, .ingot-project-popup-item:focus-visible { background: var(--theia-menu-selectionBackground); color: var(--theia-menu-selectionForeground); outline: none; }
+.ingot-project-popup-recent .ingot-welcome-initials { width: 24px; height: 24px; font-size: 10px; border-radius: 6px; flex: none; }
+.ingot-project-popup-text { display: flex; flex-direction: column; min-width: 0; }
+.ingot-project-popup-name { font-weight: 500; }
+.ingot-project-popup-path { font-size: 11px; color: var(--theia-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-project-popup-separator { height: 1px; margin: 4px 2px; background: var(--theia-menu-separatorBackground, var(--theia-panel-border)); }
+.ingot-badge { margin-left: 6px; padding: 0 5px; border-radius: 4px; font-size: 10px; font-weight: 500; line-height: 16px; color: var(--theia-badge-foreground); background: var(--theia-badge-background); vertical-align: 1px; }

@@ -37,3 +37,4 @@ dist-electron/
 .browser_modules/
 applications/*/gen-esbuild*.mjs
 e2e/.ingot-e2e-config/
+e2e/fixtures/sample-project/saved-by-e2e.ingot-workspace

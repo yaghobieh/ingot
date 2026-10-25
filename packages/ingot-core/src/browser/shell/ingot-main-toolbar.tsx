@@ -12,6 +12,12 @@ import { IngotBranchService } from '../vcs/ingot-branch-service';
 import { AgentStore } from '../agents/agent-store';
 import { AGENT_COMMANDS } from '../agents/agents.consts';
 import { pickRunScript } from '../../common/vcs/vcs.utils';
+import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
+import URI from '@theia/core/lib/common/uri';
+import { toRecentProjects } from '../../common/welcome/welcome.utils';
+import type { RecentProject } from '../../common/welcome/welcome.types';
+import { projectDisplayName } from '../../common/workspace/workspace.utils';
+import { PROJECT_POPUP_ACTIONS, PROJECT_POPUP_RECENT_LIMIT } from './ingot-shell.consts';
 import { MAIN_TOOLBAR_CLASS, MAIN_TOOLBAR_ID, NO_PROJECT_LABEL, NO_VCS_LABEL, RUN_CONFIGURATION_LABEL, TOOLBAR_COMMANDS } from './ingot-shell.consts';
 
 interface ToolbarButtonProps {
@@ -42,17 +48,95 @@ export class IngotMainToolbar extends ReactWidget {
     @inject(IngotBranchService) protected readonly branches: IngotBranchService;
     @inject(AgentStore) protected readonly agents: AgentStore;
     @inject(FileService) protected readonly files: FileService;
+    @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
 
     protected runScript?: string;
+    protected projectPopupOpen = false;
+    protected recentProjects: RecentProject[] = [];
+    protected popupAnchor = { left: 0, top: 0 };
+
+    protected readonly closeOnOutsideClick = (event: MouseEvent): void => {
+        const target = event.target as HTMLElement | null;
+        if (target && !target.closest('#ingot-project-popup, #ingot-tb-project')) {
+            this.closeProjectPopup();
+        }
+    };
+
+    protected readonly closeOnEscape = (event: KeyboardEvent): void => {
+        if (event.key === 'Escape') {
+            this.closeProjectPopup();
+        }
+    };
 
     @postConstruct()
     protected init(): void {
         this.id = MAIN_TOOLBAR_ID;
         this.addClass(MAIN_TOOLBAR_CLASS);
         this.toDispose.push(this.workspace.onWorkspaceChanged(() => this.loadRunScript()));
+        this.toDispose.push(this.workspace.onWorkspaceLocationChanged(() => this.update()));
         this.toDispose.push(this.branches.onDidChange(() => this.update()));
         this.toDispose.push(this.agents.onDidChange(() => this.update()));
         this.loadRunScript();
+        this.toDispose.push({ dispose: () => this.removePopupListeners() });
+    }
+
+    protected async toggleProjectPopup(): Promise<void> {
+        if (this.projectPopupOpen) {
+            this.closeProjectPopup();
+            return;
+        }
+        const [recent, homeUri] = await Promise.all([this.workspace.recentWorkspaces(), this.env.getHomeDirUri()]);
+        const current = this.workspace.workspace?.resource.toString();
+        this.recentProjects = toRecentProjects(recent.filter(uri => uri !== current), new URI(homeUri).path.fsPath()).slice(0, PROJECT_POPUP_RECENT_LIMIT);
+        const rect = document.getElementById('ingot-tb-project')?.getBoundingClientRect();
+        this.popupAnchor = { left: rect?.left ?? 0, top: (rect?.bottom ?? 0) + 4 };
+        this.projectPopupOpen = true;
+        document.addEventListener('mousedown', this.closeOnOutsideClick, true);
+        document.addEventListener('keydown', this.closeOnEscape, true);
+        this.update();
+    }
+
+    protected closeProjectPopup(): void {
+        this.projectPopupOpen = false;
+        this.removePopupListeners();
+        this.update();
+    }
+
+    protected removePopupListeners(): void {
+        document.removeEventListener('mousedown', this.closeOnOutsideClick, true);
+        document.removeEventListener('keydown', this.closeOnEscape, true);
+    }
+
+    protected openRecent(project: RecentProject): void {
+        this.closeProjectPopup();
+        this.workspace.open(new URI(project.uri), { preserveWindow: true });
+    }
+
+    protected runFromPopup(commandId: string): void {
+        this.closeProjectPopup();
+        this.run(commandId);
+    }
+
+    protected renderProjectPopup(): React.ReactNode {
+        if (!this.projectPopupOpen) {
+            return undefined;
+        }
+        return <div id='ingot-project-popup' className='ingot-project-popup' role='menu' style={{ left: this.popupAnchor.left, top: this.popupAnchor.top }}>
+            {this.recentProjects.length > 0 && <div className='ingot-project-popup-heading'>Recent projects</div>}
+            {this.recentProjects.map(p => (
+                <button key={p.uri} type='button' role='menuitem' className='ingot-project-popup-item ingot-project-popup-recent' title={p.path} onClick={() => this.openRecent(p)}>
+                    <span className='ingot-welcome-initials'>{p.initials}</span>
+                    <span className='ingot-project-popup-text'>
+                        <span className='ingot-project-popup-name'>{p.name}{p.kind === 'workspace' && <span className='ingot-badge'>workspace</span>}</span>
+                        <span className='ingot-project-popup-path'>{p.path}</span>
+                    </span>
+                </button>
+            ))}
+            {this.recentProjects.length > 0 && <div className='ingot-project-popup-separator' />}
+            {PROJECT_POPUP_ACTIONS.filter(a => !a.requiresWorkspace || this.workspace.opened).map(a => (
+                <button key={a.id} id={`ingot-project-action-${a.id}`} type='button' role='menuitem' className='ingot-project-popup-item' onClick={() => this.runFromPopup(a.command)}>{a.label}</button>
+            ))}
+        </div>;
     }
 
     /** Uses the project's `dev`/`start` npm script as the default run configuration, like WebStorm. */
@@ -86,6 +170,10 @@ export class IngotMainToolbar extends ReactWidget {
     }
 
     protected get projectLabel(): string {
+        const workspaceFile = this.workspace.saved ? this.workspace.workspace : undefined;
+        if (workspaceFile && !workspaceFile.isDirectory) {
+            return projectDisplayName(workspaceFile.resource.path.toString());
+        }
         const [root] = this.workspace.tryGetRoots();
         return root ? root.resource.path.base : NO_PROJECT_LABEL;
     }
@@ -96,7 +184,8 @@ export class IngotMainToolbar extends ReactWidget {
             <div className='ingot-tb-left'>
                 {this.showMainMenuButton && <ToolbarButton id='ingot-tb-menu' icon='menu' title='Main menu' onClick={e => this.openMainMenu(e)} className='ingot-tb-menu' />}
                 <span className='ingot-tb-logo ingot-brand-mark' title='Ingot' />
-                <ToolbarButton id='ingot-tb-project' title='Project' label={this.projectLabel} dropdown onClick={() => this.run(this.workspace.opened ? TOOLBAR_COMMANDS.openRecent : TOOLBAR_COMMANDS.openFolder)} />
+                <ToolbarButton id='ingot-tb-project' title='Project' label={this.projectLabel} dropdown onClick={() => this.toggleProjectPopup()} />
+                {this.renderProjectPopup()}
                 <ToolbarButton id='ingot-tb-vcs' icon='branch' title='Git branch' label={this.branches.branch ?? NO_VCS_LABEL} dropdown onClick={() => this.run(TOOLBAR_COMMANDS.git)} />
             </div>
             <div className='ingot-tb-right'>

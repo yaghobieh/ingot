@@ -27,9 +27,13 @@ import { IngotStatusBarContribution } from './status/ingot-status-bar-contributi
 import { IngotEditorContribution } from './status/ingot-editor-contribution';
 import { EditorContribution } from '@theia/editor/lib/browser/editor-contribution';
 
+import { WorkspaceFileService } from '@theia/workspace/lib/common/workspace-file-service';
+import { IngotWorkspaceFileService } from '../common/workspace/ingot-workspace-file-service';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
+    bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
+    rebind(WorkspaceFileService).toService(IngotWorkspaceFileService);
     bind(IngotCoreContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(IngotCoreContribution);
     bind(MenuContribution).toService(IngotCoreContribution);
