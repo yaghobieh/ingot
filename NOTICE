@@ -2,4 +2,8 @@ Ingot
 Copyright 2026 John Yaghobieh and Ingot contributors
 
 This product is licensed under the Apache License, Version 2.0.
-Third-party components and their licenses will be listed here as they are added.
+Third-party components:
+
+- File and folder icons in assets/file-icons (the "Ingot Files" icon theme) come from Material Icon Theme,
+  Copyright (c) 2025 Material Extensions, licensed under the MIT License (assets/file-icons/LICENSE).
+  https://github.com/material-extensions/vscode-material-icon-theme

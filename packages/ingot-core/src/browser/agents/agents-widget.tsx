@@ -5,6 +5,7 @@ import type { Message } from '@theia/core/shared/@lumino/messaging';
 import { COMPOSER_PLACEHOLDER, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
 import { modeInfo, nextMode } from '../../common/agents/agent-modes';
 import { CONTEXT_NEAR_FULL, contextSegments, formatTokens, messageWeights, usageRatio } from '../../common/agents/context-usage';
+import { fileIconClass } from '../../common/icons/file-icon-map';
 import { AUTO_MODEL_ID, AUTO_MODEL_LABEL, FAVORITE_MODELS_KEY } from '../../common/models/models.consts';
 import { findModel } from '../../common/models/models.utils';
 import { ContextKeyService, type ContextKey } from '@theia/core/lib/browser/context-key-service';
@@ -556,7 +557,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 return <span key={i}>{p.text}</span>;
             }
             if (p.kind === 'code') {
-                return <span key={i} className='ingot-chip ingot-chip-sent ingot-chip-code ingot-chip-inline' title={p.path}><span className='codicon codicon-code' />{p.label}</span>;
+                return <span key={i} className='ingot-chip ingot-chip-sent ingot-chip-code ingot-chip-inline' title={p.path}><span className={p.path ? fileIconClass(p.path.split('/').pop() ?? p.path) : 'codicon codicon-code'} />{p.label}</span>;
             }
             const image = images.find(img => img.id === p.id);
             return <span key={i} className='ingot-chip ingot-chip-sent ingot-chip-image ingot-chip-inline' title={p.name}

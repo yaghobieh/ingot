@@ -30,6 +30,7 @@
     "secret-scan": "node scripts/secret-scan.mjs",
     "brand:electron-dev": "node scripts/brand-electron-dev.mjs",
     "brand:app-icon": "node scripts/build-app-icon.mjs",
+    "brand:file-icons": "node scripts/build-file-icons.mjs",
     "download:plugins": "theia download:plugins --rate-limit 15 --parallel=false",
     "brand:icon-concepts": "node scripts/icon-concepts.mjs"
   },
