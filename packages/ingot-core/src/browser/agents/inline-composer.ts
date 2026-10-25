@@ -7,6 +7,8 @@ export interface InlineComposerHandlers {
     onChange(): void;
     openCode(chip: ContextChip): void;
     openImage(image: ImageChip): void;
+    /** Files or project-tree items dropped on the composer (the caret is already at the drop point). */
+    drop(data: DataTransfer): boolean;
 }
 
 type Token = { kind: 'code'; chip: ContextChip } | { kind: 'image'; image: ImageChip };
@@ -70,6 +72,30 @@ export class InlineComposer {
         el.addEventListener('mouseover', e => this.onHover(e));
         el.addEventListener('mouseout', e => { if (!(e.relatedTarget instanceof Node && this.chipOf(e.relatedTarget))) { this.hidePreview(); } });
         el.addEventListener('click', e => this.onClick(e));
+        // The workbench marks every drag over the document as "no drop" (dropEffect none); claim drags over the
+        // composer first, or the drop never happens in the desktop app.
+        const accept = (e: DragEvent): void => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.dataTransfer) {
+                e.dataTransfer.dropEffect = 'copy';
+            }
+            el.classList.add('drop-target');
+        };
+        el.addEventListener('dragenter', accept);
+        el.addEventListener('dragover', accept);
+        el.addEventListener('dragleave', () => el.classList.remove('drop-target'));
+        el.addEventListener('drop', e => {
+            el.classList.remove('drop-target');
+            if (!e.dataTransfer) {
+                return;
+            }
+            e.stopPropagation();
+            this.caretAt(e.clientX, e.clientY);
+            if (handlers.drop(e.dataTransfer)) {
+                e.preventDefault();
+            }
+        });
     }
 
     get parts(): ComposerPart[] {

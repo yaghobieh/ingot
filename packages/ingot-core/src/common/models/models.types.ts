@@ -103,4 +103,6 @@ export interface ModelService {
     startStream(request: CompletionRequest): Promise<string>;
     pollStream(id: string, from: number): Promise<StreamPoll>;
     cancelStream(id: string): Promise<void>;
+    /** Voice dictation fallback (IDEA-98): transcribes recorded audio (base64) with a speech-to-text model. */
+    transcribe(audioBase64: string, mimeType: string): Promise<string>;
 }

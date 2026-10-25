@@ -4,12 +4,15 @@ import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
 import { COMPOSER_PLACEHOLDER, NO_MODEL_MESSAGE } from '../../common/agents/agents.consts';
 import { modeInfo, nextMode } from '../../common/agents/agent-modes';
-import { CONTEXT_NEAR_FULL, usageBreakdown, usageRatio } from '../../common/agents/context-usage';
+import { CONTEXT_NEAR_FULL, contextSegments, formatTokens, messageWeights, usageRatio } from '../../common/agents/context-usage';
 import { AUTO_MODEL_ID, AUTO_MODEL_LABEL, FAVORITE_MODELS_KEY } from '../../common/models/models.consts';
 import { findModel } from '../../common/models/models.utils';
 import { ContextKeyService, type ContextKey } from '@theia/core/lib/browser/context-key-service';
 import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding';
-import { ChatHistory, MemoriesManager, ModeMenu, ModelPicker } from './chat-popovers';
+import { ChatHistory, ContextBreakdown, MemoriesManager, ModeMenu, ModelPicker } from './chat-popovers';
+import { Dictation } from './dictation';
+import type { DictationState } from './dictation.types';
+import { MessageService } from '@theia/core/lib/common/message-service';
 import { MemoryStore } from './memory-store';
 import { CommandRegistry } from '@theia/core/lib/common/command';
 import { IngotModelClient } from '../models/model-client';
@@ -40,7 +43,7 @@ import { LAYOUT_CONTEXT_MENU } from '../layout/layout.browser-consts';
 import { AgentEditReview } from './agent-edit-review';
 import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
 
-type Popover = 'mode' | 'model' | 'history' | undefined;
+type Popover = 'mode' | 'model' | 'history' | 'context' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
 /** Right tool window: chats as tabs with History, conversation with plan and tool steps, composer with mode, model and context (IDEA-27/28, IDEA-77). */
@@ -50,6 +53,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(AgentStore) protected readonly store: AgentStore;
     @inject(AgentEditReview) protected readonly review: AgentEditReview;
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
+    @inject(MessageService) protected readonly messages: MessageService;
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
@@ -77,6 +81,9 @@ export class IngotAgentsWidget extends ReactWidget {
     protected composerEmpty = true;
     /** Enlarged image chip (click a thumbnail). */
     protected lightbox?: ImageChip;
+    protected dictation?: Dictation;
+    protected dictationState: DictationState = 'idle';
+    protected dictationInterim = '';
     /** Right-click menu on a chat tab (IDEA-98). */
     protected tabMenu?: { id: string; x: number; y: number };
     protected dragTab?: string;
@@ -122,7 +129,8 @@ export class IngotAgentsWidget extends ReactWidget {
         this.inline = new InlineComposer(el, {
             onChange: () => this.composerChanged(),
             openCode: chip => this.openChip(chip),
-            openImage: image => { this.lightbox = image; this.update(); }
+            openImage: image => { this.lightbox = image; this.update(); },
+            drop: data => this.onDrop(data)
         });
         el.classList.add('empty');
     }
@@ -264,18 +272,16 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     /** Drop images (thumbnails) or files from the project tree / Finder (file chips) at the drop point (IDEA-100). */
-    protected onDrop(e: React.DragEvent<HTMLElement>): void {
-        const all = Array.from(e.dataTransfer.files);
+    protected onDrop(data: DataTransfer): boolean {
+        const all = Array.from(data.files);
         const images = all.filter(f => f.type.startsWith('image/'));
         const others = all.filter(f => !f.type.startsWith('image/'));
-        const uris = ApplicationShell.getDraggedEditorUris(e.dataTransfer);
+        const uris = ApplicationShell.getDraggedEditorUris(data);
         if (!images.length && !others.length && !uris.length) {
-            return;
+            return false;
         }
-        e.preventDefault();
-        e.stopPropagation();
-        this.inline?.caretAt(e.clientX, e.clientY);
         this.dropFiles(images, others, uris);
+        return true;
     }
 
     protected async dropFiles(images: readonly File[], others: readonly File[], uris: readonly URI[]): Promise<void> {
@@ -444,7 +450,8 @@ export class IngotAgentsWidget extends ReactWidget {
                         onKeyDown={e => { if (e.key === 'F2') { e.preventDefault(); this.startRename(t.id); } }}
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); this.tabMenu = { id: t.id, x: e.clientX, y: e.clientY }; this.update(); }}
                         onDragStart={e => { this.dragTab = t.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/x-ingot-tab', t.id); }}
-                        onDragOver={e => { if (this.dragTab) { e.preventDefault(); } }}
+                        onDragEnter={e => this.acceptTabDrag(e)}
+                        onDragOver={e => this.acceptTabDrag(e)}
                         onDrop={e => { e.preventDefault(); if (this.dragTab && this.dragTab !== t.id) { this.store.moveTab(this.dragTab, t.id); } this.dragTab = undefined; }}
                         onDragEnd={() => { this.dragTab = undefined; }}>
                         {t.pinned && <span className='ingot-chat-tab-pin codicon codicon-pinned' aria-label='Pinned' />}
@@ -466,6 +473,15 @@ export class IngotAgentsWidget extends ReactWidget {
             </div>
             {this.tabOverflow.right && <button type='button' className='ingot-chat-tabs-scroll codicon codicon-chevron-right' aria-label='Scroll tabs right' onClick={() => this.scrollTabs(1)} />}
         </div>;
+    }
+
+    /** The workbench marks document drags as "no drop"; claim tab drags so reordering works in the desktop app. */
+    protected acceptTabDrag(e: React.DragEvent): void {
+        if (this.dragTab) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'move';
+        }
     }
 
     protected startRename(id: string): void {
@@ -674,8 +690,6 @@ export class IngotAgentsWidget extends ReactWidget {
             <div id={COMPOSER_INPUT_ID} ref={el => this.setComposer(el)} className='ingot-composer-input' data-placeholder={COMPOSER_PLACEHOLDER}
                 aria-label='Message' suppressContentEditableWarning
                 onPaste={e => this.onPaste(e)}
-                onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
-                onDrop={e => this.onDrop(e)}
                 onKeyDown={e => {
                     const items = this.slashItems;
                     if (items.length) {
@@ -704,6 +718,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 <label className='ingot-icon-button codicon codicon-attach ingot-composer-attach' id='ingot-composer-attach' title='Attach images' aria-label='Attach images'>
                     <input type='file' accept='image/png,image/jpeg,image/gif,image/webp' multiple hidden onChange={e => this.attachImages(e.currentTarget)} />
                 </label>
+                {this.renderMic()}
                 {this.renderModePill()}
                 {this.renderModelPill()}
                 <span className='ingot-flex' />
@@ -769,13 +784,48 @@ export class IngotAgentsWidget extends ReactWidget {
             // Nothing sent yet: no ring (an empty ring reads as a spinner).
             return undefined;
         }
-        return <span id='ingot-context-ring' className={`ingot-context-ring${ratio >= CONTEXT_NEAR_FULL ? ' near-full' : ''}`} data-ratio={ratio.toFixed(3)}
-            title={usage ? usageBreakdown(usage) : 'Context usage appears after the first message'} aria-label={`Context ${Math.round(ratio * 100)}% used`}>
-            <svg width='18' height='18' viewBox='0 0 18 18'>
-                <circle cx='9' cy='9' r={r} className='ingot-ring-track' />
-                <circle cx='9' cy='9' r={r} className='ingot-ring-value' strokeDasharray={`${c * ratio} ${c}`} transform='rotate(-90 9 9)' />
-            </svg>
+        const current = this.store.current!;
+        return <span className='ingot-pill-anchor'>
+            <button type='button' id='ingot-context-ring' className={`ingot-context-ring${ratio >= CONTEXT_NEAR_FULL ? ' near-full' : ''}`} data-ratio={ratio.toFixed(3)}
+                title={`Context: ${formatTokens(usage.total)} of ${formatTokens(usage.window)} tokens (${Math.round(ratio * 100)}%) · click for details`} aria-label={`Context ${Math.round(ratio * 100)}% used`} aria-haspopup='dialog' aria-expanded={this.popover === 'context'}
+                onClick={() => { this.popover = this.popover === 'context' ? undefined : 'context'; this.update(); }}>
+                <svg width='18' height='18' viewBox='0 0 18 18'>
+                    <circle cx='9' cy='9' r={r} className='ingot-ring-track' />
+                    <circle cx='9' cy='9' r={r} className='ingot-ring-value' strokeDasharray={`${c * ratio} ${c}`} transform='rotate(-90 9 9)' />
+                </svg>
+            </button>
+            {this.popover === 'context' && <ContextBreakdown usage={usage} segments={contextSegments(usage, messageWeights(current.messages))}
+                busy={this.store.isRunning(current.id) || current.status === 'thinking'} onClose={() => this.closePopover()}
+                onCompact={() => { this.closePopover(); this.store.compact(current.id); }}
+                onNewWithSummary={() => { this.closePopover(); this.store.summarizeAndContinue(current.id); }} />}
         </span>;
+    }
+
+    /** Voice dictation (IDEA-98): live transcript where the Web Speech API works, otherwise record and transcribe. */
+    protected renderMic(): React.ReactNode {
+        const state = this.dictationState;
+        const label = state === 'listening' ? 'Stop dictation' : state === 'transcribing' ? 'Transcribing…' : 'Dictate';
+        return <>
+            <button type='button' id='ingot-composer-mic' className={`ingot-icon-button ingot-composer-mic codicon ${state === 'transcribing' ? 'codicon-loading codicon-modifier-spin' : 'codicon-mic'}${state === 'listening' ? ' listening' : ''}`}
+                data-state={state} title={label} aria-label={label} aria-pressed={state === 'listening'} disabled={state === 'transcribing'}
+                onClick={() => this.toggleDictation()} />
+            {this.dictationInterim && <span id='ingot-dictation-interim' className='ingot-dictation-interim ingot-dim'>{this.dictationInterim}</span>}
+        </>;
+    }
+
+    protected toggleDictation(): void {
+        this.dictation ??= new Dictation({
+            interim: text => { this.dictationInterim = text; this.update(); },
+            final: text => {
+                const value = text.trim();
+                if (value) {
+                    this.inline?.insertText(this.inline.empty ? value : ` ${value}`);
+                }
+            },
+            state: state => { this.dictationState = state; if (state === 'idle') { this.dictationInterim = ''; } this.update(); },
+            error: message => this.messages.warn(message)
+        }, (audio, mime) => this.models.transcribe(audio, mime));
+        this.dictation.toggle();
     }
 
     protected renderSummarize(): React.ReactNode {

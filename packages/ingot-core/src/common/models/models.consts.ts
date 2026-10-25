@@ -63,3 +63,8 @@ export const AGENT_SYSTEM_PROMPTS = {
 } as const;
 
 export const AUTOCOMPLETE_SYSTEM_PROMPT = 'You are a code completion engine. Continue the code at <CURSOR>. Reply with only the text to insert at the cursor: no explanations, no markdown fences, no repetition of the existing code.';
+
+/** Speech-to-text for composer dictation (IDEA-98): OpenAI-compatible transcription endpoint and model. */
+export const TRANSCRIBE_PATH = '/audio/transcriptions';
+export const TRANSCRIBE_MODEL = 'gpt-4o-mini-transcribe';
+export const MAX_DICTATION_BYTES = 20 * 1024 * 1024;

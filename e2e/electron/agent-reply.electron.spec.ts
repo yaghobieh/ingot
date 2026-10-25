@@ -120,4 +120,100 @@ test.describe('IDEA-100 agent replies (desktop)', () => {
             .filter(Boolean).join(' '));
         expect(order).toBe('explain [chip] please');
     });
+
+    test('the composer claims drags so the desktop app allows the drop (workbench marks document drags as no-drop)', async () => {
+        const { page } = desktop;
+        if (!await composer(page).isVisible()) {
+            await page.locator('#ingot-rs-agents').click();
+        }
+        const result = await composer(page).evaluate(el => {
+            let reachedDocument = false;
+            const spy = (): void => { reachedDocument = true; };
+            document.addEventListener('dragover', spy);
+            const data = new DataTransfer();
+            data.setData('text/plain', 'x');
+            const event = new DragEvent('dragover', { dataTransfer: data, bubbles: true, cancelable: true });
+            el.dispatchEvent(event);
+            document.removeEventListener('dragover', spy);
+            return { accepted: event.defaultPrevented, reachedDocument };
+        });
+        // Accepted, and never reaches the workbench handler that resets dropEffect to "none".
+        expect(result).toEqual({ accepted: true, reachedDocument: false });
+    });
+
+    test('dragging a file from the explorer tree drops an inline chip at the caret', async () => {
+        const { page } = desktop;
+        if (!await composer(page).isVisible()) {
+            await page.locator('#ingot-rs-agents').click();
+        }
+        await composer(page).click();
+        await page.keyboard.type('explain  please');
+        const src = page.locator('#explorer-view-container .theia-TreeNode', { hasText: 'src' }).first();
+        if (!await src.isVisible()) {
+            await page.locator('#shell-tab-explorer-view-container').click();
+        }
+        await src.click();
+        const node = page.locator('#explorer-view-container .theia-TreeNode', { hasText: 'cart.ts' }).first();
+        await expect(node).toBeVisible();
+        const target = await composer(page).evaluate(el => {
+            const range = document.createRange();
+            range.setStart(el.firstChild as Text, 'explain '.length);
+            const r = range.getBoundingClientRect();
+            const box = el.getBoundingClientRect();
+            return { x: r.left - box.left + 1, y: r.top - box.top + 4 };
+        });
+        await node.dragTo(composer(page), { targetPosition: target });
+        const chip = composer(page).locator('.ingot-chip-file');
+        await expect(chip).toHaveCount(1);
+        await expect(chip.locator('.ingot-chip-label')).toHaveText('cart.ts');
+        const text = await composer(page).evaluate(el => Array.from(el.childNodes)
+            .map(n => n instanceof HTMLElement && n.dataset.chipId ? '[chip]' : (n.textContent ?? '').replace(/\u00a0/g, ' ').trim())
+            .filter(Boolean).join(' '));
+        expect(text).toBe('explain [chip] please');
+    });
+
+    test('dropping a file from Finder (OS files) inserts a file chip', async () => {
+        const { page } = desktop;
+        if (!await composer(page).isVisible()) {
+            await page.locator('#ingot-rs-agents').click();
+        }
+        await composer(page).click();
+        await page.keyboard.type('read ');
+        await composer(page).evaluate(el => {
+            const box = el.getBoundingClientRect();
+            const data = new DataTransfer();
+            data.items.add(new File(['# Notes\nship it\n'], 'notes.md', { type: 'text/markdown' }));
+            const at = { clientX: box.right - 4, clientY: box.top + 8 };
+            el.dispatchEvent(new DragEvent('dragenter', { dataTransfer: data, bubbles: true, cancelable: true, ...at }));
+            el.dispatchEvent(new DragEvent('dragover', { dataTransfer: data, bubbles: true, cancelable: true, ...at }));
+            el.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true, ...at }));
+        });
+        await expect(composer(page).locator('.ingot-chip-file .ingot-chip-label')).toHaveText('notes.md');
+    });
+
+    test('context ring opens a breakdown with compact and new-chat actions; mic button is present', async () => {
+        const { page } = desktop;
+        await connectOllama(page, server);
+        if (!await composer(page).isVisible()) {
+            await page.locator('#ingot-rs-agents').click();
+        }
+        await expect(page.locator('#ingot-composer-mic')).toBeVisible();
+        await pickModel(page, 'ollama-local');
+        await composer(page).click();
+        await page.keyboard.type('how do branches work here');
+        await page.keyboard.press('Enter');
+        await expect(page.locator('.ingot-chat-agent .ingot-md').last()).toContainText('Branching model');
+        await page.locator('#ingot-context-ring').click();
+        const pop = page.locator('#ingot-context-popover');
+        await expect(pop).toBeVisible();
+        for (const id of ['system', 'rules', 'files', 'history', 'tools', 'memories']) {
+            await expect(pop.locator(`#ingot-context-${id}`)).toBeVisible();
+        }
+        await expect(pop.locator('#ingot-context-total')).toContainText('%');
+        if (process.env.INGOT_SHOTS) {
+            await page.screenshot({ path: path.join(process.env.INGOT_SHOTS, '13-context-popover.png') });
+        }
+        await pop.locator('#ingot-context-compact').click();
+        await expect(page.locator('.ingot-chat-agent .ingot-md').first()).toContainText('Conversation compacted');
+    });
 });

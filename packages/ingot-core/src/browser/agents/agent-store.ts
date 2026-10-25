@@ -661,12 +661,8 @@ export class AgentStore {
         });
     }
 
-    /** Starts a new chat seeded with a summary of this one (context nearly full). */
-    async summarizeAndContinue(sessionId: string): Promise<AgentSession | undefined> {
-        const session = this.items.find(s => s.id === sessionId);
-        if (!session) {
-            return undefined;
-        }
+    /** A summary of a chat for continuing it with less context (model summary, or the last requests as a fallback). */
+    protected async summaryOf(session: AgentSession): Promise<string> {
         const model = this.resolveModel(session.model);
         let summary = '';
         if (this.models.isModelConfigured(model)) {
@@ -682,14 +678,41 @@ export class AgentStore {
         if (!summary.trim()) {
             summary = session.messages.filter(m => m.role === 'user').slice(-6).map(m => `- ${m.text}`).join('\n');
         }
+        return summary.trim();
+    }
+
+    /** Starts a new chat seeded with a summary of this one (context nearly full). */
+    async summarizeAndContinue(sessionId: string): Promise<AgentSession | undefined> {
+        const session = this.items.find(s => s.id === sessionId);
+        if (!session) {
+            return undefined;
+        }
+        const summary = await this.summaryOf(session);
         const next = this.create(`${session.title} (continued)`);
         next.mode = session.mode;
         next.model = session.model;
-        next.messages.push({ role: 'agent', text: `Summary of “${session.title}”:\n${summary.trim()}` });
+        next.messages.push({ role: 'agent', text: `Summary of “${session.title}”:\n${summary}` });
         this.closeTab(session.id);
         this.selected = next.id;
         this.changed();
         return next;
+    }
+
+    /** Compacts a chat in place (IDEA-98): its history becomes one summary message, freeing the context window. */
+    async compact(sessionId: string): Promise<AgentSession | undefined> {
+        const session = this.items.find(s => s.id === sessionId);
+        if (!session || !session.messages.length) {
+            return session;
+        }
+        const summary = await this.summaryOf(session);
+        session.messages.splice(0, session.messages.length, { role: 'agent', text: `Conversation compacted. Summary so far:\n${summary}` });
+        session.steps = [];
+        if (session.context) {
+            const history = estimateTokens(summary);
+            session.context = { ...session.context, usage: session.context.usage && contextUsage({ ...session.context.usage, history }, session.context.usage.window) };
+        }
+        this.changed();
+        return session;
     }
 
     changed(): void {

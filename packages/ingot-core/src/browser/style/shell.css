@@ -866,3 +866,32 @@ body.ingot-explorer-collapsed #explorer-view-container > .lm-SplitPanel { visibi
 .ingot-chat-read-list { list-style: none; margin: 0; padding: 2px 10px 8px 28px; display: flex; flex-direction: column; gap: 3px; color: var(--theia-foreground); }
 .ingot-chat-read-list li { display: flex; align-items: center; gap: 6px; }
 .ingot-chat-read-list .codicon { font-size: 12px; color: var(--theia-descriptionForeground); }
+.ingot-composer-input.drop-target { outline: 1px dashed var(--ingot-primary, var(--theia-focusBorder)); outline-offset: 2px; border-radius: 4px; }
+
+/* IDEA-98: voice dictation + context ring breakdown */
+.ingot-composer-mic { position: relative; }
+.ingot-composer-mic.listening { color: #fff; background: #E5484D; border-radius: 50%; animation: ingot-mic-pulse 1.2s ease-in-out infinite; }
+@keyframes ingot-mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #E5484D 50%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+.ingot-dictation-interim { max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-style: italic; }
+button.ingot-context-ring { border: 0; background: transparent; padding: 0; cursor: pointer; border-radius: 50%; color: inherit; }
+button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true'] { background: var(--theia-toolbar-hoverBackground); opacity: 1; }
+.ingot-context-popover { right: 0; left: auto; bottom: calc(100% + 6px); top: auto; width: 290px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
+.ingot-context-head { display: flex; align-items: baseline; }
+.ingot-context-title { font-weight: 600; }
+.ingot-context-total { font-variant-numeric: tabular-nums; opacity: .8; }
+.ingot-context-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--theia-panel-border); }
+.ingot-context-seg { height: 100%; }
+.ingot-context-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ingot-context-row { display: flex; align-items: center; gap: 8px; }
+.ingot-context-tokens { font-variant-numeric: tabular-nums; opacity: .8; }
+.ingot-context-dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.seg-system { background: #6E8BFF; }
+.seg-rules { background: #B57BFF; }
+.seg-files { background: #3DB9CF; }
+.seg-history { background: #46A758; }
+.seg-tools { background: #E3B341; }
+.seg-memories { background: #F76B8A; }
+.ingot-context-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; border-top: 1px solid var(--theia-panel-border); padding-top: 8px; }
+.ingot-btn-secondary { border: 1px solid var(--theia-panel-border); background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; padding: 3px 10px; border-radius: 5px; display: inline-flex; align-items: center; gap: 4px; }
+.ingot-btn-secondary:hover { background: var(--theia-toolbar-hoverBackground); }
+.ingot-context-actions .ingot-btn-primary { display: inline-flex; align-items: center; gap: 4px; }
