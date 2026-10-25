@@ -1,0 +1,6 @@
+---
+description: TypeScript style
+globs: "**/*.ts"
+alwaysApply: false
+---
+Use explicit return types. CURSOR-TS-MARKER

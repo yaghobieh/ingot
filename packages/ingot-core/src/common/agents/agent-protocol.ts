@@ -4,6 +4,7 @@
  */
 export const EDIT_OPEN = '<<<EDIT ';
 export const EDIT_CLOSE = '>>>END';
+export const TOOL_OPEN = '<<<TOOL ';
 
 export const AGENT_PROTOCOL = [
     'You can change files in the user\'s project. To change a file, output the COMPLETE new file content in a block:',
@@ -23,11 +24,29 @@ export interface AgentEdit {
     readonly content: string;
 }
 
+export interface AgentToolCall {
+    readonly server: string;
+    readonly tool: string;
+    readonly args: Record<string, unknown>;
+}
+
+/** Describes the MCP tools the agent may call with `<<<TOOL server/tool` blocks. */
+export const toolProtocol = (tools: readonly { server: string; name: string; description?: string; inputSchema?: unknown }[]): string =>
+    tools.length ? [
+        'You can call these tools. To call one, output a block and STOP; the result comes back in the next message:',
+        `${TOOL_OPEN}server/tool`,
+        '{"json": "arguments"}',
+        EDIT_CLOSE,
+        'Tools:',
+        ...tools.map(t => `- ${t.server}/${t.name}: ${t.description ?? ''}${t.inputSchema ? ` Input schema: ${JSON.stringify(t.inputSchema)}` : ''}`)
+    ].join('\n') : '';
+
 export interface ParsedAgentOutput {
     /** Text to show in the conversation (edit blocks and plan removed). */
     readonly display: string;
     readonly plan: readonly string[];
     readonly edits: readonly AgentEdit[];
+    readonly toolCalls: readonly AgentToolCall[];
     /** Path of an edit block that is still streaming. */
     readonly editing?: string;
 }
@@ -35,30 +54,47 @@ export interface ParsedAgentOutput {
 /** Parses (possibly partial, streaming) agent output. */
 export const parseAgentOutput = (text: string): ParsedAgentOutput => {
     const edits: AgentEdit[] = [];
+    const toolCalls: AgentToolCall[] = [];
     let display = '';
     let editing: string | undefined;
     let rest = text;
     for (;;) {
-        const start = rest.indexOf(EDIT_OPEN);
+        const editAt = rest.indexOf(EDIT_OPEN);
+        const toolAt = rest.indexOf(TOOL_OPEN);
+        const isTool = toolAt >= 0 && (editAt < 0 || toolAt < editAt);
+        const start = isTool ? toolAt : editAt;
         if (start < 0) {
             display += rest;
             break;
         }
         display += rest.slice(0, start);
-        const afterOpen = rest.slice(start + EDIT_OPEN.length);
+        const afterOpen = rest.slice(start + (isTool ? TOOL_OPEN : EDIT_OPEN).length);
         const lineEnd = afterOpen.indexOf('\n');
         if (lineEnd < 0) {
-            editing = afterOpen.trim() || undefined;
+            editing = isTool ? undefined : afterOpen.trim() || undefined;
             break;
         }
-        const path = afterOpen.slice(0, lineEnd).trim();
+        const target = afterOpen.slice(0, lineEnd).trim();
         const body = afterOpen.slice(lineEnd + 1);
         const end = body.indexOf(EDIT_CLOSE);
         if (end < 0) {
-            editing = path;
+            editing = isTool ? undefined : target;
             break;
         }
-        edits.push({ path, content: body.slice(0, end).replace(/\n$/, '') + '\n' });
+        const content = body.slice(0, end);
+        if (isTool) {
+            const [server, ...toolParts] = target.split('/');
+            let args: Record<string, unknown> = {};
+            try {
+                const parsed = JSON.parse(content.trim() || '{}');
+                args = parsed && typeof parsed === 'object' ? parsed : {};
+            } catch {
+                args = {};
+            }
+            toolCalls.push({ server, tool: toolParts.join('/'), args });
+        } else {
+            edits.push({ path: target, content: content.replace(/\n$/, '') + '\n' });
+        }
         rest = body.slice(end + EDIT_CLOSE.length);
     }
     const plan: string[] = [];
@@ -72,7 +108,7 @@ export const parseAgentOutput = (text: string): ParsedAgentOutput => {
         }
         lines.splice(planAt, i - planAt);
     }
-    return { display: lines.join('\n').replace(/\n{3,}/g, '\n\n').trim(), plan, edits, editing };
+    return { display: lines.join('\n').replace(/\n{3,}/g, '\n\n').trim(), plan, edits, toolCalls, editing };
 };
 
 /** `@path/to/file` mentions in a prompt. */

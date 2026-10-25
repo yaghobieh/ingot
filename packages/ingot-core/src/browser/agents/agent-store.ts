@@ -14,6 +14,12 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
 import URI from '@theia/core/lib/common/uri';
 import { AgentEditReview } from './agent-edit-review';
+import { ProjectConfigService } from '../project-config/project-config-service';
+import { IngotMcpClient } from '../project-config/mcp-client';
+import { applicableRules, expandCommand, formatRules } from '../../common/project-config/project-config.utils';
+import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
+import type { ProjectCommand } from '../../common/project-config/project-config.types';
+import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 
 let nextId = 1;
 
@@ -29,7 +35,17 @@ export class AgentStore {
     @inject(FileService) protected readonly files: FileService;
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(AgentEditReview) protected readonly review: AgentEditReview;
+    @inject(ProjectConfigService) protected readonly projectConfig: ProjectConfigService;
+    @inject(IngotMcpClient) protected readonly mcp: IngotMcpClient;
     protected readonly running = new Map<string, () => void>();
+    /** Project /commands and skills for the composer menu (refreshed by `loadCommands`). */
+    projectCommands: readonly ProjectCommand[] = [];
+
+    async loadCommands(): Promise<void> {
+        const root = this.current ? this.rootFor(this.current) : this.workspace.tryGetRoots()[0]?.resource;
+        this.projectCommands = (await this.projectConfig.load(root)).commands;
+        this.changed();
+    }
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
@@ -158,6 +174,8 @@ export class AgentStore {
     /** Stops a streaming agent (Stop button / Escape). */
     stop(id: string): void {
         this.running.get(id)?.();
+        this.running.delete(id);
+        this.changed();
     }
 
     /** Root the agent works in: its project (groups) or the first workspace root. */
@@ -169,7 +187,7 @@ export class AgentStore {
         return root?.resource;
     }
 
-    protected async readContext(session: AgentSession, prompt: string, root: URI | undefined): Promise<string> {
+    protected async readContext(session: AgentSession, prompt: string, root: URI | undefined): Promise<{ text: string; paths: string[] }> {
         const files: { path: string; content: string }[] = [];
         const seen = new Set<string>();
         const add = async (uri: URI): Promise<void> => {
@@ -194,27 +212,93 @@ export class AgentStore {
                 await add(root.resolve(mention));
             }
         }
-        return files.length ? `Project files for context:\n\n${formatContextFiles(files)}` : '';
+        return { text: files.length ? `Project files for context:\n\n${formatContextFiles(files)}` : '', paths: files.map(f => f.path) };
     }
 
-    /** Streams the conversation from the selected model; in Agent mode, proposed edits open in the inline review. */
+    protected historyFor(session: AgentSession): ChatMessage[] {
+        return session.messages
+            .filter(m => m.role !== 'system' && (m.role !== 'agent' || m.text))
+            .map(m => {
+                if (m.role === 'agent') {
+                    return { role: 'assistant' as const, content: m.expanded ?? m.text };
+                }
+                if (m.role === 'peer') {
+                    return { role: 'user' as const, content: `${m.from}: ${m.text}` };
+                }
+                if (m.role === 'tool') {
+                    return { role: 'user' as const, content: `Tool result (${m.from}):\n${m.expanded ?? m.text}` };
+                }
+                return { role: 'user' as const, content: m.expanded ?? m.text };
+            });
+    }
+
+    /**
+     * Streams the conversation from the selected model with project rules, context files and MCP tools.
+     * Tool calls run and feed back for up to MAX_TOOL_ROUNDS rounds; in Agent mode, edits open in the inline review.
+     */
     protected async runModel(session: AgentSession): Promise<void> {
         const root = this.rootFor(session);
-        const prompt = [...session.messages].reverse().find(m => m.role === 'user')?.text ?? '';
-        const history: ChatMessage[] = session.messages
-            .filter(m => m.role !== 'system')
-            .map(m => ({ role: m.role === 'agent' ? 'assistant' as const : 'user' as const, content: m.role === 'peer' ? `${m.from}: ${m.text}` : m.text }));
+        const config = await this.projectConfig.load(root);
+        this.projectCommands = config.commands;
+        const lastUser = session.messages.map((m, i) => ({ m, i })).reverse().find(x => x.m.role === 'user');
+        if (lastUser && lastUser.m.text.startsWith('/')) {
+            const expansion = expandCommand(lastUser.m.text, config.commands);
+            if (expansion) {
+                session.messages[lastUser.i] = { ...lastUser.m, expanded: expansion.text };
+                session.steps = [{ kind: 'run', target: `/${expansion.command.name}`, done: true }];
+            }
+        }
+        const prompt = lastUser ? (session.messages[lastUser.i].expanded ?? lastUser.m.text) : '';
         const context = await this.readContext(session, prompt, root);
-        const system = [AGENT_SYSTEM_PROMPTS[session.mode], session.mode === 'agent' ? AGENT_PROTOCOL : '', context].filter(Boolean).join('\n\n');
-        const index = session.messages.push({ role: 'agent', text: '' }) - 1;
-        session.steps = context ? [{ kind: 'read', target: 'context', done: true }] : [];
+        const rules = applicableRules(config.rules, context.paths);
+        const tools = this.mcp.connectedTools;
+        const system = [
+            AGENT_SYSTEM_PROMPTS[session.mode], session.mode === 'agent' ? AGENT_PROTOCOL : '', toolProtocol(tools), formatRules(rules), context.text
+        ].filter(Boolean).join('\n\n');
+        session.steps = [
+            ...(session.steps.filter(s => s.kind === 'run' && s.target.startsWith('/'))),
+            ...(context.paths.length ? [{ kind: 'read' as const, target: context.paths.join(', '), done: true }] : []),
+            ...(rules.length ? [{ kind: 'read' as const, target: `rules: ${rules.map(r => r.name).join(', ')}`, done: true }] : [])
+        ];
         session.changes = [];
+        this.changed();
+
+        for (let round = 0; ; round++) {
+            const parsed = await this.streamRound(session, system);
+            if (!parsed) {
+                return;
+            }
+            if (parsed.toolCalls.length && round < MAX_TOOL_ROUNDS) {
+                await this.runTools(session, parsed.toolCalls);
+                continue;
+            }
+            if (session.mode === 'agent' && parsed.edits.length) {
+                await this.applyEdits(session, parsed.edits, root);
+            } else {
+                session.plan = session.plan.map(p => ({ ...p, state: session.mode === 'plan' ? 'todo' : 'done' }));
+                session.status = 'idle';
+            }
+            session.activeFile = undefined;
+            session.updatedAt = Date.now();
+            this.changed();
+            return;
+        }
+    }
+
+    /** One streamed model reply; returns the parsed output, or undefined after an error. */
+    protected async streamRound(session: AgentSession, system: string): Promise<ReturnType<typeof parseAgentOutput> | undefined> {
+        const history = this.historyFor(session);
+        const index = session.messages.push({ role: 'agent', text: '' }) - 1;
+        session.status = 'thinking';
+        this.changed();
         let final = '';
         try {
             const stream = this.models.stream(session.model, [{ role: 'system', content: system }, ...history], text => {
                 const parsed = parseAgentOutput(text);
                 session.messages[index] = { role: 'agent', text: parsed.display };
-                session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
+                if (parsed.plan.length) {
+                    session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
+                }
                 session.status = parsed.editing ? 'editing' : 'thinking';
                 session.activeFile = parsed.editing ?? parsed.edits[parsed.edits.length - 1]?.path;
                 session.updatedAt = Date.now();
@@ -228,20 +312,30 @@ export class AgentStore {
             this.running.delete(session.id);
             session.updatedAt = Date.now();
             this.changed();
-            return;
+            return undefined;
         }
+        const stopped = !this.running.has(session.id);
         this.running.delete(session.id);
         const parsed = parseAgentOutput(final);
-        session.messages[index] = { role: 'agent', text: parsed.display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : '(empty reply)') };
-        if (session.mode === 'agent' && parsed.edits.length) {
-            await this.applyEdits(session, parsed.edits, root);
-        } else {
-            session.plan = session.plan.map(p => ({ ...p, state: session.mode === 'plan' ? 'todo' : 'done' }));
-            session.status = 'idle';
+        // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
+        session.messages[index] = {
+            role: 'agent', expanded: final,
+            text: parsed.display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)')
+        };
+        return stopped ? { ...parsed, toolCalls: [], edits: [] } : parsed;
+    }
+
+    protected async runTools(session: AgentSession, calls: readonly AgentToolCall[]): Promise<void> {
+        for (const call of calls) {
+            const target = `${call.server}/${call.tool}`;
+            session.steps = [...session.steps, { kind: 'run', target, done: false }];
+            session.status = 'thinking';
+            this.changed();
+            const result = await this.mcp.callTool(call.server, call.tool, call.args);
+            session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
+            session.messages.push({ role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}` });
+            this.changed();
         }
-        session.activeFile = undefined;
-        session.updatedAt = Date.now();
-        this.changed();
     }
 
     /** Opens each edit in the inline review, one after another; accepted edits are saved to disk. */

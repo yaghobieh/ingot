@@ -9,6 +9,10 @@ import { ModelService } from '../common/models/models.types';
 import { WorkspaceFileService } from '@theia/workspace/lib/common/workspace-file-service';
 import { IngotWorkspaceFileService } from '../common/workspace/ingot-workspace-file-service';
 
+import { IngotMcpService } from './ingot-mcp-service';
+import { MCP_SERVICE_PATH } from '../common/project-config/project-config.consts';
+import { McpService } from '../common/project-config/project-config.types';
+
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
     rebind(WorkspaceFileService).toService(IngotWorkspaceFileService);
@@ -17,5 +21,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(PORTS_SERVICE_PATH, () => ctx.container.get<PortsService>(PortsService))).inSingletonScope();
     bind(IngotModelService).toSelf().inSingletonScope();
     bind(ModelService).toService(IngotModelService);
+    bind(IngotMcpService).toSelf().inSingletonScope();
+    bind(McpService).toService(IngotMcpService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(MCP_SERVICE_PATH, () => ctx.container.get<McpService>(McpService))).inSingletonScope();
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(MODEL_SERVICE_PATH, () => ctx.container.get<ModelService>(ModelService))).inSingletonScope();
 });

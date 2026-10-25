@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "calc": {
+      "command": "node",
+      "args": ["../mcp/calc-server.mjs"],
+      "env": { "CALC_MODE": "e2e" }
+    }
+  }
+}
