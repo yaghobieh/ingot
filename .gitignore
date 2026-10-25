@@ -7,7 +7,7 @@ ingot.config.json
 *.key
 
 # deps / build
-node_modules/
+node_modules
 dist/
 out/
 lib/
