@@ -75,6 +75,8 @@ import { IngotCommitContribution, createDiffWidgetFactory } from './commit/commi
 import { LocalChangesModel } from './commit/local-changes-model';
 import { LocalChangesWidget } from './commit/local-changes-widget';
 import { IngotDiffWidget } from './commit/ingot-diff-widget';
+import { IngotMergeWidget } from './merge/merge-tool-widget';
+import { IngotMergeContribution, createMergeWidgetFactory } from './merge/merge-contribution';
 import { LOCAL_CHANGES_WIDGET_ID } from './commit/commit.consts';
 import { GIT_LOG_WIDGET_ID } from './git/git.browser-consts';
 import { IngotSettingsDialog } from './settings/ingot-settings-dialog';
@@ -126,6 +128,15 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         return widget;
     })).inSingletonScope();
     bindViewContribution(bind, IngotCommitContribution);
+    bind(IngotMergeWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => createMergeWidgetFactory(options => {
+        const widget = ctx.container.get(IngotMergeWidget);
+        widget.init(options);
+        return widget;
+    })).inSingletonScope();
+    bind(IngotMergeContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(IngotMergeContribution);
+    bind(KeybindingContribution).toService(IngotMergeContribution);
     bind(IngotFileMenusContribution).toSelf().inSingletonScope();
     for (const id of [CommandContribution, MenuContribution, KeybindingContribution, FrontendApplicationContribution]) {
         bind(id).toService(IngotFileMenusContribution);
