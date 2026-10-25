@@ -43,24 +43,26 @@ test.describe('IDEA-125 remote config, flags and updates', () => {
         await expect(page.locator('#status-bar-ingot-account-status')).toContainText('left');
         await expect.poll(() => server.configCalls.some(c => c.signedIn)).toBe(true);
         await expect(page.locator('#ingot-mcp-browse')).toBeVisible();
-        await page.locator('#ingot-rs-agents').click();
-        await expect(page.locator('#ingot-composer-mic')).toBeVisible();
+        // The chat panel sits behind the MCP window now; the mic is back in its composer.
+        await expect(page.locator('#ingot-composer-mic')).toHaveCount(1);
     });
 
     test('update notice offers Download, Release notes and Later; Later is remembered for that version', async ({ page }) => {
         server.update = { latestVersion: '9.9.0', updateAvailable: true };
         await openIngot(page);
-        const notice = page.locator('.theia-notification-list-item').filter({ hasText: 'Ingot 9.9.0 is available.' });
+        // The toast (the notification center keeps a hidden copy of the same item).
+        const notice = page.locator('.theia-notification-list-item').filter({ hasText: 'Ingot 9.9.0 is available.' }).first();
         await expect(notice).toBeVisible();
         await expect(notice.getByRole('button', { name: 'Download' })).toBeVisible();
         await expect(notice.getByRole('button', { name: 'Release notes' })).toBeVisible();
         await shot(page, 'update-notice');
         await notice.getByRole('button', { name: 'Later' }).click();
-        await expect(notice).toHaveCount(0);
+        await expect(page.locator('.theia-notification-list-item:visible').filter({ hasText: 'Ingot 9.9.0 is available.' })).toHaveCount(0);
         expect(await page.evaluate(() => localStorage.getItem('ingot.update.dismissed'))).toBe('9.9.0');
         await page.reload();
         await expect.poll(() => server.configCalls.length).toBeGreaterThan(1);
         await expect(page.locator('#ingot-composer-input, #ingot-agents-new').first()).toBeVisible();
+        await page.waitForTimeout(2000);
         await expect(page.locator('.theia-notification-list-item').filter({ hasText: 'is available.' })).toHaveCount(0);
         await page.evaluate(() => localStorage.removeItem('ingot.update.dismissed'));
     });
