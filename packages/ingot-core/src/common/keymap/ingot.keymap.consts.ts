@@ -92,6 +92,7 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     // Version control (IDEA-74)
     { action: 'Commit…', command: 'ingot.commit.open', mac: 'ctrlcmd+k', other: 'ctrl+k' },
     { action: 'Push…', command: 'ingot.commit.push', mac: 'ctrlcmd+shift+k', other: 'ctrl+shift+k' },
+    { action: 'Annotate with Git Blame', command: 'ingot.annotate.toggle', mac: 'ctrlcmd+alt+shift+b', other: 'ctrl+alt+shift+b', when: EDITOR },
     { action: 'Commit Message History', command: 'ingot.commit.messageHistory', mac: 'ctrlcmd+alt+h', other: 'ctrl+alt+h', when: 'ingotLocalChangesFocus' },
     // Agent chat (IDEA-65)
     { action: 'Add Selection to Agent Chat', command: 'ingot.agents.addSelectionToChat', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: EDITOR },
