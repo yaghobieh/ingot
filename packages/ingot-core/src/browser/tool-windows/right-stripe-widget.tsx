@@ -4,6 +4,9 @@ import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
 import { CommandRegistry } from '@theia/core/lib/common/command';
 import { NotificationManager } from '@theia/messages/lib/browser/notifications-manager';
+import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-renderer';
+import { AGENTS_WIDGET_ID } from '../agents/agents.consts';
+import { LAYOUT_CONTEXT_MENU } from '../layout/layout.browser-consts';
 import { RIGHT_STRIPE_BOTTOM, RIGHT_STRIPE_ID, RIGHT_STRIPE_TOP, type RightStripeItem } from './tool-windows.consts';
 
 /** Slim icon stripe on the right edge: Settings, Notifications, Agents, Database, MCP, Services, History (IDEA-61). */
@@ -13,6 +16,7 @@ export class IngotRightStripeWidget extends ReactWidget {
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
     @inject(ApplicationShell) protected readonly shell: ApplicationShell;
     @inject(NotificationManager) protected readonly notifications: NotificationManager;
+    @inject(ContextMenuRenderer) protected readonly contextMenu: ContextMenuRenderer;
 
     protected notificationCount = 0;
 
@@ -77,12 +81,21 @@ export class IngotRightStripeWidget extends ReactWidget {
         }
     }
 
+    /** Right-click on the AI button: chat on the right or at the bottom (IDEA-85). */
+    protected openContextMenu(item: RightStripeItem, event: React.MouseEvent): void {
+        if (item.kind !== 'panel' || item.widgetId !== AGENTS_WIDGET_ID) {
+            return;
+        }
+        event.preventDefault();
+        this.contextMenu.render({ menuPath: LAYOUT_CONTEXT_MENU, anchor: { x: event.clientX, y: event.clientY }, context: event.currentTarget as HTMLElement });
+    }
+
     protected renderItem(item: RightStripeItem): React.ReactNode {
         const badge = item.kind === 'notifications' && this.notificationCount > 0 ? this.notificationCount : undefined;
         return <button key={item.id} id={`ingot-rs-${item.id}`} type='button' title={item.title} aria-label={item.title}
             aria-pressed={this.isSelected(item)}
             className={`ingot-rs-button ${this.isSelected(item) ? 'selected' : ''}`}
-            onClick={() => this.click(item)}>
+            onClick={() => this.click(item)} onContextMenu={e => this.openContextMenu(item, e)}>
             <span className={`codicon codicon-${item.icon}`} />
             {badge !== undefined && <span className='ingot-rs-badge'>{badge > 9 ? '9+' : badge}</span>}
         </button>;
