@@ -77,6 +77,10 @@ export class IngotModelClient {
         return this.service.test(provider, this.settings);
     }
 
+    transcribe(audioBase64: string, mimeType: string): Promise<string> {
+        return this.service.transcribe(audioBase64, mimeType);
+    }
+
     complete(modelId: string, messages: ChatMessage[], options: { maxTokens?: number; temperature?: number; stop?: string[] } = {}): Promise<CompletionResult> {
         return this.service.complete({ modelId, messages, ...options, settings: this.settings });
     }
