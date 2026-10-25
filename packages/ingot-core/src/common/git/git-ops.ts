@@ -63,7 +63,11 @@ export type GitOperation =
     /** Full message of HEAD (Amend). */
     | { kind: 'headMessage' }
     /** Commits on a branch that are not on HEAD (cherry-pick candidates). */
-    | { kind: 'logOnly'; branch: string };
+    | { kind: 'logOnly'; branch: string }
+    /** Merge conflicts (IDEA-33): one stage of an unmerged file (1 base, 2 ours, 3 theirs). */
+    | { kind: 'showStage'; stage: 1 | 2 | 3; path: string }
+    | { kind: 'checkoutSide'; side: 'ours' | 'theirs'; paths: string[] }
+    | { kind: 'conflicted' };
 
 export type GitOperationKind = GitOperation['kind'];
 
@@ -148,6 +152,9 @@ export const gitArgs = (op: GitOperation): string[] => {
         case 'outgoing': return ['log', '--max-count=500', `--format=${LOG_FORMAT}`, '--decorate=short', 'HEAD', '--not', ...(op.remoteRef ? [ref(op.remoteRef)] : ['--remotes']), '--'];
         case 'recentMessages': return ['log', '--max-count=30', '--format=%B%x1e'];
         case 'headMessage': return ['log', '-1', '--format=%B'];
+        case 'showStage': return ['show', `:${[1, 2, 3].includes(op.stage) ? op.stage : fail('Invalid stage.')}:${paths([op.path])[0]}`];
+        case 'checkoutSide': return ['checkout', op.side === 'theirs' ? '--theirs' : '--ours', '--', ...paths(op.paths)];
+        case 'conflicted': return ['diff', '--name-only', '--diff-filter=U', '-z'];
         case 'logOnly': return ['log', '--max-count=200', `--format=${LOG_FORMAT}`, '--decorate=short', branch(op.branch), '--not', 'HEAD', '--'];
     }
 };
