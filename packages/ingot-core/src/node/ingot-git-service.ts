@@ -1,6 +1,8 @@
 import { execFile } from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
+import { gitArgs, rewordTodo, type GitOperation, type GitOpResult } from '../common/git/git-ops';
 import { injectable } from '@theia/core/shared/inversify';
 import { BRANCH_FORMAT, LOG_FORMAT } from '../common/git/git.consts';
 import type { GitBlameLine, GitBranch, GitCommit, GitFileChange, GitService } from '../common/git/git.types';
@@ -13,14 +15,58 @@ const MAX_BUFFER = 16 * 1024 * 1024;
 @injectable()
 export class IngotGitService implements GitService {
 
-    protected git(root: string, args: string[]): Promise<string> {
+    protected git(root: string, args: string[], options: { env?: Record<string, string>; input?: string; timeout?: number } = {}): Promise<string> {
         if (!path.isAbsolute(root) || !fs.existsSync(root)) {
             return Promise.reject(new Error('Not a folder on this machine.'));
         }
         return new Promise((resolve, reject) => {
-            execFile('git', ['-c', 'core.quotepath=off', ...args], { cwd: root, timeout: GIT_TIMEOUT_MS, maxBuffer: MAX_BUFFER, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } },
-                (error, stdout, stderr) => error ? reject(new Error((stderr || error.message).trim().split('\n').pop())) : resolve(stdout));
+            const child = execFile('git', ['-c', 'core.quotepath=off', ...args],
+                { cwd: root, timeout: options.timeout ?? GIT_TIMEOUT_MS, maxBuffer: MAX_BUFFER, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...options.env } },
+                (error, stdout, stderr) => error ? reject(new Error((stderr || error.message).trim().split('\n').filter(Boolean).slice(-2).join(' '))) : resolve(stdout));
+            if (options.input !== undefined) {
+                child.stdin?.end(options.input);
+            }
         });
+    }
+
+    /** A small node script used as GIT_SEQUENCE_EDITOR / GIT_EDITOR for non-interactive rebases. */
+    protected editorScript(name: string, body: string): string {
+        const file = path.join(os.tmpdir(), `ingot-git-${process.pid}-${name}.js`);
+        fs.writeFileSync(file, body);
+        return `"${process.execPath}" "${file}"`;
+    }
+
+    async run(root: string, op: GitOperation): Promise<GitOpResult> {
+        const args = gitArgs(op);
+        const remoteTimeout = { timeout: 120_000 };
+        switch (op.kind) {
+            case 'apply':
+                return { output: await this.git(root, args, { input: op.patch }) };
+            case 'pull': case 'fetch': case 'push':
+                return { output: await this.git(root, args, remoteTimeout) };
+            case 'upstream':
+                return { output: (await this.git(root, args).catch(() => '')).trim() };
+            case 'isAncestorOfHead':
+                return { output: await this.git(root, args).then(() => 'yes', () => 'no') };
+            case 'reword': {
+                const head = (await this.git(root, ['rev-parse', 'HEAD'])).trim();
+                const target = (await this.git(root, ['rev-parse', op.commit])).trim();
+                if (head === target) {
+                    return { output: await this.git(root, ['commit', '--amend', '--only', '-m', op.message]) };
+                }
+                const short = (await this.git(root, ['rev-parse', '--short=7', target])).trim();
+                const sequence = this.editorScript('sequence', `const fs=require('fs');const f=process.argv[2];const t=fs.readFileSync(f,'utf8');fs.writeFileSync(f,(${rewordTodo.toString()})(t,process.env.INGOT_REWORD_SHORT));`);
+                const editor = this.editorScript('message', `require('fs').writeFileSync(process.argv[2],process.env.INGOT_REWORD_MESSAGE+'\\n');`);
+                return { output: await this.git(root, ['-c', `core.abbrev=7`, ...args], { env: { GIT_SEQUENCE_EDITOR: sequence, GIT_EDITOR: editor, INGOT_REWORD_SHORT: short, INGOT_REWORD_MESSAGE: op.message } }) };
+            }
+            case 'fixup': {
+                const out = await this.git(root, args);
+                const accept = this.editorScript('accept', '');
+                return { output: out + await this.git(root, ['rebase', '-i', '--autosquash', `${op.commit}~1`], { env: { GIT_SEQUENCE_EDITOR: accept, GIT_EDITOR: accept } }) };
+            }
+            default:
+                return { output: await this.git(root, args) };
+        }
     }
 
     async branches(root: string): Promise<GitBranch[]> {
