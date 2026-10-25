@@ -16,6 +16,8 @@ export const COMMIT_COMMANDS = {
     delete: c('delete', 'Delete'),
     toggle: c('toggleView', 'Commit tool window'),
     revertChunk: c('revertChunk', 'Revert Chunk'),
+    diffUndo: c('diffUndo', 'Undo in Diff'),
+    diffRedo: c('diffRedo', 'Redo in Diff'),
     ignoreChunk: c('ignoreChunk', 'Exclude Chunk from Commit'),
     revertFile: c('revertFile', 'Revert File…')
 } as const;

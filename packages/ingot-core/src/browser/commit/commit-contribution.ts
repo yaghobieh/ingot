@@ -69,6 +69,9 @@ export class IngotCommitContribution extends AbstractViewContribution<LocalChang
         registry.registerCommand(C.rollback, { execute: (arg?: unknown) => this.rollback(this.selection(arg)) });
         const diff = () => [this.appShell.activeWidget, this.appShell.currentWidget].find(w => w instanceof IngotDiffWidget) as IngotDiffWidget | undefined;
         registry.registerCommand(C.revertChunk, { execute: () => diff()?.revertChunk(), isEnabled: () => !!diff() });
+        // Undo / redo of the editable side (a chunk revert is one step) even when the workbench routes the key elsewhere.
+        registry.registerCommand(C.diffUndo, { execute: () => diff()?.undo(), isEnabled: () => !!diff() });
+        registry.registerCommand(C.diffRedo, { execute: () => diff()?.redo(), isEnabled: () => !!diff() });
         registry.registerCommand(C.ignoreChunk, { execute: () => diff()?.ignoreChunk(), isEnabled: () => !!diff() });
         registry.registerCommand(C.revertFile, { execute: () => { const d = diff(); return d ? this.rollback([d.path]) : undefined; }, isEnabled: () => !!diff() });
         registry.registerCommand(C.jumpToSource, {
@@ -134,6 +137,8 @@ export class IngotCommitContribution extends AbstractViewContribution<LocalChang
             { command: 'ingot.commit.submit', keybinding: 'ctrlcmd+enter', when },
             { command: COMMIT_COMMANDS.rollback.id, keybinding: 'ctrlcmd+alt+z', when },
             { command: COMMIT_COMMANDS.revertChunk.id, keybinding: 'ctrlcmd+alt+z', when: DIFF_FOCUS },
+            { command: COMMIT_COMMANDS.diffUndo.id, keybinding: 'ctrlcmd+z', when: DIFF_FOCUS },
+            { command: COMMIT_COMMANDS.diffRedo.id, keybinding: 'ctrlcmd+shift+z', when: DIFF_FOCUS },
             { command: COMMIT_COMMANDS.refresh.id, keybinding: 'ctrlcmd+r', when }
         );
     }
