@@ -144,7 +144,7 @@ test.describe('IDEA-77 chat redesign', () => {
         await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'debug');
     });
 
-    test('model picker: search, favorites, badges, Add key, Auto, Manage models', async ({ page }) => {
+    test('model picker: families with > arrow, search, favorites, no badges, Add key, Auto, Manage models', async ({ page }) => {
         await openIngot(page, project);
         await dismissNotifications(page);
         await connectOllama(page, server);
@@ -152,20 +152,33 @@ test.describe('IDEA-77 chat redesign', () => {
         await page.locator('#ingot-composer-model').click();
         const picker = page.locator('#ingot-model-picker');
         await expect(picker.locator('#ingot-pick-auto')).toBeVisible();
-        await expect(picker.locator('#ingot-pick-section-recommended')).toBeVisible();
-        await expect(picker.locator('#ingot-pick-section-local')).toContainText('Qwen2.5 Coder (local)');
-        const gpt = picker.locator('#ingot-pick-all-gpt-5');
-        await expect(gpt).toContainText('Thinking');
-        await expect(gpt).toContainText('400k');
+        // IDEA-91: one row per family with a '>' arrow; no speed / context / thinking / cost labels anywhere.
+        await expect(picker.locator('.ingot-pick-family')).toHaveText([/Claude/, /GPT/, /Gemini/, /DeepSeek/, /Routed/, /Local/]);
+        await expect(picker.locator('#ingot-pick-family-openai .codicon-chevron-right')).toBeVisible();
+        await expect(picker.locator('.ingot-pick-badge')).toHaveCount(0);
+        await expect(picker).not.toContainText(/Balanced|Thinking|\b1M\b|400k|200k|\$/);
+        // The picker fits inside the chat panel.
+        const panel = (await page.locator('#ingot-agents').boundingBox())!;
+        const pickerBox = (await picker.boundingBox())!;
+        expect(pickerBox.x).toBeGreaterThanOrEqual(panel.x);
+        expect(pickerBox.x + pickerBox.width).toBeLessThanOrEqual(panel.x + panel.width + 1);
+        await picker.locator('#ingot-pick-family-ollama').click();
+        await expect(picker.locator('#ingot-pick-sub-ollama')).toContainText('Qwen2.5 Coder (local)');
+        await expect(picker.locator('#ingot-pick-ollama-ollama-local .ingot-pick-addkey')).toHaveCount(0);
+        await picker.locator('#ingot-pick-back').click();
+        await expect(picker.locator('#ingot-pick-sub-ollama')).toHaveCount(0);
+        await picker.locator('#ingot-pick-family-openai').click();
+        const gpt = picker.locator('#ingot-pick-openai-gpt-5');
         await expect(gpt.locator('.ingot-pick-addkey')).toBeVisible();
-        await expect(picker.locator('#ingot-pick-local-ollama-local .ingot-pick-addkey')).toHaveCount(0);
         for (const brand of ['Anthropic', 'OpenAI', 'Google', 'Ollama', 'OpenRouter']) {
             await expect(picker).not.toContainText(brand);
         }
         await gpt.getByRole('button', { name: 'Favorite GPT-5' }).click();
+        await picker.locator('#ingot-pick-back').click();
         await expect(picker.locator('#ingot-pick-section-favorites')).toContainText('GPT-5');
         await picker.locator('#ingot-model-search').fill('gpt-5 m');
         await expect(picker.locator('.ingot-pick-row')).toHaveCount(1);
+        await expect(picker.locator('#ingot-pick-search-gpt-5-mini')).toBeVisible();
         await picker.locator('#ingot-model-search').fill('');
         await picker.locator('#ingot-pick-auto').click();
         await expect(page.locator('#ingot-composer-model')).toHaveText('Auto');
