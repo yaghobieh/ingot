@@ -6,7 +6,7 @@ import type { IconThemeService } from '@theia/core/lib/browser/icon-theme-servic
 import { Disposable, DisposableCollection } from '@theia/core/lib/common/disposable';
 import { Emitter } from '@theia/core/lib/common/event';
 import URI from '@theia/core/lib/common/uri';
-import { fileIconClasses, fileIconFor, INGOT_ICON_THEME_ID, INGOT_ICON_THEME_LABEL } from '../../common/icons/file-icons.utils';
+import { badgeClasses, fileIconClasses, fileIconFor, INGOT_BADGE_THEME_ID, INGOT_BADGE_THEME_LABEL, INGOT_ICON_THEME_ID, INGOT_ICON_THEME_LABEL } from '../../common/icons/file-icons.utils';
 
 interface FileLike { readonly resource: URI; readonly isDirectory?: boolean }
 
@@ -24,9 +24,10 @@ const asFile = (element: object): { name: string; isDirectory: boolean } | undef
 /** Ingot file icon theme: colored codicons per file kind (IDEA-36). */
 @injectable()
 export class IngotIconTheme implements IconTheme, IconThemeContribution, LabelProviderContribution {
-    readonly id = INGOT_ICON_THEME_ID;
-    readonly label = INGOT_ICON_THEME_LABEL;
-    readonly description = 'Colored codicons for files and folders';
+    readonly id: string = INGOT_ICON_THEME_ID;
+    readonly label: string = INGOT_ICON_THEME_LABEL;
+    readonly description: string = 'Colored codicons for files and folders';
+    protected readonly bodyClass: string = 'ingot-icon-theme';
     readonly hasFileIcons = true;
     readonly hasFolderIcons = true;
 
@@ -41,10 +42,10 @@ export class IngotIconTheme implements IconTheme, IconThemeContribution, LabelPr
     activate(): Disposable {
         if (this.toDeactivate.disposed) {
             this.toDeactivate = new DisposableCollection(Disposable.create(() => {
-                document.body.classList.remove('ingot-icon-theme');
+                document.body.classList.remove(this.bodyClass);
                 this.fire();
             }));
-            document.body.classList.add('ingot-icon-theme');
+            document.body.classList.add(this.bodyClass);
             this.fire();
         }
         return this.toDeactivate;
@@ -64,5 +65,23 @@ export class IngotIconTheme implements IconTheme, IconThemeContribution, LabelPr
     getIcon(element: object): string | undefined {
         const file = asFile(element);
         return file ? fileIconClasses(fileIconFor(file.name, file.isDirectory)) : undefined;
+    }
+}
+
+/** Ingot Badges (default, reference look): text badges like TS, JS or { } on tabs and tree, no folder icons. */
+@injectable()
+export class IngotBadgeIconTheme extends IngotIconTheme {
+    override readonly id: string = INGOT_BADGE_THEME_ID;
+    override readonly label: string = INGOT_BADGE_THEME_LABEL;
+    override readonly description: string = 'Small text badges for files, no folder icons';
+    protected override readonly bodyClass: string = 'ingot-badge-theme';
+
+    override canHandle(element: object): number {
+        return super.canHandle(element) ? super.canHandle(element) + 1 : 0;
+    }
+
+    override getIcon(element: object): string | undefined {
+        const file = asFile(element);
+        return file ? badgeClasses(file.name, file.isDirectory) : undefined;
     }
 }
