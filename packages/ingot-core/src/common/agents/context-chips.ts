@@ -21,9 +21,49 @@ export const chipLabel = (chip: Pick<ContextChip, 'path' | 'start' | 'end'>): st
 
 export const lineCount = (text: string): number => text.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n').length;
 
-/** Clipboard text equality, ignoring line-ending style and a trailing newline. */
-export const sameClipboardText = (a: string, b: string): boolean =>
-    a.replace(/\r\n/g, '\n').replace(/\n$/, '') === b.replace(/\r\n/g, '\n').replace(/\n$/, '');
+/** Clipboard text as compared for paste matching: LF line endings, no trailing spaces, no trailing newlines. */
+export const normalizeClipboardText = (text: string): string =>
+    text.replace(/\r\n?/g, '\n').split('\n').map(l => l.replace(/[ \t\u00a0]+$/, '')).join('\n').replace(/\n+$/, '');
+
+/** Clipboard text equality, ignoring line-ending style, trailing whitespace and trailing newlines. */
+export const sameClipboardText = (a: string, b: string): boolean => normalizeClipboardText(a) === normalizeClipboardText(b);
+
+/** The text inserted between `before` and `after` (common prefix and suffix removed); undefined when nothing was inserted. */
+export const insertedText = (before: string, after: string): string | undefined => {
+    if (after.length <= before.length) {
+        return undefined;
+    }
+    let start = 0;
+    while (start < before.length && before[start] === after[start]) {
+        start++;
+    }
+    let end = 0;
+    while (end < before.length - start && before[before.length - 1 - end] === after[after.length - 1 - end]) {
+        end++;
+    }
+    return after.slice(start, after.length - end);
+};
+
+/** Clipboard format carrying the file and lines of code copied in an editor, where the platform keeps custom formats. */
+export const INGOT_REF_MIME = 'application/x-ingot-ref';
+
+/** Copy and cut commands (keybindings, Edit menu, editor right-click). In the desktop app they skip the DOM copy event. */
+export const EDITOR_COPY_COMMANDS: readonly string[] = ['core.copy', 'core.cut', 'editor.action.clipboardCopyAction', 'editor.action.clipboardCutAction'];
+
+/** Parses an `application/x-ingot-ref` clipboard entry; undefined when missing or malformed. */
+export const parseIngotRef = (json: string | undefined): Omit<ContextChip, 'id'> | undefined => {
+    if (!json) {
+        return undefined;
+    }
+    try {
+        const v = JSON.parse(json) as Partial<ContextChip>;
+        return typeof v.path === 'string' && typeof v.uri === 'string' && Number.isInteger(v.start) && Number.isInteger(v.end) && typeof v.text === 'string'
+            ? { path: v.path, uri: v.uri, start: v.start!, end: v.end!, text: v.text }
+            : undefined;
+    } catch {
+        return undefined;
+    }
+};
 
 /** Preview shown on hover: the first lines of the snippet. */
 export const chipPreview = (text: string, max = MAX_CHIP_PREVIEW_LINES): string => {
@@ -41,7 +81,7 @@ export const expandWithChips = (prompt: string, chips: readonly ContextChip[]): 
 };
 
 /** Composer height (IDEA-67): ~4 lines minimum, auto-grow up to half the panel, then scroll. */
-export const COMPOSER_MIN_HEIGHT = 84;
+export const COMPOSER_MIN_HEIGHT = 38;
 export const COMPOSER_MAX_RATIO = 0.5;
 export const composerHeight = (content: number, panel: number, manual?: number): number => {
     const max = Math.max(COMPOSER_MIN_HEIGHT, Math.floor(panel * COMPOSER_MAX_RATIO));
