@@ -26,24 +26,26 @@ test.describe('IDEA-117 gear menu', () => {
         await page.locator('#ingot-settings-cancel').click();
     });
 
-    test('Theme submenu switches Light / Dark / System with a check on the current one', async ({ page }) => {
+    test('Theme submenu switches Light / Dark / System with a ✓ on the current one', async ({ page }) => {
         await openIngot(page);
         await dismissNotifications(page);
+        // Earlier specs may leave any theme on; walk Dark → Light → System and check the ✓ follows.
         await openGear(page);
         await menuItem(page, 'Theme').hover();
-        await expect(menuItem(page, 'System')).toHaveClass(/lm-mod-toggled/);
         await menuItem(page, 'Dark').click();
         await expect(page.locator('body')).toHaveClass(/theia-dark/);
 
         await openGear(page);
         await menuItem(page, 'Theme').hover();
         await expect(menuItem(page, 'Dark')).toHaveClass(/lm-mod-toggled/);
+        await expect(menuItem(page, 'Light')).not.toHaveClass(/lm-mod-toggled/);
         await menuItem(page, 'Light').click();
         await expect(page.locator('body')).toHaveClass(/theia-light/);
 
         // Back to the default, System.
         await openGear(page);
         await menuItem(page, 'Theme').hover();
+        await expect(menuItem(page, 'Light')).toHaveClass(/lm-mod-toggled/);
         await menuItem(page, 'System').click();
         await openGear(page);
         await menuItem(page, 'Theme').hover();
