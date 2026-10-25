@@ -65,6 +65,9 @@ Any shortcut can be changed in Keymap › Edit Shortcuts.
 | Push… | ⇧⌘K | Ctrl+Shift+K |
 | Commit Message History (in Local Changes) | ⌘⌥H | Ctrl+Alt+H |
 | Add Selection to Agent Chat | ⇧⌘L | Ctrl+L |
+| Cycle Chat Mode (in Agents) | ⌘. | Ctrl+. |
+| New Chat (in Agents) | ⌥⌘N | Ctrl+Alt+N |
+| Chat History (in Agents) | ⌥⌘Y | Ctrl+Alt+Y |
 | Project tool window | ⌘1 | Alt+1 |
 | Bookmarks / Search tool window | ⌘2 | Alt+2 |
 | Run tool window | ⌘4 | Alt+4 |
