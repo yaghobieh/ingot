@@ -24,6 +24,8 @@ import { EditorCopyTracker } from './agents/editor-copy-tracker';
 import { IngotAgentsContribution } from './agents/agents-contribution';
 import { AGENTS_WIDGET_ID } from './agents/agents.consts';
 import { IngotStripeWidget } from './stripe/ingot-stripe-widget';
+import { IngotAccountService } from './account/account-service';
+import { IngotAccountContribution } from './account/account-contribution';
 import { IngotRightStripeWidget } from './tool-windows/right-stripe-widget';
 import { IngotDatabaseWidget } from './tool-windows/database-widget';
 import { IngotMcpWidget } from './tool-windows/mcp-widget';
@@ -218,6 +220,11 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentsWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotAgentsContribution);
 
+    bind(IngotAccountService).toSelf().inSingletonScope();
+    bind(IngotAccountContribution).toSelf().inSingletonScope();
+    for (const id of [CommandContribution, MenuContribution, FrontendApplicationContribution]) {
+        bind(id).toService(IngotAccountContribution);
+    }
     bind(IngotStripeWidget).toSelf().inSingletonScope();
     bind(IngotRightStripeWidget).toSelf().inSingletonScope();
     bind(IngotDatabaseWidget).toSelf();
