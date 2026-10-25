@@ -1,9 +1,12 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { IngotModelClient } from '../models/model-client';
+import { IngotFeatureFlags } from '../config/feature-flags';
+import { UPDATE_TEXT } from '../../common/config/remote-config.consts';
+import { chatErrorText, decodeGatewayError, fallsBackToDefault, rateLimitText, refetchesModels, type GatewayError } from '../../common/account/gateway-errors';
 import { AGENT_SYSTEM_PROMPTS, AUTO_MODEL_ID, DEFAULT_CONTEXT_WINDOW } from '../../common/models/models.consts';
 import { findModel, supportsVision } from '../../common/models/models.utils';
 import type { ComposedMessage } from '../../common/agents/composer-parts.types';
-import { pinnedFirst, reorderTabs, tabTitleFromText } from '../../common/agents/chat-tabs';
+import { reorderTabs, tabTitleFromText, togglePinOrder } from '../../common/agents/chat-tabs';
 import { BUILD_PROMPT, MAX_SUB_AGENTS, TERMINAL_CONTEXT_LINES, modeInfo } from '../../common/agents/agent-modes';
 import { CHATS_STORAGE_KEY, parseChats, serializeChats } from '../../common/agents/chat-history';
 import { SUMMARIZE_PROMPT, contextUsage, estimateTokens } from '../../common/agents/context-usage';
@@ -43,6 +46,7 @@ export type AgentCommandHandler = (session: AgentSession, prompt: string) => boo
 export class AgentStore {
 
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
+    @inject(IngotFeatureFlags) protected readonly flags: IngotFeatureFlags;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(FileService) protected readonly files: FileService;
     @inject(EditorManager) protected readonly editors: EditorManager;
@@ -142,8 +146,13 @@ export class AgentStore {
     /** `auto` becomes the first connected recommended model, then any connected model. */
     resolveModel(id: string): string {
         // A remembered BYOK / local model while BYOK is off falls back to Auto (Ingot models), not a "not connected" error.
-        if (id !== AUTO_MODEL_ID && (this.models.byok || this.models.isModelConfigured(id) || id.startsWith('ingot:'))) {
+        // An Ingot model the server removed or cannot run right now falls back to the server default (IDEA-124).
+        if (id !== AUTO_MODEL_ID && !this.models.isGatewayModelGone(id) && (this.models.byok || this.models.isModelConfigured(id) || id.startsWith('ingot:'))) {
             return id;
+        }
+        const fallback = this.models.defaultModel;
+        if (fallback && this.models.isModelConfigured(fallback)) {
+            return fallback;
         }
         const catalog = this.models.catalog;
         return catalog.find(m => m.recommended && this.models.isModelConfigured(m.id))?.id
@@ -188,9 +197,10 @@ export class AgentStore {
     togglePin(id: string): void {
         const session = this.items.find(s => s.id === id);
         if (session) {
-            session.pinned = !session.pinned;
             const tabs = this.tabs;
-            this.applyOrder(pinnedFirst(tabs.map(t => t.id), new Set(tabs.filter(t => t.pinned).map(t => t.id))));
+            const order = togglePinOrder(tabs.map(t => t.id), new Set(tabs.filter(t => t.pinned).map(t => t.id)), id);
+            session.pinned = !session.pinned;
+            this.applyOrder(order);
         }
     }
 
@@ -213,6 +223,21 @@ export class AgentStore {
 
     get allSessions(): readonly AgentSession[] {
         return this.items;
+    }
+
+    /** Settings sync (IDEA-126): title / pinned from another device, for chats this install also has. */
+    applySyncedMeta(id: string, meta: { title?: unknown; pinned?: unknown }): void {
+        const session = this.items.find(s => s.id === id);
+        if (!session) {
+            return;
+        }
+        if (typeof meta.title === 'string' && meta.title) {
+            session.title = meta.title;
+        }
+        if (typeof meta.pinned === 'boolean') {
+            session.pinned = meta.pinned;
+        }
+        this.changed();
     }
 
     get current(): AgentSession | undefined {
@@ -313,6 +338,20 @@ export class AgentStore {
             session.updatedAt = Date.now();
             this.changed();
             return session;
+        }
+        if (this.flags.forceUpdate) {
+            session.messages.push({ role: 'system', text: UPDATE_TEXT.chatBlocked });
+            session.status = 'idle';
+            session.updatedAt = Date.now();
+            this.changed();
+            return session;
+        }
+        if (session.model !== AUTO_MODEL_ID && this.models.isGatewayModelGone(session.model)) {
+            const replacement = this.resolveModel(session.model);
+            if (replacement !== AUTO_MODEL_ID && replacement !== session.model) {
+                session.messages.push({ role: 'system', text: `${this.models.label(session.model)} is not available right now. Using ${this.models.label(replacement)}.` });
+                session.model = replacement;
+            }
         }
         if (!this.models.isModelConfigured(this.resolveModel(session.model))) {
             const resolved = this.resolveModel(session.model);
@@ -508,7 +547,7 @@ export class AgentStore {
     }
 
     /** One streamed model reply; returns the parsed output, or undefined after an error. */
-    protected async streamRound(session: AgentSession, system: string): Promise<(ReturnType<typeof parseAgentOutput> & { memories: string[] }) | undefined> {
+    protected async streamRound(session: AgentSession, system: string, retried = false): Promise<(ReturnType<typeof parseAgentOutput> & { memories: string[] }) | undefined> {
         const history = this.historyFor(session);
         const index = session.messages.push({ role: 'agent', text: '' }) - 1;
         session.status = 'thinking';
@@ -531,6 +570,10 @@ export class AgentStore {
             final = await stream.done;
         } catch (error) {
             await this.tracker.cancelStreams(session.id);
+            const gateway = decodeGatewayError(error instanceof Error ? error.message : String(error));
+            if (gateway) {
+                return this.gatewayFailure(session, system, index, gateway, retried);
+            }
             session.messages.push({ role: 'system', text: `The model request failed: ${error instanceof Error ? error.message : String(error)}` });
             session.status = 'error';
             this.running.delete(session.id);
@@ -736,6 +779,68 @@ export class AgentStore {
             lead.status = children.some(c => c.changes.length) ? 'done' : 'idle';
             lead.updatedAt = Date.now();
             this.changed();
+        });
+    }
+
+    /**
+     * Ingot gateway errors (IDEA-124, contract §2): 429 waits out Retry-After with a countdown and retries once;
+     * model_* errors re-fetch the list and switch to the default; 402 and the rest stop with the server's message.
+     */
+    protected async gatewayFailure(session: AgentSession, system: string, index: number, error: GatewayError, retried: boolean): Promise<ReturnType<AgentStore['streamRound']>> {
+        if (!session.messages[index]?.text) {
+            session.messages.splice(index, 1);
+        }
+        this.running.delete(session.id);
+        if (error.kind === 'rate_limited' && !retried && error.retryAfterSeconds) {
+            if (await this.countdown(session, error, error.retryAfterSeconds)) {
+                return this.streamRound(session, system, true);
+            }
+            return undefined;
+        }
+        let fallback: string | undefined;
+        if (refetchesModels(error)) {
+            await this.models.refreshModels().catch(() => undefined);
+            if (fallsBackToDefault(error)) {
+                const replacement = this.resolveModel(AUTO_MODEL_ID);
+                if (replacement !== AUTO_MODEL_ID && replacement !== session.model) {
+                    session.model = replacement;
+                    fallback = this.models.label(replacement);
+                }
+            }
+        }
+        session.messages.push({ role: 'system', text: chatErrorText(error, { portalUrl: this.models.portalUrl, fallback }) });
+        session.status = error.kind === 'blocked' ? 'idle' : 'error';
+        session.updatedAt = Date.now();
+        this.changed();
+        return undefined;
+    }
+
+    /** Shows "Retrying in m:ss" and resolves true when the wait finished (false when the user pressed Stop). */
+    protected countdown(session: AgentSession, error: GatewayError, seconds: number): Promise<boolean> {
+        const at = session.messages.push({ role: 'system', text: rateLimitText(error, seconds) }) - 1;
+        session.status = 'thinking';
+        this.changed();
+        return new Promise(resolve => {
+            let left = seconds;
+            const timer = setInterval(() => {
+                left -= 1;
+                if (left > 0) {
+                    session.messages[at] = { role: 'system', text: rateLimitText(error, left) };
+                    this.changed();
+                    return;
+                }
+                clearInterval(timer);
+                this.running.delete(session.id);
+                session.messages.splice(at, 1);
+                resolve(true);
+            }, 1000);
+            this.running.set(session.id, () => {
+                clearInterval(timer);
+                session.messages[at] = { role: 'system', text: `${error.message} Stopped.` };
+                session.status = 'idle';
+                this.changed();
+                resolve(false);
+            });
         });
     }
 

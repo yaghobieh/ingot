@@ -5,12 +5,15 @@ import type { Message } from '@theia/core/shared/@lumino/messaging';
 import { COMPOSER_PLACEHOLDER, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
 import { modeInfo, nextMode } from '../../common/agents/agent-modes';
 import { CONTEXT_NEAR_FULL, contextSegments, formatTokens, messageWeights, usageRatio } from '../../common/agents/context-usage';
+import { fileIconClass } from '../../common/icons/file-icon-map';
 import { AUTO_MODEL_ID, AUTO_MODEL_LABEL, FAVORITE_MODELS_KEY } from '../../common/models/models.consts';
 import { findModel } from '../../common/models/models.utils';
 import { ContextKeyService, type ContextKey } from '@theia/core/lib/browser/context-key-service';
 import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding';
 import { ChatHistory, ContextBreakdown, MemoriesManager, ModeMenu, ModelPicker } from './chat-popovers';
 import { Dictation } from './dictation';
+import { IngotFeatureFlags } from '../config/feature-flags';
+import { IDE_FLAGS } from '../../common/config/remote-config.consts';
 import type { DictationState } from './dictation.types';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { IngotAccountService } from '../account/account-service';
@@ -61,6 +64,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(IngotAccountService) protected readonly account: IngotAccountService;
+    @inject(IngotFeatureFlags) protected readonly flags: IngotFeatureFlags;
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
@@ -165,6 +169,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.toDispose.push(this.store.onDidChange(() => this.update()));
         this.toDispose.push(this.tracker.onDidChange(() => this.update()));
         this.toDispose.push(this.models.onDidChange(() => this.update()));
+        this.toDispose.push(this.flags.onDidChange(() => this.update()));
         this.toDispose.push(this.editors.onCurrentEditorChanged(() => this.update()));
         this.focusKey = this.contextKeys.createKey<boolean>(AGENTS_FOCUS_KEY, false);
         this.node.addEventListener('focusin', () => this.focusKey?.set(true));
@@ -556,7 +561,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 return <span key={i}>{p.text}</span>;
             }
             if (p.kind === 'code') {
-                return <span key={i} className='ingot-chip ingot-chip-sent ingot-chip-code ingot-chip-inline' title={p.path}><span className='codicon codicon-code' />{p.label}</span>;
+                return <span key={i} className='ingot-chip ingot-chip-sent ingot-chip-code ingot-chip-inline' title={p.path}><span className={p.path ? fileIconClass(p.path.split('/').pop() ?? p.path) : 'codicon codicon-code'} />{p.label}</span>;
             }
             const image = images.find(img => img.id === p.id);
             return <span key={i} className='ingot-chip ingot-chip-sent ingot-chip-image ingot-chip-inline' title={p.name}
@@ -739,7 +744,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 <label className='ingot-icon-button codicon codicon-attach ingot-composer-attach' id='ingot-composer-attach' title='Attach images' aria-label='Attach images'>
                     <input type='file' accept='image/png,image/jpeg,image/gif,image/webp' multiple hidden onChange={e => this.attachImages(e.currentTarget)} />
                 </label>
-                {this.renderMic()}
+                {this.flags.enabled(IDE_FLAGS.micDictation) && this.renderMic()}
                 {this.renderModePill()}
                 {this.renderModelPill()}
                 <span className='ingot-flex' />
@@ -786,7 +791,7 @@ export class IngotAgentsWidget extends ReactWidget {
             </button>
             {this.popover === 'model' && <ModelPicker current={model} models={this.models.catalog}
                 autoResolved={resolved !== AUTO_MODEL_ID && model === AUTO_MODEL_ID ? this.modelLabel(resolved) : undefined}
-                configured={id => this.models.isModelConfigured(id)} favorites={this.favorites}
+                configured={id => this.models.isModelConfigured(id)} unavailableReason={id => this.models.unavailableReason(id)} favorites={this.favorites}
                 onToggleFavorite={id => this.toggleFavorite(id)}
                 onPick={id => { this.store.model = id; this.store.changed(); this.closePopover(); }}
                 onAddKey={() => { this.closePopover(); this.commands.executeCommand(MODELS_OPEN_COMMAND.id); }}

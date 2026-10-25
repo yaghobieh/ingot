@@ -5,8 +5,10 @@
 @import '@fontsource/jetbrains-mono/latin-700.css';
 @import './tokens.css';
 @import './icons.css';
+@import './file-icons.css';
 @import './shell.css';
 @import './settings.css';
 @import './reference.css';
 @import './brand.css';
 @import './mcp-page.css';
+@import './import.css';

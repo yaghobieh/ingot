@@ -32,6 +32,8 @@ test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
 
         await page.locator('#ingot-agents-new').click();
         await pickModel(page, 'ollama-local');
+        // IDEA-104: the status bar names the active chat's model.
+        await expect(page.locator('#theia-statusBar [id$="ingot-chat-model-status"]')).toContainText('Qwen2.5 Coder (local)');
         await page.locator('#ingot-composer-input').fill('Say hello');
         await page.locator('#ingot-composer-input').press('Enter');
         await expect(page.locator('#ingot-agents .ingot-chat-agent .ingot-md')).toHaveText(CHAT_REPLY);
@@ -42,7 +44,7 @@ test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
         await openIngot(page);
         await connectOllama(page, server);
         await models(page).locator('#ingot-autocomplete-model').selectOption('ollama-local');
-        await expect(page.locator('#theia-statusBar [id$="ingot-autocomplete-status"]')).toContainText('Qwen2.5 Coder (local)');
+        await expect(page.locator('#theia-statusBar [id$="ingot-autocomplete-status"]')).toHaveText(/\bAI\s*$/);
 
         await page.locator('#files').getByText('src', { exact: true }).click();
         await page.locator('#files').getByText('math.ts', { exact: true }).dblclick();

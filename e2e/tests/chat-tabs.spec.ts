@@ -74,8 +74,26 @@ test.describe('IDEA-98 chat tabs', () => {
         await expect(tabs(page).first().locator('.ingot-chat-tab-pin')).toBeVisible();
         await expect(tabs(page).first().locator('.ingot-chat-tab-close')).toHaveCount(0);
 
+        // IDEA-104: pinned tabs stay first in pin order; unpinning goes to the first unpinned slot.
+        const titles = () => tabs(page).locator('.ingot-chat-tab-title').allTextContents();
+        await tabMenu(page, 2, 'pin');
+        await expect.poll(titles).toEqual(['Billing', 'Second chat about auth tokens', 'Refactor the cart total rounding']);
+        await expect(tabs(page).nth(1)).toHaveClass(/pinned/);
+        await tabMenu(page, 0, 'pin');
+        await expect.poll(titles).toEqual(['Second chat about auth tokens', 'Billing', 'Refactor the cart total rounding']);
+        await expect(tabs(page).nth(1)).not.toHaveClass(/pinned/);
+        await tabMenu(page, 1, 'pin');
+        await tabMenu(page, 0, 'pin');
+        await expect.poll(titles).toEqual(['Billing', 'Second chat about auth tokens', 'Refactor the cart total rounding']);
+        await expect(tabs(page).first()).toHaveClass(/pinned/);
+        await expect(tabs(page).nth(1)).not.toHaveClass(/pinned/);
+        // Wider titles with the full title on hover.
+        await expect(tabs(page).nth(2)).toHaveAttribute('title', 'Refactor the cart total rounding');
+        const title = tabs(page).nth(2).locator('.ingot-chat-tab-title');
+        expect(await title.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+
         // Middle-click closes; Close Others keeps the pinned tab.
-        await tabs(page).nth(1).click({ button: 'middle' });
+        await tabs(page).filter({ hasText: 'Refactor' }).click({ button: 'middle' });
         await expect(tabs(page)).toHaveCount(2);
         await page.locator('#ingot-agents-history').click();
         await page.locator('#ingot-chat-history .ingot-history-row', { hasText: 'Refactor' }).click();

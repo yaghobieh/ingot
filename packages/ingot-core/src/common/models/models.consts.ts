@@ -60,7 +60,7 @@ export const BYOK_PROVIDERS: readonly ProviderId[] = ['anthropic', 'openai', 'ge
 export const SIGN_IN_FOR_MODELS = 'Sign in to use Ingot models';
 
 /** How replies are laid out (IDEA-100): rendered as Markdown in the chat panel. */
-export const REPLY_STYLE = 'Format every reply as GitHub Markdown: start with a short "### " title, then a 1-2 line summary. Add "#### " sections, bullet lists or a table only when they make the answer clearer; put code, paths and identifiers in backticks and code in fenced blocks with a language. Be concise: no filler, no repeating the question.';
+export const REPLY_STYLE = 'Format every reply as GitHub Markdown: start with a short "### " title, then a 1-2 line summary. Add "#### " sections, bullet lists or a table only when they make the answer clearer; put code, paths and identifiers in backticks and code in fenced blocks with a language. Put every list item and every block on its own line, with a blank line between blocks. Show a sequence of steps as one line like "A → B → C". Be concise: no filler, no repeating the question.';
 
 export const AGENT_SYSTEM_PROMPTS = {
     agent: `You are an expert coding agent inside the Ingot IDE. Be concise. When you propose code changes, show them as unified diffs or complete code blocks with the file path. ${REPLY_STYLE}`,

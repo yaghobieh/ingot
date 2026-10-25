@@ -14,7 +14,7 @@ export interface DesktopApp {
 }
 
 /** Launches the desktop app on `workspace` with an isolated config dir, Electron profile and keychain service. */
-export const launchDesktop = async (workspace: string): Promise<DesktopApp> => {
+export const launchDesktop = async (workspace: string, extraEnv: Record<string, string> = {}): Promise<DesktopApp> => {
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-electron-e2e-'));
     fs.mkdirSync(path.join(profile, 'config'), { recursive: true });
     fs.writeFileSync(path.join(profile, 'config', 'settings.json'), JSON.stringify(E2E_USER_SETTINGS));
@@ -35,7 +35,8 @@ export const launchDesktop = async (workspace: string): Promise<DesktopApp> => {
             // Never the developer's local ingot-server: account specs start the fake one on this URL.
             INGOT_SERVER_URL: FAKE_INGOT_URL,
             INGOT_PORTAL_URL: FAKE_INGOT_URL,
-            INGOT_NO_PROTOCOL_CLIENT: '1'
+            INGOT_NO_PROTOCOL_CLIENT: '1',
+            ...extraEnv
         },
         timeout: APP_READY_TIMEOUT_MS
     });

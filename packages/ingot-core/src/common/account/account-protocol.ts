@@ -1,4 +1,6 @@
 import type { RpcServer } from '@theia/core/lib/common/messaging';
+import type { RemoteConfigSnapshot } from '../config/remote-config.types';
+import type { SyncResponse } from '../sync/sync.types';
 
 export const ACCOUNT_SERVICE_PATH = '/services/ingot/account';
 export const AccountBackend = Symbol('IngotAccountBackend');
@@ -14,6 +16,8 @@ export interface AccountUser {
     readonly email: string;
     readonly plan: string;
     readonly avatarUrl?: string;
+    /** From /api/me (IDEA-124): `admin` shows "Open admin console". */
+    readonly role?: string;
 }
 
 /** Tokens this billing period (allowance includes grants). */
@@ -31,6 +35,8 @@ export interface AccountSnapshot {
     /** A browser sign-in is waiting for the user. */
     readonly pending?: boolean;
     readonly error?: string;
+    /** 403 account_blocked (IDEA-124): an admin blocked the account; the session is gone and background calls stop. */
+    readonly blocked?: boolean;
     /** Epoch ms of the last status refresh. */
     readonly updatedAt: number;
 }
@@ -41,6 +47,12 @@ export interface GatewayModelInfo {
     readonly label: string;
     readonly contextWindow: number;
     readonly available: boolean;
+    /** Admin-controlled sort order (IDEA-124); the list is already sorted by it. */
+    readonly order: number;
+    /** The plan's default model. */
+    readonly isDefault: boolean;
+    /** Why `available` is false, when the server says. */
+    readonly reason?: string;
 }
 
 export interface SignInOptions {
@@ -66,4 +78,8 @@ export interface AccountBackend extends RpcServer<AccountClient> {
     signOut(): Promise<void>;
     refresh(): Promise<AccountSnapshot>;
     models(): Promise<GatewayModelInfo[]>;
+    /** GET /v1/config (IDEA-125), signed in or not; falls back to the disk cache offline. No calls while blocked. */
+    remoteConfig(): Promise<RemoteConfigSnapshot>;
+    /** One /v1/sync call with the session token (IDEA-126). Only `/v1/sync…` paths; status 0 when signed out or offline. */
+    syncRequest(method: 'GET' | 'PUT' | 'DELETE' | 'POST', path: string, body?: unknown): Promise<SyncResponse>;
 }

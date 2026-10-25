@@ -103,6 +103,19 @@ export class IngotAccountService {
         return this.current.signedIn ? this.backend.models() : [];
     }
 
+    get isAdmin(): boolean {
+        return this.current.signedIn && this.current.user?.role === 'admin';
+    }
+
+    get blocked(): boolean {
+        return !!this.current.blocked;
+    }
+
+    /** Admin powers are website-only (IDEA-124); this opens the portal's /admin. */
+    openAdmin(): void {
+        this.windows.openNewWindow(`${this.urls.portalUrl.replace(/\/$/, '')}/admin`, { external: true });
+    }
+
     openDashboard(): void {
         this.windows.openNewWindow(`${this.urls.portalUrl.replace(/\/$/, '')}/dashboard`, { external: true });
     }
