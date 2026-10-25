@@ -104,7 +104,7 @@ test.describe('IDEA-70 / IDEA-58 file and tab menus', () => {
 
         // Add File to Agent Chat puts an @mention into the composer.
         await run(page, readme, 'Add File to Agent Chat');
-        await expect(page.locator('#ingot-composer-input')).toHaveValue(/@README\.md/);
+        await expect(page.locator('#ingot-composer-input')).toHaveText(/@README\.md/);
 
         // Git ▸ Add stages it for real.
         await run(page, readme, 'Git', 'Add');

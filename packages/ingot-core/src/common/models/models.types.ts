@@ -42,6 +42,14 @@ export interface CatalogModel {
 export interface ChatMessage {
     readonly role: 'system' | 'user' | 'assistant';
     readonly content: string;
+    /** Images on a user message (IDEA-98), sent as image parts to models that can read them. */
+    readonly images?: readonly ChatImage[];
+}
+
+export interface ChatImage {
+    readonly mediaType: string;
+    /** Base64, no data: prefix. */
+    readonly data: string;
 }
 
 export interface CompletionRequest {
@@ -95,4 +103,6 @@ export interface ModelService {
     startStream(request: CompletionRequest): Promise<string>;
     pollStream(id: string, from: number): Promise<StreamPoll>;
     cancelStream(id: string): Promise<void>;
+    /** Voice dictation fallback (IDEA-98): transcribes recorded audio (base64) with a speech-to-text model. */
+    transcribe(audioBase64: string, mimeType: string): Promise<string>;
 }
