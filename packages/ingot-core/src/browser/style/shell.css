@@ -535,6 +535,12 @@ button.ingot-popover-footer:hover { color: var(--theia-textLink-foreground); }
 .ingot-memory-edit-bar { display: flex; gap: 6px; align-items: center; }
 .ingot-memories-note { font-size: 11px; }
 
+/* IDEA-78: per-chunk revert (‹) on the editable side, exclude (×) on the HEAD side */
+.ingot-hunk-revert { cursor: pointer; color: var(--ingot-primary, #6E8BFF); font-size: 14px !important; margin-left: 2px; opacity: .85; }
+.ingot-hunk-revert:hover { opacity: 1; background: var(--theia-toolbar-hoverBackground); border-radius: 3px; }
+.ingot-hunk-ignore { cursor: pointer; color: var(--theia-descriptionForeground); font-size: 12px !important; opacity: .6; }
+.ingot-hunk-ignore:hover, .ingot-hunk-ignore.active { opacity: 1; color: var(--theia-errorForeground, #F85149); }
+.ingot-diff .ingot-hunk-ignored { opacity: .55; background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(127, 127, 127, .08) 6px 12px); }
 /* ---- Chat v2: Agents panel matched to docs/design/ide-reference.png (light + dark via theme tokens) ---- */
 .ingot-agents { --ingot-chat-line: color-mix(in srgb, var(--theia-foreground) 10%, transparent); --ingot-chat-fill: color-mix(in srgb, var(--theia-foreground) 7%, transparent); }
 .ingot-agents .ingot-agents-header { height: 40px; gap: 14px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--theia-panel-border); }
