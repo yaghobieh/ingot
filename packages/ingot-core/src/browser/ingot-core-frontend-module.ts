@@ -36,6 +36,14 @@ import { GroupChannel } from './groups/group-channel';
 import { IngotGroupChatWidget } from './groups/group-chat-widget';
 import { IngotGroupChatContribution } from './groups/group-chat-contribution';
 import { GROUP_CHAT_WIDGET_ID } from './groups/groups.browser-consts';
+import { MODEL_SERVICE_PATH } from '../common/models/models.consts';
+import { ModelService } from '../common/models/models.types';
+import { IngotModelClient } from './models/model-client';
+import { IngotModelsWidget } from './models/models-widget';
+import { IngotModelsContribution } from './models/models-contribution';
+import { IngotInlineCompletions } from './models/inline-completions';
+import { bindModelPreferences } from './models/model-preferences';
+import { MODELS_WIDGET_ID } from './models/models.browser-consts';
 import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
@@ -47,6 +55,14 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     for (const id of [FrontendApplicationContribution, CommandContribution, KeybindingContribution]) {
         bind(id).toService(IngotGroupsContribution);
     }
+    bindModelPreferences(bind);
+    bind(ModelService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ModelService>(ctx.container, MODEL_SERVICE_PATH)).inSingletonScope();
+    bind(IngotModelClient).toSelf().inSingletonScope();
+    bind(IngotInlineCompletions).toSelf().inSingletonScope();
+    bind(IngotModelsWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: MODELS_WIDGET_ID, createWidget: () => ctx.container.get(IngotModelsWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotModelsContribution);
+    bind(FrontendApplicationContribution).toService(IngotModelsContribution);
     bind(GroupChannel).toSelf().inSingletonScope();
     bind(IngotGroupChatWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: GROUP_CHAT_WIDGET_ID, createWidget: () => ctx.container.get(IngotGroupChatWidget) })).inSingletonScope();

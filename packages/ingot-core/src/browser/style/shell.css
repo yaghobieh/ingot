@@ -264,3 +264,24 @@ body.ingot-has-group #theia-top-panel { flex-wrap: wrap; align-content: flex-sta
 body.ingot-has-group #theia-top-panel > * { order: 3; }
 body.ingot-has-group #theia-top-panel > .ingot-main-toolbar { order: 1; flex: 0 0 100%; }
 body.ingot-has-group #theia-top-panel > .ingot-project-tabs { order: 2; height: 30px; }
+
+/* IDEA-25/26 models */
+.ingot-models-root { max-width: 760px; padding: 20px 28px 40px; overflow: auto; height: 100%; box-sizing: border-box; font-size: 13px; }
+.ingot-models-root h2 { font-size: 15px; margin: 18px 0 8px; }
+.ingot-models-lead { color: var(--theia-descriptionForeground); line-height: 1.5; margin: 0 0 12px; }
+.ingot-models-warning { padding: 8px 10px; border-radius: 6px; margin-bottom: 12px; background: rgba(232, 169, 59, .15); border: 1px solid rgba(232, 169, 59, .5); }
+.ingot-models-list { display: flex; flex-direction: column; gap: 10px; }
+.ingot-model-card { border: 1px solid var(--theia-panel-border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ingot-model-head { display: flex; align-items: center; justify-content: space-between; }
+.ingot-model-name { font-weight: 600; }
+.ingot-model-status { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--theia-badge-background); color: var(--theia-badge-foreground); opacity: .8; }
+.ingot-model-status.ok { background: rgba(95, 173, 86, .18); color: var(--theia-foreground); opacity: 1; }
+.ingot-models-row { display: flex; align-items: center; gap: 8px; }
+.ingot-models-label { min-width: 110px; color: var(--theia-descriptionForeground); }
+.ingot-model-input { flex: 1; min-width: 0; }
+.ingot-models-row .theia-button { margin: 0; min-width: 64px; }
+.ingot-model-result { font-size: 12px; }
+.ingot-model-result.ok { color: var(--ingot-success, #5FAD56); }
+.ingot-model-result.error { color: var(--ingot-danger, #F75464); word-break: break-word; }
+.ingot-chat-action { margin-top: 6px; }
+.ingot-agents-new { white-space: nowrap; flex: none; }

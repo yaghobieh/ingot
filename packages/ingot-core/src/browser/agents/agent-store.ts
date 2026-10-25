@@ -1,4 +1,7 @@
-import { injectable } from '@theia/core/shared/inversify';
+import { inject, injectable } from '@theia/core/shared/inversify';
+import { IngotModelClient } from '../models/model-client';
+import { AGENT_SYSTEM_PROMPTS } from '../../common/models/models.consts';
+import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE } from '../../common/agents/agents.consts';
 import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
@@ -12,6 +15,8 @@ export type AgentCommandHandler = (session: AgentSession, prompt: string) => boo
 /** In-memory agent sessions shown in the Agents tool window (the runtime arrives with IDEA-27/28). */
 @injectable()
 export class AgentStore {
+
+    @inject(IngotModelClient) protected readonly models: IngotModelClient;
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
@@ -119,11 +124,35 @@ export class AgentStore {
             this.changed();
             return session;
         }
-        session.messages.push({ role: 'system', text: NO_MODEL_MESSAGE });
-        session.status = 'idle';
+        if (!this.models.isModelConfigured(session.model)) {
+            session.messages.push({ role: 'system', text: NO_MODEL_MESSAGE });
+            session.status = 'idle';
+            session.updatedAt = Date.now();
+            this.changed();
+            return session;
+        }
+        session.status = 'thinking';
         session.updatedAt = Date.now();
         this.changed();
+        this.runModel(session);
         return session;
+    }
+
+    /** Sends the conversation to the selected model through the BYOK gateway. */
+    protected async runModel(session: AgentSession): Promise<void> {
+        const history: ChatMessage[] = session.messages
+            .filter(m => m.role !== 'system')
+            .map(m => ({ role: m.role === 'agent' ? 'assistant' as const : 'user' as const, content: m.role === 'peer' ? `${m.from}: ${m.text}` : m.text }));
+        try {
+            const result = await this.models.complete(session.model, [{ role: 'system', content: AGENT_SYSTEM_PROMPTS[session.mode] }, ...history]);
+            session.messages.push({ role: 'agent', text: result.text.trim() || '(empty reply)' });
+            session.status = 'idle';
+        } catch (error) {
+            session.messages.push({ role: 'system', text: `The model request failed: ${error instanceof Error ? error.message : String(error)}` });
+            session.status = 'error';
+        }
+        session.updatedAt = Date.now();
+        this.changed();
     }
 
     changed(): void {

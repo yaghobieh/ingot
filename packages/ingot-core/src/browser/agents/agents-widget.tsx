@@ -2,7 +2,10 @@ import * as React from '@theia/core/shared/react';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
-import { AGENT_MODES, COMPOSER_PLACEHOLDER, MODEL_OPTIONS } from '../../common/agents/agents.consts';
+import { AGENT_MODES, COMPOSER_PLACEHOLDER, MODEL_OPTIONS, NO_MODEL_MESSAGE } from '../../common/agents/agents.consts';
+import { CommandRegistry } from '@theia/core/lib/common/command';
+import { IngotModelClient } from '../models/model-client';
+import { MODELS_OPEN_COMMAND } from '../models/models.browser-consts';
 import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
 import { agentSubtitle, changesSummary, stepVerb } from '../../common/agents/agents.utils';
 import { AgentStore } from './agent-store';
@@ -17,6 +20,8 @@ export class IngotAgentsWidget extends ReactWidget {
 
     @inject(AgentStore) protected readonly store: AgentStore;
     @inject(AgentEditReview) protected readonly review: AgentEditReview;
+    @inject(IngotModelClient) protected readonly models: IngotModelClient;
+    @inject(CommandRegistry) protected readonly commands: CommandRegistry;
 
     protected tab: AgentsTab = 'agents';
     protected draft = '';
@@ -32,6 +37,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.addClass('ingot-agents');
         this.toDispose.push(this.store.onDidChange(() => this.update()));
         this.toDispose.push(this.review.onDidChange(() => this.update()));
+        this.toDispose.push(this.models.onDidChange(() => this.update()));
         this.update();
     }
 
@@ -87,6 +93,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 <div key={i} className={`ingot-chat-msg ingot-chat-${m.role}`}>
                     {m.from && <div className='ingot-chat-from'>{m.from}</div>}
                     {m.text}
+                    {m.text === NO_MODEL_MESSAGE && <div><button type='button' id='ingot-open-models' className='ingot-btn-primary ingot-chat-action' onClick={() => this.commands.executeCommand(MODELS_OPEN_COMMAND.id)}>Open Models</button></div>}
                 </div>
             ))}
             {session.plan.length > 0 && <div className='ingot-chat-plan'>
@@ -121,7 +128,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     {AGENT_MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </select>
                 <select id='ingot-composer-model' className='ingot-select' value={this.store.model} aria-label='Model' onChange={e => { this.store.model = e.currentTarget.value; this.store.changed(); }}>
-                    {MODEL_OPTIONS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    {MODEL_OPTIONS.map(m => <option key={m.id} value={m.id}>{m.label}{this.models.isModelConfigured(m.id) ? '' : ' — not connected'}</option>)}
                 </select>
                 <span className='ingot-flex' />
                 <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' disabled={!this.draft.trim()} onClick={() => this.submit()}>↑</button>

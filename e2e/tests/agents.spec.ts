@@ -25,12 +25,12 @@ test.describe('IDEA-27/28 Agents tool window', () => {
         await page.locator('#ingot-agents-new').click();
         await expect(panel.locator('.ingot-agent-item')).toHaveCount(1);
         await page.locator('#ingot-composer-mode').selectOption('plan');
-        await page.locator('#ingot-composer-model').selectOption({ label: 'GPT-5' });
+        await page.locator('#ingot-composer-model').selectOption('gpt-5');
         await page.locator('#ingot-composer-input').fill('make addItem optimistic and add qty support');
         await page.keyboard.press('Enter');
         await expect(panel.locator('.ingot-chat-user')).toHaveText('make addItem optimistic and add qty support');
         await expect(panel.locator('.ingot-agent-item-title').first()).toHaveText('Make addItem optimistic and add qty support');
-        await expect(panel.locator('.ingot-chat-system')).toContainText('No model is connected');
+        await expect(panel.locator('.ingot-chat-system')).toContainText('not connected yet');
     });
 
     test('toolbar Agents button toggles the panel', async ({ page }) => {
