@@ -657,6 +657,24 @@ button.ingot-popover-footer:hover { color: var(--theia-textLink-foreground); }
 .ingot-agents .ingot-composer-bar .ingot-pill { max-width: 100%; }
 .ingot-agents .ingot-composer-send { flex: none; }
 
+/* IDEA-76: breadcrumb popups (outline tree, folder list) and info hover */
+.ingot-shell .theia-breadcrumbs-popup { border-radius: 7px; border: 1px solid var(--theia-menu-border, var(--theia-panel-border)); box-shadow: 0 8px 28px rgba(0, 0, 0, .3); background: var(--theia-menu-background, var(--theia-editorWidget-background)); padding: 4px 0; }
+.ingot-bc-outline { display: flex; flex-direction: column; width: 340px; max-height: 420px; font-size: 12.5px; }
+.ingot-bc-filter { margin: 2px 6px 4px; height: 24px; }
+.ingot-bc-tree { overflow: auto; min-height: 0; }
+.ingot-bc-row { display: flex; align-items: center; gap: 5px; height: 22px; padding-right: 8px; cursor: pointer; white-space: nowrap; color: var(--theia-foreground); }
+.ingot-bc-row.active { background: var(--theia-list-hoverBackground); }
+.ingot-bc-row.current { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground, var(--theia-foreground)); }
+.ingot-bc-twisty { width: 14px; font-size: 12px !important; opacity: .75; flex: none; }
+.ingot-bc-kind { font-size: 14px !important; flex: none; }
+.ingot-bc-row-label { overflow: hidden; text-overflow: ellipsis; }
+.ingot-bc-empty { padding: 6px 10px; color: var(--theia-descriptionForeground); }
+.ingot-bc-hover { display: flex; flex-direction: column; gap: 3px; max-width: 460px; font-size: 12px; }
+.ingot-bc-hover-title, .ingot-bc-hover-signature { font-family: var(--theia-code-font-family); color: var(--theia-foreground); word-break: break-all; }
+.ingot-bc-hover-meta, .ingot-bc-hover-git, .ingot-bc-hover-commit { color: var(--theia-descriptionForeground); }
+.ingot-bc-hover-doc { white-space: pre-wrap; }
+.ingot-bc-outline .ingot-bc-filter { background: var(--theia-input-background); color: var(--theia-input-foreground, var(--theia-foreground)); border: 1px solid var(--theia-input-border, var(--theia-panel-border)); border-radius: 4px; padding: 0 6px; outline: none; font: inherit; font-size: 12px; }
+.ingot-bc-outline .ingot-bc-filter:focus { border-color: color-mix(in srgb, var(--theia-foreground) 25%, transparent); }
 /* Chat v2 fixes (user screenshot): compact full-width rows, single composer border, muted idle send, quiet ring. */
 .ingot-agents .ingot-agents-list.ingot-chat-tabs { flex: none !important; height: auto !important; min-height: 0; max-height: 40%; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; align-items: stretch; }
 .ingot-agents .ingot-agents-list .ingot-chat-tab { flex: none !important; width: 100%; max-width: none !important; min-height: 0; height: auto !important; box-sizing: border-box; align-items: flex-start; justify-content: flex-start; text-align: left; border-right: 0 !important; }
