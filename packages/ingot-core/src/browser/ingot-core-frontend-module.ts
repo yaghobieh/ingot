@@ -67,6 +67,8 @@ import { GitService } from '../common/git/git.types';
 import { GitResourceResolver } from './git/git-resource-resolver';
 import { IngotGitLogWidget } from './git/git-log-widget';
 import { IngotGitContribution } from './git/git-contribution';
+import { IngotGitActionsContribution } from './git/git-actions-contribution';
+import { IngotFileMenusContribution } from './files/file-menus-contribution';
 import { GIT_LOG_WIDGET_ID } from './git/git.browser-consts';
 import { IngotSettingsDialog } from './settings/ingot-settings-dialog';
 import { IngotSettingsContribution } from './settings/ingot-settings-contribution';
@@ -102,6 +104,14 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotGitLogWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: GIT_LOG_WIDGET_ID, createWidget: () => ctx.container.get(IngotGitLogWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotGitContribution);
+    bind(IngotGitActionsContribution).toSelf().inSingletonScope();
+    for (const id of [CommandContribution, MenuContribution, KeybindingContribution]) {
+        bind(id).toService(IngotGitActionsContribution);
+    }
+    bind(IngotFileMenusContribution).toSelf().inSingletonScope();
+    for (const id of [CommandContribution, MenuContribution, KeybindingContribution, FrontendApplicationContribution]) {
+        bind(id).toService(IngotFileMenusContribution);
+    }
     bind(McpService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<McpService>(ctx.container, MCP_SERVICE_PATH)).inSingletonScope();
     bind(IngotMcpClient).toSelf().inSingletonScope();
     bind(IngotAgentConfigWidget).toSelf();
