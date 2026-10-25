@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_SERVER_FORM, MCP_CATALOG, catalogEntryFor, catalogToConfig, configToForm, customToConfig, isValidServerName, matchesQuery, rowGroup, rowSummary, newItemFile, splitArgs } from './mcp-catalog';
+import { EMPTY_SERVER_FORM, MCP_CATALOG, MCP_CATEGORIES, groupByCategory, catalogEntryFor, catalogToConfig, configToForm, customToConfig, isValidServerName, matchesQuery, rowGroup, rowSummary, newItemFile, splitArgs } from './mcp-catalog';
 import { expandArgs, parseMcpJson, scopeLabel, toMcpJson } from '../project-config/project-config.utils';
 
 describe('MCP catalog', () => {
@@ -42,6 +42,42 @@ describe('MCP catalog', () => {
         expect(isValidServerName('jira-api')).toBe(true);
         expect(isValidServerName('../x')).toBe(false);
         expect(isValidServerName('')).toBe(false);
+    });
+});
+
+describe('MCP marketplace catalog (IDEA-123)', () => {
+    const categoryIds: readonly string[] = MCP_CATEGORIES.map(c => c.id);
+
+    it('is a large catalog where every entry has a known category and a unique monogram', () => {
+        expect(MCP_CATALOG.length).toBeGreaterThanOrEqual(45);
+        for (const e of MCP_CATALOG) {
+            expect(categoryIds, e.id).toContain(e.category);
+        }
+        const marks = MCP_CATALOG.map(e => e.mark);
+        expect(new Set(marks).size).toBe(marks.length);
+        expect(MCP_CATALOG.map(e => e.id)).toEqual(expect.arrayContaining(['google-calendar', 'aws', 'cloudflare', 'mongodb', 'redis', 'brave-search', 'context7', 'chrome-devtools', 'git', 'time']));
+    });
+
+    it('never ships a secret value: secret fields have no defaults and args only reference ${VAR}', () => {
+        const secretish = /(ghp_|glpat-|xox[abp]-|sk-|re_)[A-Za-z0-9]{8,}|AKIA[0-9A-Z]{16}/;
+        for (const e of MCP_CATALOG) {
+            expect(e.args.join(' '), e.id).not.toMatch(secretish);
+            for (const f of e.fields.filter(x => x.secret)) {
+                expect(f.placeholder ?? '', `${e.id}.${f.name}`).not.toMatch(secretish);
+            }
+            for (const a of e.args.filter(x => x.includes('${'))) {
+                const name = /\$\{([A-Z0-9_]+)\}/.exec(a)?.[1];
+                expect(e.fields.map(f => f.name), `${e.id} ${a}`).toContain(name);
+            }
+        }
+    });
+
+    it('groups entries in category order and drops empty sections', () => {
+        const groups = groupByCategory(MCP_CATALOG);
+        expect(groups.map(g => g.id)).toEqual(categoryIds);
+        expect(groups.reduce((n, g) => n + g.entries.length, 0)).toBe(MCP_CATALOG.length);
+        const some = groupByCategory(MCP_CATALOG.filter(e => e.id === 'redis' || e.id === 'github'));
+        expect(some.map(g => g.id)).toEqual(['dev', 'databases']);
     });
 });
 
