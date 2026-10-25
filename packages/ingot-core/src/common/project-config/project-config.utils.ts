@@ -111,6 +111,43 @@ export const expandCommand = (prompt: string, commands: readonly ProjectCommand[
     return { command, text };
 };
 
+/** Marks an env value that Ingot keeps in the OS keychain instead of the file. */
+export const KEYCHAIN_PLACEHOLDER = '${keychain}';
+
+const splitSecretEnv = (env: Record<string, string> | undefined): { env?: Record<string, string>; secretEnv?: string[] } => {
+    if (!env) {
+        return {};
+    }
+    const secretEnv = Object.keys(env).filter(k => env[k] === KEYCHAIN_PLACEHOLDER);
+    const plain = Object.fromEntries(Object.entries(env).filter(([, v]) => v !== KEYCHAIN_PLACEHOLDER));
+    return { ...(Object.keys(plain).length ? { env: plain } : {}), ...(secretEnv.length ? { secretEnv } : {}) };
+};
+
+/** Header secrets share the server's keychain namespace with a `header:` prefix. */
+export const headerSecretName = (header: string): string => `header:${header}`;
+
+const splitSecretHeaders = (headers: Record<string, string> | undefined): { headers?: Record<string, string>; secretHeaders?: string[] } => {
+    const split = splitSecretEnv(headers);
+    return { ...(split.env ? { headers: split.env } : {}), ...(split.secretEnv ? { secretHeaders: split.secretEnv } : {}) };
+};
+
+/** Keychain account for one MCP secret. */
+export const mcpSecretKey = (server: string, name: string): string => `mcp:${server}:${name}`;
+
+/** Replaces `${VAR}` in args with env values (used for connection strings passed as arguments). */
+export const expandArgs = (args: readonly string[], env: Readonly<Record<string, string>>): string[] =>
+    args.map(a => a.replace(/\$\{([A-Z0-9_]+)\}/g, (m, name: string) => env[name] ?? m));
+
+/** Serializes servers back to the common `mcp.json` shape; keychain vars are written as placeholders, never values. */
+export const toMcpJson = (servers: readonly McpServerConfig[]): string => JSON.stringify({
+    mcpServers: Object.fromEntries(servers.map(s => [s.name, {
+        ...(s.command ? { command: s.command, args: [...(s.args ?? [])] } : {}),
+        ...(s.url ? { url: s.url } : {}),
+        ...(s.env || s.secretEnv ? { env: { ...(s.env ?? {}), ...Object.fromEntries((s.secretEnv ?? []).map(k => [k, KEYCHAIN_PLACEHOLDER])) } } : {}),
+        ...(s.headers || s.secretHeaders ? { headers: { ...(s.headers ?? {}), ...Object.fromEntries((s.secretHeaders ?? []).map(k => [k, KEYCHAIN_PLACEHOLDER])) } } : {})
+    }]))
+}, undefined, 2) + '\n';
+
 /** `{ "mcpServers": { name: { command, args, env } | { url, headers } } }` (common MCP format). */
 export const parseMcpJson = (text: string, source: McpServerConfig['source']): McpServerConfig[] => {
     let json: unknown;
@@ -138,12 +175,21 @@ export const parseMcpJson = (text: string, source: McpServerConfig['source']): M
             name, source,
             ...(command ? { command, args: Array.isArray(raw.args) ? raw.args.map(String) : [] } : {}),
             ...(url ? { url } : {}),
-            ...(strings(raw.env) ? { env: strings(raw.env) } : {}),
-            ...(strings(raw.headers) ? { headers: strings(raw.headers) } : {})
+            ...splitSecretEnv(strings(raw.env)),
+            ...splitSecretHeaders(strings(raw.headers))
         };
         return [config];
     });
 };
+
+export type ScopeLabel = 'Global' | 'Project' | 'Imported';
+
+/** Scope badge for an item: Global (`~/.ingot`), Imported (other tools' folders, project or global) or Project. */
+export const scopeLabel = (source: ConfigSource | 'user'): ScopeLabel =>
+    source === 'global' || source === 'user' ? 'Global' : source === 'external' || source === 'global-imported' ? 'Imported' : 'Project';
+
+/** File-name slug for a new rule / command / skill. */
+export const slugify = (name: string): string => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
 
 /** Later sources win: imported folders < legacy `.alloy` < `.ingot`, so Ingot's own config overrides the rest. */
 export const mergeByName = <T extends { name: string }>(...lists: (readonly T[])[]): T[] => {

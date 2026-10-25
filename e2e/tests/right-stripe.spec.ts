@@ -37,7 +37,7 @@ test.describe('IDEA-61 right tool window stripe', () => {
 
         // MCP panel.
         await stripe(page, 'mcp').click();
-        await expect(page.locator('#ingot-mcp-empty')).toBeVisible();
+        await expect(page.locator('#ingot-mcp-tab-mcps')).toBeVisible();
         await expect(stripe(page, 'mcp')).toHaveClass(/selected/);
 
         // Services: package.json scripts, start one, it shows as running, stop it.

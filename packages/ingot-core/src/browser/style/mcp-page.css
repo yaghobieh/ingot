@@ -1,0 +1,102 @@
+/* IDEA-62 Rules & MCP page (reference: search + pills, Needs Attention / Connected lists). Theme-aware. */
+.ingot-mcp-page { overflow: auto; background: var(--theia-editor-background); }
+.ingot-mcp { max-width: 820px; margin: 0 auto; padding: 20px 24px 40px; font-size: 13px; color: var(--theia-foreground); }
+.ingot-mcp-top { display: flex; gap: 8px; align-items: center; }
+.ingot-mcp-search { flex: 1; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 8px;
+  background: var(--theia-input-background); border: 1px solid var(--theia-input-border, var(--theia-panel-border)); }
+.ingot-mcp-search input { flex: 1; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; }
+.ingot-mcp-search .codicon { color: var(--theia-descriptionForeground); }
+.ingot-mcp button { font: inherit; cursor: pointer; }
+.ingot-mcp-browse, .ingot-mcp-primary, .ingot-mcp-secondary, .ingot-mcp-danger { height: 30px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px; }
+.ingot-mcp-browse { background: var(--theia-button-secondaryBackground); color: var(--theia-button-secondaryForeground); }
+.ingot-mcp-browse.active, .ingot-mcp-primary { background: var(--ingot-primary); color: #fff; }
+.ingot-mcp-primary:disabled { opacity: .55; cursor: default; }
+.ingot-mcp-secondary { background: transparent; color: var(--theia-foreground); border-color: var(--theia-panel-border); }
+.ingot-mcp-secondary:hover { background: var(--theia-list-hoverBackground); }
+.ingot-mcp-danger { background: transparent; color: var(--theia-errorForeground); border-color: var(--theia-panel-border); }
+.ingot-mcp-link { background: none; border: 0; color: var(--ingot-primary); padding: 0 6px; }
+.ingot-mcp-filters { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; }
+.ingot-mcp-account { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 15px; border: 1px solid var(--theia-panel-border); }
+.ingot-mcp-account select { border: 0; background: transparent; color: inherit; font: inherit; outline: 0; }
+.ingot-mcp-divider { width: 1px; height: 20px; background: var(--theia-panel-border); }
+.ingot-mcp-pills { display: flex; gap: 6px; overflow-x: auto; flex: 1; scrollbar-width: none; }
+.ingot-mcp-pill { height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid var(--theia-panel-border); background: transparent; color: var(--theia-foreground); white-space: nowrap; }
+.ingot-mcp-pill.active { background: var(--theia-list-activeSelectionBackground, var(--theia-list-hoverBackground)); color: var(--theia-list-activeSelectionForeground, inherit); border-color: transparent; }
+.ingot-mcp-filter { background: none; border: 0; color: var(--theia-descriptionForeground); width: 28px; height: 28px; border-radius: 6px; }
+.ingot-mcp-filter:hover { background: var(--theia-list-hoverBackground); }
+.ingot-mcp-toolbar { display: flex; justify-content: flex-end; margin: 6px 0 -6px; }
+.ingot-mcp-section { margin-top: 18px; }
+.ingot-mcp-section h3 { font-size: 13px; font-weight: 600; margin: 0 0 8px; padding-left: 4px; }
+.ingot-mcp-section h3 span { color: var(--theia-descriptionForeground); font-weight: 400; margin-left: 2px; }
+.ingot-mcp-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.ingot-mcp-section-head h3 { margin: 0; }
+.ingot-mcp-list { border-radius: 10px; overflow: hidden; background: var(--theia-sideBar-background, var(--theia-editorWidget-background)); border: 1px solid var(--theia-panel-border); }
+.ingot-mcp-row + .ingot-mcp-row { border-top: 1px solid var(--theia-panel-border); }
+.ingot-mcp-row-main { display: flex; align-items: center; gap: 12px; padding: 9px 12px; cursor: pointer; }
+.ingot-mcp-row-main:hover { background: var(--theia-list-hoverBackground); }
+.ingot-mcp-icon { position: relative; flex: none; width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  background: var(--theia-badge-background, rgba(127,127,127,.18)); color: #fff; }
+.ingot-mcp-icon .codicon { color: var(--theia-descriptionForeground); }
+.ingot-mcp-mark { font-size: 10px; font-weight: 700; letter-spacing: .02em; }
+.ingot-mcp-dot { position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--theia-sideBar-background, var(--theia-editor-background)); }
+.ingot-mcp-dot.ok { background: #3FB950; } .ingot-mcp-dot.bad { background: #E5534B; } .ingot-mcp-dot.busy { background: #D9A04E; } .ingot-mcp-dot.off { background: #8B949E; }
+.ingot-mcp-row-text { flex: 1; min-width: 0; }
+.ingot-mcp-name { font-weight: 500; }
+.ingot-mcp-badge { display: inline-block; margin-left: 6px; padding: 0 7px; line-height: 18px; border-radius: 9px; font-size: 11px; background: var(--theia-badge-background, rgba(127,127,127,.18)); color: var(--theia-badge-foreground, var(--theia-descriptionForeground)); opacity: .9; }
+.ingot-mcp-summary { color: var(--theia-descriptionForeground); font-size: 12px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-mcp-summary a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.ingot-mcp-row-actions { display: flex; align-items: center; gap: 6px; }
+.ingot-mcp-row-actions .codicon { background: none; border: 0; color: var(--theia-descriptionForeground); width: 26px; height: 26px; border-radius: 6px; }
+.ingot-mcp-row-actions .codicon:hover { background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); }
+.ingot-switch { position: relative; display: inline-block; width: 30px; height: 17px; }
+.ingot-switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; z-index: 1; }
+.ingot-switch span { position: absolute; inset: 0; border-radius: 9px; background: var(--theia-panel-border); transition: background .15s; }
+.ingot-switch span::after { content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.ingot-switch input:checked + span { background: var(--ingot-primary); }
+.ingot-switch input:checked + span::after { transform: translateX(13px); }
+.ingot-mcp-details, .ingot-mcp-auth { padding: 4px 12px 12px 52px; display: flex; flex-direction: column; gap: 8px; }
+.ingot-mcp-kv { display: flex; gap: 10px; font-size: 12px; } .ingot-mcp-kv > span { width: 70px; flex: none; color: var(--theia-descriptionForeground); }
+.ingot-mcp-kv code { word-break: break-all; }
+.ingot-mcp-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.ingot-mcp-tools { border: 1px solid var(--theia-panel-border); border-radius: 8px; padding: 6px 10px; max-height: 260px; overflow: auto; }
+.ingot-mcp-tools-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--theia-descriptionForeground); margin-bottom: 4px; }
+.ingot-mcp-tool { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; font-size: 12px; }
+.ingot-mcp-tool span { color: var(--theia-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-mcp-detail-actions, .ingot-mcp-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.ingot-mcp-drawer { margin: 0 12px 12px 52px; border: 1px solid var(--theia-panel-border); border-radius: 8px; overflow: hidden; }
+.ingot-mcp-drawer-head { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; font-size: 11px; color: var(--theia-descriptionForeground); background: var(--theia-editorWidget-background); }
+.ingot-mcp-drawer-head button { background: none; border: 0; color: inherit; }
+.ingot-mcp-output { margin: 0; padding: 8px 10px; max-height: 220px; overflow: auto; font-family: var(--theia-code-font-family, monospace); font-size: 11px; white-space: pre-wrap; background: var(--theia-terminal-background, var(--theia-editor-background)); }
+.ingot-mcp-more { background: none; border: 0; color: var(--theia-descriptionForeground); margin: 8px 4px 0; padding: 0; display: inline-flex; gap: 4px; align-items: center; }
+.ingot-mcp-empty { padding: 28px; text-align: center; color: var(--theia-descriptionForeground); }
+.ingot-mcp-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.ingot-mcp-card { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 10px; border: 1px solid var(--theia-panel-border); background: var(--theia-sideBar-background, var(--theia-editorWidget-background)); }
+.ingot-mcp-card p { margin: 0; flex: 1; color: var(--theia-descriptionForeground); font-size: 12px; }
+.ingot-mcp-card-head { display: flex; align-items: center; gap: 10px; }
+.ingot-mcp-card-head h3 { margin: 0; }
+.ingot-mcp-card-foot { display: flex; align-items: center; justify-content: space-between; }
+.ingot-mcp-card-meta { font-size: 11px; color: var(--theia-descriptionForeground); }
+.ingot-mcp-addform { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; padding: 16px; border-radius: 10px; border: 1px solid var(--theia-panel-border); background: var(--theia-sideBar-background, var(--theia-editorWidget-background)); }
+.ingot-mcp-addform h3 { margin: 0; font-size: 14px; }
+.ingot-mcp-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.ingot-mcp-field > span { color: var(--theia-descriptionForeground); }
+.ingot-mcp-field em { font-style: normal; opacity: .8; }
+.ingot-mcp input:not([type=checkbox]), .ingot-mcp select { height: 28px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--theia-input-border, var(--theia-panel-border)); background: var(--theia-input-background); color: var(--theia-input-foreground, inherit); font: inherit; }
+.ingot-mcp-search input { border: 0 !important; height: auto !important; padding: 0 !important; }
+.ingot-mcp-account select { border: 0 !important; height: auto !important; padding: 0 !important; background: transparent !important; }
+.ingot-mcp-segmented { display: inline-flex; border: 1px solid var(--theia-panel-border); border-radius: 8px; overflow: hidden; align-self: flex-start; }
+.ingot-mcp-segmented button { border: 0; background: transparent; color: inherit; padding: 6px 12px; }
+.ingot-mcp-segmented button.active { background: var(--ingot-primary); color: #fff; }
+.ingot-mcp-kvlist { display: flex; flex-direction: column; gap: 6px; }
+.ingot-mcp-kvlist-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--theia-descriptionForeground); }
+.ingot-mcp-kvrow { display: flex; gap: 6px; align-items: center; }
+.ingot-mcp-kvrow .ingot-mcp-kv-key { width: 34%; } .ingot-mcp-kvrow .ingot-mcp-kv-value { flex: 1; }
+.ingot-mcp-kvrow .codicon { background: none; border: 0; color: var(--theia-descriptionForeground); }
+.ingot-mcp-hint { margin: 0; font-size: 12px; color: var(--theia-descriptionForeground); }
+.ingot-mcp-error { color: var(--theia-errorForeground); font-size: 12px; }
+.ingot-mcp-newitem { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+.ingot-mcp-newitem input { flex: 1; min-width: 160px; }
+.ingot-mcp-newitem .ingot-mcp-error { flex-basis: 100%; }
+.ingot-mcp .ingot-mcp-icon:not([style]) { background: rgba(127, 127, 127, .16); }
+.ingot-mcp .ingot-mcp-badge { background: rgba(127, 127, 127, .16); color: var(--theia-descriptionForeground); }
+.ingot-mcp code { color: inherit; font-size: 11.5px; font-family: var(--theia-code-font-family, monospace); }
