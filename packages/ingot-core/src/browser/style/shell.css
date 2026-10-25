@@ -336,3 +336,88 @@ body.ingot-has-group #theia-top-panel > .ingot-project-tabs { order: 2; height: 
 .ingot-chip:hover .ingot-chip-preview { display: block; }
 .ingot-chip-preview-path { display: block; color: var(--theia-descriptionForeground); font-size: 11px; margin-bottom: 4px; }
 .ingot-chip-preview pre { margin: 0; font-family: var(--theia-code-font-family, monospace); font-size: 11px; white-space: pre; overflow: hidden; }
+
+/* IDEA-74: Local Changes / Commit tool window */
+.ingot-local-changes { display: flex; flex-direction: column; }
+.ingot-lc-root { display: flex; flex-direction: column; height: 100%; min-height: 0; font-size: 12px; }
+.ingot-lc-toolbar { display: flex; align-items: center; gap: 1px; padding: 3px 6px; border-bottom: 1px solid var(--theia-panel-border); }
+.ingot-lc-tool { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 22px; border: 0; border-radius: 4px; background: transparent; color: var(--theia-icon-foreground, var(--theia-foreground)); cursor: pointer; }
+.ingot-lc-tool:hover:not(:disabled) { background: var(--theia-toolbar-hoverBackground, rgba(128,128,128,.15)); }
+.ingot-lc-tool.active { background: color-mix(in srgb, var(--ingot-primary) 18%, transparent); color: var(--ingot-primary); }
+.ingot-lc-tool:disabled { opacity: .4; cursor: default; }
+.ingot-lc-sep { width: 1px; height: 14px; margin: 0 4px; background: var(--theia-panel-border); }
+.ingot-lc-tree { flex: 1 1 auto; min-height: 60px; overflow: auto; padding: 2px 0; outline: none; }
+.ingot-lc-row { display: flex; align-items: center; gap: 4px; height: 22px; padding-right: 8px; white-space: nowrap; cursor: default; }
+.ingot-lc-row:hover { background: var(--theia-list-hoverBackground); }
+.ingot-lc-row.selected { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
+.ingot-lc-group-row { padding-left: 4px; font-weight: 600; }
+.ingot-lc-count, .ingot-lc-dir { color: var(--theia-descriptionForeground); font-weight: 400; overflow: hidden; text-overflow: ellipsis; margin-left: 4px; }
+.ingot-lc-check { margin: 0 2px; accent-color: var(--ingot-primary); }
+.ingot-lc-badge { flex: none; }
+.ingot-lc-name { flex: none; }
+.ingot-lc-modified, .ingot-lc-name.ingot-lc-modified { color: var(--theia-gitDecoration-modifiedResourceForeground, #6897BB); }
+.ingot-lc-name.ingot-lc-added { color: var(--theia-gitDecoration-addedResourceForeground, #62B543); }
+.ingot-lc-name.ingot-lc-deleted { color: var(--theia-gitDecoration-deletedResourceForeground, #8C8C8C); text-decoration: line-through; }
+.ingot-lc-name.ingot-lc-renamed { color: var(--theia-gitDecoration-renamedResourceForeground, #3B9EA8); }
+.ingot-lc-name.ingot-lc-conflicted { color: var(--theia-gitDecoration-conflictingResourceForeground, #E5534B); }
+.ingot-lc-name.ingot-lc-untracked { color: var(--theia-gitDecoration-untrackedResourceForeground, #D1675A); }
+.ingot-lc-modified { color: var(--theia-descriptionForeground); }
+.ingot-lc-empty { padding: 10px 12px; color: var(--theia-descriptionForeground); }
+.ingot-lc-message { position: relative; flex: 0 0 auto; border-top: 1px solid var(--theia-panel-border); }
+.ingot-lc-message textarea { display: block; width: 100%; min-height: 84px; height: 110px; resize: vertical; box-sizing: border-box; border: 0; outline: 0; padding: 8px 30px 8px 10px;
+  background: var(--theia-editor-background); color: var(--theia-foreground); font-family: var(--theia-code-font-family, monospace); font-size: 12.5px; }
+.ingot-lc-history { position: absolute; top: 4px; right: 4px; }
+.ingot-lc-options { display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; border-top: 1px solid var(--theia-panel-border); }
+.ingot-lc-bottom { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-top: 1px solid var(--theia-panel-border); }
+.ingot-lc-amend.active { color: var(--theia-errorForeground, #E5534B); }
+.ingot-lc-split { position: relative; display: inline-flex; }
+.ingot-lc-split > .ingot-btn-primary:first-child { border-radius: 5px 0 0 5px; padding: 3px 14px; }
+.ingot-lc-commit-arrow { border-radius: 0 5px 5px 0 !important; padding: 0 4px !important; border-left: 1px solid rgba(255,255,255,.25) !important; }
+.ingot-lc-popup { position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 20; min-width: 200px; padding: 4px; border-radius: 6px;
+  background: var(--theia-menu-background, var(--theia-editor-background)); border: 1px solid var(--theia-menu-border, var(--theia-panel-border)); box-shadow: 0 6px 18px rgba(0,0,0,.28); }
+.ingot-lc-popup button { display: flex; width: 100%; justify-content: space-between; gap: 16px; padding: 5px 8px; border: 0; border-radius: 4px; background: transparent; color: var(--theia-menu-foreground, var(--theia-foreground)); font: inherit; cursor: pointer; }
+.ingot-lc-popup button:hover { background: var(--theia-menu-selectionBackground, var(--ingot-primary)); color: var(--theia-menu-selectionForeground, #fff); }
+.ingot-lc-popup-up { bottom: calc(100% + 4px); left: auto; right: 0; }
+.ingot-lc-key { color: var(--theia-descriptionForeground); }
+.ingot-lc-branch { display: inline-flex; align-items: center; gap: 3px; color: var(--theia-foreground); }
+
+/* IDEA-74: diff viewer */
+.ingot-diff { display: flex; flex-direction: column; }
+.ingot-diff-toolbar { flex: none; border-bottom: 1px solid var(--theia-panel-border); }
+.ingot-diff-tools { display: flex; align-items: center; gap: 2px; padding: 3px 6px; }
+.ingot-diff-tools .ingot-select { height: 22px; margin: 0 2px; font-size: 12px; }
+.ingot-diff-summary { color: var(--theia-descriptionForeground); font-size: 12px; margin-right: 6px; }
+.ingot-diff-headers { flex: none; display: grid; grid-template-columns: 1fr 1fr; font-size: 12px; color: var(--theia-descriptionForeground); border-bottom: 1px solid var(--theia-panel-border); }
+.ingot-diff-headers span { padding: 3px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-diff-header-left::before { content: '\1F512\FE0E  '; font-size: 10px; }
+.ingot-diff-editor { flex: 1 1 auto; min-height: 0; position: relative; }
+.ingot-hunk-check { cursor: pointer; color: var(--theia-descriptionForeground); font-size: 13px !important; }
+.ingot-hunk-check.checked { color: var(--ingot-primary); }
+.ingot-diff-lines-only .char-insert, .ingot-diff-lines-only .char-delete { background: transparent !important; }
+
+/* IDEA-74: Push dialog */
+.ingot-push-dialog .dialogContent { padding: 0; }
+.ingot-push { display: flex; flex-direction: column; width: min(860px, 80vw); height: min(480px, 70vh); font-size: 12.5px; }
+.ingot-push-body { flex: 1 1 auto; display: grid; grid-template-columns: 3fr 2fr; min-height: 0; }
+.ingot-push-left { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--theia-panel-border); }
+.ingot-push-branch { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--theia-panel-border); font-weight: 600; }
+.ingot-push-arrow { color: var(--theia-descriptionForeground); }
+.ingot-push-remote { height: 22px; }
+.ingot-push-target { border: 0; background: transparent; color: var(--ingot-primary); font: inherit; text-decoration: underline dotted; cursor: text; padding: 0; }
+.ingot-push-target-input { width: 180px; }
+.ingot-push-new { padding: 0 6px; border-radius: 8px; font-size: 10.5px; font-weight: 600; background: color-mix(in srgb, var(--theia-gitDecoration-addedResourceForeground, #62B543) 22%, transparent); color: var(--theia-gitDecoration-addedResourceForeground, #62B543); }
+.ingot-push-commits, .ingot-push-right { overflow: auto; min-height: 0; }
+.ingot-push-commit { display: flex; justify-content: space-between; gap: 12px; padding: 4px 10px 4px 26px; cursor: default; }
+.ingot-push-commit:hover { background: var(--theia-list-hoverBackground); }
+.ingot-push-commit.selected { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
+.ingot-push-meta { color: var(--theia-descriptionForeground); white-space: nowrap; }
+.ingot-push-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-push-files-title { padding: 8px 10px 4px; color: var(--theia-descriptionForeground); }
+.ingot-push-file { display: flex; gap: 6px; padding: 3px 10px; white-space: nowrap; }
+.ingot-push-file:hover { background: var(--theia-list-hoverBackground); }
+.ingot-push-status-A { color: var(--theia-gitDecoration-addedResourceForeground, #62B543); }
+.ingot-push-status-M { color: var(--theia-gitDecoration-modifiedResourceForeground, #6897BB); }
+.ingot-push-status-D { color: var(--theia-gitDecoration-deletedResourceForeground, #8C8C8C); text-decoration: line-through; }
+.ingot-push-status-R { color: var(--theia-gitDecoration-renamedResourceForeground, #3B9EA8); }
+.ingot-push-footer { display: flex; align-items: center; gap: 14px; padding: 8px 10px; border-top: 1px solid var(--theia-panel-border); }
+.ingot-push-footer label { display: inline-flex; align-items: center; gap: 6px; }
