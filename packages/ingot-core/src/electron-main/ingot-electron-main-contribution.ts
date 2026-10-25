@@ -8,10 +8,26 @@ import type { ElectronMainApplication, ElectronMainApplicationContribution } fro
 import { parseRecentProjects, RECENT_WORKSPACE_FILE, type RecentProject } from '../common/recent/recent-projects';
 import { PRODUCT } from '../common/product.consts';
 
+/**
+ * The @ingot/core resources folder (IDEA-108). In the bundled app the main process runs from
+ * applications/electron/lib/backend, so `__dirname/../../resources` is the app's own copy (esbuild.mjs puts it there);
+ * the @ingot/core package (tsc output or the monorepo source) is the fallback.
+ */
+const resourcesDir = (): string => {
+    const candidates = [path.resolve(__dirname, '..', '..', 'resources')];
+    try {
+        candidates.push(path.join(path.dirname(require.resolve('@ingot/core/package.json')), 'resources'));
+    } catch {
+        // Not resolvable from a bundle; the other candidates cover it.
+    }
+    candidates.push(path.resolve(__dirname, '..', '..', '..', '..', 'packages', 'ingot-core', 'resources'));
+    return candidates.find(dir => fs.existsSync(path.join(dir, 'app-icon.png'))) ?? candidates[0];
+};
+const RESOURCES_DIR = resourcesDir();
 /** Packaged with @ingot/core so dev runs and builds both show the Ingot icon. */
-export const APP_ICON_PATH = path.resolve(__dirname, '..', '..', 'resources', 'app-icon.png');
+export const APP_ICON_PATH = path.join(RESOURCES_DIR, 'app-icon.png');
 /** Launch animation frames of the </> mark (scripts/build-icon-v3.mjs). */
-export const DOCK_ANIMATION_DIR = path.resolve(__dirname, '..', '..', 'resources', 'dock-anim');
+export const DOCK_ANIMATION_DIR = path.join(RESOURCES_DIR, 'dock-anim');
 const DOCK_FRAME_MS = 50;
 
 /** macOS "Reduce motion" (System Settings › Accessibility › Display). */
