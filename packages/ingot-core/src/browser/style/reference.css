@@ -57,7 +57,7 @@ button.ingot-tb-logo:hover { background: var(--ingot-primary-hover); }
 .ingot-btn-primary { background: var(--ingot-primary); color: #fff; padding: 4px 12px; }
 .ingot-composer { margin: 0 12px 12px; padding: 10px 10px 8px; border-radius: 10px; background: color-mix(in srgb, var(--theia-editor-background) 80%, var(--theia-sideBar-background)); }
 .ingot-composer:focus-within { border-color: var(--ingot-primary); }
-.ingot-composer-input { font-size: 12.5px; min-height: 40px; }
+.ingot-composer-input { font-size: 12.5px; min-height: 84px; line-height: 18px; }
 .ingot-select { height: 24px; padding: 0 6px; border: 1px solid var(--theia-panel-border); background: transparent; border-radius: 6px; max-width: 46%; text-overflow: ellipsis; }
 .ingot-composer-send { width: 26px; height: 26px; border-radius: 7px; background: var(--ingot-primary); color: #fff; }
 .ingot-agent-dot { background: var(--ingot-primary); }
