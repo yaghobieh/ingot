@@ -26,3 +26,9 @@ export const ALT = 'Alt';
 export const TOOL_WINDOW_MOD = 'Alt';
 export const EXPLORER_TAB = '#shell-tab-explorer-view-container';
 export const LEFT_PANEL = '#theia-left-side-panel';
+
+/** Fake ingot-server + portal for the account / gateway e2e (IDEA-101); the browser app is started pointing at it. */
+export const FAKE_INGOT_PORT = Number(process.env.INGOT_FAKE_SERVER_PORT ?? 3398);
+export const FAKE_INGOT_URL = `http://127.0.0.1:${FAKE_INGOT_PORT}`;
+/** e2e user settings: BYOK / Local models on, so specs can use the fake Ollama and key-based models. */
+export const E2E_USER_SETTINGS = { 'ingot.models.byok': true } as const;

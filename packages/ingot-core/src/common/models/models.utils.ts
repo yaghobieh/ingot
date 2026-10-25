@@ -1,7 +1,24 @@
 import { MODEL_CATALOG, MODEL_FAMILIES, PROVIDERS } from './models.consts';
 import type { CatalogModel, ModelFamilyGroup, ChatImage, ChatMessage, CompletionRequest, HttpRequestSpec, ProviderId, ProviderInfo, ProviderSettings } from './models.types';
 
-export const findModel = (id: string): CatalogModel | undefined => MODEL_CATALOG.find(m => m.id === id);
+const gatewayModels = new Map<string, CatalogModel>();
+
+/** Ingot gateway models from GET /v1/models (IDEA-101); the static catalog holds the BYOK / local ones. */
+export const setGatewayModels = (models: readonly CatalogModel[]): void => {
+    gatewayModels.clear();
+    models.forEach(m => gatewayModels.set(m.id, m));
+};
+export const getGatewayModels = (): CatalogModel[] => [...gatewayModels.values()];
+
+export const findModel = (id: string): CatalogModel | undefined => {
+    const known = MODEL_CATALOG.find(m => m.id === id) ?? gatewayModels.get(id);
+    if (known || !id.startsWith('ingot:')) {
+        return known;
+    }
+    // A saved choice before the list loaded (or on the backend): any ingot:<id> is a gateway model.
+    const name = id.slice('ingot:'.length);
+    return name ? { id, label: name, provider: 'ingot', model: name, speed: 'balanced', cost: '$', contextWindow: 128_000, thinking: false, recommended: false } : undefined;
+};
 export const findProvider = (id: ProviderId): ProviderInfo => PROVIDERS.find(p => p.id === id) ?? PROVIDERS[0];
 
 /** Picker families with their models, in family order; families without models are left out (IDEA-91). */
@@ -23,7 +40,7 @@ const splitSystem = (messages: readonly ChatMessage[]): { system: string; rest: 
 });
 
 /** Providers whose chat models read images (IDEA-98). DeepSeek's chat API is text only. */
-export const VISION_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>(['anthropic', 'openai', 'gemini', 'openrouter', 'ollama']);
+export const VISION_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>(['ingot', 'anthropic', 'openai', 'gemini', 'openrouter', 'ollama']);
 export const supportsVision = (provider: ProviderId): boolean => VISION_PROVIDERS.has(provider);
 
 const hasImages = (m: ChatMessage): boolean => !!m.images?.length;
@@ -74,8 +91,13 @@ export const buildProviderRequest = (provider: ProviderId, model: string, reques
                 body: { model, stream, messages: request.messages.map(ollamaMessage), options: { temperature, num_predict: maxTokens, ...(stop ? { stop } : {}) } }
             };
         default: {
-            // OpenAI-compatible: OpenAI, DeepSeek, OpenRouter.
+            // OpenAI-compatible: the Ingot gateway, OpenAI, DeepSeek, OpenRouter.
             const headers: Record<string, string> = { 'content-type': 'application/json', authorization: `Bearer ${apiKey ?? ''}` };
+            if (provider === 'ingot') {
+                headers['x-ingot-feature'] = request.settings?.feature ?? 'agent';
+                const base = (request.settings?.ingotBaseUrl ?? info.baseUrl).replace(/\/$/, '');
+                return { url: `${base}/chat/completions`, headers, body: { model, messages: request.messages.map(openAiMessage), max_tokens: maxTokens, temperature, ...(stop ? { stop } : {}), ...(stream ? { stream: true, stream_options: { include_usage: true } } : {}) } };
+            }
             if (provider === 'openrouter') {
                 headers['HTTP-Referer'] = 'https://github.com/yaghobieh/ingot';
                 headers['X-Title'] = 'Ingot';

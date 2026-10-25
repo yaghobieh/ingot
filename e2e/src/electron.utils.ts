@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
-import { APP_READY_TIMEOUT_MS, E2E_KEYCHAIN_SERVICE, IMPORT_HOME, SHELL_SELECTOR } from './e2e.consts';
+import { APP_READY_TIMEOUT_MS, E2E_KEYCHAIN_SERVICE, E2E_USER_SETTINGS, FAKE_INGOT_URL, IMPORT_HOME, SHELL_SELECTOR } from './e2e.consts';
 
 const ROOT = path.resolve(__dirname, '..', '..');
 export const ELECTRON_APP_DIR = path.join(ROOT, 'applications', 'electron');
@@ -16,6 +16,8 @@ export interface DesktopApp {
 /** Launches the desktop app on `workspace` with an isolated config dir, Electron profile and keychain service. */
 export const launchDesktop = async (workspace: string): Promise<DesktopApp> => {
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-electron-e2e-'));
+    fs.mkdirSync(path.join(profile, 'config'), { recursive: true });
+    fs.writeFileSync(path.join(profile, 'config', 'settings.json'), JSON.stringify(E2E_USER_SETTINGS));
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const executablePath = require(path.join(ROOT, 'node_modules', 'electron')) as unknown as string;
     const app = await electron.launch({
@@ -29,7 +31,11 @@ export const launchDesktop = async (workspace: string): Promise<DesktopApp> => {
             THEIA_CONFIG_DIR: path.join(profile, 'config'),
             INGOT_KEYCHAIN_SERVICE: E2E_KEYCHAIN_SERVICE,
             INGOT_IMPORT_HOME: IMPORT_HOME,
-            INGOT_WORKSPACE: workspace
+            INGOT_WORKSPACE: workspace,
+            // Never the developer's local ingot-server: account specs start the fake one on this URL.
+            INGOT_SERVER_URL: FAKE_INGOT_URL,
+            INGOT_PORTAL_URL: FAKE_INGOT_URL,
+            INGOT_NO_PROTOCOL_CLIENT: '1'
         },
         timeout: APP_READY_TIMEOUT_MS
     });

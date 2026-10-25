@@ -12,6 +12,10 @@ files:
   - resources
   - package.json
   - "!**/node_modules/electron/**"
+# ingot:// links from the website (Open in Ingot sign-in handoff, IDEA-101).
+protocols:
+  - name: Ingot
+    schemes: [ingot]
 mac:
   category: public.app-category.developer-tools
   icon: ../../assets/brand/app-icon.icns
