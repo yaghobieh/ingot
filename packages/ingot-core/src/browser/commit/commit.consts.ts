@@ -14,7 +14,10 @@ export const COMMIT_COMMANDS = {
     moveToChangelist: c('moveToChangelist', 'Move to Another Changelist…'),
     addToGitignore: c('addToGitignore', 'Add to .gitignore'),
     delete: c('delete', 'Delete'),
-    toggle: c('toggleView', 'Commit tool window')
+    toggle: c('toggleView', 'Commit tool window'),
+    revertChunk: c('revertChunk', 'Revert Chunk'),
+    ignoreChunk: c('ignoreChunk', 'Exclude Chunk from Commit'),
+    revertFile: c('revertFile', 'Revert File…')
 } as const;
 
 export const LOCAL_CHANGES_WIDGET_ID = 'ingot-local-changes';
@@ -25,3 +28,5 @@ export const LOCAL_CHANGES_CONTEXT_MENU: MenuPath = ['ingot-local-changes-contex
 export const LOCAL_CHANGES_FOCUS = 'ingotLocalChangesFocus';
 export const DEFAULT_CHANGELIST = 'Default Changelist';
 export const UNVERSIONED_GROUP = 'Unversioned Files';
+/** Context key while a diff tab has focus (revert chunk ⌘⌥Z, F7 / ⇧F7). */
+export const DIFF_FOCUS = 'ingotDiffFocus';
