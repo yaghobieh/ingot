@@ -5,7 +5,7 @@ import { dismissNotifications, openIngot } from '../src/app.utils';
 import { FIXTURE_WORKSPACE } from '../src/e2e.consts';
 
 /** IDEA-61: right-edge tool window stripe and the run/AI/search top bar. */
-const STRIPE = ['settings', 'notifications', 'agents', 'database', 'mcp', 'services', 'history', 'theme'];
+const STRIPE = ['notifications', 'agents', 'database', 'mcp', 'services', 'history', 'theme'];
 const stripe = (page: Page, id: string) => page.locator(`#ingot-rs-${id}`);
 const COMPOSE = path.join(FIXTURE_WORKSPACE, 'docker-compose.yml');
 
@@ -63,13 +63,14 @@ test.describe('IDEA-61 right tool window stripe', () => {
         await stripe(page, 'notifications').click();
         await expect(stripe(page, 'notifications')).not.toHaveClass(/selected/);
 
-        // Settings opens Ingot settings.
-        await stripe(page, 'settings').click();
+        // IDEA-92: Settings lives at the bottom-left of the left stripe, under Account.
+        await expect(stripe(page, 'settings')).toHaveCount(0);
+        await page.locator('#ingot-stripe-settings').click();
         await expect(page.locator('.ingot-settings-top')).toBeVisible();
         await page.keyboard.press('Escape');
     });
 
-    test('top bar has run/debug/stop, New Session, AI and search, but no settings or theme', async ({ page }) => {
+    test('top bar has run/debug/stop, AI and search, but no New Session, settings or theme', async ({ page }) => {
         await openIngot(page);
         await dismissNotifications(page);
         await expect(page.locator('#ingot-tb-run-config')).toContainText('dev');
@@ -81,10 +82,11 @@ test.describe('IDEA-61 right tool window stripe', () => {
         await expect(page.locator('#ingot-tb-stop')).toBeEnabled();
         await page.locator('#ingot-tb-stop').click();
 
-        const before = await page.locator('.ingot-chat-tab').count();
-        await page.locator('#ingot-tb-new-session').click();
-        await expect(page.locator('#ingot-agents')).toBeVisible();
-        await expect(page.locator('.ingot-chat-tab')).toHaveCount(before + 1);
+        await expect(page.locator('#ingot-tb-new-session')).toHaveCount(0);
+        // AI toggles the Agents panel (it opens a chat; New Session duplicated it).
+        const wasOpen = await page.locator('#ingot-agents').isVisible();
+        await page.locator('#ingot-tb-ai').click();
+        await expect(page.locator('#ingot-agents')).toBeVisible({ visible: !wasOpen });
 
         await page.locator('#ingot-tb-search').click();
         await expect(page.locator('.quick-input-widget')).toBeVisible();
