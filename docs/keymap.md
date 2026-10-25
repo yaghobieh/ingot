@@ -60,7 +60,11 @@ Any shortcut can be changed in Keymap › Edit Shortcuts.
 | Debug | ⌃D | Shift+F9 |
 | Stop | ⌘F2 | Ctrl+F2 |
 | Settings | ⌘, | Ctrl+Alt+S |
-| Keymap | ⌘K ⌘S | Ctrl+K Ctrl+S |
+| Keymap | ⌘⌥K | Ctrl+Alt+K |
+| Commit… (Local Changes) | ⌘K | Ctrl+K |
+| Push… | ⇧⌘K | Ctrl+Shift+K |
+| Commit Message History (in Local Changes) | ⌘⌥H | Ctrl+Alt+H |
+| Add Selection to Agent Chat | ⇧⌘L | Ctrl+L |
 | Project tool window | ⌘1 | Alt+1 |
 | Bookmarks / Search tool window | ⌘2 | Alt+2 |
 | Run tool window | ⌘4 | Alt+4 |
@@ -72,5 +76,8 @@ Any shortcut can be changed in Keymap › Edit Shortcuts.
 | Terminal tool window | ⌥F12 | Alt+F12 |
 | Hide all tool windows | ⌘⇧F12 | Ctrl+Shift+F12 |
 | Jump to editor | Escape | Escape |
+
+In the Local Changes tool window: Show Diff ⌘D, Jump to Source F4, Commit ⌘↩, Rollback ⌘⌥Z, Refresh ⌘R.
+All shortcuts can be rebound in Settings › Keymap.
 
 _Generated from `packages/ingot-core/src/common/keymap/*.keymap.consts.ts`._

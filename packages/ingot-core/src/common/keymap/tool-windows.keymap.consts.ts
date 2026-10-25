@@ -9,7 +9,7 @@ export const TOOL_WINDOW_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Problems tool window', command: 'problemsView:toggle', mac: 'ctrlcmd+6', other: 'alt+6' },
     { action: 'Structure tool window', command: 'outlineView:toggle', mac: 'ctrlcmd+7', other: 'alt+7' },
     { action: 'Git tool window', command: 'scmView:toggle', mac: 'ctrlcmd+9', other: 'alt+9' },
-    { action: 'Commit tool window', command: 'scmView:toggle', mac: 'ctrlcmd+0', other: 'alt+0' },
+    { action: 'Commit tool window', command: 'ingot.commit.toggleView', mac: 'ctrlcmd+0', other: 'alt+0' },
     { action: 'Terminal tool window', command: 'workbench.action.terminal.toggleTerminal', mac: 'alt+f12', other: 'alt+f12' },
     { action: 'Hide all tool windows', command: 'ingot.hideAllToolWindows', mac: 'ctrlcmd+shift+f12', other: 'ctrl+shift+f12' },
     { action: 'Jump to editor', command: 'ingot.focusEditor', mac: 'escape', other: 'escape', when: 'sideBarFocus || panelFocus' }
