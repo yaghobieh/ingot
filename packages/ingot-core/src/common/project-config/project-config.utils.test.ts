@@ -10,7 +10,7 @@ describe('project config', () => {
     });
 
     it('builds rules: always-on without globs, scoped with globs', () => {
-        expect(ruleFromFile('.alloy/rules/style.md', 'Be brief.', 'alloy')).toMatchObject({ name: 'style', alwaysApply: true, globs: [] });
+        expect(ruleFromFile('.ingot/rules/style.md', 'Be brief.', 'ingot')).toMatchObject({ name: 'style', alwaysApply: true, globs: [] });
         const scoped = ruleFromFile('.cursor/rules/ts.mdc', '---\nglobs: src/**/*.ts\n---\nNo any.', 'cursor');
         expect(scoped).toMatchObject({ name: 'ts', alwaysApply: false, globs: ['src/**/*.ts'], body: 'No any.' });
         expect(applicableRules([scoped], ['README.md'])).toEqual([]);
@@ -28,21 +28,21 @@ describe('project config', () => {
     });
 
     it('expands slash commands and skills', () => {
-        const explain = commandFromFile('.alloy/commands/explain.md', '# Explain code\nExplain $ARGUMENTS simply.', 'alloy');
+        const explain = commandFromFile('.ingot/commands/explain.md', '# Explain code\nExplain $ARGUMENTS simply.', 'ingot');
         expect(explain).toMatchObject({ name: 'explain', description: 'Explain code' });
         expect(expandCommand('/explain the math module', [explain])?.text).toBe('# Explain code\nExplain the math module simply.');
         const review = commandFromFile('.cursor/commands/review.md', 'Review the diff.', 'cursor');
         expect(expandCommand('/review src/a.ts', [review])?.text).toBe('Review the diff.\n\nsrc/a.ts');
         expect(expandCommand('/nope', [review])).toBeUndefined();
-        const skill = commandFromFile('.alloy/skills/release-notes/SKILL.md', '---\nname: Release Notes\ndescription: Write notes\n---\nSteps', 'alloy', 'skill');
+        const skill = commandFromFile('.ingot/skills/release-notes/SKILL.md', '---\nname: Release Notes\ndescription: Write notes\n---\nSteps', 'ingot', 'skill');
         expect(skill).toMatchObject({ name: 'release-notes', kind: 'skill', description: 'Write notes' });
     });
 
     it('parses mcp.json (stdio and http) and merges by name', () => {
-        const servers = parseMcpJson(JSON.stringify({ mcpServers: { echo: { command: 'node', args: ['s.mjs'], env: { TOKEN: 'x' } }, web: { url: 'http://localhost:1/mcp' }, bad: {} } }), 'alloy');
+        const servers = parseMcpJson(JSON.stringify({ mcpServers: { echo: { command: 'node', args: ['s.mjs'], env: { TOKEN: 'x' } }, web: { url: 'http://localhost:1/mcp' }, bad: {} } }), 'ingot');
         expect(servers.map(s => s.name)).toEqual(['echo', 'web']);
         expect(servers[0]).toMatchObject({ command: 'node', args: ['s.mjs'], env: { TOKEN: 'x' } });
-        expect(parseMcpJson('nope', 'alloy')).toEqual([]);
+        expect(parseMcpJson('nope', 'ingot')).toEqual([]);
         expect(mergeByName([{ name: 'a', v: 1 }], [{ name: 'a', v: 2 }, { name: 'b', v: 3 }])).toEqual([{ name: 'a', v: 2 }, { name: 'b', v: 3 }]);
     });
 });

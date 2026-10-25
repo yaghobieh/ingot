@@ -4,7 +4,7 @@ Ingot is an open-source AI IDE with a WebStorm (JetBrains) look and feel. Read `
 
 ## Ground rules
 
-- Follow every rule in `.alloy/rules/` (mirrored in `.cursor/rules/`).
+- Follow every rule in `.ingot/rules/`.
 - Work only on a `feature/IDEA-<n>` or `bug/IDEA-<n>` branch cut from the current `release/<version>` branch. Commit as `IDEA-<n>: <summary>`. One PR per ticket into `release/<version>`.
 - Before pushing: self code review, `npm run gate`, `npm run e2e`, `npm run build`, secret scan. All green or don't push.
 - Never commit secrets. Config with secrets lives in gitignored `ingot.config.json`.
@@ -16,5 +16,5 @@ Ingot is an open-source AI IDE with a WebStorm (JetBrains) look and feel. Read `
 
 - Base platform: Eclipse Theia (not a VS Code fork). See `docs/research.md`.
 - Extensions: Open VSX only — never the Microsoft Marketplace.
-- Native config folder: `.alloy/` (rules, skills, commands, mcp.json); also read `.cursor/` and `AGENTS.md`.
+- Native config folder: `.ingot/` (rules, skills, commands, mcp.json); existing rule folders and `AGENTS.md` are read too.
 - License: Apache-2.0.

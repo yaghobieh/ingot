@@ -8,8 +8,8 @@ import { commandFromFile, mergeByName, parseMcpJson, ruleFromFile } from '../../
 const EMPTY: ProjectConfig = { rules: [], commands: [], mcpServers: [] };
 
 /**
- * Loads a project's agent configuration (IDEA-30): `.alloy/{rules,commands,skills,mcp.json}`, plus `.cursor/{rules,commands,mcp.json}`,
- * `AGENTS.md` and `.cursorrules` for compatibility. `.alloy` wins over `.cursor` when names clash.
+ * Loads a project's agent configuration (IDEA-30): `.ingot/{rules,commands,skills,mcp.json}`, plus existing rule folders
+ * (`.cursor/`, legacy `.alloy/`), `AGENTS.md` and `.cursorrules`. `.ingot` wins when names clash.
  */
 @injectable()
 export class ProjectConfigService {
@@ -20,15 +20,16 @@ export class ProjectConfigService {
         if (!root) {
             return EMPTY;
         }
-        const [cursor, alloy, agents] = await Promise.all([
-            this.loadDir(root, CONFIG_DIRS.cursor, 'cursor'),
-            this.loadDir(root, CONFIG_DIRS.alloy, 'alloy'),
+        const [external, legacy, ingot, agents] = await Promise.all([
+            this.loadDir(root, CONFIG_DIRS.external, 'external'),
+            this.loadDir(root, CONFIG_DIRS.legacy, 'legacy'),
+            this.loadDir(root, CONFIG_DIRS.ingot, 'ingot'),
             this.loadAgentsFiles(root)
         ]);
         return {
-            rules: [...agents, ...mergeByName(cursor.rules, alloy.rules)],
-            commands: mergeByName(cursor.commands, alloy.commands),
-            mcpServers: mergeByName(cursor.mcpServers, alloy.mcpServers)
+            rules: [...agents, ...mergeByName(mergeByName(external.rules, legacy.rules), ingot.rules)],
+            commands: mergeByName(mergeByName(external.commands, legacy.commands), ingot.commands),
+            mcpServers: mergeByName(mergeByName(external.mcpServers, legacy.mcpServers), ingot.mcpServers)
         };
     }
 

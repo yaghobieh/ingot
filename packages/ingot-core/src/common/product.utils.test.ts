@@ -3,7 +3,7 @@ import { formatAboutText, formatWindowTitle } from './product.utils';
 
 describe('formatWindowTitle', () => {
     it('joins workspace, file and product name', () => {
-        expect(formatWindowTitle({ workspace: 'alloy', file: 'index.ts' })).toBe('alloy — index.ts — Ingot');
+        expect(formatWindowTitle({ workspace: 'atlas', file: 'index.ts' })).toBe('atlas — index.ts — Ingot');
     });
 
     it('skips empty parts', () => {
