@@ -35,7 +35,9 @@ test.describe('IDEA-92 left stripe', () => {
         await page.locator('#status-bar-ingot-account-status').click();
         await expect(page.locator('#status-bar-ingot-account-status')).toContainText('Sign in');
 
+        // IDEA-117: the gear opens the Manage menu; Settings… is its first entry.
         await settings.click();
+        await page.locator('.lm-Menu .lm-Menu-itemLabel', { hasText: 'Settings…' }).click();
         await expect(page.locator('.ingot-settings-top')).toBeVisible();
     });
 });
