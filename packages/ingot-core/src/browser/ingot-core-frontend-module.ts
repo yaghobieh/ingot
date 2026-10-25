@@ -191,6 +191,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotSettingsContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(IngotSettingsContribution);
     bind(MenuContribution).toService(IngotSettingsContribution);
+    bind(FrontendApplicationContribution).toService(IngotSettingsContribution);
 
     bind(UserThemeContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(UserThemeContribution);
