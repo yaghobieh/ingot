@@ -33,6 +33,8 @@ export interface GitBlameLine {
     readonly summary: string;
 }
 
+import type { GitOperation, GitOpResult } from './git-ops';
+
 export const GitService = Symbol('GitService');
 /** Small, explicit Git surface for the Ingot UI (IDEA-32). `root` is the repository folder's file-system path. */
 export interface GitService {
@@ -50,4 +52,6 @@ export interface GitService {
     blame(root: string, path: string): Promise<GitBlameLine[]>;
     /** `origin` remote URL and the current commit, for Open on Remote. */
     remote(root: string): Promise<{ url: string; commit: string; branch?: string } | undefined>;
+    /** Runs one validated Git menu operation (IDEA-70); see git-ops.ts. */
+    run(root: string, op: GitOperation): Promise<GitOpResult>;
 }
