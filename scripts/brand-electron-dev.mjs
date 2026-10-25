@@ -13,7 +13,10 @@ const plistPath = join(APP, 'Info.plist');
 const plist = readFileSync(plistPath, 'utf8')
     .replace(/(<key>CFBundleName<\/key>\s*<string>)[^<]*(<\/string>)/, '$1Ingot$2')
     .replace(/(<key>CFBundleDisplayName<\/key>\s*<string>)[^<]*(<\/string>)/, '$1Ingot$2');
-writeFileSync(plistPath, plist);
+// Register ingot:// (Open in Ingot from the website, IDEA-101) on the dev bundle too.
+const URL_TYPES = '<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>dev.ingot.auth</string><key>CFBundleURLSchemes</key><array><string>ingot</string></array></dict></array>';
+const branded = plist.includes('<string>ingot</string>') ? plist : plist.replace(/<\/dict>\s*<\/plist>\s*$/, `${URL_TYPES}</dict></plist>\n`);
+writeFileSync(plistPath, branded);
 copyFileSync('assets/brand/app-icon.icns', join(APP, 'Resources', 'electron.icns'));
 // Touch the bundle so Finder and the Dock pick up the new icon.
 const now = new Date();

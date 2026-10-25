@@ -1,4 +1,4 @@
-import type { CatalogModel, ModelFamily, ProviderInfo } from './models.types';
+import type { CatalogModel, ModelFamily, ProviderId, ProviderInfo } from './models.types';
 
 export const MODEL_SERVICE_PATH = '/services/ingot/models';
 /** Keychain service name (macOS Keychain, Windows Credential Manager, libsecret). Overridable for e2e. */
@@ -7,6 +7,7 @@ export const REQUEST_TIMEOUT_MS = 60_000;
 export const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434';
 
 export const PROVIDERS: readonly ProviderInfo[] = [
+    { id: 'ingot', label: 'Ingot', needsKey: false, baseUrl: 'http://127.0.0.1:3300/v1', keyHint: '' },
     { id: 'anthropic', label: 'Anthropic', needsKey: true, baseUrl: 'https://api.anthropic.com/v1', keyHint: 'sk-ant-…' },
     { id: 'openai', label: 'OpenAI', needsKey: true, baseUrl: 'https://api.openai.com/v1', keyHint: 'sk-…' },
     { id: 'gemini', label: 'Google Gemini', needsKey: true, baseUrl: 'https://generativelanguage.googleapis.com/v1beta', keyHint: 'AIza…' },
@@ -29,6 +30,7 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
 
 /** Picker families, top to bottom (IDEA-91). Labels are model family names. */
 export const MODEL_FAMILIES: readonly ModelFamily[] = [
+    { provider: 'ingot', label: 'Ingot', icon: 'sparkle-filled' },
     { provider: 'anthropic', label: 'Claude', icon: 'sparkle' },
     { provider: 'openai', label: 'GPT', icon: 'sparkle' },
     { provider: 'gemini', label: 'Gemini', icon: 'sparkle' },
@@ -48,8 +50,14 @@ export const MODEL_PREFERENCES = {
     overrides: 'ingot.models.overrides',
     autocompleteEnabled: 'ingot.autocomplete.enabled',
     autocompleteModel: 'ingot.autocomplete.model',
-    autocompleteDebounce: 'ingot.autocomplete.debounceMs'
+    autocompleteDebounce: 'ingot.autocomplete.debounceMs',
+    /** Use my own API keys (BYOK) / Local (Ollama). Off by default: signed-in users use Ingot models (IDEA-101). */
+    byok: 'ingot.models.byok'
 } as const;
+
+/** Providers that need the user's own key or a local server; hidden unless BYOK is on. */
+export const BYOK_PROVIDERS: readonly ProviderId[] = ['anthropic', 'openai', 'gemini', 'deepseek', 'openrouter', 'ollama'];
+export const SIGN_IN_FOR_MODELS = 'Sign in to use Ingot models';
 
 /** How replies are laid out (IDEA-100): rendered as Markdown in the chat panel. */
 export const REPLY_STYLE = 'Format every reply as GitHub Markdown: start with a short "### " title, then a 1-2 line summary. Add "#### " sections, bullet lists or a table only when they make the answer clearer; put code, paths and identifiers in backticks and code in fenced blocks with a language. Be concise: no filler, no repeating the question.';
