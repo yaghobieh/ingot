@@ -117,7 +117,7 @@ body.ingot-shell #theia-statusBar .ingot-status-branch { color: var(--theia-fore
 .ingot-welcome-root { display: flex; min-height: 100%; }
 .ingot-welcome-nav { width: 220px; flex: none; display: flex; flex-direction: column; gap: 2px; padding: 20px 12px; background: var(--theia-sideBar-background); border-right: 1px solid var(--theia-panel-border); }
 .ingot-welcome-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; }
-.ingot-welcome-logo { width: 36px; height: 36px; }
+.ingot-welcome-logo { width: 48px; height: 48px; }
 .ingot-welcome-name { font-size: 15px; font-weight: 700; }
 .ingot-welcome-version { font-size: 12px; color: var(--theia-descriptionForeground); }
 .ingot-welcome-navitem { text-align: left; padding: 7px 10px; border: 0; border-radius: var(--ingot-radius); background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
@@ -149,7 +149,7 @@ body.ingot-shell #theia-statusBar .ingot-status-branch { color: var(--theia-fore
 
 /* ---------- About (IDEA-16) ---------- */
 .ingot-about-header { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }
-.ingot-about-logo { width: 64px; height: 64px; flex: none; }
+.ingot-about-logo { width: 72px; height: 72px; flex: none; }
 .ingot-about-title { font-size: 20px; margin: 0; }
 .ingot-about-title span { font-weight: 400; color: var(--theia-descriptionForeground); font-size: 14px; }
 .ingot-about-tagline, .ingot-about-meta { margin: 4px 0 0; color: var(--theia-descriptionForeground); }

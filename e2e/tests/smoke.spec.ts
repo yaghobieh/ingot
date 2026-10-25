@@ -16,6 +16,8 @@ test.describe('IDEA-40 starter app', () => {
         await expect(header).toContainText('Ingot');
         await expect(header).toContainText('0.1.0');
         await expect(header.locator('.ingot-about-logo')).toBeVisible();
+        // IDEA-55: the About dialog shows the app icon (rounded square with the gold ingot).
+        expect(await header.locator('.ingot-about-logo').evaluate(el => getComputedStyle(el).backgroundImage)).toContain('Ingot%20app%20icon');
         await page.locator('.dialogBlock').getByRole('button', { name: 'OK' }).click();
         await expect(header).toBeHidden();
     });

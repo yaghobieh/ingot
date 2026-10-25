@@ -22,5 +22,7 @@ for (const file of icons) {
 }
 // Full-colour brand mark used by the toolbar, welcome screen and About dialog.
 css += `.ingot-brand-mark { background: ${toDataUri(readFileSync('assets/brand/mark.svg', 'utf8'))} center / contain no-repeat; }\n`;
+// The app icon (Dock, About, Welcome) — IDEA-55.
+css += `.ingot-app-icon { background: ${toDataUri(readFileSync('assets/brand/app-icon.svg', 'utf8'))} center / contain no-repeat; }\n`;
 writeFileSync(OUT, css);
 console.log(`icons: wrote ${icons.length} icons to ${OUT}`);

@@ -28,6 +28,7 @@
     "e2e": "npm run test -w e2e",
     "secret-scan": "node scripts/secret-scan.mjs",
     "brand:electron-dev": "node scripts/brand-electron-dev.mjs",
+    "brand:app-icon": "node scripts/build-app-icon.mjs",
     "download:plugins": "theia download:plugins --rate-limit 15 --parallel=false"
   },
   "devDependencies": {
