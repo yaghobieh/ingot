@@ -33,8 +33,8 @@ test.describe('IDEA-53 group agent channel', () => {
         // second-project agent receives it and replies.
         await page.locator('#ingot-project-tab-second-project').click();
         await expect(agents(page)).toBeVisible();
-        await expect(agents(page).locator('.ingot-agent-item', { hasText: 'Group inbox' })).toBeVisible();
-        await agents(page).locator('.ingot-agent-item', { hasText: 'Group inbox' }).click();
+        await expect(agents(page).locator('.ingot-chat-tab', { hasText: 'Group inbox' })).toBeVisible();
+        await agents(page).locator('.ingot-chat-tab', { hasText: 'Group inbox' }).click();
         await expect(agents(page).locator('.ingot-chat-peer')).toContainText('Which endpoint returns the user?');
         await send(page, '/reply GET /users/:id');
         await expect(chat(page).locator('.ingot-gc-reply')).toContainText('GET /users/:id');

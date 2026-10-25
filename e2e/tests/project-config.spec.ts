@@ -3,13 +3,14 @@ import { dismissNotifications, openIngot, runCommand } from '../src/app.utils';
 import { CONFIG_PROJECT } from '../src/e2e.consts';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
+import { pickModel } from '../src/chat.e2e-utils';
 
 const composer = (page: Page) => page.locator('#ingot-composer-input');
 const config = (page: Page) => page.locator('.ingot-mcp');
 
 const newOllamaAgent = async (page: Page): Promise<void> => {
     await page.locator('#ingot-agents-new').click();
-    await page.locator('#ingot-composer-model').selectOption('ollama-local');
+    await pickModel(page, 'ollama-local');
 };
 
 test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => {
@@ -51,7 +52,9 @@ test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => 
         await page.keyboard.press('Enter');
 
         await expect(page.locator('#ingot-agents .ingot-chat-agent').last()).toHaveText('It sums the values.');
-        await expect(page.locator('#ingot-agents .ingot-chat-user').last()).toHaveText('/explain the total function');
+        await expect(page.locator('#ingot-agents .ingot-chat-user').last()).toContainText('/explain the total function');
+        // Applied rules show as chips on the message (IDEA-77).
+        await expect(page.locator('#ingot-agents .ingot-chat-user').last().locator('.ingot-chip-rule').first()).toBeVisible();
         const request = server.requests.at(-1)!;
         expect(request.user).toContain('Explain the total function in two sentences. EXPLAIN-MARKER');
         expect(request.system).toContain('AGENTS-MARKER');

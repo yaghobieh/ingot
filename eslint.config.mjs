@@ -13,7 +13,7 @@ export default tseslint.config(
         }
     },
     {
-        files: ['**/playwright.config.ts', '**/vitest.config.ts'],
+        files: ['**/playwright.config.ts', '**/playwright.*.config.ts', '**/vitest.config.ts'],
         rules: { 'no-restricted-syntax': 'off' }
     },
     {

@@ -17,6 +17,13 @@ export interface CatalogModel {
     readonly provider: ProviderId;
     /** Provider-side model name; can be overridden per provider in Settings › Models. */
     readonly model: string;
+    /** Picker badges (IDEA-77). */
+    readonly speed: 'fast' | 'balanced' | 'slow';
+    readonly cost: 'free' | '$' | '$$' | '$$$';
+    /** Context window in tokens. */
+    readonly contextWindow: number;
+    readonly thinking: boolean;
+    readonly recommended: boolean;
 }
 
 export interface ChatMessage {
