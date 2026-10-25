@@ -17,6 +17,17 @@ export interface PendingEdit {
     readonly stats: DiffStats;
 }
 
+export interface ReviewOutcome {
+    readonly uri: string;
+    readonly accepted: boolean;
+}
+
+interface QueuedEdit {
+    readonly uri: URI;
+    readonly newText: string;
+    readonly resolve: (outcome: ReviewOutcome) => void;
+}
+
 interface ActiveReview extends PendingEdit {
     readonly oldText: string;
     readonly control: monaco.editor.ICodeEditor;
@@ -36,7 +47,37 @@ export class AgentEditReview {
     protected readonly onDidChangeEmitter = new Emitter<PendingEdit | undefined>();
     readonly onDidChange: Event<PendingEdit | undefined> = this.onDidChangeEmitter.event;
     protected active?: ActiveReview;
+    protected activeResolve?: (outcome: ReviewOutcome) => void;
+    protected readonly queue: QueuedEdit[] = [];
     protected pendingKey?: ContextKey<boolean>;
+
+    get queued(): number {
+        return this.queue.length;
+    }
+
+    /** Queues an edit for inline review; resolves once the user accepts (file saved) or rejects it. */
+    review(uri: URI, newText: string): Promise<ReviewOutcome> {
+        return new Promise(resolve => {
+            this.queue.push({ uri, newText, resolve });
+            if (!this.active) {
+                this.next();
+            }
+        });
+    }
+
+    protected async next(): Promise<void> {
+        const item = this.queue.shift();
+        if (!item) {
+            return;
+        }
+        const shown = await this.propose(item.uri, item.newText);
+        if (!shown) {
+            item.resolve({ uri: item.uri.toString(), accepted: false });
+            this.next();
+            return;
+        }
+        this.activeResolve = item.resolve;
+    }
 
     get pending(): PendingEdit | undefined {
         return this.active;
@@ -87,19 +128,34 @@ export class AgentEditReview {
         return this.active;
     }
 
-    accept(): void {
-        this.clear();
+    /** Keeps the change and saves the file. */
+    async accept(): Promise<void> {
+        const review = this.active;
+        if (!review) {
+            return;
+        }
+        await review.widget.saveable.save();
+        this.finish(review, true);
     }
 
     reject(): void {
         const review = this.active;
-        if (review) {
-            const model = review.control.getModel();
-            if (model) {
-                review.control.executeEdits('ingot-agent', [{ range: model.getFullModelRange(), text: review.oldText }]);
-            }
+        if (!review) {
+            return;
         }
+        const model = review.control.getModel();
+        if (model) {
+            review.control.executeEdits('ingot-agent', [{ range: model.getFullModelRange(), text: review.oldText }]);
+        }
+        this.finish(review, false);
+    }
+
+    protected finish(review: ActiveReview, accepted: boolean): void {
+        const resolve = this.activeResolve;
+        this.activeResolve = undefined;
         this.clear();
+        resolve?.({ uri: review.uri, accepted });
+        this.next();
     }
 
     protected clear(): void {

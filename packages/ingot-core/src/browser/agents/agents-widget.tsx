@@ -92,7 +92,8 @@ export class IngotAgentsWidget extends ReactWidget {
             {session.messages.map((m, i) => (
                 <div key={i} className={`ingot-chat-msg ingot-chat-${m.role}`}>
                     {m.from && <div className='ingot-chat-from'>{m.from}</div>}
-                    {m.text}
+                    {m.text || (m.role === 'agent' && this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')}
+                    {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
                     {m.text === NO_MODEL_MESSAGE && <div><button type='button' id='ingot-open-models' className='ingot-btn-primary ingot-chat-action' onClick={() => this.commands.executeCommand(MODELS_OPEN_COMMAND.id)}>Open Models</button></div>}
                 </div>
             ))}
@@ -122,7 +123,10 @@ export class IngotAgentsWidget extends ReactWidget {
         return <div className='ingot-composer'>
             <textarea id='ingot-composer-input' ref={el => { this.composer = el; }} className='ingot-composer-input' placeholder={COMPOSER_PLACEHOLDER} value={this.draft} rows={2}
                 onChange={e => { this.draft = e.currentTarget.value; this.update(); }}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.submit(); } }} />
+                onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.submit(); }
+                    if (e.key === 'Escape' && this.store.current && this.store.isRunning(this.store.current.id)) { e.preventDefault(); this.store.stop(this.store.current.id); }
+                }} />
             <div className='ingot-composer-bar'>
                 <select id='ingot-composer-mode' className='ingot-select' value={this.store.mode} aria-label='Agent mode' onChange={e => { this.store.mode = e.currentTarget.value as AgentMode; this.store.changed(); }}>
                     {AGENT_MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
@@ -131,7 +135,9 @@ export class IngotAgentsWidget extends ReactWidget {
                     {MODEL_OPTIONS.map(m => <option key={m.id} value={m.id}>{m.label}{this.models.isModelConfigured(m.id) ? '' : ' — not connected'}</option>)}
                 </select>
                 <span className='ingot-flex' />
-                <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' disabled={!this.draft.trim()} onClick={() => this.submit()}>↑</button>
+                {this.store.isRunning(this.store.current?.id)
+                    ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}>■</button>
+                    : <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' disabled={!this.draft.trim()} onClick={() => this.submit()}>↑</button>}
             </div>
         </div>;
     }

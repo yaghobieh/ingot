@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCompletionMessages, buildProviderRequest, cleanCompletion, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel } from './models.utils';
+import { parseStreamLine, buildCompletionMessages, buildProviderRequest, cleanCompletion, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel } from './models.utils';
 import type { CompletionRequest } from './models.types';
 
 const request: CompletionRequest = { modelId: 'x', messages: [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }], maxTokens: 10 };
@@ -72,5 +72,24 @@ describe('safety and completions', () => {
         expect(cleanCompletion('```ts\nreturn a - b;\n```')).toBe('return a - b;');
         expect(cleanCompletion('export const sub = 1', 'export const ')).toBe('sub = 1');
         expect(buildCompletionMessages('a', 'b', 'typescript', 'S')[1].content).toBe('Language: typescript\n\na<CURSOR>b');
+    });
+});
+
+describe('streaming', () => {
+    it('parses stream lines for every provider', () => {
+        expect(parseStreamLine('openai', 'data: {"choices":[{"delta":{"content":"Hel"}}]}')).toBe('Hel');
+        expect(parseStreamLine('deepseek', 'data: [DONE]')).toBeUndefined();
+        expect(parseStreamLine('anthropic', 'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"lo"}}')).toBe('lo');
+        expect(parseStreamLine('anthropic', 'event: ping')).toBeUndefined();
+        expect(parseStreamLine('gemini', 'data: {"candidates":[{"content":{"parts":[{"text":"g"}]}}]}')).toBe('g');
+        expect(parseStreamLine('ollama', '{"message":{"content":"o"},"done":false}')).toBe('o');
+        expect(parseStreamLine('ollama', '{"done":true}')).toBeUndefined();
+    });
+
+    it('asks providers to stream', () => {
+        expect(buildProviderRequest('gemini', 'g', request, KEY, true).url).toContain(':streamGenerateContent?alt=sse');
+        expect(buildProviderRequest('openai', 'gpt-5', request, KEY, true).body).toMatchObject({ stream: true });
+        expect(buildProviderRequest('ollama', 'q', request, undefined, true).body).toMatchObject({ stream: true });
+        expect(buildProviderRequest('anthropic', 'c', request, KEY, true).body).toMatchObject({ stream: true });
     });
 });

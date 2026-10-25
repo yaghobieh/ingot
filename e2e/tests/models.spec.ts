@@ -1,29 +1,19 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { dismissNotifications, openIngot, runCommand } from '../src/app.utils';
 import { E2E_CONFIG_DIR, FIXTURE_WORKSPACE } from '../src/e2e.consts';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
+import { connectOllama, modelsPanel as models } from '../src/models.e2e-utils';
 
 const MATH = path.join(FIXTURE_WORKSPACE, 'src', 'math.ts');
 const CHAT_REPLY = 'Hello from your local model';
 const COMPLETION = 'tract(a: number, b: number): number {';
 // Built at runtime so the repository secret scan does not flag this obviously fake key.
 const FAKE_KEY = ['sk', 'e2e', 'not', 'a', 'real', 'key', '0000000000'].join('-');
-const models = (page: Page) => page.locator('#ingot-models');
 
 const reply = (system: string): string => (system.includes('code completion engine') ? COMPLETION : CHAT_REPLY);
-
-const connectOllama = async (page: Page, server: FakeOllama): Promise<void> => {
-    await runCommand(page, 'Ingot: Models');
-    await expect(models(page)).toBeVisible();
-    await models(page).locator('#ingot-model-ollama-url').fill(server.url);
-    await models(page).locator('#ingot-model-override-ollama').fill('e2e-coder');
-    await models(page).locator('#ingot-model-override-ollama').press('Tab');
-    await models(page).locator('#ingot-model-test-ollama').click();
-    await expect(models(page).locator('#ingot-model-result-ollama')).toHaveText('Connected (e2e-coder)');
-};
 
 test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
     let server: FakeOllama;

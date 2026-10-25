@@ -19,7 +19,7 @@ const splitSystem = (messages: readonly ChatMessage[]): { system: string; rest: 
 });
 
 /** Builds the HTTP request for a provider. Keys only go to the provider's fixed endpoint. */
-export const buildProviderRequest = (provider: ProviderId, model: string, request: CompletionRequest, apiKey: string | undefined): HttpRequestSpec => {
+export const buildProviderRequest = (provider: ProviderId, model: string, request: CompletionRequest, apiKey: string | undefined, stream = false): HttpRequestSpec => {
     const maxTokens = request.maxTokens ?? 2048;
     const temperature = request.temperature ?? 0.2;
     const stop = request.stop?.length ? [...request.stop] : undefined;
@@ -30,13 +30,13 @@ export const buildProviderRequest = (provider: ProviderId, model: string, reques
             return {
                 url: `${info.baseUrl}/messages`,
                 headers: { 'content-type': 'application/json', 'x-api-key': apiKey ?? '', 'anthropic-version': '2023-06-01' },
-                body: { model, max_tokens: maxTokens, temperature, ...(system ? { system } : {}), messages: rest.map(m => ({ role: m.role, content: m.content })), ...(stop ? { stop_sequences: stop } : {}) }
+                body: { model, max_tokens: maxTokens, temperature, ...(stream ? { stream: true } : {}), ...(system ? { system } : {}), messages: rest.map(m => ({ role: m.role, content: m.content })), ...(stop ? { stop_sequences: stop } : {}) }
             };
         }
         case 'gemini': {
             const { system, rest } = splitSystem(request.messages);
             return {
-                url: `${info.baseUrl}/models/${encodeURIComponent(model)}:generateContent`,
+                url: `${info.baseUrl}/models/${encodeURIComponent(model)}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`,
                 headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey ?? '' },
                 body: {
                     ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
@@ -49,7 +49,7 @@ export const buildProviderRequest = (provider: ProviderId, model: string, reques
             return {
                 url: `${resolveOllamaUrl(request.settings)}/api/chat`,
                 headers: { 'content-type': 'application/json' },
-                body: { model, stream: false, messages: request.messages, options: { temperature, num_predict: maxTokens, ...(stop ? { stop } : {}) } }
+                body: { model, stream, messages: request.messages, options: { temperature, num_predict: maxTokens, ...(stop ? { stop } : {}) } }
             };
         default: {
             // OpenAI-compatible: OpenAI, DeepSeek, OpenRouter.
@@ -59,7 +59,7 @@ export const buildProviderRequest = (provider: ProviderId, model: string, reques
                 headers['X-Title'] = 'Ingot';
             }
             const tokens = provider === 'openai' ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens, temperature };
-            return { url: `${info.baseUrl}/chat/completions`, headers, body: { model, messages: request.messages, ...tokens, ...(stop ? { stop } : {}) } };
+            return { url: `${info.baseUrl}/chat/completions`, headers, body: { model, messages: request.messages, ...tokens, ...(stop ? { stop } : {}), ...(stream ? { stream: true } : {}) } };
         }
     }
 };
@@ -119,3 +119,41 @@ export const buildCompletionMessages = (prefix: string, suffix: string, language
     { role: 'system', content: systemPrompt },
     { role: 'user', content: `Language: ${language}\n\n${prefix}<CURSOR>${suffix}` }
 ];
+
+/**
+ * Extracts the text delta from one line of a streaming response: SSE `data:` lines for Anthropic, Gemini and
+ * OpenAI-compatible providers, NDJSON for Ollama. Returns undefined for keep-alives, events and `[DONE]`.
+ */
+export const parseStreamLine = (provider: ProviderId, line: string): string | undefined => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+    let payload = trimmed;
+    if (provider !== 'ollama') {
+        if (!trimmed.startsWith('data:')) {
+            return undefined;
+        }
+        payload = trimmed.slice(5).trim();
+        if (payload === '[DONE]') {
+            return undefined;
+        }
+    }
+    let json: unknown;
+    try {
+        json = JSON.parse(payload);
+    } catch {
+        return undefined;
+    }
+    const body = asObj(json);
+    switch (provider) {
+        case 'anthropic':
+            return body.type === 'content_block_delta' ? String(asObj(body.delta).text ?? '') || undefined : undefined;
+        case 'gemini':
+            return parseProviderResponse('gemini', json) || undefined;
+        case 'ollama':
+            return String(asObj(body.message).content ?? '') || undefined;
+        default:
+            return String(asObj(asObj(asArr(body.choices)[0]).delta).content ?? '') || undefined;
+    }
+};

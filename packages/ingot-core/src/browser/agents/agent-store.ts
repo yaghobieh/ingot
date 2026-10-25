@@ -6,6 +6,14 @@ import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE } from '../../common/agents/agents.consts';
 import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
 import { activeAgentCount, titleFromPrompt } from '../../common/agents/agents.utils';
+import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
+import { isSafeRelativePath } from '../../common/groups/channel.utils';
+import { lineDiff, diffStats } from '../../common/diff/diff.utils';
+import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
+import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
+import URI from '@theia/core/lib/common/uri';
+import { AgentEditReview } from './agent-edit-review';
 
 let nextId = 1;
 
@@ -17,6 +25,11 @@ export type AgentCommandHandler = (session: AgentSession, prompt: string) => boo
 export class AgentStore {
 
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
+    @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
+    @inject(FileService) protected readonly files: FileService;
+    @inject(EditorManager) protected readonly editors: EditorManager;
+    @inject(AgentEditReview) protected readonly review: AgentEditReview;
+    protected readonly running = new Map<string, () => void>();
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
@@ -138,21 +151,135 @@ export class AgentStore {
         return session;
     }
 
-    /** Sends the conversation to the selected model through the BYOK gateway. */
+    isRunning(id: string | undefined): boolean {
+        return !!id && this.running.has(id);
+    }
+
+    /** Stops a streaming agent (Stop button / Escape). */
+    stop(id: string): void {
+        this.running.get(id)?.();
+    }
+
+    /** Root the agent works in: its project (groups) or the first workspace root. */
+    protected rootFor(session: AgentSession): URI | undefined {
+        if (session.project) {
+            return new URI(session.project);
+        }
+        const root = this.workspace.tryGetRoots()[0];
+        return root?.resource;
+    }
+
+    protected async readContext(session: AgentSession, prompt: string, root: URI | undefined): Promise<string> {
+        const files: { path: string; content: string }[] = [];
+        const seen = new Set<string>();
+        const add = async (uri: URI): Promise<void> => {
+            const key = uri.toString();
+            if (seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            try {
+                const content = (await this.files.read(uri)).value;
+                files.push({ path: root ? root.relative(uri)?.toString() ?? uri.path.base : uri.path.base, content });
+            } catch {
+                // unreadable (binary, missing): skip
+            }
+        };
+        const active = this.editors.currentEditor?.editor.uri;
+        if (active && (!root || root.isEqualOrParent(active))) {
+            await add(active);
+        }
+        if (root) {
+            for (const mention of parseMentions(prompt).filter(isSafeRelativePath)) {
+                await add(root.resolve(mention));
+            }
+        }
+        return files.length ? `Project files for context:\n\n${formatContextFiles(files)}` : '';
+    }
+
+    /** Streams the conversation from the selected model; in Agent mode, proposed edits open in the inline review. */
     protected async runModel(session: AgentSession): Promise<void> {
+        const root = this.rootFor(session);
+        const prompt = [...session.messages].reverse().find(m => m.role === 'user')?.text ?? '';
         const history: ChatMessage[] = session.messages
             .filter(m => m.role !== 'system')
             .map(m => ({ role: m.role === 'agent' ? 'assistant' as const : 'user' as const, content: m.role === 'peer' ? `${m.from}: ${m.text}` : m.text }));
+        const context = await this.readContext(session, prompt, root);
+        const system = [AGENT_SYSTEM_PROMPTS[session.mode], session.mode === 'agent' ? AGENT_PROTOCOL : '', context].filter(Boolean).join('\n\n');
+        const index = session.messages.push({ role: 'agent', text: '' }) - 1;
+        session.steps = context ? [{ kind: 'read', target: 'context', done: true }] : [];
+        session.changes = [];
+        let final = '';
         try {
-            const result = await this.models.complete(session.model, [{ role: 'system', content: AGENT_SYSTEM_PROMPTS[session.mode] }, ...history]);
-            session.messages.push({ role: 'agent', text: result.text.trim() || '(empty reply)' });
-            session.status = 'idle';
+            const stream = this.models.stream(session.model, [{ role: 'system', content: system }, ...history], text => {
+                const parsed = parseAgentOutput(text);
+                session.messages[index] = { role: 'agent', text: parsed.display };
+                session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
+                session.status = parsed.editing ? 'editing' : 'thinking';
+                session.activeFile = parsed.editing ?? parsed.edits[parsed.edits.length - 1]?.path;
+                session.updatedAt = Date.now();
+                this.changed();
+            });
+            this.running.set(session.id, stream.cancel);
+            final = await stream.done;
         } catch (error) {
             session.messages.push({ role: 'system', text: `The model request failed: ${error instanceof Error ? error.message : String(error)}` });
             session.status = 'error';
+            this.running.delete(session.id);
+            session.updatedAt = Date.now();
+            this.changed();
+            return;
         }
+        this.running.delete(session.id);
+        const parsed = parseAgentOutput(final);
+        session.messages[index] = { role: 'agent', text: parsed.display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : '(empty reply)') };
+        if (session.mode === 'agent' && parsed.edits.length) {
+            await this.applyEdits(session, parsed.edits, root);
+        } else {
+            session.plan = session.plan.map(p => ({ ...p, state: session.mode === 'plan' ? 'todo' : 'done' }));
+            session.status = 'idle';
+        }
+        session.activeFile = undefined;
         session.updatedAt = Date.now();
         this.changed();
+    }
+
+    /** Opens each edit in the inline review, one after another; accepted edits are saved to disk. */
+    protected async applyEdits(session: AgentSession, edits: readonly AgentEdit[], root: URI | undefined): Promise<void> {
+        session.status = 'review';
+        session.plan = session.plan.map(p => ({ ...p, state: 'done' }));
+        this.changed();
+        let accepted = 0;
+        for (const edit of edits) {
+            if (!root || !isSafeRelativePath(edit.path)) {
+                session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": agents can only change files inside the project.` });
+                continue;
+            }
+            const uri = root.resolve(edit.path);
+            let created = false;
+            let oldText = '';
+            if (await this.files.exists(uri)) {
+                oldText = (await this.files.read(uri)).value;
+            } else {
+                await this.files.create(uri, '');
+                created = true;
+            }
+            const stats = diffStats(lineDiff(oldText, edit.content));
+            session.steps = [...session.steps, { kind: 'edit', target: edit.path, done: false, added: stats.added, removed: stats.removed }];
+            session.activeFile = edit.path;
+            this.changed();
+            const outcome = await this.review.review(uri, edit.content);
+            session.steps = session.steps.map(s => s.kind === 'edit' && s.target === edit.path ? { ...s, done: true } : s);
+            if (outcome.accepted) {
+                accepted++;
+                session.changes = [...session.changes, { uri: uri.toString(), label: edit.path, added: stats.added, removed: stats.removed }];
+            } else if (created) {
+                await this.files.delete(uri).catch(() => undefined);
+            }
+            this.changed();
+        }
+        session.messages.push({ role: 'system', text: `Review finished: ${accepted} of ${edits.length} change(s) kept.` });
+        session.status = accepted ? 'done' : 'idle';
     }
 
     changed(): void {
