@@ -8,9 +8,15 @@ test.describe('IDEA-40 starter app', () => {
         await expect(page.locator('#theia-main-content-panel')).toBeVisible();
     });
 
-    test('shows About Ingot from the Help menu command', async ({ page }) => {
+    test('shows the branded About Ingot dialog', async ({ page }) => {
         await openIngot(page);
         await runCommand(page, 'About Ingot');
-        await expect(page.locator('.theia-notification-message', { hasText: 'Ingot 0.1.0' }).first()).toBeVisible();
+        const header = page.locator('.ingot-about-header');
+        await expect(header).toBeVisible();
+        await expect(header).toContainText('Ingot');
+        await expect(header).toContainText('0.1.0');
+        await expect(header.locator('.ingot-about-logo')).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(header).toBeHidden();
     });
 });

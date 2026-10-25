@@ -18,3 +18,21 @@ export const runCommand = async (page: Page, label: string): Promise<void> => {
     await quickInput(page).fill(`>${label}`);
     await quickOptions(page).filter({ hasText: label }).first().click();
 };
+
+/**
+ * Repeats a user action until the expected locator is visible. Theia finishes wiring commands and
+ * keybindings asynchronously after the shell paints, so the first key press can arrive too early.
+ */
+export const actUntilVisible = async (action: () => Promise<void>, target: Locator, timeoutMs = 30_000): Promise<void> => {
+    await expect(async () => {
+        await action();
+        await expect(target).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: timeoutMs });
+};
+
+export const actUntilHidden = async (action: () => Promise<void>, target: Locator, timeoutMs = 30_000): Promise<void> => {
+    await expect(async () => {
+        await action();
+        await expect(target).toBeHidden({ timeout: 2_000 });
+    }).toPass({ timeout: timeoutMs });
+};

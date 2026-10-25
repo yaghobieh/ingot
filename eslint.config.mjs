@@ -8,6 +8,7 @@ export default tseslint.config(
     {
         rules: {
             '@typescript-eslint/no-explicit-any': 'error',
+            '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
             'no-restricted-syntax': ['error', { selector: 'ExportDefaultDeclaration[declaration.type!="NewExpression"]', message: 'Use named exports (only Theia ContainerModules may be default-exported).' }]
         }
     },

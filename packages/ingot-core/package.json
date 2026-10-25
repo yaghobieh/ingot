@@ -3,12 +3,28 @@
   "version": "0.1.0",
   "description": "Ingot core: branding, product identity and shared services",
   "license": "Apache-2.0",
-  "keywords": ["theia-extension"],
-  "files": ["lib", "src"],
+  "keywords": [
+    "theia-extension"
+  ],
+  "files": [
+    "lib",
+    "src"
+  ],
   "dependencies": {
-    "@theia/core": "1.76.0"
+    "@theia/core": "1.76.0",
+    "@theia/editor": "1.76.0",
+    "@theia/filesystem": "1.76.0",
+    "@theia/monaco": "1.76.0",
+    "@theia/navigator": "1.76.0",
+    "@theia/process": "1.76.0",
+    "@theia/scm": "1.76.0",
+    "@theia/terminal": "1.76.0",
+    "@theia/variable-resolver": "1.76.0",
+    "@theia/workspace": "1.76.0"
   },
   "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "rimraf": "^5.0.0",
     "typescript": "~5.6.3",
     "vitest": "^2.1.8"
@@ -20,6 +36,8 @@
     "test": "vitest run"
   },
   "theiaExtensions": [
-    { "frontend": "lib/browser/ingot-core-frontend-module" }
+    {
+      "frontend": "lib/browser/ingot-core-frontend-module"
+    }
   ]
 }

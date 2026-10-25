@@ -1,18 +1,18 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
-import { CommandContribution, CommandRegistry, MenuContribution, MenuModelRegistry, MessageService } from '@theia/core/lib/common';
+import { CommandContribution, CommandRegistry, MenuContribution, MenuModelRegistry } from '@theia/core/lib/common';
 import { CommonMenus } from '@theia/core/lib/browser';
-import { formatAboutText } from '../common/product.utils';
+import { AboutDialog } from '@theia/core/lib/browser/about-dialog';
 import { INGOT_COMMANDS } from './ingot-core.consts';
 
 @injectable()
 export class IngotCoreContribution implements CommandContribution, MenuContribution {
 
-    @inject(MessageService)
-    protected readonly messages: MessageService;
+    @inject(AboutDialog)
+    protected readonly about: AboutDialog;
 
     registerCommands(registry: CommandRegistry): void {
         registry.registerCommand(INGOT_COMMANDS.about, {
-            execute: () => this.messages.info(formatAboutText())
+            execute: () => this.about.open()
         });
     }
 

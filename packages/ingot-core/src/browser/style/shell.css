@@ -1,0 +1,103 @@
+/* Ingot shell — JetBrains New UI look built on Theia's theme variables (IDEA-13/14). */
+
+body.ingot-shell {
+  --ingot-radius: 6px;
+  --ingot-toolbar-height: 40px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ---------- Main toolbar ---------- */
+#theia-top-panel { background: var(--theia-titleBar-activeBackground); border-bottom: 1px solid var(--theia-panel-border); }
+.ingot-main-toolbar { height: var(--ingot-toolbar-height); width: 100%; color: var(--theia-titleBar-activeForeground); }
+.ingot-tb { display: flex; align-items: center; justify-content: space-between; height: 100%; padding: 0 8px; gap: 8px; user-select: none; }
+.ingot-tb-left, .ingot-tb-right { display: flex; align-items: center; gap: 2px; }
+.ingot-tb-logo { width: 22px; height: 22px; margin: 0 8px 0 4px; }
+.ingot-tb-button { display: inline-flex; align-items: center; gap: 6px; height: 28px; min-width: 28px; padding: 0 6px; justify-content: center; border: 0; border-radius: var(--ingot-radius); background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.ingot-tb-button:hover { background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); }
+.ingot-tb-button:focus-visible { outline: 2px solid var(--theia-focusBorder); outline-offset: -2px; }
+.ingot-tb-widget { padding: 0 8px; font-weight: 600; }
+.ingot-tb-chevron { width: 12px; height: 12px; opacity: .7; }
+.ingot-tb-run .ingot-icon { color: var(--ingot-success); }
+.ingot-tb-runconfig { font-weight: 400; }
+.ingot-tb-stop .ingot-icon { color: var(--ingot-danger); }
+.ingot-tb-separator { width: 1px; height: 18px; background: var(--theia-panel-border); margin: 0 6px; }
+#ingot-tb-debug .ingot-icon { color: var(--ingot-success); }
+
+/* ---------- Tool window stripes (side bars) ---------- */
+body.ingot-shell .lm-TabBar.theia-app-sides { background: var(--theia-activityBar-background); }
+body.ingot-shell .lm-TabBar.theia-app-sides .lm-TabBar-tab { border-radius: var(--ingot-radius); margin: 2px 5px; min-height: 36px; }
+body.ingot-shell .lm-TabBar.theia-app-sides .lm-TabBar-tab.lm-mod-current { background: var(--theia-list-activeSelectionBackground); }
+body.ingot-shell .lm-TabBar.theia-app-sides .lm-TabBar-tab:hover:not(.lm-mod-current) { background: var(--theia-list-hoverBackground); }
+body.ingot-shell .lm-TabBar.theia-app-sides .lm-TabBar-tab.lm-mod-current { border-left-color: transparent !important; }
+
+/* Replace stock activity icons with Ingot icons (same masks as icons.css). */
+body.ingot-shell .lm-TabBar.theia-app-sides .lm-TabBar-tabIcon { -webkit-mask-size: 20px; mask-size: 20px; }
+body.ingot-shell [id^='shell-tab-explorer-view-container'] .lm-TabBar-tabIcon,
+body.ingot-shell [id^='shell-tab-search-view-container'] .lm-TabBar-tabIcon,
+body.ingot-shell [id^='shell-tab-scm-view-container'] .lm-TabBar-tabIcon,
+body.ingot-shell [id^='shell-tab-debug'] .lm-TabBar-tabIcon,
+body.ingot-shell [id^='shell-tab-vsx-extensions-view-container'] .lm-TabBar-tabIcon,
+body.ingot-shell [id^='shell-tab-outline-view'] .lm-TabBar-tabIcon {
+  background: currentColor !important; -webkit-mask: var(--ingot-icon) center / 20px no-repeat; mask: var(--ingot-icon) center / 20px no-repeat;
+}
+body.ingot-shell [id^='shell-tab-explorer-view-container'] .lm-TabBar-tabIcon::before,
+body.ingot-shell [id^='shell-tab-search-view-container'] .lm-TabBar-tabIcon::before,
+body.ingot-shell [id^='shell-tab-scm-view-container'] .lm-TabBar-tabIcon::before,
+body.ingot-shell [id^='shell-tab-debug'] .lm-TabBar-tabIcon::before,
+body.ingot-shell [id^='shell-tab-vsx-extensions-view-container'] .lm-TabBar-tabIcon::before,
+body.ingot-shell [id^='shell-tab-outline-view'] .lm-TabBar-tabIcon::before { content: none; }
+
+body.ingot-shell [id^='shell-tab-explorer-view-container'] { --ingot-icon: var(--ingot-icon-project); }
+body.ingot-shell [id^='shell-tab-search-view-container'] { --ingot-icon: var(--ingot-icon-search); }
+body.ingot-shell [id^='shell-tab-scm-view-container'] { --ingot-icon: var(--ingot-icon-commit); }
+body.ingot-shell [id^='shell-tab-debug'] { --ingot-icon: var(--ingot-icon-debug); }
+body.ingot-shell [id^='shell-tab-vsx-extensions-view-container'] { --ingot-icon: var(--ingot-icon-plugins); }
+body.ingot-shell [id^='shell-tab-outline-view'] { --ingot-icon: var(--ingot-icon-structure); }
+
+/* ---------- Panels, tabs, status bar ---------- */
+body.ingot-shell .theia-sidepanel-title, body.ingot-shell .theia-view-container-part-title { font-weight: 600; font-size: 12px; text-transform: none; letter-spacing: 0; }
+body.ingot-shell .lm-TabBar.theia-app-centers .lm-TabBar-tab { height: 34px; line-height: 34px; }
+body.ingot-shell .lm-TabBar.theia-app-centers .lm-TabBar-tab.lm-mod-current { box-shadow: inset 0 -2px 0 var(--theia-tab-activeBorder); }
+body.ingot-shell #theia-statusBar { font-size: 12px; border-top: 1px solid var(--theia-panel-border); }
+
+/* ---------- Welcome (IDEA-15) ---------- */
+.ingot-welcome { background: var(--theia-editor-background); color: var(--theia-foreground); overflow: auto; }
+.ingot-welcome-root { display: flex; min-height: 100%; }
+.ingot-welcome-nav { width: 220px; flex: none; display: flex; flex-direction: column; gap: 2px; padding: 20px 12px; background: var(--theia-sideBar-background); border-right: 1px solid var(--theia-panel-border); }
+.ingot-welcome-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; }
+.ingot-welcome-logo { width: 36px; height: 36px; }
+.ingot-welcome-name { font-size: 15px; font-weight: 700; }
+.ingot-welcome-version { font-size: 12px; color: var(--theia-descriptionForeground); }
+.ingot-welcome-navitem { text-align: left; padding: 7px 10px; border: 0; border-radius: var(--ingot-radius); background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.ingot-welcome-navitem:hover { background: var(--theia-list-hoverBackground); }
+.ingot-welcome-navitem.active { background: var(--theia-list-activeSelectionBackground); color: var(--theia-list-activeSelectionForeground); }
+.ingot-welcome-main { flex: 1; padding: 24px 32px; max-width: 880px; }
+.ingot-welcome-actions { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+.ingot-welcome-search { flex: 1; height: 28px; }
+.ingot-welcome-actions .theia-button { margin: 0; }
+.ingot-welcome-list { list-style: none; margin: 0; padding: 0; }
+.ingot-welcome-project { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; border: 0; border-radius: var(--ingot-radius); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ingot-welcome-project:hover { background: var(--theia-list-hoverBackground); }
+.ingot-welcome-initials { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; font-weight: 700; font-size: 12px; color: #fff; background: linear-gradient(135deg, var(--ingot-ingot-gold), var(--ingot-ingot-gold-deep)); }
+.ingot-welcome-project-text { display: flex; flex-direction: column; min-width: 0; }
+.ingot-welcome-project-name { font-weight: 600; }
+.ingot-welcome-project-path { font-size: 12px; color: var(--theia-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-welcome-empty { padding: 32px 0; color: var(--theia-descriptionForeground); }
+.ingot-welcome-section h2 { font-size: 14px; margin: 20px 0 10px; }
+.ingot-welcome-section h2:first-child { margin-top: 0; }
+.ingot-welcome-section .theia-button { margin: 0 8px 0 0; }
+.ingot-welcome-themes { display: flex; gap: 12px; }
+.ingot-welcome-theme { display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 8px; border: 2px solid transparent; border-radius: 8px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.ingot-welcome-theme.active { border-color: var(--theia-focusBorder); }
+.ingot-welcome-theme-preview { width: 120px; height: 72px; border-radius: 6px; border: 1px solid var(--theia-panel-border); }
+.ingot-welcome-theme.ingot-light .ingot-welcome-theme-preview { background: linear-gradient(90deg, #EEF0F4 30%, #FFFFFF 30%); }
+.ingot-welcome-theme.ingot-dark .ingot-welcome-theme-preview { background: linear-gradient(90deg, #2A2D36 30%, #1E2027 30%); }
+.ingot-welcome-theme.ingot-darcula .ingot-welcome-theme-preview { background: linear-gradient(90deg, #3C3F41 30%, #2B2B2B 30%); }
+.ingot-welcome-links a { color: var(--theia-textLink-foreground); line-height: 2; }
+
+/* ---------- About (IDEA-16) ---------- */
+.ingot-about-header { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }
+.ingot-about-logo { width: 64px; height: 64px; flex: none; }
+.ingot-about-title { font-size: 20px; margin: 0; }
+.ingot-about-title span { font-weight: 400; color: var(--theia-descriptionForeground); font-size: 14px; }
+.ingot-about-tagline, .ingot-about-meta { margin: 4px 0 0; color: var(--theia-descriptionForeground); }
