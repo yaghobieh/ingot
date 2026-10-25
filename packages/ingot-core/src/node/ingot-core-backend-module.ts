@@ -1,4 +1,6 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
+import { IngotEditorImportService } from './editor-import-backend';
+import { EDITOR_IMPORT_SERVICE_PATH, EditorImportService } from '../common/import/editor-import.types';
 import { ConnectionHandler, RpcConnectionHandler } from '@theia/core/lib/common/messaging';
 import { PORTS_SERVICE_PATH } from '../common/ports/ports.consts';
 import { PortsService } from '../common/ports/ports.types';
@@ -40,6 +42,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(BackendApplicationContribution).toService(AccountDeepLinkEndpoint);
     bind(IngotModelService).toSelf().inSingletonScope();
     bind(ModelService).toService(IngotModelService);
+    bind(IngotEditorImportService).toSelf().inSingletonScope();
+    bind(EditorImportService).toService(IngotEditorImportService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(EDITOR_IMPORT_SERVICE_PATH, () => ctx.container.get<EditorImportService>(EditorImportService))).inSingletonScope();
     bind(IngotGitService).toSelf().inSingletonScope();
     bind(GitService).toService(IngotGitService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(GIT_SERVICE_PATH, () => ctx.container.get<GitService>(GitService))).inSingletonScope();
