@@ -7,6 +7,7 @@ import { IngotGearMenuContribution } from './gear-menu-contribution';
 import { AgentsWindowOpener, BrowserAgentsWindowOpener } from './agents-window';
 import { IngotAgentsWindowContribution } from './agents-window-contribution';
 import { IngotShellLayoutRestorer } from './agents-window-layout-restorer';
+import { IngotPanelsContribution } from './panels-contribution';
 import '../../../src/browser/style/workbench.css';
 
 /**
@@ -25,4 +26,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(FrontendApplicationContribution).toService(IngotAgentsWindowContribution);
     bind(IngotShellLayoutRestorer).toSelf().inSingletonScope();
     rebind(ShellLayoutRestorer).toService(IngotShellLayoutRestorer);
+
+    bind(IngotPanelsContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(IngotPanelsContribution);
+    bind(MenuContribution).toService(IngotPanelsContribution);
+    bind(FrontendApplicationContribution).toService(IngotPanelsContribution);
 });
