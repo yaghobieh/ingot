@@ -28,5 +28,6 @@ export const LOCAL_CHANGES_CONTEXT_MENU: MenuPath = ['ingot-local-changes-contex
 export const LOCAL_CHANGES_FOCUS = 'ingotLocalChangesFocus';
 export const DEFAULT_CHANGELIST = 'Default Changelist';
 export const UNVERSIONED_GROUP = 'Unversioned Files';
+export const CONFLICTS_GROUP = 'Merge Conflicts';
 /** Context key while a diff tab has focus (revert chunk ⌘⌥Z, F7 / ⇧F7). */
 export const DIFF_FOCUS = 'ingotDiffFocus';
