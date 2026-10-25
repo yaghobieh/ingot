@@ -1,11 +1,9 @@
 import type { AgentMode, AgentStatus, ModelOption } from './agents.types';
 import { MODEL_CATALOG } from '../models/models.consts';
+import { AGENT_MODE_INFO } from './agent-modes';
 
-export const AGENT_MODES: readonly { readonly id: AgentMode; readonly label: string }[] = [
-    { id: 'agent', label: 'Agent' },
-    { id: 'ask', label: 'Ask' },
-    { id: 'plan', label: 'Plan' }
-];
+/** Mode ids and labels; icons, colors and permissions live in `agent-modes.ts`. */
+export const AGENT_MODES: readonly { readonly id: AgentMode; readonly label: string }[] = AGENT_MODE_INFO.map(({ id, label }) => ({ id, label }));
 
 /** Model picker labels (the only place provider names appear in the UI); backed by the BYOK catalog (IDEA-26). */
 export const MODEL_OPTIONS: readonly ModelOption[] = MODEL_CATALOG.map(({ id, label }) => ({ id, label }));
@@ -25,6 +23,6 @@ export const STATUS_LABELS: Record<AgentStatus, string> = {
 export const ACTIVE_STATUSES: readonly AgentStatus[] = ['thinking', 'editing', 'review'];
 
 export const NO_MODEL_MESSAGE = 'This model is not connected yet. Open Settings › Models (gear ▸ Models, or “Ingot: Models”) to add its API key — keys are stored in your OS keychain — or pick a connected model below.';
-export const NEW_AGENT_TITLE = 'New agent';
+export const NEW_AGENT_TITLE = 'New chat';
 export const COMPOSER_PLACEHOLDER = 'Tell an agent what to do… @ to add context';
 export const MAX_TITLE_LENGTH = 48;
