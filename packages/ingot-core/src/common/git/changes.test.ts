@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applySelectedHunks, changeHunks, parseStatusEntries, splitPath } from './changes';
+import { applySelectedHunks, changeHunks, parseStatusEntries, splitPath, revertHunk } from './changes';
 import { gitArgs, parseRecentMessages } from './git-ops';
 
 describe('local changes', () => {
@@ -46,5 +46,19 @@ describe('commit / push git args', () => {
         expect(() => gitArgs({ kind: 'pushTo', remote: '--exec=x', localBranch: 'main', remoteBranch: 'main', tags: 'none', force: false, setUpstream: false })).toThrow();
         expect(() => gitArgs({ kind: 'commit', message: 'm', paths: ['../etc/passwd'], amend: false, signoff: false, noVerify: false })).toThrow();
         expect(parseRecentMessages('fix a\n\x1efix a\x1e\nadd b\n\x1e')).toEqual(['fix a', 'add b']);
+    });
+});
+
+describe('revertHunk (IDEA-78)', () => {
+    const base = 'a\nb\nc\nd\ne\n';
+    it('reverts a modified chunk and leaves the others', () => {
+        const work = 'a\nB\nc\nd\nE\n';
+        expect(revertHunk(base, work, 0)).toBe('a\nb\nc\nd\nE\n');
+        expect(revertHunk(base, work, 1)).toBe('a\nB\nc\nd\ne\n');
+    });
+    it('reverts pure additions and deletions', () => {
+        expect(revertHunk(base, 'a\nb\nNEW\nc\nd\ne\n', 0)).toBe(base);
+        expect(revertHunk(base, 'a\nc\nd\ne\n', 0)).toBe(base);
+        expect(revertHunk(base, 'a\nb\nc\nd\ne\n', 0)).toBe(base);
     });
 });
