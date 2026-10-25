@@ -46,3 +46,15 @@ export const reorderTabs = (ids: readonly string[], from: string, to: string, pi
 /** Pinned tabs first, each group keeping its order. */
 export const pinnedFirst = (ids: readonly string[], pinned: ReadonlySet<string>): string[] =>
     [...ids.filter(id => pinned.has(id)), ...ids.filter(id => !pinned.has(id))];
+
+/**
+ * Tab order after pinning or unpinning one tab (IDEA-104). Pinning moves the tab to the end of the pinned group
+ * (pinned tabs keep pin order: first pinned is first); unpinning moves it to the first unpinned slot.
+ * `pinned` is the set before the toggle.
+ */
+export const togglePinOrder = (ids: readonly string[], pinned: ReadonlySet<string>, id: string): string[] => {
+    const rest = ids.filter(x => x !== id);
+    const group = rest.filter(x => pinned.has(x));
+    const others = rest.filter(x => !pinned.has(x));
+    return ids.includes(id) ? [...group, id, ...others] : [...ids];
+};
