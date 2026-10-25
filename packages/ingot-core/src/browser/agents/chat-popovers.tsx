@@ -72,18 +72,17 @@ export interface ModelPickerProps {
 
 interface ModelPickerState {
     readonly query: string;
-    /** Family whose `>` submenu is open. */
+    /** Family opened with its `>` arrow; the list then shows that family's models. */
     readonly open?: string;
-    /** The submenu would overflow the window on the right: open it to the left. */
-    readonly flip: boolean;
 }
 
 /**
- * Model picker (IDEA-91): Auto, favorites, then one row per model family with a `>` arrow that opens a submenu of its
- * models. No speed, context-size, thinking or cost labels. Typing in the search box lists matching models directly.
+ * Model picker (IDEA-91): Auto, favorites, then one row per model family with a `>` arrow that opens the family's
+ * models (with a back row), so it fits a narrow chat panel. No speed, context-size, thinking or cost labels. Typing in
+ * the search box lists matching models directly.
  */
 export class ModelPicker extends React.Component<ModelPickerProps, ModelPickerState> {
-    override state: ModelPickerState = { query: '', flip: false };
+    override state: ModelPickerState = { query: '' };
 
     protected row(m: CatalogModel, section: string): React.ReactNode {
         const { current, configured, favorites } = this.props;
@@ -99,39 +98,28 @@ export class ModelPicker extends React.Component<ModelPickerProps, ModelPickerSt
         </div>;
     }
 
-    protected openFamily(provider: string | undefined): void {
-        if (provider !== this.state.open) {
-            this.setState({ open: provider, flip: false });
-        }
-    }
-
-    /** Flips the submenu to the left when it would leave the window. */
-    protected placeSubmenu(el: HTMLDivElement | null): void {
-        if (el && !this.state.flip && el.getBoundingClientRect().right > window.innerWidth - 4) {
-            this.setState({ flip: true });
-        }
-    }
-
     protected family(group: ModelFamilyGroup): React.ReactNode {
         const { family, models } = group;
-        const open = this.state.open === family.provider;
         const active = models.find(m => m.id === this.props.current);
-        return <div key={family.provider} className='ingot-pick-family-anchor' onMouseEnter={() => this.openFamily(family.provider)}>
-            <div role='option' aria-haspopup='listbox' aria-expanded={open} aria-selected={!!active} id={`ingot-pick-family-${family.provider}`} data-family={family.provider}
-                className={`ingot-pick-row ingot-pick-family${open ? ' open' : ''}${active ? ' has-current' : ''}`}
-                onClick={() => this.openFamily(open ? undefined : family.provider)}
-                onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); this.openFamily(family.provider); } else if (e.key === 'ArrowLeft') { this.openFamily(undefined); } }}
-                tabIndex={0}>
-                <span className={`codicon codicon-${family.icon} ingot-pick-family-icon`} />
-                <span className='ingot-pick-label'>{family.label}</span>
-                {active && <span className='ingot-dim ingot-pick-family-current'>{active.label}</span>}
-                <span className='codicon codicon-chevron-right ingot-pick-arrow' aria-hidden />
+        return <div key={family.provider} role='option' aria-haspopup='listbox' aria-selected={!!active} id={`ingot-pick-family-${family.provider}`} data-family={family.provider}
+            className={`ingot-pick-row ingot-pick-family${active ? ' has-current' : ''}`} tabIndex={0}
+            onClick={() => this.setState({ open: family.provider })}
+            onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); this.setState({ open: family.provider }); } }}>
+            <span className={`codicon codicon-${family.icon} ingot-pick-family-icon`} />
+            <span className='ingot-pick-label'>{family.label}</span>
+            {active && <span className='ingot-dim ingot-pick-family-current'>{active.label}</span>}
+            <span className='codicon codicon-chevron-right ingot-pick-arrow' aria-hidden />
+        </div>;
+    }
+
+    protected familyModels(group: ModelFamilyGroup): React.ReactNode {
+        return <div className='ingot-pick-section' id={`ingot-pick-sub-${group.family.provider}`} role='group' aria-label={group.family.label}>
+            <div role='button' tabIndex={0} id='ingot-pick-back' className='ingot-pick-row ingot-pick-back' onClick={() => this.setState({ open: undefined })}
+                onKeyDown={e => { if (e.key === 'ArrowLeft' || e.key === 'Enter' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); this.setState({ open: undefined }); } }}>
+                <span className='codicon codicon-chevron-left' />
+                <span className='ingot-pick-label'>{group.family.label}</span>
             </div>
-            {open && <div id={`ingot-pick-sub-${family.provider}`} role='listbox' aria-label={family.label} ref={el => this.placeSubmenu(el)}
-                className={`ingot-popover ingot-pick-submenu${this.state.flip ? ' flip' : ''}`}>
-                <div className='ingot-pick-heading'>{family.label}</div>
-                {models.map(m => this.row(m, family.provider))}
-            </div>}
+            {group.models.map(m => this.row(m, group.family.provider))}
         </div>;
     }
 
@@ -140,7 +128,9 @@ export class ModelPicker extends React.Component<ModelPickerProps, ModelPickerSt
         const q = this.state.query.trim().toLowerCase();
         const matches = models.filter(m => m.label.toLowerCase().includes(q));
         const favs = models.filter(m => favorites.has(m.id));
-        const showAuto = !q || AUTO_MODEL_LABEL.toLowerCase().includes(q);
+        const groups = groupModelsByFamily(models);
+        const openGroup = groups.find(g => g.family.provider === this.state.open);
+        const showAuto = (!q && !openGroup) || (!!q && AUTO_MODEL_LABEL.toLowerCase().includes(q));
         const first = (showAuto ? AUTO_MODEL_ID : undefined) ?? (q ? matches[0]?.id : undefined);
         return <>
             <Backdrop onClose={onClose} />
@@ -150,21 +140,21 @@ export class ModelPicker extends React.Component<ModelPickerProps, ModelPickerSt
                     onKeyDown={e => { if (e.key === 'Enter' && first) { e.preventDefault(); this.props.onPick(first); } }} />
                 <div className='ingot-pick-list'>
                     {showAuto && <div role='option' aria-selected={current === AUTO_MODEL_ID} id='ingot-pick-auto' className={`ingot-pick-row ingot-pick-auto${current === AUTO_MODEL_ID ? ' selected' : ''}`}
-                        onMouseEnter={() => this.openFamily(undefined)} onClick={() => this.props.onPick(AUTO_MODEL_ID)}>
+                        onClick={() => this.props.onPick(AUTO_MODEL_ID)}>
                         <span className='codicon codicon-sparkle' />
                         <span className='ingot-pick-label'>{AUTO_MODEL_LABEL}</span>
                         <span className='ingot-dim ingot-pick-auto-hint'>{autoResolved ? `${MODEL_PICKER_TEXT.uses} ${autoResolved}` : MODEL_PICKER_TEXT.autoHint}</span>
                     </div>}
                     {q
                         ? <div className='ingot-pick-section' id='ingot-pick-section-search'>{matches.map(m => this.row(m, 'search'))}</div>
-                        : <>
-                            {favs.length > 0 && <div className='ingot-pick-section' id='ingot-pick-section-favorites' onMouseEnter={() => this.openFamily(undefined)}>
+                        : openGroup ? this.familyModels(openGroup) : <>
+                            {favs.length > 0 && <div className='ingot-pick-section' id='ingot-pick-section-favorites'>
                                 <div className='ingot-pick-heading'>{MODEL_PICKER_TEXT.favorites}</div>
                                 {favs.map(m => this.row(m, 'favorites'))}
                             </div>}
                             <div className='ingot-pick-section' id='ingot-pick-section-models'>
                                 <div className='ingot-pick-heading'>{MODEL_PICKER_TEXT.models}</div>
-                                {groupModelsByFamily(models).map(g => this.family(g))}
+                                {groups.map(g => this.family(g))}
                             </div>
                         </>}
                     {q && !showAuto && matches.length === 0 && <div className='ingot-dim ingot-pick-empty'>{MODEL_PICKER_TEXT.noMatch} “{this.state.query}”.</div>}
