@@ -26,6 +26,8 @@ for (const size of [16, 32, 48, 64, 128, 256, 512, 1024]) {
     pngs.set(size, await render(svgFor(size), size));
 }
 writeFileSync(join(BRAND, 'app-icon-1024.png'), pngs.get(1024));
+// The running app's Dock / window icon (ingot-electron-main-contribution) - same art as the bundle icon.
+writeFileSync('packages/ingot-core/resources/app-icon.png', pngs.get(1024));
 
 // Windows .ico: PNG-compressed entries (16-256).
 const icoSizes = [16, 32, 48, 64, 128, 256];
