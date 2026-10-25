@@ -9,7 +9,7 @@ export const RIGHT_STRIPE_ID = 'ingot-right-stripe';
 
 export const TOOL_WINDOW_COMMANDS = {
     database: { id: 'ingot.database.toggle', label: 'Database', category: 'View' },
-    mcp: { id: 'ingot.mcp.toggle', label: 'MCP Servers', category: 'View' },
+    mcp: { id: 'ingot.mcp.toggle', label: 'Rules & MCP', category: 'View' },
     services: { id: 'ingot.services.toggle', label: 'Services', category: 'View' },
     databaseRefresh: { id: 'ingot.database.refresh', label: 'Refresh Data Sources', category: 'Database' }
 } as const satisfies Record<string, Command>;
