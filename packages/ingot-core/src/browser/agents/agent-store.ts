@@ -225,6 +225,21 @@ export class AgentStore {
         return this.items;
     }
 
+    /** Settings sync (IDEA-126): title / pinned from another device, for chats this install also has. */
+    applySyncedMeta(id: string, meta: { title?: unknown; pinned?: unknown }): void {
+        const session = this.items.find(s => s.id === id);
+        if (!session) {
+            return;
+        }
+        if (typeof meta.title === 'string' && meta.title) {
+            session.title = meta.title;
+        }
+        if (typeof meta.pinned === 'boolean') {
+            session.pinned = meta.pinned;
+        }
+        this.changed();
+    }
+
     get current(): AgentSession | undefined {
         return this.sessions.find(s => s.id === this.selected);
     }

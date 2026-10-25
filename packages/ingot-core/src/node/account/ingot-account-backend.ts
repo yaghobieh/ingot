@@ -5,6 +5,8 @@ import { FileUri } from '@theia/core/lib/common/file-uri';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { RemoteConfigSnapshot } from '../../common/config/remote-config.types';
+import type { SyncResponse } from '../../common/sync/sync.types';
+import { SYNC_PATH } from '../../common/sync/sync.consts';
 import { CONFIG_CACHE_FILE, CONFIG_PATH } from '../../common/config/remote-config.consts';
 import { defaultRemoteConfig, parseRemoteConfig } from '../../common/config/remote-config.utils';
 import { DEFAULT_KEYCHAIN_SERVICE } from '../../common/models/models.consts';
@@ -325,6 +327,34 @@ export class IngotAccountBackend implements AccountBackend {
             return { config: parseRemoteConfig(json, PRODUCT.version), source: 'server', fetchedAt };
         } catch {
             return this.cachedConfig();
+        }
+    }
+
+    async syncRequest(method: 'GET' | 'PUT' | 'DELETE' | 'POST', path: string, body?: unknown): Promise<SyncResponse> {
+        if (!['GET', 'PUT', 'DELETE', 'POST'].includes(method) || !(path === SYNC_PATH || path.startsWith(`${SYNC_PATH}/`) || path.startsWith(`${SYNC_PATH}?`)) || path.includes('..')) {
+            return { status: 400, body: { error: 'invalid_sync_path' } };
+        }
+        if (this.blocked) {
+            return { status: 403, body: { error: 'account_blocked' } };
+        }
+        const token = await this.accessToken().catch(() => undefined);
+        if (!token) {
+            return { status: 0, body: {} };
+        }
+        try {
+            const response = await fetch(`${this.currentUrls.serverUrl}${path}`, {
+                method,
+                headers: { authorization: `Bearer ${token}`, ...ideHeaders(PRODUCT.version), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+                body: body === undefined ? undefined : JSON.stringify(body),
+                signal: AbortSignal.timeout(20_000)
+            });
+            const json = await response.json().catch(() => ({})) as { error?: unknown };
+            if (response.status === 403 && json.error === 'account_blocked') {
+                await this.markBlocked();
+            }
+            return { status: response.status, body: json };
+        } catch {
+            return { status: 0, body: {} };
         }
     }
 

@@ -21,7 +21,23 @@ export interface FakeIngotServer {
     flags: Record<string, boolean>;
     update: { minVersion?: string; latestVersion?: string; updateAvailable?: boolean; forceUpdate?: boolean };
     readonly configCalls: { version: string; signedIn: boolean }[];
+    /** /v1/sync store (IDEA-126), by `kind|key`, and the writes the IDE made. */
+    readonly sync: Map<string, FakeSyncItem>;
+    readonly syncWrites: { method: string; kind: string; key: string; baseVersion?: number; device?: string }[];
+    /** Adds an item as if another device wrote it. */
+    seedSync(kind: string, key: string, data: unknown): void;
     close(): Promise<void>;
+}
+
+export interface FakeSyncItem {
+    kind: string;
+    key: string;
+    data: unknown;
+    version: number;
+    deleted: boolean;
+    device: string | null;
+    seq: number;
+    updatedAt: string;
 }
 
 export interface FakeGatewayError {
@@ -44,7 +60,7 @@ const send = (res: http.ServerResponse, status: number, body: unknown): void => 
 export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<FakeIngotServer> => {
     const state: FakeIngotServer = {
         url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', blocked: false, disabledModels: new Set(), chatErrors: [],
-        flags: {}, update: {}, configCalls: [], close: async () => undefined
+        flags: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined, close: async () => undefined
     };
     const access = 'ingot_at_e2e_access';
     const status = () => ({
@@ -52,6 +68,14 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
         balance: { plan: 'pro', period: { start: '', end: '' }, tokens: { allowance: ALLOWANCE, granted: 0, used: state.usedTokens, remaining: ALLOWANCE - state.usedTokens }, spend: { budgetUsd: null, usedUsd: 0, remainingUsd: null }, byModel: [] },
         activity: []
     });
+    let seq = 0;
+    const writeSync = (kind: string, key: string, data: unknown, deleted: boolean, device: string | null): { item: FakeSyncItem; previous?: FakeSyncItem } => {
+        const previous = state.sync.get(`${kind}|${key}`);
+        const item: FakeSyncItem = { kind, key, data: deleted ? null : data, version: (previous?.version ?? 0) + 1, deleted, device, seq: ++seq, updatedAt: new Date().toISOString() };
+        state.sync.set(`${kind}|${key}`, item);
+        return { item, previous };
+    };
+    state.seedSync = (kind, key, data) => { writeSync(kind, key, data, false, 'other-device'); };
     const server = http.createServer((req, res) => {
         const url = new URL(req.url ?? '/', state.url);
         let raw = '';
@@ -108,6 +132,28 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
             }
             if (url.pathname === '/api/me') {
                 send(res, 200, { user: { ...status().user, role: state.role } });
+                return;
+            }
+            if (url.pathname === '/v1/sync' && req.method === 'GET') {
+                const since = Number(url.searchParams.get('since') ?? 0);
+                const items = [...state.sync.values()].filter(i => i.seq > since).sort((a, b) => a.seq - b.seq);
+                send(res, 200, { items, cursor: items.at(-1)?.seq ?? since, hasMore: false });
+                return;
+            }
+            const syncItem = /^\/v1\/sync\/(settings|rules|keybindings|chats)\/(.+)$/.exec(url.pathname);
+            if (syncItem && (req.method === 'PUT' || req.method === 'DELETE')) {
+                const [, kind, rawKey] = syncItem;
+                const key = decodeURIComponent(rawKey);
+                const body = JSON.parse(raw || '{}') as { data?: unknown; baseVersion?: number; device?: string };
+                state.syncWrites.push({ method: req.method, kind, key, baseVersion: body.baseVersion, device: body.device });
+                const existing = state.sync.get(`${kind}|${key}`);
+                if (req.method === 'DELETE' && !existing) {
+                    send(res, 404, { error: 'not_found' });
+                    return;
+                }
+                const conflict = !!existing && body.baseVersion !== undefined && body.baseVersion !== existing.version;
+                const { item, previous } = writeSync(kind, key, body.data, req.method === 'DELETE', body.device ?? null);
+                send(res, 200, { item, conflict, ...(conflict ? { previous } : {}) });
                 return;
             }
             if (url.pathname === '/api/ide/status') {
