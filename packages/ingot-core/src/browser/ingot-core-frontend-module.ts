@@ -24,6 +24,7 @@ import { EditorCopyTracker } from './agents/editor-copy-tracker';
 import { IngotAgentsContribution } from './agents/agents-contribution';
 import { AGENTS_WIDGET_ID } from './agents/agents.consts';
 import { IngotStripeWidget } from './stripe/ingot-stripe-widget';
+import { IngotExplorerHeader } from './navigator/explorer-header';
 import { IngotAccountService } from './account/account-service';
 import { IngotAccountContribution } from './account/account-contribution';
 import { IngotRightStripeWidget } from './tool-windows/right-stripe-widget';
@@ -225,6 +226,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     for (const id of [CommandContribution, MenuContribution, FrontendApplicationContribution]) {
         bind(id).toService(IngotAccountContribution);
     }
+    bind(IngotExplorerHeader).toSelf().inSingletonScope();
     bind(IngotStripeWidget).toSelf().inSingletonScope();
     bind(IngotRightStripeWidget).toSelf().inSingletonScope();
     bind(IngotDatabaseWidget).toSelf();
