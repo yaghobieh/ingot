@@ -3,9 +3,12 @@ import { dismissNotifications, openIngot } from '../src/app.utils';
 import { LEFT_PANEL } from '../src/e2e.consts';
 
 const item = (page: Page, label: string) => page.locator('.lm-Menu .lm-Menu-item', { has: page.locator('.lm-Menu-itemLabel', { hasText: new RegExp(`^${label.replace(/[()]/g, '\\$&')}$`) }) });
+/** Escape closes one menu level at a time (submenu first, then its parent). */
 const closeMenus = async (page: Page): Promise<void> => {
-    await page.keyboard.press('Escape');
-    await expect(page.locator('.lm-Menu')).toHaveCount(0);
+    await expect(async () => {
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.lm-Menu')).toHaveCount(0, { timeout: 500 });
+    }).toPass({ timeout: 10_000 });
 };
 
 /** IDEA-119: right-click a bar to list every panel with a ✓ when showing; click toggles it. */
