@@ -10,6 +10,8 @@ import { IconThemeService } from '@theia/core/lib/browser/icon-theme-service';
 import { SETTINGS_PREFS, SETTINGS_TREE } from '../../common/settings/settings.consts';
 import type { SettingInfo, SettingsAction, SettingsPage } from '../../common/settings/settings.types';
 import { coerceSetting, flattenPages, searchPages, settingLabel, visiblePreferences } from '../../common/settings/settings.utils';
+import { MemoriesManager } from '../agents/chat-popovers';
+import { MemoryStore } from '../agents/memory-store';
 import { INLINE_ACTIONS, SETTINGS_ACTION_COMMANDS, SettingsDialogProps, settingDomId } from './settings.browser-consts';
 
 interface Option { readonly value: string; readonly label: string }
@@ -23,6 +25,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
     @inject(CommandService) protected readonly commands: CommandService;
     @inject(ThemeService) protected readonly themes: ThemeService;
     @inject(IconThemeService) protected readonly iconThemes: IconThemeService;
+    @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
 
     protected query = '';
     protected selected = 'appearance';
@@ -204,6 +207,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
         const children = page.children ?? [];
         return <div className='ingot-settings-body' id={`ingot-settings-page-${page.id}`}>
             {page.description && <p className='ingot-settings-description'>{page.description}</p>}
+            {page.custom === 'memories' && <section className='ingot-settings-card ingot-settings-memories'><MemoriesManager store={this.memoryStore} /></section>}
             {this.groupsFor(page, keys).map(group => <section key={group.label} className='ingot-settings-card'>
                 <h3 className='ingot-settings-card-title'>{group.label}</h3>
                 {group.preferences.map(key => this.renderSetting(key))}

@@ -6,6 +6,7 @@ import { dismissNotifications, openIngot } from '../src/app.utils';
 import { FIXTURES_DIR } from '../src/e2e.consts';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
+import { pickModel } from '../src/chat.e2e-utils';
 
 /** Reference-comparison screenshots (docs/design/ide-reference.png). Run with INGOT_SHOTS_DIR=<dir>. */
 const SHOTS_DIR = process.env.INGOT_SHOTS_DIR;
@@ -84,7 +85,7 @@ test.describe('Reference look screenshots', () => {
             await openFile(page, 'api.ts');
             await openFile(page, 'useCart.ts');
             await page.locator('#ingot-agents-new').click();
-            await page.locator('#ingot-composer-model').selectOption('ollama-local');
+            await pickModel(page, 'ollama-local');
             await page.locator('#ingot-composer-input').fill('Make addItem optimistic and add qty support');
             await page.locator('#ingot-composer-input').press('Enter');
             await expect(page.locator('#ingot-agents-keep')).toBeEnabled({ timeout: 30_000 });
