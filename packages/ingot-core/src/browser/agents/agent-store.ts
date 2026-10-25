@@ -19,12 +19,12 @@ import { activeAgentCount, titleFromPrompt } from '../../common/agents/agents.ut
 import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
 import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
-import { lineDiff, diffStats } from '../../common/diff/diff.utils';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
 import URI from '@theia/core/lib/common/uri';
-import { AgentEditReview } from './agent-edit-review';
+import { ChangeTracker, type ChangeOrigin } from '../changes/change-tracker';
+import { restorePlan } from '../../common/changes/changes.utils';
 import { ProjectConfigService } from '../project-config/project-config-service';
 import { IngotMcpClient } from '../project-config/mcp-client';
 import { applicableRules, expandCommand, formatRules } from '../../common/project-config/project-config.utils';
@@ -46,7 +46,9 @@ export class AgentStore {
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(FileService) protected readonly files: FileService;
     @inject(EditorManager) protected readonly editors: EditorManager;
-    @inject(AgentEditReview) protected readonly review: AgentEditReview;
+    @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
+    /** Live edit views started while a reply streams, keyed by chat, message and path. */
+    protected readonly streamingEdits = new Map<string, Promise<string | undefined>>();
     @inject(ProjectConfigService) protected readonly projectConfig: ProjectConfigService;
     @inject(IngotMcpClient) protected readonly mcp: IngotMcpClient;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
@@ -515,6 +517,7 @@ export class AgentStore {
         try {
             const stream = this.models.stream(this.resolveModel(session.model), [{ role: 'system', content: system }, ...history], text => {
                 const parsed = parseAgentOutput(text);
+                this.streamEdit(session, index, parsed.editing, parsed.editingContent);
                 session.messages[index] = { role: 'agent', text: extractMemories(parsed.display).display };
                 if (parsed.plan.length) {
                     session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
@@ -527,6 +530,7 @@ export class AgentStore {
             this.running.set(session.id, stream.cancel);
             final = await stream.done;
         } catch (error) {
+            await this.tracker.cancelStreams(session.id);
             session.messages.push({ role: 'system', text: `The model request failed: ${error instanceof Error ? error.message : String(error)}` });
             session.status = 'error';
             this.running.delete(session.id);
@@ -536,6 +540,9 @@ export class AgentStore {
         }
         const stopped = !this.running.has(session.id);
         this.running.delete(session.id);
+        if (stopped) {
+            await this.tracker.cancelStreams(session.id);
+        }
         const parsed = parseAgentOutput(final);
         const { display, memories } = extractMemories(parsed.display);
         // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
@@ -559,42 +566,110 @@ export class AgentStore {
         }
     }
 
-    /** Opens each edit in the inline review, one after another; accepted edits are saved to disk. */
+    /** Where an agent message's edits come from (its chat, itself, and the user message it answers). */
+    protected originOf(session: AgentSession, messageIndex: number): ChangeOrigin {
+        const userIndex = session.messages.slice(0, messageIndex + 1).map(m => m.role).lastIndexOf('user');
+        return { sessionId: session.id, messageIndex, userIndex: Math.max(0, userIndex) };
+    }
+
+    /** Live editor view while an edit block streams (IDEA-102): the file fills in as the model types. */
+    protected streamEdit(session: AgentSession, messageIndex: number, path: string | undefined, content: string | undefined): void {
+        const root = this.rootFor(session);
+        if (!path || content === undefined || !root || !modeInfo(session.mode).canEdit || !isSafeRelativePath(path)) {
+            return;
+        }
+        const key = `${session.id}\u0000${messageIndex}\u0000${path}`;
+        let started = this.streamingEdits.get(key);
+        if (!started) {
+            started = this.tracker.beginStream(this.originOf(session, messageIndex), path, root.resolve(path)).catch(() => undefined);
+            this.streamingEdits.set(key, started);
+        }
+        started.then(id => id && this.tracker.stream(id, content));
+    }
+
+    /**
+     * Applies every edit at once and shows each as a code-change block (IDEA-102); hunks wait for Accept / Reject in
+     * the editor and the chat, and the agent is free for the next message meanwhile.
+     */
     protected async applyEdits(session: AgentSession, edits: readonly AgentEdit[], root: URI | undefined): Promise<void> {
-        session.status = 'review';
         session.plan = session.plan.map(p => ({ ...p, state: 'done' }));
-        this.changed();
-        let accepted = 0;
+        const messageIndex = session.messages.map(m => m.role).lastIndexOf('agent');
+        const origin = this.originOf(session, messageIndex);
+        const ids: string[] = [];
         for (const edit of edits) {
             if (!root || !isSafeRelativePath(edit.path)) {
                 session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": agents can only change files inside the project.` });
                 continue;
             }
-            const uri = root.resolve(edit.path);
-            let created = false;
-            let oldText = '';
-            if (await this.files.exists(uri)) {
-                oldText = (await this.files.read(uri)).value;
-            } else {
-                await this.files.create(uri, '');
-                created = true;
-            }
-            const stats = diffStats(lineDiff(oldText, edit.content));
-            session.steps = [...session.steps, { kind: 'edit', target: edit.path, done: false, added: stats.added, removed: stats.removed }];
-            session.activeFile = edit.path;
-            this.changed();
-            const outcome = await this.review.review(uri, edit.content);
-            session.steps = session.steps.map(s => s.kind === 'edit' && s.target === edit.path ? { ...s, done: true } : s);
-            if (outcome.accepted) {
-                accepted++;
-                session.changes = [...session.changes, { uri: uri.toString(), label: edit.path, added: stats.added, removed: stats.removed }];
-            } else if (created) {
-                await this.files.delete(uri).catch(() => undefined);
-            }
+            // Wait for the live view of this file (if it streamed) so the final text lands on the same change.
+            await this.streamingEdits.get(`${session.id}\u0000${messageIndex}\u0000${edit.path}`);
+            const change = await this.tracker.finalize(origin, edit.path, root.resolve(edit.path), edit.content);
+            const stats = this.tracker.stats(change);
+            session.steps = [...session.steps, { kind: 'edit', target: edit.path, done: true, added: stats.added, removed: stats.removed }];
+            ids.push(change.id);
             this.changed();
         }
-        session.messages.push({ role: 'system', text: `Review finished: ${accepted} of ${edits.length} change(s) kept.` });
-        session.status = accepted ? 'done' : 'idle';
+        [...this.streamingEdits.keys()].filter(k => k.startsWith(`${session.id}\u0000`)).forEach(k => this.streamingEdits.delete(k));
+        session.status = ids.some(id => this.tracker.pending().some(c => c.id === id)) ? 'review' : 'done';
+        this.whenReviewed(session, ids, edits.length);
+    }
+
+    /** Once every hunk of a run is decided: "Review finished: n of m change(s) kept." and the chat is done. */
+    protected whenReviewed(session: AgentSession, ids: readonly string[], total: number): void {
+        const check = (): boolean => {
+            const changes = ids.map(id => this.tracker.find(id)).filter(c => !!c);
+            if (changes.some(c => c.status === 'applied' || c.status === 'streaming')) {
+                return false;
+            }
+            const kept = changes.filter(c => c.status === 'accepted' || c.status === 'partial');
+            session.changes = [...session.changes, ...kept.map(c => ({ uri: c.uri, label: c.path, ...this.tracker.stats(c) }))];
+            if (changes.length) {
+                session.messages.push({ role: 'system', text: `Review finished: ${kept.length} of ${total} change(s) kept.` });
+            }
+            if (session.status === 'review') {
+                session.status = kept.length ? 'done' : 'idle';
+            }
+            session.updatedAt = Date.now();
+            this.changed();
+            return true;
+        };
+        if (check()) {
+            return;
+        }
+        const listener = this.tracker.onDidChange(() => {
+            if (check()) {
+                listener.dispose();
+            }
+        });
+    }
+
+    /** Checkpoint for "Revert to here" exists from this message on (IDEA-102). */
+    canRevertTo(sessionId: string, index: number): boolean {
+        const session = this.items.find(s => s.id === sessionId);
+        const message = session?.messages[index];
+        return !!message && this.tracker.hasCheckpointFrom(sessionId, message.role === 'user' ? index : index + 1);
+    }
+
+    /**
+     * "Revert to here": a user message goes back to just before it ran, any other message to just after it.
+     * Files the agent touched later are restored (created files removed) and later messages are dropped.
+     */
+    async revertTo(sessionId: string, index: number): Promise<void> {
+        const session = this.items.find(s => s.id === sessionId);
+        const message = session?.messages[index];
+        if (!session || !message) {
+            return;
+        }
+        this.stop(sessionId);
+        const from = message.role === 'user' ? index : index + 1;
+        await this.tracker.revertTo(sessionId, from, restorePlan(this.tracker.checkpoints, sessionId, from));
+        session.messages = session.messages.slice(0, index + 1);
+        session.steps = [];
+        session.plan = [];
+        session.changes = session.changes.filter(c => this.tracker.changes.some(t => t.uri === c.uri && t.sessionId === sessionId));
+        session.status = 'idle';
+        session.updatedAt = Date.now();
+        this.changed();
     }
 
     /** Saves facts the model marked with REMEMBER: (when Generate memories is on) and shows them with Undo. */

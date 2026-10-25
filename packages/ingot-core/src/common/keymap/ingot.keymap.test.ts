@@ -28,7 +28,7 @@ describe('Ingot keymap', () => {
     it('never steals the agent review keys while an edit is pending', () => {
         const winBindings = resolveKeymap(INGOT_KEYMAP, false).filter(b => b.keybinding === 'ctrl+y' || b.keybinding === 'ctrl+n');
         expect(winBindings.length).toBe(2);
-        expect(winBindings.every(b => b.when?.includes('!ingotAgentEditPending'))).toBe(true);
+        expect(winBindings.every(b => b.when?.includes('!ingotChangesPending'))).toBe(true);
     });
 
     it('detects a double Shift tap', () => {

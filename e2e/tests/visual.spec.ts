@@ -88,11 +88,11 @@ test.describe('Reference look screenshots', () => {
             await pickModel(page, 'ollama-local');
             await page.locator('#ingot-composer-input').fill('Make addItem optimistic and add qty support');
             await page.locator('#ingot-composer-input').press('Enter');
-            await expect(page.locator('#ingot-agents-keep')).toBeEnabled({ timeout: 30_000 });
+            await expect(page.locator('#ingot-changes-accept-all')).toBeEnabled({ timeout: 30_000 });
             await dismissNotifications(page);
             await page.waitForTimeout(800);
             await page.screenshot({ path: path.join(SHOTS_DIR!, `ingot-${scheme}.png`) });
-            await page.locator('#ingot-agents-undo').click();
+            await page.locator('#ingot-changes-reject-all').click();
         });
     }
 });

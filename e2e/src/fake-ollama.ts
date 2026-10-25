@@ -2,6 +2,14 @@ import * as http from 'http';
 import type { AddressInfo } from 'net';
 
 const STREAM_DELAY_MS = 25;
+const STREAM_CHUNK_CHARS = 12;
+
+export interface FakeOllamaOptions {
+    /** Characters per streamed delta (default 12). */
+    readonly chunkSize?: number;
+    /** Delay between deltas in ms (default 25). */
+    readonly delayMs?: number;
+}
 
 export interface FakeOllama {
     readonly url: string;
@@ -13,7 +21,8 @@ export interface FakeOllama {
  * A local stand-in for an Ollama server (`POST /api/chat`), so e2e exercises the real request path
  * (UI → backend gateway → HTTP) without any API key or network access.
  */
-export const startFakeOllama = async (reply: (system: string, user: string) => string): Promise<FakeOllama> => {
+export const startFakeOllama = async (reply: (system: string, user: string) => string, options: FakeOllamaOptions = {}): Promise<FakeOllama> => {
+    const { chunkSize = STREAM_CHUNK_CHARS, delayMs = STREAM_DELAY_MS } = options;
     const requests: FakeOllama['requests'] = [];
     const server = http.createServer((req, res) => {
         let raw = '';
@@ -27,12 +36,12 @@ export const startFakeOllama = async (reply: (system: string, user: string) => s
             if (body.stream) {
                 // Ollama streams NDJSON: one message delta per line, then a final `done` line.
                 res.writeHead(200, { 'content-type': 'application/x-ndjson' });
-                const chunks = content.match(/[\s\S]{1,12}/g) ?? [];
+                const chunks = content.match(new RegExp(`[\\s\\S]{1,${chunkSize}}`, 'g')) ?? [];
                 let i = 0;
                 const tick = (): void => {
                     if (i < chunks.length) {
                         res.write(`${JSON.stringify({ model: body.model, message: { role: 'assistant', content: chunks[i++] }, done: false })}\n`);
-                        setTimeout(tick, STREAM_DELAY_MS);
+                        setTimeout(tick, delayMs);
                     } else {
                         res.end(`${JSON.stringify({ model: body.model, done: true })}\n`);
                     }
