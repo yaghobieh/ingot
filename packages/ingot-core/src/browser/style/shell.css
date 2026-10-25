@@ -725,3 +725,17 @@ button.ingot-popover-footer:hover { color: var(--theia-textLink-foreground); }
 .ingot-annotation-subject, .ingot-annotation-author { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ingot-annotation-first { color: var(--theia-descriptionForeground); }
 .ingot-annotation-date { color: var(--theia-descriptionForeground); text-align: right; }
+
+/* IDEA-91: model families with a '>' submenu; no badges. */
+.ingot-model-picker { width: 280px; overflow: visible; }
+.ingot-model-picker .ingot-pick-list { overflow: visible; }
+.ingot-pick-family-anchor { position: relative; }
+.ingot-pick-family-icon { opacity: .7; font-size: 13px; }
+.ingot-pick-family-current { font-size: 11px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-pick-arrow { opacity: .6; font-size: 12px; }
+.ingot-pick-family.open { background: var(--theia-list-hoverBackground); }
+.ingot-pick-family.open .ingot-pick-arrow, .ingot-pick-family:hover .ingot-pick-arrow { opacity: 1; }
+.ingot-pick-check { font-size: 12px; color: var(--ingot-primary, #3B6FD9); }
+.ingot-pick-row.selected .ingot-pick-check { color: inherit; }
+.ingot-popover.ingot-pick-submenu { position: absolute; top: -5px; left: calc(100% + 4px); bottom: auto; width: 240px; max-height: 360px; overflow: auto; padding: 4px; }
+.ingot-popover.ingot-pick-submenu.flip { left: auto; right: calc(100% + 4px); }
