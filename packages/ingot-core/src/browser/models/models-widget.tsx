@@ -3,16 +3,20 @@ import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { IngotModelClient } from './model-client';
-import { MODEL_CATALOG, MODEL_PREFERENCES, PROVIDERS } from '../../common/models/models.consts';
+import { BYOK_PROVIDERS, MODEL_CATALOG, MODEL_PREFERENCES, PROVIDERS, SIGN_IN_FOR_MODELS } from '../../common/models/models.consts';
+import { IngotAccountService } from '../account/account-service';
+import { tokensLeftLabel } from '../../common/account/gateway.utils';
+import { getGatewayModels } from '../../common/models/models.utils';
 import type { ProviderId, ProviderInfo } from '../../common/models/models.types';
 import { MODELS_WIDGET_ID, MODELS_WIDGET_LABEL } from './models.browser-consts';
 
-/** Settings › Models: bring your own keys (OS keychain), local Ollama, and inline completion (IDEA-26). */
+/** Settings › Models: Ingot models (signed in), optional own keys (OS keychain) / local Ollama, inline completion (IDEA-26, IDEA-101). */
 @injectable()
 export class IngotModelsWidget extends ReactWidget {
 
     @inject(IngotModelClient) protected readonly client: IngotModelClient;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
+    @inject(IngotAccountService) protected readonly account: IngotAccountService;
 
     protected readonly drafts = new Map<ProviderId, string>();
     protected readonly results = new Map<ProviderId, { ok: boolean; text: string }>();
@@ -29,6 +33,7 @@ export class IngotModelsWidget extends ReactWidget {
         this.title.iconClass = 'ingot-icon ingot-icon-ai';
         this.addClass('ingot-models');
         this.toDispose.push(this.client.onDidChange(() => this.update()));
+        this.toDispose.push(this.account.onDidChange(() => this.update()));
         this.toDispose.push(this.preferences.onPreferenceChanged(e => e.preferenceName.startsWith('ingot.') && this.update()));
         this.client.refresh();
         this.update();
@@ -77,11 +82,19 @@ export class IngotModelsWidget extends ReactWidget {
         const overrides = this.preferences.get<Record<string, string>>(MODEL_PREFERENCES.overrides, {});
         return <div className='ingot-models-root'>
             <h2>Models</h2>
-            <p className='ingot-models-lead'>Bring your own keys. Keys are stored in your OS keychain (macOS Keychain, Windows Credential Manager, Secret Service on Linux) — never in settings or project files — and are only sent to the provider's own API.</p>
-            {!this.client.secureStorage && <div id='ingot-models-no-keychain' className='ingot-models-warning'>Secure storage is not available on this system, so API keys cannot be saved. Local models (Ollama) still work.</div>}
-            <div className='ingot-models-list'>
-                {PROVIDERS.map(p => this.renderProvider(p, overrides[p.id] ?? ''))}
-            </div>
+            {this.renderIngot()}
+            <label className='ingot-models-row ingot-models-byok'>
+                <input id='ingot-models-byok' type='checkbox' checked={this.client.byok}
+                    onChange={e => this.setPreference(MODEL_PREFERENCES.byok, e.currentTarget.checked)} />
+                <span><strong>Use my own API key (BYOK)</strong> / Local (Ollama)</span>
+            </label>
+            {this.client.byok && <>
+                <p className='ingot-models-lead'>Keys are stored in your OS keychain (macOS Keychain, Windows Credential Manager, Secret Service on Linux) — never in settings or project files — and are only sent to the provider's own API.</p>
+                {!this.client.secureStorage && <div id='ingot-models-no-keychain' className='ingot-models-warning'>Secure storage is not available on this system, so API keys cannot be saved. Local models (Ollama) still work.</div>}
+                <div className='ingot-models-list'>
+                    {PROVIDERS.filter(p => BYOK_PROVIDERS.includes(p.id)).map(p => this.renderProvider(p, overrides[p.id] ?? ''))}
+                </div>
+            </>}
             <h2>Inline completion</h2>
             <label className='ingot-models-row'>
                 <input id='ingot-autocomplete-enabled' type='checkbox' checked={this.preferences.get<boolean>(MODEL_PREFERENCES.autocompleteEnabled, true)}
@@ -93,10 +106,32 @@ export class IngotModelsWidget extends ReactWidget {
                 <select id='ingot-autocomplete-model' className='ingot-select' value={this.preferences.get<string>(MODEL_PREFERENCES.autocompleteModel, '')}
                     onChange={e => this.setPreference(MODEL_PREFERENCES.autocompleteModel, e.currentTarget.value)}>
                     <option value=''>Automatic (first connected)</option>
-                    {MODEL_CATALOG.map(m => <option key={m.id} value={m.id}>{m.label}{this.client.isModelConfigured(m.id) ? '' : ' — not connected'}</option>)}
+                    {this.client.catalog.map(m => <option key={m.id} value={m.id}>{m.label}{this.client.isModelConfigured(m.id) ? '' : ' — not connected'}</option>)}
                 </select>
             </label>
         </div>;
+    }
+
+    /** Ingot models: included with the account, no keys (IDEA-101). */
+    protected renderIngot(): React.ReactNode {
+        const snap = this.account.snapshot;
+        const models = getGatewayModels();
+        return <section id='ingot-model-ingot' className='ingot-model-card ingot-model-card-ingot'>
+            <div className='ingot-model-head'>
+                <span className='ingot-model-name'>Ingot models</span>
+                <span id='ingot-model-status-ingot' className={`ingot-model-status ${snap.signedIn ? 'ok' : ''}`}>{snap.signedIn ? 'Signed in' : snap.pending ? 'Signing in…' : 'Not signed in'}</span>
+            </div>
+            {snap.signedIn
+                ? <div className='ingot-models-row ingot-dim'>
+                    {snap.user?.email} · {snap.user?.plan}{snap.tokens ? ` · ${tokensLeftLabel(snap.tokens)}` : ''} · {models.length} models
+                </div>
+                : <div className='ingot-models-row'>
+                    <span className='ingot-dim'>{SIGN_IN_FOR_MODELS} — no API keys needed.</span>
+                    <span className='ingot-flex' />
+                    <button type='button' id='ingot-models-sign-in' className='theia-button' onClick={() => this.account.signIn(false)}>Sign in</button>
+                    {this.account.devSignInAvailable && <button type='button' id='ingot-models-sign-in-dev' className='theia-button secondary' onClick={() => this.account.signIn(true)}>Dev: test@ingot.dev</button>}
+                </div>}
+        </section>;
     }
 
     protected renderProvider(p: ProviderInfo, override: string): React.ReactNode {
