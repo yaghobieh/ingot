@@ -52,7 +52,7 @@ export class IngotAccountContribution implements CommandContribution, MenuContri
         if (snap.signedIn && snap.tokens) {
             this.statusBar.setElement(ACCOUNT_STATUS_ID, {
                 text: `$(sparkle) ${tokensLeftLabel(snap.tokens)}`,
-                tooltip: `Ingot${user ? ` · ${user.email} · ${planLabel(user.plan)}` : ''}\n${this.tokens.label}`,
+                tooltip: `Ingot${user ? ` · ${user.email} · ${planLabel(user.plan)}` : ''}\n${this.tokens.label}\nExactly ${snap.tokens.used.toLocaleString()} used · ${snap.tokens.remaining.toLocaleString()} left (updates after every request)`,
                 alignment: StatusBarAlignment.RIGHT, priority: 200, command: ACCOUNT_COMMANDS.dashboard.id
             });
         } else {
