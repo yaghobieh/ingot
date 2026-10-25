@@ -31,7 +31,7 @@ import URI from '@theia/core/lib/common/uri';
 import { composerHeight, INGOT_REF_MIME, type ContextChip } from '../../common/agents/context-chips';
 import { composeParts } from '../../common/agents/composer-parts';
 import type { ImageChip, SentPart } from '../../common/agents/composer-parts.types';
-import { tabContextLevel, tabLabel } from '../../common/agents/chat-tabs';
+import { tabContextLevel, tabLabel, UNTITLED_TAB_TOOLTIP } from '../../common/agents/chat-tabs';
 import { InlineComposer, readImage } from './inline-composer';
 import { COMPOSER_INPUT_ID, MAX_DROPPED_FILE_CHARS } from './inline-composer.consts';
 import { AgentMarkdownRenderer } from './markdown-renderer';
@@ -455,7 +455,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     const active = current?.id === t.id;
                     const label = tabLabel(t.title, active && !t.messages.length ? this.draft : '');
                     const level = tabContextLevel(usageRatio(t.context?.usage));
-                    return <div key={t.id} role='tab' tabIndex={0} aria-selected={active} data-id={t.id} title={label || 'New chat'} draggable={this.renamingTab !== t.id}
+                    return <div key={t.id} role='tab' tabIndex={0} aria-selected={active} data-id={t.id} title={label || UNTITLED_TAB_TOOLTIP} draggable={this.renamingTab !== t.id}
                         className={`ingot-chat-tab${active ? ' active' : ''}${t.pinned ? ' pinned' : ''}${level !== 'ok' ? ` context-${level}` : ''}${label ? '' : ' untitled'}`}
                         onClick={() => this.store.select(t.id)}
                         onMouseDown={e => { if (e.button === 1) { e.preventDefault(); this.store.closeTab(t.id); } }}
