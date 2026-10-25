@@ -34,7 +34,7 @@ test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
         await pickModel(page, 'ollama-local');
         await page.locator('#ingot-composer-input').fill('Say hello');
         await page.locator('#ingot-composer-input').press('Enter');
-        await expect(page.locator('#ingot-agents .ingot-chat-agent')).toHaveText(CHAT_REPLY);
+        await expect(page.locator('#ingot-agents .ingot-chat-agent .ingot-md')).toHaveText(CHAT_REPLY);
         expect(server.requests.at(-1)?.user).toBe('Say hello');
     });
 

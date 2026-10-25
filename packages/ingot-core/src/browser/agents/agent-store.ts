@@ -1,7 +1,9 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { IngotModelClient } from '../models/model-client';
 import { AGENT_SYSTEM_PROMPTS, AUTO_MODEL_ID, DEFAULT_CONTEXT_WINDOW } from '../../common/models/models.consts';
-import { findModel } from '../../common/models/models.utils';
+import { findModel, supportsVision } from '../../common/models/models.utils';
+import type { ComposedMessage } from '../../common/agents/composer-parts.types';
+import { pinnedFirst, reorderTabs, tabTitleFromText } from '../../common/agents/chat-tabs';
 import { BUILD_PROMPT, MAX_SUB_AGENTS, TERMINAL_CONTEXT_LINES, modeInfo } from '../../common/agents/agent-modes';
 import { CHATS_STORAGE_KEY, parseChats, serializeChats } from '../../common/agents/chat-history';
 import { SUMMARIZE_PROMPT, contextUsage, estimateTokens } from '../../common/agents/context-usage';
@@ -102,7 +104,37 @@ export class AgentStore {
 
     /** Open chats in tab order. */
     get tabs(): readonly AgentSession[] {
-        return this.sessions.filter(s => s.open).sort((a, b) => (a.openedAt ?? 0) - (b.openedAt ?? 0));
+        const open = this.sessions.filter(s => s.open).sort((a, b) => (a.openedAt ?? 0) - (b.openedAt ?? 0));
+        return [...open.filter(s => s.pinned), ...open.filter(s => !s.pinned)];
+    }
+
+    /** Drag to reorder (IDEA-98): rewrites the open order; pinned tabs stay in front. */
+    moveTab(from: string, to: string): void {
+        const tabs = this.tabs;
+        const order = reorderTabs(tabs.map(t => t.id), from, to, new Set(tabs.filter(t => t.pinned).map(t => t.id)));
+        this.applyOrder(order);
+    }
+
+    protected applyOrder(order: readonly string[]): void {
+        const base = Math.min(...this.tabs.map(t => t.openedAt ?? 0));
+        order.forEach((id, i) => {
+            const session = this.items.find(s => s.id === id);
+            if (session) {
+                session.openedAt = base + i;
+            }
+        });
+        this.changed();
+    }
+
+    /** Close Others keeps the given tab and every pinned tab. */
+    closeOthers(id: string): void {
+        for (const tab of this.tabs) {
+            if (tab.id !== id && !tab.pinned) {
+                tab.open = false;
+            }
+        }
+        this.selected = id;
+        this.changed();
     }
 
     /** `auto` becomes the first connected recommended model, then any connected model. */
@@ -154,7 +186,8 @@ export class AgentStore {
         const session = this.items.find(s => s.id === id);
         if (session) {
             session.pinned = !session.pinned;
-            this.changed();
+            const tabs = this.tabs;
+            this.applyOrder(pinnedFirst(tabs.map(t => t.id), new Set(tabs.filter(t => t.pinned).map(t => t.id))));
         }
     }
 
@@ -254,16 +287,25 @@ export class AgentStore {
     }
 
     /** Sends a prompt. Without a connected model the agent explains how to connect one instead of pretending. */
-    send(prompt: string, chips: readonly ContextChip[] = []): AgentSession {
+    send(prompt: string, chips: readonly ContextChip[] = [], composed?: ComposedMessage): AgentSession {
         const session = this.current ?? this.create();
         if (session.title === NEW_AGENT_TITLE) {
-            session.title = titleFromPrompt(prompt);
+            session.title = tabTitleFromText(prompt) || titleFromPrompt(prompt);
         }
         session.mode = this.mode;
         session.model = this.model;
-        session.messages.push(chips.length
-            ? { role: 'user', text: prompt.trim(), expanded: expandWithChips(prompt.trim(), chips), chips: chips.map(c => ({ label: chipLabel(c), path: c.path })) }
-            : { role: 'user', text: prompt.trim() });
+        if (composed && (composed.chips.length || composed.images.length)) {
+            // Inline composer (IDEA-98): chips and images stay where the user put them.
+            session.messages.push({
+                role: 'user', text: composed.text, expanded: composed.expanded, parts: composed.parts,
+                ...(composed.images.length ? { images: composed.images } : {}),
+                chips: composed.chips.map(c => ({ label: chipLabel(c), path: c.path }))
+            });
+        } else {
+            session.messages.push(chips.length
+                ? { role: 'user', text: prompt.trim(), expanded: expandWithChips(prompt.trim(), chips), chips: chips.map(c => ({ label: chipLabel(c), path: c.path })) }
+                : { role: 'user', text: prompt.trim() });
+        }
         if (this.commandHandlers.some(handle => handle(session, prompt.trim()))) {
             session.updatedAt = Date.now();
             this.changed();
@@ -362,8 +404,22 @@ export class AgentStore {
                 if (m.role === 'tool') {
                     return { role: 'user' as const, content: `Tool result (${m.from}):\n${m.expanded ?? m.text}` };
                 }
-                return { role: 'user' as const, content: m.expanded ?? m.text };
+                return this.userMessage(session, m);
             });
+    }
+
+    /** A user turn for the model; images become image parts when the model can read them (IDEA-98). */
+    protected userMessage(session: AgentSession, m: AgentSession['messages'][number]): ChatMessage {
+        const content = m.expanded ?? m.text;
+        const images = (m.images ?? []).filter(i => i.data);
+        if (!images.length) {
+            return { role: 'user', content };
+        }
+        const model = findModel(this.resolveModel(session.model));
+        if (!model || !supportsVision(model.provider)) {
+            return { role: 'user', content: `${content}\n\n(${images.length} image(s) attached, but the selected model cannot read images.)` };
+        }
+        return { role: 'user', content, images: images.map(i => ({ mediaType: i.mediaType, data: i.data })) };
     }
 
     /**
@@ -403,16 +459,7 @@ export class AgentStore {
                 history: estimateTokens(this.historyFor(session).map(m => m.content).join('\n'))
             }, model?.contextWindow ?? DEFAULT_CONTEXT_WINDOW)
         };
-        if (lastUser) {
-            const used = [
-                ...rules.map(r => ({ label: r.name, path: r.name, kind: 'rule' as const })),
-                ...memories.map(m => ({ label: m.text.length > 32 ? `${m.text.slice(0, 31)}…` : m.text, path: m.id, kind: 'memory' as const }))
-            ];
-            if (used.length) {
-                const msg = session.messages[lastUser.i];
-                session.messages[lastUser.i] = { ...msg, chips: [...(msg.chips ?? []), ...used] };
-            }
-        }
+        // Rules and memories apply silently: they show in the collapsible "Read rules" step, never as chips (IDEA-100).
         session.steps = [
             ...(session.steps.filter(s => s.kind === 'run' && s.target.startsWith('/'))),
             ...(context.paths.length ? [{ kind: 'read' as const, target: context.paths.join(', '), done: true }] : []),

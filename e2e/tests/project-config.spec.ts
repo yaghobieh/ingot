@@ -47,14 +47,19 @@ test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => 
         await page.keyboard.type('ex');
         await expect(menu.locator('.ingot-slash-item')).toHaveCount(1);
         await page.keyboard.press('Enter');
-        await expect(composer(page)).toHaveValue('/explain ');
+        await expect(composer(page)).toHaveText(/^\/explain\s*$/);
         await page.keyboard.type('the total function');
         await page.keyboard.press('Enter');
 
-        await expect(page.locator('#ingot-agents .ingot-chat-agent').last()).toHaveText('It sums the values.');
+        await expect(page.locator('#ingot-agents .ingot-chat-agent .ingot-md').last()).toHaveText('It sums the values.');
         await expect(page.locator('#ingot-agents .ingot-chat-user').last()).toContainText('/explain the total function');
-        // Applied rules show as chips on the message (IDEA-77).
-        await expect(page.locator('#ingot-agents .ingot-chat-user').last().locator('.ingot-chip-rule').first()).toBeVisible();
+        // Applied rules are never auto-attached as chips (IDEA-100): they show in the collapsible "Read rules" step.
+        await expect(page.locator('#ingot-agents .ingot-chat-user').last().locator('.ingot-chip')).toHaveCount(0);
+        await expect(page.locator('#ingot-composer-input .ingot-chip')).toHaveCount(0);
+        const read = page.locator('#ingot-agents .ingot-chat-read').last();
+        await expect(read).toContainText('Read rules');
+        await read.locator('.ingot-chat-read-row').click();
+        await expect(read.locator('.ingot-chat-read-list li').first()).toBeVisible();
         const request = server.requests.at(-1)!;
         expect(request.user).toContain('Explain the total function in two sentences. EXPLAIN-MARKER');
         expect(request.system).toContain('AGENTS-MARKER');
@@ -92,7 +97,7 @@ test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => 
         await composer(page).press('Enter');
         await expect(page.locator('#ingot-agents .ingot-chat-tool')).toContainText('5');
         await expect(page.locator('#ingot-agents .ingot-chat-tool')).toContainText('calc/add');
-        await expect(page.locator('#ingot-agents .ingot-chat-agent').last()).toHaveText('The sum is 5.');
+        await expect(page.locator('#ingot-agents .ingot-chat-agent .ingot-md').last()).toHaveText('The sum is 5.');
         expect(server.requests.find(r => r.user.includes('calculator'))?.system).toContain('calc/add');
 
         await page.locator('#ingot-rs-mcp').click();

@@ -65,3 +65,8 @@ export const nativeEdit = (app: ElectronApplication, role: 'copy' | 'cut' | 'pas
 
 export const readClipboard = (app: ElectronApplication): Promise<string> => app.evaluate(({ clipboard }) => clipboard.readText());
 export const writeClipboard = (app: ElectronApplication, text: string): Promise<void> => app.evaluate(({ clipboard }, t) => clipboard.writeText(t), text);
+
+/** Puts a small PNG (an 8×8 red square, base64) on the native clipboard (IDEA-98 image paste). */
+export const RED_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGN46uGLFTEMLQkAEvNegaK5qlEAAAAASUVORK5CYII=';
+export const writeClipboardImage = (app: ElectronApplication, base64Png: string = RED_PNG): Promise<void> =>
+    app.evaluate(({ clipboard, nativeImage }, data) => clipboard.writeImage(nativeImage.createFromDataURL(`data:image/png;base64,${data}`)), base64Png);
