@@ -787,7 +787,7 @@ export class IngotAgentsWidget extends ReactWidget {
             </button>
             {this.popover === 'model' && <ModelPicker current={model} models={this.models.catalog}
                 autoResolved={resolved !== AUTO_MODEL_ID && model === AUTO_MODEL_ID ? this.modelLabel(resolved) : undefined}
-                configured={id => this.models.isModelConfigured(id)} favorites={this.favorites}
+                configured={id => this.models.isModelConfigured(id)} unavailableReason={id => this.models.unavailableReason(id)} favorites={this.favorites}
                 onToggleFavorite={id => this.toggleFavorite(id)}
                 onPick={id => { this.store.model = id; this.store.changed(); this.closePopover(); }}
                 onAddKey={() => { this.closePopover(); this.commands.executeCommand(MODELS_OPEN_COMMAND.id); }}

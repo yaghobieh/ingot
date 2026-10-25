@@ -8,6 +8,8 @@ export const SIGNED_IN_KEY = 'ingotSignedIn';
 export const SIGN_IN_PENDING_KEY = 'ingotSignInPending';
 export const DEV_SIGN_IN_KEY = 'ingotDevSignIn';
 export const ACCOUNT_STATUS_ID = 'ingot-account-status';
+export const ADMIN_KEY = 'ingotAccountAdmin';
+export const BLOCKED_SCREEN_ID = 'ingot-blocked-screen';
 
 export const ACCOUNT_COMMANDS = {
     signIn: { id: 'ingot.account.signIn', label: 'Sign in to Ingot…', category: 'Account' },
@@ -16,6 +18,7 @@ export const ACCOUNT_COMMANDS = {
     signOut: { id: 'ingot.account.signOut', label: 'Sign Out', category: 'Account' },
     refresh: { id: 'ingot.account.refresh', label: 'Refresh Usage', category: 'Account' },
     dashboard: { id: 'ingot.account.dashboard', label: 'Open Dashboard', category: 'Account' },
+    admin: { id: 'ingot.account.admin', label: 'Open admin console', category: 'Account' },
     who: { id: 'ingot.account.who', label: 'Account' },
     tokens: { id: 'ingot.account.tokens', label: 'Tokens' },
     show: { id: 'ingot.account.menu', label: 'Account', category: 'Account' }
@@ -24,5 +27,9 @@ export const ACCOUNT_COMMANDS = {
 export const ACCOUNT_TEXT = {
     signedOut: 'Account: not signed in',
     signInPending: 'Finish signing in in your browser…',
-    settings: 'Settings (Ctrl+Alt+S)'
+    settings: 'Settings (Ctrl+Alt+S)',
+    blockedTitle: 'This account is blocked',
+    blockedBody: 'An administrator blocked this Ingot account, so Ingot models, sync and account features are off. Contact support if you think this is a mistake.',
+    blockedSignOut: 'Sign out',
+    blockedStatus: 'Account blocked'
 } as const;

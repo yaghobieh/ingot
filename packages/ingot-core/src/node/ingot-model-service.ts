@@ -6,6 +6,9 @@ import { DEFAULT_KEYCHAIN_SERVICE, MAX_DICTATION_BYTES, PROVIDERS, REQUEST_TIMEO
 import type { CompletionRequest, CompletionResult, ModelService, ProviderId, ProviderSettings, ProviderStatus, StreamPoll } from '../common/models/models.types';
 import { buildProviderRequest, findModel, findProvider, parseProviderError, parseProviderResponse, parseStreamLine, redactSecrets, resolveModelName } from '../common/models/models.utils';
 import type { CatalogModel, HttpRequestSpec, ProviderInfo } from '../common/models/models.types';
+import { encodeGatewayError, parseGatewayError } from '../common/account/gateway-errors';
+import { ideHeaders } from '../common/account/gateway.utils';
+import { PRODUCT } from '../common/product.consts';
 
 interface StreamState {
     chunks: string[];
@@ -115,7 +118,8 @@ export class IngotModelService implements ModelService {
                 throw new Error(`${SIGN_IN_FOR_MODELS}.`);
             }
             const settings = { ...request.settings, ingotBaseUrl: this.account.gatewayBaseUrl };
-            return { model, info, key: token, name: model.model, spec: buildProviderRequest('ingot', model.model, { ...request, settings }, token, stream) };
+            const spec = buildProviderRequest('ingot', model.model, { ...request, settings }, token, stream);
+            return { model, info, key: token, name: model.model, spec: { ...spec, headers: { ...spec.headers, ...ideHeaders(PRODUCT.version) } } };
         }
         const key = info.needsKey ? await this.keyStore.getPassword(this.service, info.id) : undefined;
         if (info.needsKey && !key) {
@@ -132,6 +136,7 @@ export class IngotModelService implements ModelService {
             const text = await response.text();
             const json = text ? JSON.parse(text) as unknown : {};
             if (!response.ok) {
+                await this.throwGatewayError(info, response, json);
                 throw new Error(`${model.label} returned ${response.status}: ${parseProviderError(json) ?? response.statusText}`);
             }
             return { text: parseProviderResponse(info.id, json), model: name };
@@ -179,11 +184,14 @@ export class IngotModelService implements ModelService {
             if (!response.ok || !response.body) {
                 const text = await response.text();
                 let detail: string | undefined;
+                let json: unknown;
                 try {
-                    detail = parseProviderError(JSON.parse(text));
+                    json = JSON.parse(text);
+                    detail = parseProviderError(json);
                 } catch {
                     detail = undefined;
                 }
+                await this.throwGatewayError(info, response, json);
                 throw new Error(`${model.label} returned ${response.status}: ${detail ?? response.statusText}`);
             }
             const decoder = new TextDecoder();
@@ -213,6 +221,21 @@ export class IngotModelService implements ModelService {
                 state.error = redactSecrets(error instanceof Error ? error.message : String(error), [key]);
             }
         }
+    }
+
+    /** Ingot gateway errors keep their code (IDEA-124) so the chat can count down, fall back or show the blocked screen. */
+    protected async throwGatewayError(info: ProviderInfo, response: Response, json: unknown): Promise<void> {
+        if (info.id !== 'ingot') {
+            return;
+        }
+        const error = parseGatewayError(response.status, json, response.headers.get('retry-after'));
+        if (!error) {
+            return;
+        }
+        if (error.kind === 'blocked') {
+            await this.account.markBlocked();
+        }
+        throw new Error(encodeGatewayError(error));
     }
 
     /** Sends a one-word prompt to check a key / local server. */

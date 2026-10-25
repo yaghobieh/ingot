@@ -14,6 +14,8 @@ export interface AccountUser {
     readonly email: string;
     readonly plan: string;
     readonly avatarUrl?: string;
+    /** From /api/me (IDEA-124): `admin` shows "Open admin console". */
+    readonly role?: string;
 }
 
 /** Tokens this billing period (allowance includes grants). */
@@ -31,6 +33,8 @@ export interface AccountSnapshot {
     /** A browser sign-in is waiting for the user. */
     readonly pending?: boolean;
     readonly error?: string;
+    /** 403 account_blocked (IDEA-124): an admin blocked the account; the session is gone and background calls stop. */
+    readonly blocked?: boolean;
     /** Epoch ms of the last status refresh. */
     readonly updatedAt: number;
 }
@@ -41,6 +45,12 @@ export interface GatewayModelInfo {
     readonly label: string;
     readonly contextWindow: number;
     readonly available: boolean;
+    /** Admin-controlled sort order (IDEA-124); the list is already sorted by it. */
+    readonly order: number;
+    /** The plan's default model. */
+    readonly isDefault: boolean;
+    /** Why `available` is false, when the server says. */
+    readonly reason?: string;
 }
 
 export interface SignInOptions {
