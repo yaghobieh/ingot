@@ -67,7 +67,8 @@ export type GitOperation =
     /** Merge conflicts (IDEA-33): one stage of an unmerged file (1 base, 2 ours, 3 theirs). */
     | { kind: 'showStage'; stage: 1 | 2 | 3; path: string }
     | { kind: 'checkoutSide'; side: 'ours' | 'theirs'; paths: string[] }
-    | { kind: 'conflicted' };
+    | { kind: 'conflicted' }
+    | { kind: 'statusPath'; path: string };
 
 export type GitOperationKind = GitOperation['kind'];
 
@@ -155,6 +156,7 @@ export const gitArgs = (op: GitOperation): string[] => {
         case 'showStage': return ['show', `:${[1, 2, 3].includes(op.stage) ? op.stage : fail('Invalid stage.')}:${paths([op.path])[0]}`];
         case 'checkoutSide': return ['checkout', op.side === 'theirs' ? '--theirs' : '--ours', '--', ...paths(op.paths)];
         case 'conflicted': return ['diff', '--name-only', '--diff-filter=U', '-z'];
+        case 'statusPath': return ['status', '--porcelain=v1', '-z', '--', ...paths([op.path])];
         case 'logOnly': return ['log', '--max-count=200', `--format=${LOG_FORMAT}`, '--decorate=short', branch(op.branch), '--not', 'HEAD', '--'];
     }
 };
