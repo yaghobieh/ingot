@@ -101,6 +101,14 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
         this.fileModel?.save().catch(() => undefined);
     }
 
+    undo(): void {
+        this.editor?.getModifiedEditor().trigger('keyboard', 'undo', undefined);
+    }
+
+    redo(): void {
+        this.editor?.getModifiedEditor().trigger('keyboard', 'redo', undefined);
+    }
+
     /** × on a chunk: exclude it from the commit (click again to include); the file is not changed. */
     ignoreChunk(index?: number): void {
         const hunk = index !== undefined ? this.hunks.find(h => h.index === index) : this.hunkAtCaret();
