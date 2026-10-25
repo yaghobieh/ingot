@@ -18,6 +18,7 @@ import { relativeDate, remoteFileUrl } from '../../common/git/git.utils';
 import { AGENT_COMMANDS } from '../agents/agents.consts';
 import { IngotAgentsContribution } from '../agents/agents-contribution';
 import { toGitUri } from '../git/git-resource-resolver';
+import { IngotGitActionsContribution } from '../git/git-actions-contribution';
 import { CALL_HIERARCHY_COMMAND, COMMAND_PALETTE, EDITOR_COMMANDS, EDITOR_MENU, EDITOR_SUBMENUS, MONACO_ACTIONS, SOURCE_DEFINITION_PLUGIN_COMMAND } from './editor-menu.consts';
 
 interface EditorContext {
@@ -49,6 +50,7 @@ export class IngotEditorContextMenuContribution implements CommandContribution, 
     @inject(WindowService) protected readonly windows: WindowService;
     @inject(GitService) protected readonly git: GitService;
     @inject(IngotAgentsContribution) protected readonly agents: IngotAgentsContribution;
+    @inject(IngotGitActionsContribution) protected readonly gitActions: IngotGitActionsContribution;
 
     protected readonly blame = new Map<string, BlameDecorations>();
     protected pruning = false;
@@ -331,14 +333,7 @@ export class IngotEditorContextMenuContribution implements CommandContribution, 
         add(EDITOR_SUBMENUS.fileHistory, 'ingot.git.fileHistory', 'Show File History', 'a');
         add(EDITOR_SUBMENUS.fileHistory, EDITOR_COMMANDS.quickFileHistory.id, 'Quick File History…', 'b');
         menus.registerSubmenu(EDITOR_SUBMENUS.git, 'Git', { sortString: 'c' });
-        const g = EDITOR_SUBMENUS.git;
-        add(g, EDITOR_COMMANDS.commitFile.id, 'Commit File…', 'a');
-        add(g, EDITOR_COMMANDS.rollbackFile.id, 'Rollback…', 'b');
-        add(g, EDITOR_COMMANDS.compareWithBranch.id, 'Compare with Branch…', 'c');
-        add(g, EDITOR_COMMANDS.compareWithRevision.id, 'Compare with Revision…', 'd');
-        add(g, EDITOR_COMMANDS.toggleBlame.id, 'Annotate with Git Blame', 'e');
-        add(g, 'ingot.git.fileHistory', 'Show History', 'f');
-        add(g, EDITOR_COMMANDS.addToGitignore.id, 'Add to .gitignore', 'g');
+        this.gitActions.registerGitSubmenu(menus, EDITOR_SUBMENUS.git);
 
         const cl = EDITOR_MENU.clipboard;
         add(cl, CommonCommands.CUT.id, 'Cut', 'a');
