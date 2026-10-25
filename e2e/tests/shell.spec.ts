@@ -13,9 +13,12 @@ test.describe('IDEA-13/14 main toolbar and tool windows', () => {
         await expect(page.locator('#ingot-tb-search')).toContainText('Shift Shift');
         await expect(page.locator('#ingot-tb-run-config')).toContainText('dev');
         await expect(page.locator('#ingot-tb-project')).toContainText('sample-project');
-        for (const id of ['vcs', 'run-config', 'run', 'debug', 'stop', 'new-session', 'ai', 'search']) {
+        for (const id of ['vcs', 'run-config', 'run', 'debug', 'stop', 'ai', 'search']) {
             await expect(page.locator(`#ingot-tb-${id}`)).toBeVisible();
         }
+        // IDEA-92: no 'New Session' (the Agents panel's + makes a new chat).
+        await expect(page.locator('#ingot-tb-new-session')).toHaveCount(0);
+        await expect(toolbar).not.toContainText('New Session');
     });
 
     test('opens the Project tool window by default and toggles it with Cmd/Alt+1', async ({ page }) => {
