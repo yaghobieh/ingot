@@ -118,7 +118,7 @@ test.describe('IDEA-77 chat redesign', () => {
         await page.locator('#ingot-mode-ask').click();
         await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'ask');
         await send(page, 'What does add do?');
-        await expect(agents(page).locator('.ingot-chat-agent').last()).toHaveText('Plain answer.');
+        await expect(agents(page).locator('.ingot-chat-agent .ingot-md').last()).toHaveText('Plain answer.');
         expect(server.requests.at(-1)?.system).toContain('Do not propose edits');
         expect(server.requests.at(-1)?.system).not.toContain('<<<EDIT');
 
@@ -138,7 +138,7 @@ test.describe('IDEA-77 chat redesign', () => {
 
         await page.locator('#ingot-plan-build').click();
         await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'agent');
-        await expect(agents(page).locator('.ingot-chat-agent').last()).toHaveText('Building now.');
+        await expect(agents(page).locator('.ingot-chat-agent .ingot-md').last()).toHaveText('Building now.');
         expect(server.requests.at(-1)?.system).toContain('<<<EDIT');
         await tabs(page).nth(1).click();
         await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'debug');
@@ -211,7 +211,7 @@ test.describe('IDEA-77 chat redesign', () => {
         const saved = agents(page).locator('.ingot-chat-memory');
         await expect(saved).toContainText('Memory saved');
         await expect(saved).toContainText('tabs for indentation');
-        await expect(agents(page).locator('.ingot-chat-agent').last()).toHaveText('Noted.');
+        await expect(agents(page).locator('.ingot-chat-agent .ingot-md').last()).toHaveText('Noted.');
         const dir = path.join(project, '.ingot', 'memories');
         expect(fs.readdirSync(dir).filter(f => f.endsWith('.md'))).toHaveLength(1);
         expect(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8')).toContain('*');
@@ -220,11 +220,11 @@ test.describe('IDEA-77 chat redesign', () => {
         expect(Number(await ring.getAttribute('data-ratio'))).toBeGreaterThan(0);
         await expect(ring).toHaveAttribute('title', /tokens/);
 
-        // The next request carries the memory; the user message shows it as a chip.
+        // The next request carries the memory silently: no chip is auto-attached to the message (IDEA-100).
         await send(page, 'What is our style?');
         await expect(agents(page).locator('.ingot-chat-agent').last()).toContainText('Echo');
         expect(server.requests.at(-1)?.system).toContain('The project uses tabs for indentation.');
-        await expect(agents(page).locator('.ingot-chat-user').last().locator('.ingot-chip-memory')).toBeVisible();
+        await expect(agents(page).locator('.ingot-chat-user').last().locator('.ingot-chip')).toHaveCount(0);
 
         await saved.locator('.ingot-memory-undo').click();
         await expect(saved).toContainText('Memory removed');
@@ -250,7 +250,7 @@ test.describe('IDEA-77 chat redesign', () => {
         await manager.locator('#ingot-memories-generate').uncheck();
         await manager.locator('#ingot-memories-close').click();
         await send(page, 'Please remember nothing');
-        await expect(agents(page).locator('.ingot-chat-agent').last()).toHaveText('Noted.');
+        await expect(agents(page).locator('.ingot-chat-agent .ingot-md').last()).toHaveText('Noted.');
         expect(server.requests.at(-1)?.system).not.toContain('REMEMBER:');
         await expect(agents(page).locator('.ingot-chat-memory')).toHaveCount(1);
 
