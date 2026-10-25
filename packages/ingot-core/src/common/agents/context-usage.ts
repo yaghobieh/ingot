@@ -32,3 +32,42 @@ export const usageBreakdown = (u: ContextUsage): string => [
 ].join('\n');
 
 export const SUMMARIZE_PROMPT = 'Summarize this conversation so another agent can continue it: the goal, decisions made, files involved, what is done and what is left. Be concise; use bullet points.';
+
+export interface ContextSegment {
+    readonly id: 'system' | 'rules' | 'files' | 'history' | 'tools' | 'memories';
+    readonly label: string;
+    readonly tokens: number;
+}
+
+/** What a chat's messages contribute beyond plain conversation: chip/file contents and tool output. */
+export interface MessageWeights {
+    readonly chips: number;
+    readonly tools: number;
+}
+
+export const messageWeights = (messages: readonly { readonly role: string; readonly text: string; readonly expanded?: string; readonly chips?: readonly unknown[] }[]): MessageWeights => {
+    let chips = 0;
+    let tools = 0;
+    for (const m of messages) {
+        if (m.role === 'tool') {
+            tools += estimateTokens(m.text);
+        } else if (m.role === 'user' && m.chips?.length && m.expanded) {
+            chips += Math.max(0, estimateTokens(m.expanded) - estimateTokens(m.text));
+        }
+    }
+    return { chips, tools };
+};
+
+/** Context ring popover (IDEA-98): the window split into the parts the user can act on. */
+export const contextSegments = (u: ContextUsage, w: MessageWeights): ContextSegment[] => {
+    const tools = Math.min(w.tools, u.history);
+    const chips = Math.min(w.chips, u.history - tools);
+    return [
+        { id: 'system', label: 'System prompt', tokens: u.system },
+        { id: 'rules', label: 'Rules', tokens: u.rules },
+        { id: 'files', label: 'Attached files & chips', tokens: u.files + chips },
+        { id: 'history', label: 'Conversation history', tokens: u.history - tools - chips },
+        { id: 'tools', label: 'Tool results', tokens: tools },
+        { id: 'memories', label: 'Memories', tokens: u.memories }
+    ];
+};
