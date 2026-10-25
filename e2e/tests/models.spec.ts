@@ -1,4 +1,3 @@
-import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { expect, test } from '@playwright/test';
@@ -7,6 +6,7 @@ import { E2E_CONFIG_DIR, FIXTURE_WORKSPACE } from '../src/e2e.consts';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama, modelsPanel as models } from '../src/models.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
+import { restoreFromHead } from '../src/git-restore';
 
 const MATH = path.join(FIXTURE_WORKSPACE, 'src', 'math.ts');
 const CHAT_REPLY = 'Hello from your local model';
@@ -22,7 +22,7 @@ test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
     test.beforeEach(async () => { server = await startFakeOllama(reply); });
     test.afterEach(async () => {
         await server.close();
-        execFileSync('git', ['checkout', '--', MATH], { cwd: FIXTURE_WORKSPACE });
+        restoreFromHead(MATH);
     });
 
     test('connects a local model and an agent answers through it', async ({ page }) => {

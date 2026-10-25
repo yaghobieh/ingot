@@ -1,8 +1,8 @@
-import { execFileSync } from 'child_process';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { actUntilVisible, dismissNotifications, openIngot } from '../src/app.utils';
 import { FIXTURE_WORKSPACE } from '../src/e2e.consts';
+import { restoreFromHead } from '../src/git-restore';
 
 // Playwright's Desktop Chrome reports Windows, so the Ingot Windows/Linux keymap applies.
 const SRC = path.join(FIXTURE_WORKSPACE, 'src');
@@ -27,7 +27,7 @@ const focusEditor = async (page: Page): Promise<void> => {
 
 test.describe('IDEA-17-24 Ingot keymap, navigation, find/replace and run', () => {
     test.afterEach(() => {
-        execFileSync('git', ['checkout', '--', SRC], { cwd: FIXTURE_WORKSPACE });
+        restoreFromHead(SRC);
     });
 
     test('double Shift searches everywhere; Ctrl+Shift+N, Ctrl+E and tab shortcuts navigate files', async ({ page }) => {
