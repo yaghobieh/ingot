@@ -113,3 +113,17 @@ export const applySelectedHunks = (base: string, working: string, selected: Read
     }
     return out.join(eol);
 };
+
+/** The working text with one hunk put back to its base (HEAD) content: the diff viewer's per-chunk revert arrow (IDEA-78). */
+export const revertHunk = (base: string, working: string, index: number): string => {
+    const hunk = changeHunks(base, working).find(h => h.index === index);
+    if (!hunk) {
+        return working;
+    }
+    const b = lines(base);
+    const w = lines(working);
+    const eol = /\r\n/.test(working) ? '\r\n' : '\n';
+    const from = hunk.workStart - 1;
+    w.splice(from, hunk.workCount, ...b.slice(hunk.baseStart - 1, hunk.baseStart - 1 + hunk.baseCount));
+    return w.join(eol);
+};
