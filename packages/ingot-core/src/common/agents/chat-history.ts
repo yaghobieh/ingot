@@ -17,7 +17,7 @@ export const filterChats = (chats: readonly AgentSession[], query: string): Agen
 export const serializeChats = (chats: readonly AgentSession[]): string => {
     const sorted = sortChats(chats).filter(c => c.messages.length || c.pinned);
     return JSON.stringify(sorted.slice(0, MAX_STORED_CHATS).map(c => ({
-        ...c, status: c.status === 'thinking' || c.status === 'editing' || c.status === 'review' ? 'idle' : c.status, activeFile: undefined,
+        ...c, status: c.status === 'thinking' || c.status === 'editing' || c.status === 'review' || c.status === 'paused' ? 'idle' : c.status, activeFile: undefined, pause: undefined,
         // Image bytes stay in memory; saved history keeps only their names (local storage is small).
         messages: c.messages.map(m => m.images?.length ? { ...m, images: m.images.map(i => ({ ...i, data: '' })) } : m)
     })));
@@ -60,12 +60,13 @@ const ago = (updatedAt: number, now: number): string => {
 const baseName = (path: string): string => path.split('/').pop() ?? path;
 
 /** Agent list subtitle per reference: 'Editing useCart.ts · 2m', 'Ready for review · 4 files', 'Done · 18 min ago'. */
-export const agentSubtitle = (s: Pick<AgentSession, 'status' | 'updatedAt' | 'activeFile' | 'changes' | 'messages'>, now: number, reviewFiles = 0): string => {
+export const agentSubtitle = (s: Pick<AgentSession, 'status' | 'updatedAt' | 'activeFile' | 'changes' | 'messages' | 'pause'>, now: number, reviewFiles = 0): string => {
     const files = reviewFiles || s.changes.length;
     switch (s.status) {
         case 'thinking': return `Thinking · ${chatTime(s.updatedAt, now)}`;
         case 'editing': return s.activeFile ? `Editing ${baseName(s.activeFile)} · ${chatTime(s.updatedAt, now)}` : `Editing · ${chatTime(s.updatedAt, now)}`;
         case 'review': return `Ready for review · ${files} file${files === 1 ? '' : 's'}`;
+        case 'paused': return s.pause ? `Paused for review · ${s.pause.applied} of ${s.pause.total} files` : 'Paused for review';
         case 'done': return `Done · ${ago(s.updatedAt, now)}`;
         case 'error': return `Failed · ${ago(s.updatedAt, now)}`;
         default: return s.messages.length ? `Idle · ${ago(s.updatedAt, now)}` : 'New chat';

@@ -44,6 +44,11 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                 id: 'ai', label: 'AI Models', preferences: ['ingot.autocomplete.enabled', 'ingot.autocomplete.model', 'ingot.autocomplete.debounceMs', 'ingot.models.ollamaUrl'],
                 actions: [{ id: 'openModels', label: 'Manage API Keys…' }]
             },
+            {
+                id: 'agent-review', label: 'Agent review',
+                description: 'How agent edits are reviewed: checkpoints on big runs, the auto-continue countdown, auto-accept and inline review comments. Also editable in the Ingot settings file under ~/.ingot.',
+                preferences: ['ingot.agent.review.enabled', 'ingot.agent.reviewPauseThreshold', 'ingot.agent.reviewAutoContinueSeconds', 'ingot.agent.review.autoAccept', 'ingot.agent.review.inlineComments']
+            },
             { id: 'agent-config', label: 'Rules & MCP', actions: [{ id: 'openAgentConfig', label: 'Open Rules, Commands & MCP Servers…' }] },
             {
                 id: 'memories', label: 'Memories', custom: 'memories',

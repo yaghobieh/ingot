@@ -1,6 +1,6 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
-import { bindViewContribution, FrontendApplicationContribution, KeybindingContribution, WidgetFactory } from '@theia/core/lib/browser';
+import { bindViewContribution, FrontendApplicationContribution, KeybindingContribution, UndoRedoHandler, WidgetFactory } from '@theia/core/lib/browser';
 import { AboutDialog } from '@theia/core/lib/browser/about-dialog';
 import { IngotCoreContribution } from './ingot-core-contribution';
 import { IngotThemeContribution } from './theme/ingot-theme-contribution';
@@ -67,6 +67,9 @@ import { IngotKeymapContribution, keymapPreferenceSchema } from './keymap/ingot-
 import { IngotRunContribution } from './run/ingot-run-contribution';
 import { PreferenceContribution } from '@theia/core/lib/common/preferences';
 import { layoutPreferenceSchema } from './layout/layout-preferences';
+import { reviewPreferenceSchema } from './review/review-preferences';
+import { ReviewContribution } from './review/review-contribution';
+import { ReviewComments } from './review/review-comments';
 import { IngotLayoutContribution } from './layout/layout-contribution';
 import { ProjectConfigService } from './project-config/project-config-service';
 import { IngotMcpClient } from './project-config/mcp-client';
@@ -89,6 +92,7 @@ import { IngotCommitContribution, createDiffWidgetFactory } from './commit/commi
 import { LocalChangesModel } from './commit/local-changes-model';
 import { LocalChangesWidget } from './commit/local-changes-widget';
 import { IngotDiffWidget } from './commit/ingot-diff-widget';
+import { DiffUndoRedoHandler } from './commit/diff-undo-redo-handler';
 import { IngotMergeWidget } from './merge/merge-tool-widget';
 import { BreadcrumbRenderer, BreadcrumbsRenderer, BreadcrumbsRendererFactory } from '@theia/core/lib/browser/breadcrumbs';
 import { FilepathBreadcrumbsContribution } from '@theia/filesystem/lib/browser/breadcrumbs/filepath-breadcrumbs-contribution';
@@ -126,6 +130,12 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: keymapPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: appearancePreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: layoutPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: reviewPreferenceSchema });
+    bind(ReviewComments).toSelf().inSingletonScope();
+    bind(ReviewContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(ReviewContribution);
+    bind(MenuContribution).toService(ReviewContribution);
+    bind(FrontendApplicationContribution).toService(ReviewContribution);
     bind(IngotLayoutContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(IngotLayoutContribution);
     bind(MenuContribution).toService(IngotLayoutContribution);
@@ -160,6 +170,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         return widget;
     })).inSingletonScope();
     bindViewContribution(bind, IngotCommitContribution);
+    bind(DiffUndoRedoHandler).toSelf().inSingletonScope();
+    bind(UndoRedoHandler).toService(DiffUndoRedoHandler);
     bind(IngotMergeWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => createMergeWidgetFactory(options => {
         const widget = ctx.container.get(IngotMergeWidget);

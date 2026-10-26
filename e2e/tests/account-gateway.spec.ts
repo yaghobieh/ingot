@@ -36,13 +36,14 @@ test.describe('IDEA-101 Ingot models by default', () => {
         const signIn = page.locator('#ingot-chat-sign-in-dev');
         await expect(signIn).toBeVisible();
 
-        const popup = page.waitForEvent('popup');
+        // IDEA-101: with a local portal the dev sign-in finishes on its own (dev login, Approve, loopback callback); no browser opens.
+        let popups = 0;
+        page.on('popup', () => { popups++; });
         await signIn.click();
-        const browser = await popup;
         await expect.poll(() => server.authorizations.map(a => a.devLogin)).toEqual([true, false]);
-        await browser.close();
 
         await expect(page.locator('#status-bar-ingot-account-status')).toContainText('1M left');
+        expect(popups).toBe(0);
         await page.locator('#ingot-stripe-account').click();
         await expect(page.locator('.lm-Menu .lm-Menu-itemLabel', { hasText: 'Test User · Pro' })).toBeVisible();
         await page.keyboard.press('Escape');

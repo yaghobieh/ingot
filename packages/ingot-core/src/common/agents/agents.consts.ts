@@ -16,12 +16,13 @@ export const STATUS_LABELS: Record<AgentStatus, string> = {
     thinking: 'Thinking',
     editing: 'Editing',
     review: 'Ready for review',
+    paused: 'Paused for review',
     done: 'Done',
     error: 'Needs attention'
 };
 
 /** Statuses counted as "active" in the toolbar and status bar. */
-export const ACTIVE_STATUSES: readonly AgentStatus[] = ['thinking', 'editing', 'review'];
+export const ACTIVE_STATUSES: readonly AgentStatus[] = ['thinking', 'editing', 'review', 'paused'];
 
 /** Signed out with no own keys (IDEA-101): Ingot models need an account, not API keys. */
 export const SIGN_IN_MESSAGE = 'Sign in to use Ingot models — no API keys needed. Or turn on “Use my own API key (BYOK)” in Settings › Models.';
