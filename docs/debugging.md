@@ -2,7 +2,9 @@
 
 Ingot has a built-in debugger for **Java**, **PHP** (Xdebug), **JavaScript / TypeScript** (Node.js) and **Python**.
 
-![Paused at a breakpoint](design/debugger-paused-light.png)
+![Paused at a Java breakpoint, light theme](design/debugger-paused-light.png)
+
+![Paused at a PHP (Xdebug) breakpoint, dark theme](design/debugger-paused-dark.png)
 
 ## Start debugging
 
