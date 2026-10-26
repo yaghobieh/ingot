@@ -34,3 +34,12 @@ export const ACCOUNT_TEXT = {
     blockedStatus: 'Account blocked',
     manage: 'Manage: Settings, Theme, Extensions, MCP…'
 } as const;
+
+/** Settings › Account card (IDEA-143). */
+export const SETTINGS_ACCOUNT_TEXT = {
+    notSignedIn: 'Not signed in',
+    signIn: 'Sign in…',
+    dashboard: 'Open dashboard',
+    photo: 'Photo from your Google or GitHub account, refreshed on sign-in and sync.',
+    initials: 'Sign in with Google or GitHub to show your photo.'
+} as const;

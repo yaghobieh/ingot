@@ -25,3 +25,11 @@ export const SERVER_URL_ENV = 'INGOT_SERVER_URL';
 export const PORTAL_URL_ENV = 'INGOT_PORTAL_URL';
 /** Key in the packaged app's package.json where the release build bakes the public URLs. */
 export const BAKED_ENDPOINTS_KEY = 'ingotEndpoints';
+
+/** IDEA-143: the provider photo (Google / GitHub) is cached on this device so it shows offline and loads instantly. */
+export const AVATAR_CACHE_KEY = 'ingot.account.avatar';
+/** Larger photos are not cached (they still show from the URL). */
+export const AVATAR_CACHE_MAX_BYTES = 256 * 1024;
+/** A cached photo is re-fetched after this long, and on every sign-in or sync that reports a new URL. */
+export const AVATAR_CACHE_TTL_MS = 24 * 60 * 60_000;
+export const AVATAR_URL_MAX_LENGTH = 2048;

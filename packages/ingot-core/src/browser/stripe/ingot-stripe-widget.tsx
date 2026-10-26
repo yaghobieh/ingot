@@ -6,7 +6,7 @@ import { CommandRegistry } from '@theia/core/lib/common/command';
 import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-renderer';
 import { IngotAccountService } from '../account/account-service';
 import { ACCOUNT_MENU, ACCOUNT_TEXT } from '../account/account.consts';
-import { accountInitials } from '../../common/account/account.utils';
+import { AccountAvatar } from '../account/account-avatar';
 import { GEAR_COMMANDS } from '../workbench/gear-menu.consts';
 import { BOTTOM_STRIPE, STRIPE_WIDGET_ID, type StripeButton } from './ingot-stripe.consts';
 
@@ -45,7 +45,7 @@ export class IngotStripeWidget extends ReactWidget {
         const title = account ? `${account.name}${account.email ? ` (${account.email})` : ''}` : ACCOUNT_TEXT.signedOut;
         return <div className='ingot-stripe-group ingot-stripe-account'>
             <button id='ingot-stripe-account' type='button' title={title} aria-label={title} className='ingot-stripe-button' onClick={e => this.openAccountMenu(e)}>
-                {account ? <span className='ingot-avatar'>{accountInitials(account)}</span> : <span className='codicon codicon-account' />}
+                {account ? <AccountAvatar id='ingot-stripe-avatar' account={account} src={this.accounts.avatarSrc} /> : <span className='codicon codicon-account' />}
             </button>
             <button id='ingot-stripe-settings' type='button' title={ACCOUNT_TEXT.manage} aria-label={ACCOUNT_TEXT.manage} aria-haspopup='menu' className='ingot-stripe-button'
                 onClick={e => this.commands.executeCommand(GEAR_COMMANDS.open.id, e.currentTarget)}>
