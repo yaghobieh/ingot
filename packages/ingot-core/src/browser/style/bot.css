@@ -1,6 +1,6 @@
 /* Ingot Bot panel (IDEA-154): reuses chat, approval and processes styles; only the bits they lack. */
 .ingot-bot-root { display: flex; flex-direction: column; height: 100%; }
-.ingot-bot-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; padding: 0 6px; }
+.ingot-bot-title { display: inline-flex; white-space: nowrap; align-items: center; gap: 6px; font-weight: 600; padding: 0 6px; }
 .ingot-bot-repo { max-width: 180px; margin-right: 4px; }
 .ingot-bot-usage { padding: 4px 12px; font-size: 11px; }
 .ingot-bot .ingot-agents-chat { flex: 1; overflow-y: auto; }
@@ -13,3 +13,4 @@
 .ingot-bot-input { flex: 1; resize: vertical; min-height: 44px; max-height: 200px; font: inherit; color: var(--theia-input-foreground); background: var(--theia-input-background); border: 1px solid var(--theia-input-border, var(--theia-panel-border)); border-radius: 8px; padding: 8px; }
 .ingot-bot-input:focus { outline: 1px solid var(--theia-focusBorder); }
 .ingot-bot-runs .ingot-process-command { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ingot-bot-test-mode { white-space: nowrap; }
