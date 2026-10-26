@@ -32,7 +32,9 @@ $native = Join-Path $appDir 'resources\app\lib\backend\native'
 foreach ($f in 'drivelist.node', 'keytar.node', 'watcher.node', 'keymapping.node', 'rg.exe') {
   if (-not (Test-Path (Join-Path $native $f))) { Fail "missing native module $f" }
 }
-if (-not (Get-ChildItem (Join-Path $appDir 'resources\app\lib') -Recurse -Filter pty.node -ErrorAction SilentlyContinue)) { Fail 'missing node-pty (pty.node)' }
+# node-pty on Windows ships conpty.node (and pty.node only with the old winpty backend).
+$pty = Get-ChildItem (Join-Path $appDir 'resources\app\lib') -Recurse -Include conpty.node, pty.node -ErrorAction SilentlyContinue
+if ($pty) { Write-Host "node-pty: $(($pty | ForEach-Object { $_.FullName.Substring($appDir.Length) }) -join ', ')" } else { Fail 'missing node-pty (conpty.node / pty.node)' }
 
 $desktopLnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Ingot.lnk'
 $startLnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'Ingot.lnk'

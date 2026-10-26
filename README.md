@@ -18,6 +18,10 @@ Ingot **0.1.0-beta.1** is a **beta**: expect rough edges, and please report anyt
 
 > **macOS first open:** beta builds are not notarized yet. The first time, right-click (or Control-click) Ingot in Applications and choose **Open**, then confirm **Open**. After that it opens normally.
 
+> **Windows first open:** the beta installer is not code-signed yet, so SmartScreen may say "Windows protected your PC". Click **More info** → **Run anyway**.
+
+> **Linux:** on Ubuntu/Debian prefer the `.deb` (`sudo apt install ./Ingot-*.deb`), which adds the menu entry and the sandbox. The `.AppImage` needs FUSE 2 (on Ubuntu 24.04: `sudo apt install libfuse2t64`), then `chmod +x Ingot-*.AppImage` and run it.
+
 ## Why Ingot
 
 An IDE built around AI beats an AI bolted onto an IDE. Most AI editors today are closed source and tied to one vendor's model routing and pricing. Ingot is:

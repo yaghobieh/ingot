@@ -75,9 +75,10 @@ linux:
   mimeTypes: [x-scheme-handler/ingot]
 deb:
   artifactName: ${productName}-${version}-linux-${arch}.${ext}
-  # electron-builder's default list plus libasound2: Electron links libasound.so.2, and without it a clean Ubuntu
-  # install fails at launch ("error while loading shared libraries: libasound.so.2"). On Ubuntu 24.04+ the
-  # libasound2t64 package provides libasound2, so this one name works on old and new releases (IDEA-166).
+  # electron-builder's default list plus ALSA: Electron links libasound.so.2, and without it a clean Ubuntu install
+  # fails at launch ("error while loading shared libraries: libasound.so.2"). Name the real package first: a bare
+  # "libasound2" on Ubuntu 24.04 can be satisfied by liboss4-salsa-asound2, which lacks ALSA symbols and crashes
+  # Ingot ("undefined symbol: snd_device_name_get_hint"). 24.04+ has libasound2t64, older releases libasound2 (IDEA-166).
   depends:
     - libgtk-3-0
     - libnotify4
@@ -88,6 +89,6 @@ deb:
     - libatspi2.0-0
     - libuuid1
     - libsecret-1-0
-    - libasound2
+    - libasound2t64 | libasound2
 appImage:
   artifactName: ${productName}-${version}-linux-${arch}.${ext}
