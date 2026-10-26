@@ -1,0 +1,76 @@
+/* IDEA-138: debugger - title bar step controls, Debug tool window polish, Run/Debug Configurations editor. */
+
+/* Title bar: Debug next to Run, step controls while a session runs. */
+.ingot-tb-debug .codicon { color: var(--ingot-success); }
+.ingot-tb-debug-controls {
+  display: inline-flex; align-items: center; gap: 1px; margin-left: 6px; padding: 0 3px; height: 26px;
+  border: 1px solid var(--ingot-border); border-radius: 7px; background: var(--ingot-surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ingot-ingot-gold) 28%, transparent);
+}
+.ingot-tb-debug-controls .ingot-tb-icon { width: 24px; height: 22px; border-radius: 5px; }
+.ingot-tb-debug-controls .ingot-tb-icon .codicon { color: var(--ingot-primary); }
+.ingot-tb-debug-controls .ingot-tb-dbg-continue .codicon { color: var(--ingot-success); }
+.ingot-tb-debug-controls .ingot-tb-icon:not(:disabled):hover { background: var(--theia-toolbar-hoverBackground); }
+
+/* Debug tool window. */
+.theia-debug-container .debug-toolbar { gap: 2px; }
+.theia-debug-container .debug-toolbar .debug-action { border-radius: 5px; padding: 2px 4px; }
+.theia-debug-container .debug-toolbar .debug-action:not(.theia-mod-disabled):hover { background: var(--theia-toolbar-hoverBackground); }
+.theia-debug-container .theia-select-component { border-radius: 6px; }
+.theia-debug-container .theia-TreeNode .theia-debug-thread .state,
+.theia-debug-container .theia-debug-session .state {
+  font-size: 10px; letter-spacing: .02em; padding: 0 6px; border-radius: 9px;
+  background: var(--theia-debugView-stateLabelBackground); color: var(--theia-debugView-stateLabelForeground);
+}
+.theia-debug-container .theia-debug-stack-frame .line {
+  font-family: var(--theia-code-font-family); font-size: 10px; padding: 0 5px; border-radius: 4px;
+  background: var(--ingot-panel); color: var(--ingot-text-muted);
+}
+.theia-debug-container .theia-TreeNode.theia-mod-selected .theia-debug-stack-frame { font-weight: 500; }
+.theia-debug-console-variable .name { color: var(--theia-debugTokenExpression-name); }
+.monaco-editor .view-overlays .theia-debug-top-stack-frame-line {
+  box-shadow: inset 2px 0 0 var(--ingot-ingot-gold);
+}
+.monaco-editor .codicon-debug-stackframe { color: var(--ingot-ingot-gold) !important; }
+
+/* Run/Debug Configurations editor. */
+.ingot-debug-configs { background: var(--ingot-bg); color: var(--ingot-text); overflow: auto; outline: none; }
+.ingot-dc { display: grid; grid-template-columns: 260px 1fr; height: 100%; min-height: 0; }
+.ingot-dc-list { border-right: 1px solid var(--ingot-border); padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: auto; }
+.ingot-dc-list-header { display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 12px; padding: 0 4px 8px; }
+.ingot-dc-add { max-width: 110px; }
+.ingot-dc-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px 8px; border: 0; border-radius: 6px;
+  background: transparent; color: inherit; font: inherit; cursor: pointer;
+}
+.ingot-dc-item:hover { background: var(--ingot-panel); }
+.ingot-dc-item.selected { background: var(--ingot-selection); }
+.ingot-dc-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-dc-type {
+  flex: none; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; padding: 1px 6px; border-radius: 4px;
+  color: var(--ingot-forge-navy); background: color-mix(in srgb, var(--ingot-ingot-gold) 35%, transparent);
+}
+.ingot-dc-type-java { background: color-mix(in srgb, var(--ingot-accent) 30%, transparent); }
+.ingot-dc-type-php { background: color-mix(in srgb, var(--ingot-primary) 25%, transparent); }
+.ingot-dc-type-node { background: color-mix(in srgb, var(--ingot-success) 30%, transparent); }
+.ingot-dc-type-debugpy { background: color-mix(in srgb, var(--ingot-info) 30%, transparent); }
+[data-theme='dark'] .ingot-dc-type { color: var(--ingot-text); }
+.ingot-dc-new { font-size: 10px; color: var(--ingot-accent); }
+.ingot-dc-file { margin-top: auto; padding: 8px 4px 0; font-size: 11px; color: var(--ingot-text-muted); }
+.ingot-dc-empty { padding: 16px; color: var(--ingot-text-muted); line-height: 1.5; }
+.ingot-dc-main { padding: 12px 20px; overflow: auto; min-width: 0; }
+.ingot-dc-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.ingot-dc-title { font-size: 14px; font-weight: 600; }
+.ingot-dc-form { display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
+.ingot-dc-row { display: grid; grid-template-columns: 160px 1fr auto; align-items: center; gap: 10px; }
+.ingot-dc-row > span:first-child { color: var(--ingot-text-muted); font-size: 12px; }
+.ingot-dc-row .theia-input { width: 100%; box-sizing: border-box; border-radius: 6px; }
+.ingot-dc-static { font-family: var(--theia-code-font-family); font-size: 12px; }
+.ingot-dc-json { align-items: start; }
+.ingot-dc-json textarea { min-height: 180px; resize: vertical; font-family: var(--theia-code-font-family); font-size: 12px; line-height: 1.5; padding: 8px; }
+.ingot-dc-error { color: var(--ingot-danger); font-size: 12px; padding-left: 170px; }
+.ingot-dc-actions { display: flex; align-items: center; gap: 8px; padding-top: 6px; }
+.ingot-dc-actions .theia-button { margin: 0; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; }
+.ingot-dc-spacer { flex: 1; }
+#ingot-dc-debug { background: var(--ingot-primary); }
+#ingot-dc-debug .codicon { color: var(--ingot-primary-text); }

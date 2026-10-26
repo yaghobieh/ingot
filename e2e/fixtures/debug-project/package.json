@@ -1,0 +1,7 @@
+{
+  "name": "debug-project",
+  "private": true,
+  "scripts": {
+    "start": "node index.js"
+  }
+}
