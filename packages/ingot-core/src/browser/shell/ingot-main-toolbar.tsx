@@ -15,6 +15,10 @@ import { AGENT_COMMANDS, AGENTS_WIDGET_ID } from '../agents/agents.consts';
 import { GEAR_COMMANDS } from '../workbench/gear-menu.consts';
 import { TITLEBAR_COMMANDS, TITLEBAR_REFRESH_DELAYS_MS, TITLEBAR_TEXT, TOGGLE_BOTTOM_PANEL_COMMAND } from '../workbench/titlebar.consts';
 import { pickRunScript } from '../../common/vcs/vcs.utils';
+import { IngotDebugLauncher } from '../debug/ingot-debug-launcher';
+import { DebugState } from '@theia/debug/lib/browser/debug-session';
+import { DEBUG_SESSION_COMMANDS, INGOT_DEBUG_COMMANDS } from '../../common/debug/debug.consts';
+import { DEBUG_TOOLBAR_TEXT } from '../debug/debug.browser-consts';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import URI from '@theia/core/lib/common/uri';
 import { toRecentProjects } from '../../common/welcome/welcome.utils';
@@ -76,6 +80,7 @@ export class IngotMainToolbar extends ReactWidget {
     @inject(FileService) protected readonly files: FileService;
     @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
     @inject(ApplicationShell) protected readonly shell: ApplicationShell;
+    @inject(IngotDebugLauncher) protected readonly debugLauncher: IngotDebugLauncher;
 
     protected runScript?: string;
     protected projectPopupOpen = false;
@@ -103,6 +108,7 @@ export class IngotMainToolbar extends ReactWidget {
         this.toDispose.push(this.workspace.onWorkspaceLocationChanged(() => this.update()));
         this.toDispose.push(this.branches.onDidChange(() => this.update()));
         this.toDispose.push(this.agents.onDidChange(() => this.update()));
+        this.toDispose.push(this.debugLauncher.onDidChange(() => this.update()));
         // Stop is enabled only while a run session is alive.
         this.toDispose.push(this.commands.onDidExecuteCommand(() => this.update()));
         this.loadRunScript();
@@ -169,6 +175,30 @@ export class IngotMainToolbar extends ReactWidget {
             {PROJECT_POPUP_ACTIONS.filter(a => !a.requiresWorkspace || this.workspace.opened).map(a => (
                 <button key={a.id} id={`ingot-project-action-${a.id}`} type='button' role='menuitem' className='ingot-project-popup-item' onClick={() => this.runFromPopup(a.command)}>{a.label}</button>
             ))}
+        </div>;
+    }
+
+    /** Selected run/debug configuration, else the project's npm script, else the first detected configuration. */
+    protected get runConfigurationLabel(): string {
+        return this.debugLauncher.explicitName ?? this.runScript ?? this.debugLauncher.selectedName ?? RUN_CONFIGURATION_LABEL;
+    }
+
+    /** Step controls while a debug session runs (IDEA-138): Resume / Pause, Step Over, Into, Out, Restart. */
+    protected renderDebugControls(): React.ReactNode {
+        const session = this.debugLauncher.currentSession;
+        if (!session) {
+            return undefined;
+        }
+        const paused = session.state === DebugState.Stopped;
+        const t = DEBUG_TOOLBAR_TEXT;
+        return <div className='ingot-tb-debug-controls' id='ingot-tb-debug-controls' role='toolbar' aria-label={t.controls}>
+            {paused
+                ? <IconButton id='ingot-tb-dbg-continue' codicon='debug-continue' title={t.resume} className='ingot-tb-dbg-continue' onClick={() => this.run(DEBUG_SESSION_COMMANDS.continue)} />
+                : <IconButton id='ingot-tb-dbg-pause' codicon='debug-pause' title={t.pause} onClick={() => this.run(DEBUG_SESSION_COMMANDS.pause)} />}
+            <IconButton id='ingot-tb-dbg-step-over' codicon='debug-step-over' title={t.stepOver} disabled={!paused} onClick={() => this.run(DEBUG_SESSION_COMMANDS.stepOver)} />
+            <IconButton id='ingot-tb-dbg-step-into' codicon='debug-step-into' title={t.stepInto} disabled={!paused} onClick={() => this.run(DEBUG_SESSION_COMMANDS.stepInto)} />
+            <IconButton id='ingot-tb-dbg-step-out' codicon='debug-step-out' title={t.stepOut} disabled={!paused} onClick={() => this.run(DEBUG_SESSION_COMMANDS.stepOut)} />
+            <IconButton id='ingot-tb-dbg-restart' codicon='debug-restart' title={t.restart} onClick={() => this.run(DEBUG_SESSION_COMMANDS.restart)} />
         </div>;
     }
 
@@ -256,12 +286,14 @@ export class IngotMainToolbar extends ReactWidget {
                 <ToolbarButton id='ingot-tb-vcs' icon='branch' title='Git branch' label={this.branches.branch ?? NO_VCS_LABEL} dropdown onClick={() => this.run(this.branches.branch ? TOOLBAR_COMMANDS.branches : TOOLBAR_COMMANDS.git)} />
             </div>
             <div className='ingot-tb-right'>
-                <ToolbarButton id='ingot-tb-run-config' icon='run' title='Run configuration' label={this.runScript ?? RUN_CONFIGURATION_LABEL} dropdown className='ingot-tb-run' onClick={() => this.run(TOOLBAR_COMMANDS.runTask)} />
+                <ToolbarButton id='ingot-tb-run-config' icon='run' title={DEBUG_TOOLBAR_TEXT.selectConfiguration} label={this.runConfigurationLabel} dropdown className='ingot-tb-run'
+                    onClick={() => this.run(INGOT_DEBUG_COMMANDS.selectConfiguration.id)} />
                 <div className='ingot-tb-run-group'>
-                    <IconButton id='ingot-tb-run' codicon='play' title={`Run '${this.runScript ?? RUN_CONFIGURATION_LABEL}'`} className='ingot-tb-play' onClick={() => this.run(TOOLBAR_COMMANDS.run)} />
-                    <IconButton id='ingot-tb-debug' codicon='debug-alt-small' title={`Debug '${this.runScript ?? RUN_CONFIGURATION_LABEL}'`} onClick={() => this.run(TOOLBAR_COMMANDS.debug)} />
+                    <IconButton id='ingot-tb-run' codicon='play' title={`Run '${this.runConfigurationLabel}'`} className='ingot-tb-play' onClick={() => this.run(TOOLBAR_COMMANDS.run)} />
+                    <IconButton id='ingot-tb-debug' codicon='debug-alt-small' title={`Debug '${this.runConfigurationLabel}'`} className='ingot-tb-debug' onClick={() => this.run(TOOLBAR_COMMANDS.debug)} />
                     <IconButton id='ingot-tb-stop' codicon='debug-stop' title='Stop' disabled={!this.commands.isEnabled(TOOLBAR_COMMANDS.stop)} onClick={() => this.run(TOOLBAR_COMMANDS.stop)} />
                 </div>
+                {this.renderDebugControls()}
                 <span className='ingot-tb-sep' />
                 <button id='ingot-tb-search' type='button' className='ingot-tb-search' title='Search Everywhere (Double Shift)' onClick={() => this.run(TOOLBAR_COMMANDS.searchEverywhere)}>
                     <span className='ingot-icon ingot-icon-search' />

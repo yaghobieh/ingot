@@ -74,6 +74,13 @@ import { MODELS_WIDGET_ID } from './models/models.browser-consts';
 import { NavigationHistory } from './keymap/navigation-history';
 import { IngotKeymapContribution, keymapPreferenceSchema } from './keymap/ingot-keymap-contribution';
 import { IngotRunContribution } from './run/ingot-run-contribution';
+import { PreferenceConfigurations } from '@theia/core/lib/common/preferences/preference-configurations';
+import { IngotPreferenceConfigurations } from './debug/ingot-preference-configurations';
+import { IngotDebugLauncher } from './debug/ingot-debug-launcher';
+import { IngotDebugConfigurationsWidget } from './debug/debug-configurations-widget';
+import { IngotDebugContribution } from './debug/ingot-debug-contribution';
+import { DEBUG_TOOLS_SERVICE_PATH, CONFIG_EDITOR_WIDGET_ID } from '../common/debug/debug.consts';
+import { DebugToolsService } from '../common/debug/debug.types';
 import { PreferenceContribution } from '@theia/core/lib/common/preferences';
 import { layoutPreferenceSchema } from './layout/layout-preferences';
 import { reviewPreferenceSchema } from './review/review-preferences';
@@ -229,6 +236,13 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CommandContribution).toService(IngotKeymapContribution);
     bind(IngotRunContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(IngotRunContribution);
+    // Debugger (IDEA-138)
+    rebind(PreferenceConfigurations).to(IngotPreferenceConfigurations).inSingletonScope();
+    bind(DebugToolsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<DebugToolsService>(ctx.container, DEBUG_TOOLS_SERVICE_PATH)).inSingletonScope();
+    bind(IngotDebugLauncher).toSelf().inSingletonScope();
+    bind(IngotDebugConfigurationsWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: CONFIG_EDITOR_WIDGET_ID, createWidget: () => ctx.container.get(IngotDebugConfigurationsWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotDebugContribution);
     bind(ModelService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ModelService>(ctx.container, MODEL_SERVICE_PATH)).inSingletonScope();
     bind(IngotModelClient).toSelf().inSingletonScope();
     bind(IngotInlineCompletions).toSelf().inSingletonScope();
