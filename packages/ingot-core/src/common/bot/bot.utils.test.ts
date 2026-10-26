@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { botErrorText, eventLine, formatMinutes, isActiveRun, isBotRequest, prLinkIn } from './bot.utils';
+import { botErrorText, eventLine, formatMinutes, isActiveRun, isBotRequest, modeNotice, prLinkIn } from './bot.utils';
 import type { BotRun } from './bot.types';
 
 const run = (status: BotRun['status']): BotRun => ({ id: 'r', status, prompt: '', source: 'ide', repoId: null, repoFullName: null, prNumber: null, prUrl: null, summary: '', computeSeconds: 0, error: null, createdAt: '', startedAt: null, endedAt: null });
@@ -35,5 +35,14 @@ describe('bot utils (IDEA-154)', () => {
         expect(isActiveRun(run('running'))).toBe(true);
         expect(isActiveRun(run('awaiting_approval'))).toBe(true);
         expect(isActiveRun(run('succeeded'))).toBe(false);
+    });
+});
+
+describe('modeNotice', () => {
+    it('is test mode only with mock models', () => {
+        expect(modeNotice({ runner: 'local', runnerLive: true, modelsLive: false })).toBe('test');
+        expect(modeNotice({ runner: 'local', runnerLive: true, modelsLive: true })).toBe('sandbox');
+        expect(modeNotice({ runner: 'fly', runnerLive: true, modelsLive: true })).toBeUndefined();
+        expect(modeNotice({})).toBeUndefined();
     });
 });

@@ -4,7 +4,7 @@ import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
 import { BOT_STATUS_LABELS } from '../../common/bot/bot.consts';
 import type { BotApproval, BotDecision, BotEvent, BotMessage, BotRun } from '../../common/bot/bot.types';
-import { eventLine, formatMinutes, isActiveRun, prLinkIn } from '../../common/bot/bot.utils';
+import { eventLine, formatMinutes, isActiveRun, modeNotice, prLinkIn } from '../../common/bot/bot.utils';
 import { IngotAccountService } from '../account/account-service';
 import { IngotBotService } from './bot-service';
 import { BOT_COMPOSER_PLACEHOLDER, BOT_WIDGET_ID, BOT_WIDGET_LABEL } from './bot.browser-consts';
@@ -75,7 +75,8 @@ export class IngotBotWidget extends ReactWidget {
         return <div className='ingot-agents-root ingot-bot-root' id='ingot-bot-root'>
             <div className='ingot-agents-header'>
                 <span className='ingot-bot-title'><span className='ingot-zaprex-avatar' aria-hidden='true' /> Zaprex</span>
-                {state.runner && state.runner !== 'fly' && <span className='ingot-badge' id='ingot-bot-test-mode' title='Runs use a local sandbox and the mock model'>Test mode</span>}
+                {modeNotice(state) === 'test' && <span className='ingot-badge' id='ingot-bot-test-mode' title='Runs use a local sandbox and the mock model'>Test mode</span>}
+                {modeNotice(state) === 'sandbox' && <span className='ingot-badge' id='ingot-bot-sandbox-mode' title='Runs use a scratch sandbox on the live model'>Sandbox</span>}
                 <span className='ingot-flex' />
                 {state.repos.length > 0 && <select className='theia-select ingot-bot-repo' id='ingot-bot-repo' aria-label='Repository' value={state.repoId} onChange={e => this.bot.selectRepo(e.target.value)}>
                     <option value=''>No repository</option>

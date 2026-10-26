@@ -43,3 +43,10 @@ export function formatMinutes(seconds: number): string {
     const minutes = Math.round(seconds / 60);
     return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`;
 }
+
+/** Header badge: mock models = test mode; live models on a local runner = scratch sandbox; all live = none. */
+export function modeNotice(state: { runner?: string; runnerLive?: boolean; modelsLive?: boolean }): 'test' | 'sandbox' | undefined {
+    if (!state.runner) { return undefined; }
+    if (!state.modelsLive) { return 'test'; }
+    return state.runner !== 'fly' || !state.runnerLive ? 'sandbox' : undefined;
+}

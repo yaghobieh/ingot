@@ -251,7 +251,7 @@ function handleBot(bot: FakeBot, method: string, url: URL, raw: string, authoriz
     };
     const path = url.pathname;
     if (path === '/api/bot/status') {
-        send(res, 200, { entitlement: { enabled: bot.enabled, plan: bot.enabled ? 'pro_plus' : 'pro', reason: bot.enabled ? null : 'plan', limits: null }, runner: 'local', runnerLive: true });
+        send(res, 200, { entitlement: { enabled: bot.enabled, plan: bot.enabled ? 'pro_plus' : 'pro', reason: bot.enabled ? null : 'plan', limits: null }, runner: 'local', runnerLive: true, modelsLive: false });
         return;
     }
     if (path === '/api/bot/usage') { send(res, 200, { usage: { minutesUsed: 3, minutesLimit: 300, activeRuns: bot.runs.filter(r => r.status === 'awaiting_approval').length, concurrentLimit: 1 } }); return; }
