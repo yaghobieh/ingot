@@ -1,4 +1,6 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
+import type { BotResponse } from '../../common/bot/bot.types';
+import { isBotRequest } from '../../common/bot/bot.utils';
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { FileUri } from '@theia/core/lib/common/file-uri';
@@ -342,6 +344,18 @@ export class IngotAccountBackend implements AccountBackend {
         if (!['GET', 'PUT', 'DELETE', 'POST'].includes(method) || !(path === SYNC_PATH || path.startsWith(`${SYNC_PATH}/`) || path.startsWith(`${SYNC_PATH}?`)) || path.includes('..')) {
             return { status: 400, body: { error: 'invalid_sync_path' } };
         }
+        return this.authedRequest(method, path, body) as Promise<SyncResponse>;
+    }
+
+    async botRequest(method: string, path: string, body?: unknown): Promise<BotResponse> {
+        if (!isBotRequest(method, path)) {
+            return { status: 400, body: { error: 'invalid_bot_path' } };
+        }
+        return this.authedRequest(method, path, body);
+    }
+
+    /** One call to ingot-server with the session token; the token never leaves the backend. */
+    protected async authedRequest(method: string, path: string, body?: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
         if (this.blocked) {
             return { status: 403, body: { error: 'account_blocked' } };
         }
@@ -356,7 +370,7 @@ export class IngotAccountBackend implements AccountBackend {
                 body: body === undefined ? undefined : JSON.stringify(body),
                 signal: AbortSignal.timeout(20_000)
             });
-            const json = await response.json().catch(() => ({})) as { error?: unknown };
+            const json = await response.json().catch(() => ({})) as Record<string, unknown>;
             if (response.status === 403 && json.error === 'account_blocked') {
                 await this.markBlocked();
             }

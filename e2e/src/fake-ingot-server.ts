@@ -28,7 +28,17 @@ export interface FakeIngotServer {
     readonly syncWrites: { method: string; kind: string; key: string; baseVersion?: number; device?: string }[];
     /** Adds an item as if another device wrote it. */
     seedSync(kind: string, key: string, data: unknown): void;
+    /** Ingot Bot (IDEA-154): entitlement and the thread / runs / approvals the IDE panel reads, plus the bot calls it made. */
+    readonly bot: FakeBot;
     close(): Promise<void>;
+}
+
+export interface FakeBot {
+    enabled: boolean;
+    messages: { id: number; role: 'user' | 'bot'; kind: string; text: string; runId: string | null; approvalId: string | null; createdAt: string }[];
+    runs: { id: string; status: string; prompt: string; source: string; repoId: string | null; repoFullName: string | null; prNumber: number | null; prUrl: string | null; summary: string; computeSeconds: number; error: string | null; createdAt: string; startedAt: string | null; endedAt: string | null }[];
+    approvals: { id: string; runId: string; action: string; title: string; reason: string; preview: string; status: string }[];
+    readonly calls: { method: string; path: string; authorization: string }[];
 }
 
 export interface FakeSyncItem {
@@ -62,7 +72,8 @@ const send = (res: http.ServerResponse, status: number, body: unknown): void => 
 export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<FakeIngotServer> => {
     const state: FakeIngotServer = {
         url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', avatarUrl: '', blocked: false, disabledModels: new Set(), chatErrors: [],
-        flags: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined, close: async () => undefined
+        flags: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined,
+        bot: { enabled: true, messages: [], runs: [], approvals: [], calls: [] }, close: async () => undefined
     };
     const access = 'ingot_at_e2e_access';
     const status = () => ({
@@ -172,6 +183,10 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
                 send(res, 200, { item, conflict, ...(conflict ? { previous } : {}) });
                 return;
             }
+            if (url.pathname.startsWith('/api/bot')) {
+                handleBot(state.bot, req.method ?? 'GET', url, raw, String(req.headers.authorization ?? ''), authed, res);
+                return;
+            }
             if (url.pathname === '/api/ide/status') {
                 send(res, 200, status());
                 return;
@@ -225,3 +240,70 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
     state.close = () => new Promise(resolve => { server.closeAllConnections(); server.close(() => resolve()); });
     return state;
 };
+
+/** Mock Ingot Bot: a chat message starts a run that waits for approval; approving finishes it with a draft PR. */
+function handleBot(bot: FakeBot, method: string, url: URL, raw: string, authorization: string, authed: boolean, res: http.ServerResponse): void {
+    bot.calls.push({ method, path: url.pathname, authorization });
+    if (!authed) { send(res, 401, { error: 'unauthorized' }); return; }
+    const now = new Date().toISOString();
+    const say = (role: 'user' | 'bot', text: string, runId: string | null, kind = 'text', approvalId: string | null = null): void => {
+        bot.messages.push({ id: bot.messages.length + 1, role, kind, text, runId, approvalId, createdAt: now });
+    };
+    const path = url.pathname;
+    if (path === '/api/bot/status') {
+        send(res, 200, { entitlement: { enabled: bot.enabled, plan: bot.enabled ? 'pro_plus' : 'pro', reason: bot.enabled ? null : 'plan', limits: null }, runner: 'local', runnerLive: true });
+        return;
+    }
+    if (path === '/api/bot/usage') { send(res, 200, { usage: { minutesUsed: 3, minutesLimit: 300, activeRuns: bot.runs.filter(r => r.status === 'awaiting_approval').length, concurrentLimit: 1 } }); return; }
+    if (path === '/api/bot/repos') { send(res, 200, { repos: [{ id: 'repo-1', fullName: 'ingot-dev/sample-app', defaultBranch: 'main', enabled: true }] }); return; }
+    if (path === '/api/bot/chat' && method === 'GET') { send(res, 200, { messages: bot.messages }); return; }
+    if (path === '/api/bot/approvals') { send(res, 200, { approvals: bot.approvals.filter(a => a.status === 'pending') }); return; }
+    if (path === '/api/bot/runs') { send(res, 200, { runs: [...bot.runs].reverse() }); return; }
+    if (!bot.enabled) { send(res, 403, { error: 'bot_upgrade_required' }); return; }
+    if (path === '/api/bot/chat' && method === 'POST') {
+        const body = JSON.parse(raw || '{}') as { text?: string; repoId?: string | null };
+        const id = `run-${bot.runs.length + 1}`;
+        const approvalId = `appr-${bot.approvals.length + 1}`;
+        bot.runs.push({ id, status: 'awaiting_approval', prompt: body.text ?? '', source: 'ide', repoId: body.repoId ?? null, repoFullName: body.repoId ? 'ingot-dev/sample-app' : null, prNumber: null, prUrl: null, summary: '', computeSeconds: 42, error: null, createdAt: now, startedAt: now, endedAt: null });
+        bot.approvals.push({ id: approvalId, runId: id, action: 'add_dependency', title: 'Add or upgrade dependencies', reason: 'The task adds a package', preview: '+ "date-fns": "^4.1.0"', status: 'pending' });
+        say('user', body.text ?? '', id);
+        say('bot', 'On it. I started a run and will post updates here.', id);
+        say('bot', 'Approval needed: Add or upgrade dependencies', id, 'approval', approvalId);
+        send(res, 201, { run: bot.runs.at(-1), messages: bot.messages });
+        return;
+    }
+    const decision = /^\/api\/bot\/approvals\/([\w-]+)$/.exec(path);
+    if (decision && method === 'POST') {
+        const approval = bot.approvals.find(a => a.id === decision[1]);
+        if (!approval || approval.status !== 'pending') { send(res, 409, { error: 'approval_not_pending' }); return; }
+        const choice = (JSON.parse(raw || '{}') as { decision?: string }).decision;
+        approval.status = choice === 'reject' ? 'rejected' : 'approved';
+        const run = bot.runs.find(r => r.id === approval.runId);
+        if (run) {
+            run.status = choice === 'reject' ? 'cancelled' : 'succeeded';
+            run.endedAt = now;
+            if (choice !== 'reject') {
+                run.prNumber = 7;
+                run.prUrl = 'https://github.com/ingot-dev/sample-app/pull/7';
+                say('bot', `Run finished. Tests pass. Draft PR: ${run.prUrl}`, run.id);
+            } else {
+                say('bot', 'Rejected. I stopped the run.', run.id);
+            }
+        }
+        send(res, 200, { approval });
+        return;
+    }
+    const events = /^\/api\/bot\/runs\/([\w-]+)\/events$/.exec(path);
+    if (events) {
+        send(res, 200, { events: [{ seq: 1, type: 'status', payload: { status: 'running' }, createdAt: now }, { seq: 2, type: 'tool', payload: { command: 'npm test', exitCode: 1 }, createdAt: now }, { seq: 3, type: 'step', payload: { message: 'Fixing sum.mjs' }, createdAt: now }] });
+        return;
+    }
+    const cancel = /^\/api\/bot\/runs\/([\w-]+)\/cancel$/.exec(path);
+    if (cancel && method === 'POST') {
+        const run = bot.runs.find(r => r.id === cancel[1]);
+        if (run) { run.status = 'cancelled'; run.endedAt = now; }
+        send(res, 200, { run });
+        return;
+    }
+    send(res, 404, { error: 'not_found' });
+}

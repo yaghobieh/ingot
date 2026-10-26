@@ -18,6 +18,10 @@ import { ProcessService } from '../common/processes/processes.types';
 import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
 import { ProcessClientImpl, ProcessStore } from './processes/process-store';
 import { ProcessesContribution } from './processes/processes-contribution';
+import { IngotBotService } from './bot/bot-service';
+import { IngotBotWidget } from './bot/bot-widget';
+import { IngotBotContribution } from './bot/bot-contribution';
+import { BOT_WIDGET_ID } from './bot/bot.browser-consts';
 import { BrowserController } from './browser-tool/browser-controller';
 import { IngotBrowserWidget } from './browser-tool/browser-widget';
 import { IngotBrowserContribution } from './browser-tool/browser-contribution';
@@ -287,6 +291,11 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(ProcessService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ProcessService>(ctx.container, PROCESS_SERVICE_PATH, ctx.container.get(ProcessClientImpl))).inSingletonScope();
     bind(ProcessStore).toSelf().inSingletonScope();
     bind(ProcessesContribution).toSelf().inSingletonScope();
+    // Ingot Bot (IDEA-154): background agent panel over /api/bot.
+    bind(IngotBotService).toSelf().inSingletonScope();
+    bind(IngotBotWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: BOT_WIDGET_ID, createWidget: () => ctx.container.get(IngotBotWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotBotContribution);
     bind(BrowserController).toSelf().inSingletonScope();
     bind(IngotBrowserWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: BROWSER_WIDGET_ID, createWidget: () => ctx.container.get(IngotBrowserWidget) })).inSingletonScope();
