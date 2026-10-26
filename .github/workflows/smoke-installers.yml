@@ -10,6 +10,7 @@ on:
       - .github/workflows/smoke-installers.yml
       - scripts/smoke/**
       - applications/electron/electron-builder.yml
+      - .github/workflows/release.yml
   release:
     types: [published]
   workflow_dispatch:
@@ -42,7 +43,7 @@ jobs:
             os: windows-latest
             args: --win --x64
           - name: Linux x64
-            os: ubuntu-latest
+            os: ubuntu-24.04   # same runner as the Release workflow (IDEA-172)
             args: --linux --x64
     steps:
       - uses: actions/checkout@v4
@@ -74,7 +75,7 @@ jobs:
     name: Smoke Ubuntu 24.04 (deb + AppImage)
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # A clean Ubuntu image, so a missing runtime dependency in the .deb shows up (the runner has everything installed).
     container:
       image: ubuntu:24.04

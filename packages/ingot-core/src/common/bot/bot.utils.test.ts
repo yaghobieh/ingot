@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { botErrorText, eventLine, formatMinutes, isActiveRun, isBotRequest, modeNotice, prLinkIn } from './bot.utils';
+import { botErrorText, eventLine, formatMinutes, isActiveRun, isBotRequest, mascotPose, modeNotice, prLinkIn, RECENT_RUN_MS } from './bot.utils';
 import type { BotRun } from './bot.types';
 
 const run = (status: BotRun['status']): BotRun => ({ id: 'r', status, prompt: '', source: 'ide', repoId: null, repoFullName: null, prNumber: null, prUrl: null, summary: '', computeSeconds: 0, error: null, createdAt: '', startedAt: null, endedAt: null });
@@ -44,5 +44,17 @@ describe('modeNotice', () => {
         expect(modeNotice({ runner: 'local', runnerLive: true, modelsLive: true })).toBe('sandbox');
         expect(modeNotice({ runner: 'fly', runnerLive: true, modelsLive: true })).toBeUndefined();
         expect(modeNotice({})).toBeUndefined();
+    });
+
+    it('poses the Zaprex mascot from the real run status', () => {
+        const now = Date.parse('2026-10-26T12:00:00Z');
+        const at = (status: BotRun['status'], msAgo: number, ended = false): BotRun => ({ ...run(status), createdAt: new Date(now - msAgo - 1000).toISOString(), endedAt: ended ? new Date(now - msAgo).toISOString() : null });
+        expect(mascotPose([at('running', 0), at('awaiting_approval', 0)], now)).toBe('approval');
+        expect(mascotPose([at('queued', 0), at('running', 0)], now)).toBe('working');
+        expect(mascotPose([at('starting', 0)], now)).toBe('thinking');
+        expect(mascotPose([at('succeeded', 1000, true)], now)).toBe('done');
+        expect(mascotPose([at('timed_out', 1000, true), at('succeeded', 50_000, true)], now)).toBe('error');
+        expect(mascotPose([at('succeeded', RECENT_RUN_MS + 1, true)], now)).toBe('idle');
+        expect(mascotPose([], now)).toBe('idle');
     });
 });

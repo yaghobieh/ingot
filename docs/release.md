@@ -8,7 +8,7 @@ and attaches them to a **draft** GitHub Release. Nothing is public until a maint
 | macOS Apple Silicon | `macos-latest` | `Ingot-<version>-mac-arm64.dmg` + `.zip` (the zip feeds auto-update) |
 | macOS Intel | `macos-15-intel` | `Ingot-<version>-mac-x64.dmg` + `.zip` |
 | Windows x64 | `windows-latest` | `Ingot-<version>-win-x64.exe` (NSIS installer) |
-| Linux x64 | `ubuntu-latest` | `Ingot-<version>-linux-x86_64.AppImage`, `Ingot-<version>-linux-amd64.deb` |
+| Linux x64 | `ubuntu-24.04` (pinned) | `Ingot-<version>-linux-x86_64.AppImage`, `Ingot-<version>-linux-amd64.deb` |
 
 Each job also uploads its update feed (`latest.yml`, `latest-linux.yml`, `latest-mac.yml`) and `.blockmap` files; the
 release job merges the two macOS feeds into one `latest-mac.yml`.

@@ -30,7 +30,9 @@ fi
 echo "== Desktop entry, icon, native modules =="
 test -f /usr/share/applications/ingot.desktop || fail "missing /usr/share/applications/ingot.desktop"
 cp /usr/share/applications/ingot.desktop "$OUT/" 2>/dev/null || true
-ls /usr/share/icons/hicolor/*/apps/ingot.png >/dev/null 2>&1 || fail "missing hicolor icon ingot.png"
+for size in 16 24 32 48 64 128 256 512; do
+  test -f "/usr/share/icons/hicolor/${size}x${size}/apps/ingot.png" || fail "missing hicolor icon ${size}x${size}/apps/ingot.png"
+done
 for f in drivelist.node keytar.node watcher.node keymapping.node rg; do
   test -e "/opt/Ingot/resources/app/lib/backend/native/$f" || fail "missing native module $f"
 done
@@ -44,6 +46,19 @@ export DISPLAY=:99
 sleep 2
 
 FATAL='Cannot find module|was compiled against a different Node.js version|ERR_DLOPEN_FAILED|error while loading shared libraries|Segmentation fault|FATAL:|Uncaught Exception|unhandledRejection.*backend|Backend process exited|Failed to start the backend'
+
+# descendants <pid>: every child process, recursively (exact PIDs, so cleanup never touches anything else).
+descendants() { local k; for k in $(ps -o pid= --ppid "$1"); do echo "$k"; descendants "$k"; done; }
+# alive <pid>: running and not a zombie (the container's PID 1 does not reap orphans, so exited ones linger as <defunct>).
+alive() { local st; st="$(ps -o stat= -p "$1" 2>/dev/null)"; [ -n "$st" ] && [ "${st#Z}" = "$st" ]; }
+# electron_main <pid>: the Electron main process at or below <pid> (the AppImage runtime starts it as a child).
+electron_main() {
+  local p="$1"
+  while [ -n "$p" ] && [ "$(basename "$(readlink "/proc/$p/exe" 2>/dev/null)" | cut -d' ' -f1)" != ingot ]; do
+    p="$(ps -o pid= --ppid "$p" | head -1 | tr -d ' ')"
+  done
+  echo "${p:-$1}"
+}
 
 # run_app <name> <cmd...>: launch, wait, check alive + backend listening + log clean, screenshot, stop.
 run_app() {
@@ -63,7 +78,21 @@ run_app() {
   import -window root "$OUT/$name.png" || echo "::warning::screenshot failed"
   if grep -E "$FATAL" "$OUT/$name.log" > "$OUT/$name-fatal.txt"; then fail "$name: fatal lines in the log: $(head -3 "$OUT/$name-fatal.txt")"; fi
   find "$home" -name '*.log' -size -5M -exec cp --parents {} "$OUT/" \; 2>/dev/null || true
-  kill "$pid" 2>/dev/null; sleep 3; pkill -f /opt/Ingot/ingot 2>/dev/null; pkill -f appimage_extracted 2>/dev/null; sleep 2
+  # IDEA-170: hard-kill the main process (like a crash) and require the backend tree to stop by itself.
+  local main; main="$(electron_main "$pid")"
+  local tree; tree="$(descendants "$main" | tr '\n' ' ')"
+  echo "$name: killing Electron main $main (launched as $pid)"
+  kill -9 "$main" 2>/dev/null
+  sleep "${SMOKE_ORPHAN_WAIT_SECONDS:-20}"
+  local left=""; for p in $tree; do alive "$p" && left="$left $p"; done
+  if [ -n "$left" ]; then
+    fail "$name: processes left running after the main process was killed: $(for p in $left; do ps -o args= -p "$p" | cut -c1-80; done | tr '\n' ';')"
+    for p in $left; do kill -9 "$p" 2>/dev/null; done
+  else
+    echo "$name: all $(echo $tree | wc -w) child processes exited after the main process was killed"
+  fi
+  alive "$pid" && kill -9 "$pid" 2>/dev/null
+  sleep 2
 }
 
 run_app ubuntu-deb /opt/Ingot/ingot

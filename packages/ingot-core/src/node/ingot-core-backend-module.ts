@@ -11,6 +11,7 @@ import { IngotAgentActionsService } from './ingot-agent-actions-service';
 import { IngotProcessService } from './ingot-process-service';
 import { BrowserProxyEndpoint } from './browser-proxy-endpoint';
 import { ErrorReportingEndpoint } from './error-reporting-endpoint';
+import { ParentWatchContribution } from './parent-watch-contribution';
 import { ProcessService, type ProcessClient } from '../common/processes/processes.types';
 import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
 import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agents/agent-actions-service';
@@ -56,6 +57,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(BackendApplicationContribution).toService(BrowserProxyEndpoint);
     bind(ErrorReportingEndpoint).toSelf().inSingletonScope();
     bind(BackendApplicationContribution).toService(ErrorReportingEndpoint);
+    // IDEA-170: the desktop backend stops (with its whole process tree) when the Electron main process goes away.
+    bind(ParentWatchContribution).toSelf().inSingletonScope();
+    bind(BackendApplicationContribution).toService(ParentWatchContribution);
     bind(IngotProcessService).toSelf().inSingletonScope();
     bind(ProcessService).toService(IngotProcessService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<ProcessClient>(PROCESS_SERVICE_PATH, client => {

@@ -3,6 +3,7 @@ import { injectable } from '@theia/core/shared/inversify';
 import { ElectronMainApplication } from '@theia/core/lib/electron-main/electron-main-application';
 import type { TheiaBrowserWindowOptions } from '@theia/core/lib/electron-main/theia-electron-window';
 import { BROWSER_PARTITION } from '../common/browser-tool/browser-tool.consts';
+import { FORCED_EXIT_AFTER_MS, QUIT_SIGNALS } from '../common/lifecycle/lifecycle.consts';
 
 const WEB_URL = /^(https?:|about:blank)/i;
 
@@ -20,7 +21,31 @@ export class IngotElectronMainApplication extends ElectronMainApplication {
 
     override async start(config: Parameters<ElectronMainApplication['start']>[0]): Promise<void> {
         app.on('web-contents-created', (_event, contents) => this.guardWebviews(contents));
+        this.quitOnSignals();
         return super.start(config);
+    }
+
+    /**
+     * IDEA-170: `kill <pid>`, Ctrl+C, a closed terminal or a session logout used to end only the main process and
+     * leave the backend running. Quit through Electron instead, so Theia stops the backend (and its process tree).
+     * The backend also stops by itself if the main process dies without warning (ParentWatchContribution).
+     */
+    protected quitOnSignals(): void {
+        let quitting = false;
+        for (const signal of QUIT_SIGNALS) {
+            if (process.platform === 'win32' && signal === 'SIGHUP') {
+                continue;
+            }
+            process.on(signal, () => {
+                if (quitting) {
+                    return;
+                }
+                quitting = true;
+                console.info(`[ingot] ${signal} received, quitting.`);
+                app.quit();
+                setTimeout(() => app.exit(0), FORCED_EXIT_AFTER_MS).unref();
+            });
+        }
     }
 
     protected guardWebviews(contents: WebContents): void {

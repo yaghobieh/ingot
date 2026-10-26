@@ -4,10 +4,11 @@ import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
 import { BOT_STATUS_LABELS } from '../../common/bot/bot.consts';
 import type { BotApproval, BotDecision, BotEvent, BotMessage, BotRun } from '../../common/bot/bot.types';
-import { eventLine, formatMinutes, isActiveRun, modeNotice, prLinkIn } from '../../common/bot/bot.utils';
+import { eventLine, formatMinutes, isActiveRun, mascotPose, modeNotice, prLinkIn } from '../../common/bot/bot.utils';
 import { IngotAccountService } from '../account/account-service';
 import { IngotBotService } from './bot-service';
 import { BOT_COMPOSER_PLACEHOLDER, BOT_WIDGET_ID, BOT_WIDGET_LABEL } from './bot.browser-consts';
+import { ZaprexMascotView } from './zaprex-mascot-view';
 
 /**
  * IDEA-154: Zaprex panel. Reuses the chat look (messages, agent head), the approval card and the processes list
@@ -31,7 +32,7 @@ export class IngotBotWidget extends ReactWidget {
         this.title.label = BOT_WIDGET_LABEL;
         this.title.caption = BOT_WIDGET_LABEL;
         this.title.closable = true;
-        this.title.iconClass = 'codicon codicon-sparkle';
+        this.title.iconClass = 'ingot-zaprex-tab-icon';
         this.addClass('ingot-agents');
         this.addClass('ingot-bot');
         this.toDispose.push(this.bot.onDidChange(() => this.update()));
@@ -74,7 +75,7 @@ export class IngotBotWidget extends ReactWidget {
         const state = this.bot.snapshot;
         return <div className='ingot-agents-root ingot-bot-root' id='ingot-bot-root'>
             <div className='ingot-agents-header'>
-                <span className='ingot-bot-title'><span className='ingot-zaprex-avatar' aria-hidden='true' /> Zaprex</span>
+                <span className='ingot-bot-title'><ZaprexMascotView pose={mascotPose(state.runs)} size={28} /> Zaprex</span>
                 {modeNotice(state) === 'test' && <span className='ingot-badge' id='ingot-bot-test-mode' title='Runs use a local sandbox and the mock model'>Test mode</span>}
                 {modeNotice(state) === 'sandbox' && <span className='ingot-badge' id='ingot-bot-sandbox-mode' title='Runs use a scratch sandbox on the live model'>Sandbox</span>}
                 <span className='ingot-flex' />
