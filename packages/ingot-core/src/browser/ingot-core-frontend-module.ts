@@ -1,6 +1,6 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
-import { bindViewContribution, FrontendApplicationContribution, KeybindingContribution, WidgetFactory } from '@theia/core/lib/browser';
+import { bindViewContribution, FrontendApplicationContribution, KeybindingContribution, UndoRedoHandler, WidgetFactory } from '@theia/core/lib/browser';
 import { AboutDialog } from '@theia/core/lib/browser/about-dialog';
 import { IngotCoreContribution } from './ingot-core-contribution';
 import { IngotThemeContribution } from './theme/ingot-theme-contribution';
@@ -92,6 +92,7 @@ import { IngotCommitContribution, createDiffWidgetFactory } from './commit/commi
 import { LocalChangesModel } from './commit/local-changes-model';
 import { LocalChangesWidget } from './commit/local-changes-widget';
 import { IngotDiffWidget } from './commit/ingot-diff-widget';
+import { DiffUndoRedoHandler } from './commit/diff-undo-redo-handler';
 import { IngotMergeWidget } from './merge/merge-tool-widget';
 import { BreadcrumbRenderer, BreadcrumbsRenderer, BreadcrumbsRendererFactory } from '@theia/core/lib/browser/breadcrumbs';
 import { FilepathBreadcrumbsContribution } from '@theia/filesystem/lib/browser/breadcrumbs/filepath-breadcrumbs-contribution';
@@ -169,6 +170,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         return widget;
     })).inSingletonScope();
     bindViewContribution(bind, IngotCommitContribution);
+    bind(DiffUndoRedoHandler).toSelf().inSingletonScope();
+    bind(UndoRedoHandler).toService(DiffUndoRedoHandler);
     bind(IngotMergeWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => createMergeWidgetFactory(options => {
         const widget = ctx.container.get(IngotMergeWidget);
