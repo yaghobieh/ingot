@@ -51,8 +51,22 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
             },
             {
                 id: 'agent-approvals', label: 'Agent approvals', custom: 'approvals',
-                description: 'Git writes, terminal commands, web search / fetch, MCP tool calls and file deletes wait on an approval card (Skip / Always Run / Run). "Always Run" choices are listed here per project; revoke one to be asked again.',
+                description: 'Git writes, terminal commands, browser actions, web search / fetch, MCP tool calls and file deletes wait on an approval card (Skip / Always Run / Run). "Always Run" choices are listed here per project; revoke one to be asked again.',
                 preferences: ['ingot.agent.git.requireApproval']
+            },
+            {
+                id: 'agent-tools', label: 'Agent tools',
+                description: 'What the agent can do in the terminal and the browser, and what asks first. Every action that asks goes through the approval card; "Always Run" choices are listed in Agent approvals.',
+                preferences: [
+                    'ingot.agent.terminal.enabled', 'ingot.agent.terminal.requireApproval', 'ingot.agent.terminal.foregroundTimeoutSeconds', 'ingot.agent.terminal.maxOutputChars',
+                    'ingot.agent.processes.showInChat',
+                    'ingot.agent.browser.enabled', 'ingot.agent.browser.requireApproval', 'ingot.agent.browser.approveReads'
+                ],
+                groups: [
+                    { label: 'Terminal & scripts', preferences: ['ingot.agent.terminal.enabled', 'ingot.agent.terminal.requireApproval', 'ingot.agent.terminal.foregroundTimeoutSeconds', 'ingot.agent.terminal.maxOutputChars'] },
+                    { label: 'Background processes', preferences: ['ingot.agent.processes.showInChat'] },
+                    { label: 'Browser', preferences: ['ingot.agent.browser.enabled', 'ingot.agent.browser.requireApproval', 'ingot.agent.browser.approveReads'] }
+                ]
             },
             { id: 'agent-config', label: 'Rules & MCP', actions: [{ id: 'openAgentConfig', label: 'Open Rules, Commands & MCP Servers…' }] },
             {

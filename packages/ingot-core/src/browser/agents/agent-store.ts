@@ -638,7 +638,7 @@ export class AgentStore {
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
-        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol() : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
+        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
         const rulesText = formatRules(rules);
         const memoriesText = formatMemories(memories);
         const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
@@ -858,7 +858,7 @@ export class AgentStore {
     /** IDEA-130: the agent's browser tools, run in the Ingot browser panel (they wait while the user has control). */
     protected async runBrowser(session: AgentSession, call: AgentToolCall): Promise<AgentActionResult & { images?: ImageChip[] }> {
         if (!browserToolSettings(key => this.preferences.get(key)).enabled) {
-            return { text: 'The browser tool is turned off in Settings › Tools › Agent browser.', isError: true };
+            return { text: 'The browser tool is turned off in Settings › Tools › Agent tools.', isError: true };
         }
         const a = call.args;
         const str = (v: unknown): string => typeof v === 'string' ? v : '';
@@ -909,7 +909,7 @@ export class AgentStore {
         }
         const settings = this.runSettings;
         if (!settings.enabled) {
-            return { text: 'Running commands is turned off in Settings › Tools › Agent terminal.', isError: true };
+            return { text: 'Running commands is turned off in Settings › Tools › Agent tools.', isError: true };
         }
         const service = this.processes.service;
         if (background) {
