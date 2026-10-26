@@ -25,6 +25,25 @@ body.ingot-shell {
 .ingot-tb-search-text { flex: 1; text-align: left; }
 .ingot-tb-search-kbd { font-size: 11px; line-height: 16px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--ingot-border); background: var(--ingot-panel); color: var(--ingot-text-muted); }
 .ingot-tb-search:hover { color: var(--ingot-text); border-color: var(--ingot-text-muted); }
+/* IDEA-169: toolbar labels stay on one line; long project/branch/run names ellipsize, and small windows drop text
+   before anything wraps or slides under the window title. */
+.ingot-tb-left { min-width: 0; flex: 0 1 auto; }
+.ingot-tb-right { flex: 0 0 auto; }
+.ingot-tb-button { white-space: nowrap; }
+.ingot-tb-left .ingot-tb-button { flex: 0 1 auto; }
+.ingot-tb-label { min-width: 0; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1280px) {
+  .ingot-tb-search { width: auto; }
+  .ingot-tb-search-text, .ingot-tb-search-kbd { display: none; }
+  .ingot-tb-label { max-width: 140px; }
+}
+/* The project button shows its icon only once its name has been dropped, so it never collapses to a bare caret. */
+#ingot-tb-project .ingot-icon { display: none; }
+@media (max-width: 1100px) {
+  .ingot-tb-run .ingot-tb-label, #ingot-tb-vcs .ingot-tb-label, #ingot-tb-project .ingot-tb-label { display: none; }
+  #ingot-tb-project .ingot-icon { display: inline-block; }
+  .ingot-tb-label { max-width: 110px; }
+}
 .ingot-tb-agents { height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: var(--theia-button-background); color: var(--theia-button-foreground); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
 .ingot-tb-agents:hover { background: var(--theia-button-hoverBackground); }
 

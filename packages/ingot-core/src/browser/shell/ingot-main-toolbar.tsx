@@ -281,7 +281,7 @@ export class IngotMainToolbar extends ReactWidget {
                 {this.showMainMenuButton
                     ? <button id='ingot-tb-menu' type='button' className='ingot-tb-logo' title='Main menu' aria-label='Main menu' onClick={e => this.openMainMenu(e)}>{LOGO_GLYPH}</button>
                     : <span className='ingot-tb-logo' title='Ingot'>{LOGO_GLYPH}</span>}
-                <ToolbarButton id='ingot-tb-project' title='Project' label={this.projectLabel} dropdown onClick={() => this.toggleProjectPopup()} />
+                <ToolbarButton id='ingot-tb-project' icon='project' title='Project' label={this.projectLabel} dropdown onClick={() => this.toggleProjectPopup()} />
                 {this.renderProjectPopup()}
                 <ToolbarButton id='ingot-tb-vcs' icon='branch' title='Git branch' label={this.branches.branch ?? NO_VCS_LABEL} dropdown onClick={() => this.run(this.branches.branch ? TOOLBAR_COMMANDS.branches : TOOLBAR_COMMANDS.git)} />
             </div>
