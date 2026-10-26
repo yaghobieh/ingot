@@ -2,7 +2,11 @@
 
 /* IDEA-118: bottom panel / chat / settings icons and the Agents Window pill, per titlebar-right-reference.png. */
 .ingot-tb-window-actions { display: flex; align-items: center; gap: 2px; margin-left: 4px; }
-.ingot-tb-window-actions .ingot-tb-icon { color: var(--ingot-text-muted); border-radius: 6px; }
+.ingot-tb-window-actions .ingot-tb-icon { color: color-mix(in srgb, var(--ingot-text) 78%, transparent); border-radius: 6px; }
+/* Icons follow the button colour in every theme (they looked washed out in dark). */
+.ingot-tb-window-actions .ingot-tb-icon .codicon,
+.ingot-tb-search .ingot-icon { color: inherit; opacity: 1; }
+.ingot-tb-search { color: color-mix(in srgb, var(--ingot-text) 78%, transparent); }
 .ingot-tb-window-actions .ingot-tb-icon:hover { color: var(--ingot-text); background: var(--theia-toolbar-hoverBackground); }
 .ingot-tb-window-actions .ingot-tb-icon.pressed { color: var(--ingot-text); }
 .ingot-tb-pill {
