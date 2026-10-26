@@ -112,7 +112,8 @@ test.describe('IDEA-56 editor context menu', () => {
         // File Annotations: blame shows the author next to each line.
         await run(page, 'File Annotations', 'Toggle Line Blame');
         await expect(page.locator('.ingot-blame-annotation', { hasText: 'Add cart' })).toHaveCount(1);
-        await expect(page.locator('.ingot-blame-annotation', { hasText: 'Uncommitted changes' })).toHaveCount(2);
+        // Word wrap is on by default, so a long annotation can wrap; its first fragment always holds "Uncommitted".
+        await expect(page.locator('.ingot-blame-annotation', { hasText: 'Uncommitted' })).toHaveCount(2);
         await run(page, 'File Annotations', 'Toggle Line Blame');
         await expect(page.locator('.ingot-blame-annotation')).toHaveCount(0);
 
