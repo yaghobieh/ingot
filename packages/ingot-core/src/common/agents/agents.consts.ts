@@ -29,5 +29,5 @@ export const ACTIVE_STATUSES: readonly AgentStatus[] = ['thinking', 'editing', '
 export const SIGN_IN_MESSAGE = 'Sign in to use Ingot models — no API keys needed. Or turn on “Use my own API key (BYOK)” in Settings › Models.';
 export const NO_MODEL_MESSAGE = 'This model is not connected yet. Open Settings › Models (gear ▸ Models, or “Ingot: Models”) to add its API key — keys are stored in your OS keychain — or pick a connected model below.';
 export const NEW_AGENT_TITLE = 'New chat';
-export const COMPOSER_PLACEHOLDER = 'Tell an agent what to do… @ to add context';
+export const COMPOSER_PLACEHOLDER = 'Ask anything, @ to mention, / for actions';
 export const MAX_TITLE_LENGTH = 48;

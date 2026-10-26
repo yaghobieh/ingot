@@ -47,9 +47,8 @@ test.describe('IDEA-51 workspaces (.ingot-workspace / .code-workspace)', () => {
         await page.keyboard.press('F1');
         await page.getByRole('textbox', { name: 'Type to narrow down results.' }).fill('>Welcome to Ingot');
         await page.getByRole('option', { name: /Welcome to Ingot/ }).first().click();
-        await page.locator('#ingot-welcome-tab-projects').click();
         await expect(page.locator('#ingot-welcome-open-workspace')).toBeVisible();
-        await expect(page.locator('.ingot-welcome-project', { hasText: 'multi-root' })).toContainText('workspace');
+        await expect(page.locator('.ingot-welcome-project', { hasText: 'multi-root' })).toContainText('Workspace');
     });
 
     test('saves the open project as an .ingot-workspace from the project ▾ popup', async ({ page }) => {

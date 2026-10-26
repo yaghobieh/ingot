@@ -13,7 +13,6 @@ const editorBackground = (page: Page): Promise<string> =>
 
 const setTheme = async (page: Page, id: string): Promise<void> => {
     await runCommand(page, 'Welcome to Ingot');
-    await page.locator('#ingot-welcome-tab-customize').click();
     await page.locator(`#ingot-theme-${id}`).click();
     await page.locator('.lm-TabBar-tab', { hasText: 'math.ts' }).first().click();
 };

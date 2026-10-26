@@ -6,9 +6,11 @@ import { gitArgs, rewordTodo, type GitOperation, type GitOpResult } from '../com
 import { injectable } from '@theia/core/shared/inversify';
 import { BRANCH_FORMAT, LOG_FORMAT } from '../common/git/git.consts';
 import type { GitBlameLine, GitBranch, GitCommit, GitFileChange, GitService } from '../common/git/git.types';
+import { cloneTarget, isCloneUrl } from '../common/welcome/welcome.utils';
 import { isRepoRelativePath, isValidBranchName, isValidRef, parseBlame, parseBranches, parseLog, parseNameStatus } from '../common/git/git.utils';
 
 const GIT_TIMEOUT_MS = 15_000;
+const CLONE_TIMEOUT_MS = 10 * 60_000;
 const MAX_BUFFER = 16 * 1024 * 1024;
 
 /** Runs a fixed set of git commands with validated arguments (no shell). */
@@ -163,6 +165,20 @@ export class IngotGitService implements GitService {
     async blame(root: string, file: string): Promise<GitBlameLine[]> {
         this.checkPath(file);
         return parseBlame(await this.git(root, ['blame', '--line-porcelain', '--', file]));
+    }
+
+    /** IDEA-165: `git clone -- <url> <parent>/<repo>`; refuses odd URLs and existing targets. */
+    async clone(url: string, parent: string): Promise<string> {
+        const value = url.trim();
+        if (!isCloneUrl(value)) {
+            throw new Error('Enter an https or ssh Git URL.');
+        }
+        const target = cloneTarget(parent, value);
+        if (fs.existsSync(target)) {
+            throw new Error(`${target} already exists.`);
+        }
+        await this.git(parent, ['clone', '--', value, target], { timeout: CLONE_TIMEOUT_MS });
+        return target;
     }
 
     async remote(root: string): Promise<{ url: string; commit: string; branch?: string } | undefined> {

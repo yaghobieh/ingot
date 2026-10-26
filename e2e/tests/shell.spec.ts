@@ -65,15 +65,13 @@ test.describe('IDEA-15/16 welcome screen, brand and themes', () => {
         await expect(welcome.locator('svg.ingot-mark .im-slash').first()).toBeAttached();
         await expect(welcome.locator('#ingot-welcome-open')).toBeVisible();
         await expect(welcome.locator('#ingot-welcome-clone')).toBeVisible();
-        await welcome.locator('#ingot-welcome-tab-plugins').click();
         await expect(welcome.locator('#ingot-welcome-open-plugins')).toBeVisible();
     });
 
-    test('switches between Light, Dark and System from Customize', async ({ page }) => {
+    test('switches between Light, Dark and System from the welcome page', async ({ page }) => {
         await openIngot(page);
         await runCommand(page, 'Welcome to Ingot');
         const welcome = page.locator('#ingot-welcome');
-        await welcome.locator('#ingot-welcome-tab-customize').click();
         await welcome.locator('#ingot-theme-dark').click();
         await expect(page.locator('body')).toHaveClass(/theia-dark/);
         await expect(welcome.locator('#ingot-theme-dark')).toHaveClass(/active/);
