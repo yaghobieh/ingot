@@ -13,6 +13,10 @@ import { IngotAboutDialog } from './about/ingot-about-dialog';
 import { ServiceConnectionProvider } from '@theia/core/lib/browser/messaging/service-connection-provider';
 import { PORTS_SERVICE_PATH } from '../common/ports/ports.consts';
 import { PortsService } from '../common/ports/ports.types';
+import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agents/agent-actions-service';
+import { ProcessService } from '../common/processes/processes.types';
+import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
+import { ProcessClientImpl, ProcessStore } from './processes/process-store';
 import { IngotPortsWidget } from './ports/ingot-ports-widget';
 import { IngotPortsContribution } from './ports/ingot-ports-contribution';
 import { PORTS_WIDGET_ID } from './ports/ingot-ports.consts';
@@ -68,6 +72,7 @@ import { IngotRunContribution } from './run/ingot-run-contribution';
 import { PreferenceContribution } from '@theia/core/lib/common/preferences';
 import { layoutPreferenceSchema } from './layout/layout-preferences';
 import { reviewPreferenceSchema } from './review/review-preferences';
+import { approvalPreferenceSchema } from './agents/approval-preferences';
 import { ReviewContribution } from './review/review-contribution';
 import { ReviewComments } from './review/review-comments';
 import { IngotLayoutContribution } from './layout/layout-contribution';
@@ -131,6 +136,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: appearancePreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: layoutPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: reviewPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: approvalPreferenceSchema });
     bind(ReviewComments).toSelf().inSingletonScope();
     bind(ReviewContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(ReviewContribution);
@@ -240,6 +246,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bindViewContribution(bind, IngotWelcomeContribution);
     bind(FrontendApplicationContribution).toService(IngotWelcomeContribution);
 
+    bind(ProcessClientImpl).toSelf().inSingletonScope();
+    bind(ProcessService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ProcessService>(ctx.container, PROCESS_SERVICE_PATH, ctx.container.get(ProcessClientImpl))).inSingletonScope();
+    bind(ProcessStore).toSelf().inSingletonScope();
+    bind(AgentActionsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<AgentActionsService>(ctx.container, AGENT_ACTIONS_SERVICE_PATH)).inSingletonScope();
     bind(PortsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<PortsService>(ctx.container, PORTS_SERVICE_PATH)).inSingletonScope();
     bind(IngotPortsWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: PORTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotPortsWidget) })).inSingletonScope();

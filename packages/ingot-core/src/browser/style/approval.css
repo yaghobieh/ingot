@@ -1,0 +1,134 @@
+/* IDEA-109 approval card (docs/design/approval-card-reference.png). */
+.ingot-approval-wrap {
+    padding: 4px 10px 6px;
+}
+
+.ingot-approval-activity {
+    color: var(--theia-descriptionForeground);
+    opacity: 0.75;
+    font-size: 12.5px;
+    margin: 0 2px 8px;
+}
+
+.ingot-approval-activity-verb {
+    color: var(--theia-foreground);
+    opacity: 0.8;
+}
+
+.ingot-approval {
+    border: 1px solid var(--theia-widget-border, var(--theia-panel-border));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--theia-editor-background) 88%, var(--theia-foreground) 3%);
+    padding: 12px 12px 10px;
+    outline: none;
+}
+
+.ingot-approval:focus-visible {
+    border-color: var(--theia-focusBorder);
+}
+
+.ingot-approval-line {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+    color: var(--theia-descriptionForeground);
+}
+
+.ingot-approval-label {
+    color: var(--theia-foreground);
+    opacity: 0.72;
+}
+
+.ingot-approval-detail {
+    opacity: 0.6;
+}
+
+.ingot-approval-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 14px;
+}
+
+.ingot-approval-note {
+    margin-right: auto;
+    font-size: 11.5px;
+}
+
+.ingot-approval-actions button {
+    font: inherit;
+    font-size: 12.5px;
+    border: none;
+    cursor: pointer;
+    border-radius: 999px;
+    padding: 3px 10px;
+    line-height: 18px;
+}
+
+.ingot-approval-skip {
+    background: transparent;
+    color: var(--theia-descriptionForeground);
+}
+
+.ingot-approval-skip:hover {
+    color: var(--theia-foreground);
+}
+
+.ingot-approval-always {
+    background: color-mix(in srgb, var(--theia-foreground) 9%, transparent);
+    color: var(--theia-foreground);
+    opacity: 0.85;
+}
+
+.ingot-approval-always:hover {
+    background: color-mix(in srgb, var(--theia-foreground) 14%, transparent);
+}
+
+.ingot-approval-run {
+    background: color-mix(in srgb, var(--theia-foreground) 20%, transparent);
+    color: var(--theia-foreground);
+    font-weight: 500;
+}
+
+.ingot-approval-run:hover {
+    background: color-mix(in srgb, var(--theia-foreground) 28%, transparent);
+}
+
+.ingot-approval-key {
+    opacity: 0.75;
+    margin-left: 2px;
+}
+
+/* Settings › Agent approvals: Always Run list. */
+.ingot-always-run-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-top: 1px solid var(--theia-widget-border, var(--theia-panel-border));
+}
+
+.ingot-always-run-row:first-of-type {
+    border-top: none;
+}
+
+.ingot-always-run-project {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60%;
+}
+
+.ingot-always-run-command {
+    font-family: var(--theia-code-font-family, monospace);
+    font-size: 12px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--ingot-ingot-gold) 16%, transparent);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 40%;
+}

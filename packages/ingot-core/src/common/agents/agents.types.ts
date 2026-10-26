@@ -1,4 +1,4 @@
-export type AgentStatus = 'idle' | 'thinking' | 'editing' | 'review' | 'paused' | 'done' | 'error';
+export type AgentStatus = 'idle' | 'thinking' | 'editing' | 'review' | 'paused' | 'approval' | 'done' | 'error';
 export type AgentMode = 'agent' | 'multi' | 'ask' | 'plan' | 'debug';
 export type PlanState = 'done' | 'active' | 'todo';
 export type StepKind = 'read' | 'edit' | 'run' | 'search';
@@ -60,6 +60,8 @@ export interface AgentSession {
     messages: AgentMessage[];
     plan: PlanItem[];
     steps: AgentStep[];
+    /** IDEA-109: the action waiting on the approval card (Skip / Always Run / Run). */
+    approval?: import('./agent-actions').PendingApproval;
     changes: FileChange[];
     /** File the agent is currently working on, for the list subtitle. */
     activeFile?: string;

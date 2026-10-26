@@ -1,9 +1,9 @@
-import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { dismissNotifications, openIngot } from '../src/app.utils';
 import { FIXTURES_DIR, GROUP_FIXTURE } from '../src/e2e.consts';
+import { restoreFromHead } from '../src/git-restore';
 
 const README = path.join(FIXTURES_DIR, 'second-project', 'README.md');
 const EDIT_TEXT = 'Endpoint renamed by the sample-project agent';
@@ -16,7 +16,7 @@ const send = async (page: Page, text: string): Promise<void> => {
 };
 
 test.describe('IDEA-53 group agent channel', () => {
-    test.afterEach(() => execFileSync('git', ['checkout', '--', README], { cwd: FIXTURES_DIR }));
+    test.afterEach(() => restoreFromHead(README));
 
     test('agents ask and answer across projects; cross-project edits wait for approval', async ({ page }) => {
         await openIngot(page, GROUP_FIXTURE);
