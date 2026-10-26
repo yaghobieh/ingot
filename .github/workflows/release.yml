@@ -34,7 +34,9 @@ jobs:
             os: windows-latest
             args: --win --x64
           - name: Linux x64
-            os: ubuntu-latest
+            # Pinned (IDEA-172): ubuntu-latest is moving to Ubuntu 26, which would change the toolchain and system libs the
+            # .deb/AppImage are built against (v0.1.0-beta.1 was built on 24.04). Bump deliberately, with the smoke test.
+            os: ubuntu-24.04
             args: --linux --x64
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +109,7 @@ jobs:
     name: Draft GitHub Release
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
