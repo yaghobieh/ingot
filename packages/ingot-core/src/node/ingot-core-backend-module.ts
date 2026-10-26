@@ -10,6 +10,7 @@ import { IngotPortsService } from './ingot-ports-service';
 import { IngotAgentActionsService } from './ingot-agent-actions-service';
 import { IngotProcessService } from './ingot-process-service';
 import { BrowserProxyEndpoint } from './browser-proxy-endpoint';
+import { ErrorReportingEndpoint } from './error-reporting-endpoint';
 import { ProcessService, type ProcessClient } from '../common/processes/processes.types';
 import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
 import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agents/agent-actions-service';
@@ -53,6 +54,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(AGENT_ACTIONS_SERVICE_PATH, () => ctx.container.get<AgentActionsService>(AgentActionsService))).inSingletonScope();
     bind(BrowserProxyEndpoint).toSelf().inSingletonScope();
     bind(BackendApplicationContribution).toService(BrowserProxyEndpoint);
+    bind(ErrorReportingEndpoint).toSelf().inSingletonScope();
+    bind(BackendApplicationContribution).toService(ErrorReportingEndpoint);
     bind(IngotProcessService).toSelf().inSingletonScope();
     bind(ProcessService).toService(IngotProcessService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<ProcessClient>(PROCESS_SERVICE_PATH, client => {
