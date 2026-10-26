@@ -54,4 +54,6 @@ export interface GitService {
     remote(root: string): Promise<{ url: string; commit: string; branch?: string } | undefined>;
     /** Runs one validated Git menu operation (IDEA-70); see git-ops.ts. */
     run(root: string, op: GitOperation): Promise<GitOpResult>;
+    /** Clones `url` into `<parent>/<repo>` and returns that folder (IDEA-165 welcome page). */
+    clone(url: string, parent: string): Promise<string>;
 }

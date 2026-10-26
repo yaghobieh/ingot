@@ -4,6 +4,7 @@ import { actionLine, activityLine } from '../../common/agents/agent-actions';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
+import { PRODUCT } from '../../common/product.consts';
 import { COMPOSER_PLACEHOLDER, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
 import { modeInfo, nextMode } from '../../common/agents/agent-modes';
 import { CONTEXT_NEAR_FULL, contextSegments, formatTokens, messageWeights, usageRatio } from '../../common/agents/context-usage';
@@ -447,7 +448,8 @@ export class IngotAgentsWidget extends ReactWidget {
     protected render(): React.ReactNode {
         const current = this.store.current;
         const tabs = this.store.tabs;
-        return <div className='ingot-agents-root'>
+        const empty = !this.showMemories && !current?.messages.length;
+        return <div className={`ingot-agents-root${empty ? ' ingot-agents-root-empty' : ''}`}>
             <div className='ingot-agents-header' onContextMenu={e => this.openLayoutMenu(e)}>
                 {this.renderTabs(tabs, current)}
                 <button type='button' id='ingot-agents-new' className='ingot-icon-button codicon codicon-add' aria-label='New chat'
@@ -471,11 +473,15 @@ export class IngotAgentsWidget extends ReactWidget {
             {this.showMemories
                 ? <div className='ingot-agents-chat ingot-agents-memories-pane'><MemoriesManager store={this.memoryStore} onClose={() => this.toggleMemories()} /></div>
                 : <div className='ingot-agents-chat'>{current && current.messages.length ? this.renderSession(current)
-                    : <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>}</div>}
+                    : <div className='ingot-agents-empty-state' id='ingot-agents-empty-state'>
+                        <div className='ingot-agents-empty-title'>{PRODUCT.name}</div>
+                        <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>
+                    </div>}</div>}
             {!this.showMemories && this.renderProcesses()}
             {!this.showMemories && this.renderApproval(current)}
             {!this.showMemories && this.renderChangesBar(current)}
             {this.renderComposer()}
+            {empty && <div className='ingot-agents-disclaimer'>AI can make mistakes. Review generated code before you keep it.</div>}
         </div>;
     }
 

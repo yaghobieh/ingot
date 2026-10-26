@@ -28,7 +28,7 @@ test.describe('IDEA-51 workspaces (.ingot-workspace / .code-workspace)', () => {
         await projectButton(page).click();
         await expect(popup(page)).toBeVisible();
         const recent = popup(page).locator('.ingot-project-popup-recent', { hasText: 'multi-root' });
-        await expect(recent).toContainText('workspace');
+        await expect(recent).toContainText('Workspace');
         await expect(popup(page).locator('#ingot-project-action-open-workspace')).toBeVisible();
         await expect(popup(page).locator('#ingot-project-action-save-workspace')).toBeVisible();
 
@@ -47,9 +47,8 @@ test.describe('IDEA-51 workspaces (.ingot-workspace / .code-workspace)', () => {
         await page.keyboard.press('F1');
         await page.getByRole('textbox', { name: 'Type to narrow down results.' }).fill('>Welcome to Ingot');
         await page.getByRole('option', { name: /Welcome to Ingot/ }).first().click();
-        await page.locator('#ingot-welcome-tab-projects').click();
         await expect(page.locator('#ingot-welcome-open-workspace')).toBeVisible();
-        await expect(page.locator('.ingot-welcome-project', { hasText: 'multi-root' })).toContainText('workspace');
+        await expect(page.locator('.ingot-welcome-project', { hasText: 'multi-root' })).toContainText('Workspace');
     });
 
     test('saves the open project as an .ingot-workspace from the project ▾ popup', async ({ page }) => {

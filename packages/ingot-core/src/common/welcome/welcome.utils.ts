@@ -28,3 +28,25 @@ export const toRecentProjects = (uris: readonly string[], home?: string, filter 
 
 /** Derives the target folder name from a Git clone URL. */
 export const repoNameFromUrl = (url: string): string => url.trim().replace(/\/+$/, '').replace(/\.git$/, '').split(/[/:]/).pop() ?? '';
+
+/** Git clone URLs we accept from the welcome page: https, ssh:// or scp-style `user@host:path`. */
+export const isCloneUrl = (url: string): boolean => {
+    const value = url.trim();
+    if (!value || /\s/.test(value) || value.startsWith('-')) {
+        return false;
+    }
+    return /^https:\/\/[^/]+\/.+/.test(value) || /^ssh:\/\/[^/]+\/.+/.test(value) || /^[\w.-]+@[\w.-]+:[\w./~-]+$/.test(value);
+};
+
+/** The folder a clone lands in: `<parent>/<repo>`. */
+export const cloneTarget = (parent: string, url: string): string => `${parent.replace(/\/+$/, '')}/${repoNameFromUrl(url)}`;
+
+/** Workspaces shown on the welcome page: the first few, or all after "Show More...". */
+export const visibleWorkspaces = <T>(items: readonly T[], expanded: boolean, limit: number): { readonly shown: readonly T[]; readonly more: boolean } =>
+    ({ shown: expanded ? items : items.slice(0, limit), more: !expanded && items.length > limit });
+
+/** Open VSX ids look like `namespace.name`; returns the API path parts. */
+export const openVsxParts = (id: string): { readonly namespace: string; readonly name: string } => {
+    const dot = id.indexOf('.');
+    return { namespace: id.slice(0, dot), name: id.slice(dot + 1) };
+};

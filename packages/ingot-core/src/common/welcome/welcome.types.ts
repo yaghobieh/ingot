@@ -7,4 +7,4 @@ export interface RecentProject {
     readonly kind: 'folder' | 'workspace' | 'group';
 }
 
-export type WelcomeTab = 'projects' | 'customize' | 'plugins' | 'learn';
+export type SuggestionState = 'idle' | 'installing' | 'installed' | 'failed';

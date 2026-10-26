@@ -5,41 +5,46 @@ import { QuickInputService } from '@theia/core/lib/browser/quick-input';
 import { ThemeService } from '@theia/core/lib/browser/theming';
 import { CommandRegistry } from '@theia/core/lib/common/command';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
+import { MessageService } from '@theia/core/lib/common/message-service';
 import URI from '@theia/core/lib/common/uri';
-import { WindowService } from '@theia/core/lib/browser/window/window-service';
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
+import type { FileStat } from '@theia/filesystem/lib/common/files';
+import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog/file-dialog-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
-import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service';
+import { PluginServer } from '@theia/plugin-ext/lib/common/plugin-protocol';
 import { AppearanceContribution } from '../theme/appearance-contribution';
-import { WELCOME_TABS } from '../../common/welcome/welcome.consts';
-import type { RecentProject, WelcomeTab } from '../../common/welcome/welcome.types';
-import { repoNameFromUrl, toRecentProjects } from '../../common/welcome/welcome.utils';
+import { GitService } from '../../common/git/git.types';
+import { SUGGESTED_EXTENSIONS, WELCOME_WORKSPACES_VISIBLE, type SuggestedExtension } from '../../common/welcome/welcome.consts';
+import type { RecentProject, SuggestionState } from '../../common/welcome/welcome.types';
+import { isCloneUrl, openVsxParts, toRecentProjects, visibleWorkspaces } from '../../common/welcome/welcome.utils';
+import { OPEN_VSX_API } from '../../common/theme/theme-store.consts';
 import { PRODUCT } from '../../common/product.consts';
 import { AnimatedMark } from '../brand/animated-mark';
-import { CLONE_PROMPT, CLONE_TERMINAL_TITLE, LEARN_LINKS, WELCOME_COMMANDS, WELCOME_WIDGET_ID, WELCOME_WIDGET_LABEL } from './ingot-welcome.consts';
+import { CLONE_PLACEHOLDER, CLONE_PROMPT, CLONE_TARGET_LABEL, CLONE_TARGET_TITLE, THEME_CHOICES, WELCOME_COMMANDS, WELCOME_WIDGET_ID, WELCOME_WIDGET_LABEL } from './ingot-welcome.consts';
 
-const THEME_CHOICES = [
-    { id: 'light', label: 'Light' },
-    { id: 'dark', label: 'Dark' },
-    { id: 'system', label: 'System' }
-] as const;
-
-/** IDE-style Welcome screen: Projects, Customize, Plugins, Learn (IDEA-15). */
+/** New-window welcome page (IDEA-165): logo, Open Folder / Clone Repository, recent Workspaces and suggested extensions. */
 @injectable()
 export class IngotWelcomeWidget extends ReactWidget {
 
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
     @inject(QuickInputService) protected readonly quickInput: QuickInputService;
-    @inject(TerminalService) protected readonly terminals: TerminalService;
+    @inject(FileDialogService) protected readonly fileDialogs: FileDialogService;
+    @inject(FileService) protected readonly files: FileService;
     @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
     @inject(ThemeService) protected readonly themes: ThemeService;
     @inject(AppearanceContribution) protected readonly appearance: AppearanceContribution;
-    @inject(WindowService) protected readonly windows: WindowService;
+    @inject(MessageService) protected readonly messages: MessageService;
+    @inject(GitService) protected readonly git: GitService;
+    @inject(PluginServer) protected readonly plugins: PluginServer;
 
-    protected tab: WelcomeTab = 'projects';
-    protected filter = '';
     protected recentUris: string[] = [];
     protected home?: string;
+    protected homeUri?: string;
+    protected expanded = false;
+    protected cloning?: string;
+    protected icons = new Map<string, string>();
+    protected suggestionStates = new Map<string, SuggestionState>();
 
     @postConstruct()
     protected init(): void {
@@ -50,132 +55,170 @@ export class IngotWelcomeWidget extends ReactWidget {
         this.title.iconClass = 'ingot-icon ingot-icon-project';
         this.addClass('ingot-welcome');
         this.toDispose.push(this.themes.onDidColorThemeChange(() => this.update()));
-        this.load();
+        void this.load();
+        void this.loadSuggestions();
     }
 
     protected async load(): Promise<void> {
         const [recent, homeUri] = await Promise.all([this.workspace.recentWorkspaces(), this.env.getHomeDirUri()]);
         this.recentUris = recent;
+        this.homeUri = homeUri;
         this.home = new URI(homeUri).path.fsPath();
+        this.update();
+    }
+
+    /** Installed state from the plugin server, icons from Open VSX (best effort; the curated card shows without them). */
+    protected async loadSuggestions(): Promise<void> {
+        const installed = await this.plugins.getInstalledPlugins().catch(() => [] as readonly string[]);
+        for (const s of SUGGESTED_EXTENSIONS) {
+            if (installed.some(id => id.toLowerCase().startsWith(`${s.id.toLowerCase()}@`))) {
+                this.suggestionStates.set(s.id, 'installed');
+            }
+        }
+        this.update();
+        await Promise.all(SUGGESTED_EXTENSIONS.map(async s => {
+            const { namespace, name } = openVsxParts(s.id);
+            try {
+                const response = await fetch(`${OPEN_VSX_API}/${namespace}/${name}`);
+                const icon = response.ok ? (await response.json() as { files?: { icon?: string } }).files?.icon : undefined;
+                if (icon?.startsWith('https://')) {
+                    this.icons.set(s.id, icon);
+                }
+            } catch {
+                // Offline: keep the built-in icon.
+            }
+        }));
         this.update();
     }
 
     protected run(commandId: string): void {
         if (this.commands.getCommand(commandId)) {
-            this.commands.executeCommand(commandId);
+            void this.commands.executeCommand(commandId);
         }
     }
 
     protected openProject(project: RecentProject): void {
-        this.workspace.open(new URI(project.uri), { preserveWindow: true });
+        void this.workspace.open(new URI(project.uri), { preserveWindow: true });
     }
 
-    protected async cloneRepository(): Promise<void> {
-        const url = await this.quickInput.input({ prompt: CLONE_PROMPT, placeHolder: 'https://github.com/owner/repo.git' });
-        if (!url) {
+    /** Asks for the URL, then the parent folder, clones there and opens the new folder in this window. */
+    async cloneRepository(): Promise<void> {
+        const url = await this.quickInput.input({
+            prompt: CLONE_PROMPT, placeHolder: CLONE_PLACEHOLDER,
+            validateInput: async value => !value.trim() || isCloneUrl(value) ? undefined : 'Enter an https or ssh Git URL.'
+        });
+        if (!url || !isCloneUrl(url)) {
             return;
         }
-        const target = this.home ? `${this.home}/${repoNameFromUrl(url)}` : repoNameFromUrl(url);
-        const terminal = await this.terminals.newTerminal({ title: CLONE_TERMINAL_TITLE, cwd: this.home });
-        await terminal.start();
-        this.terminals.open(terminal);
-        terminal.sendText(`git clone ${JSON.stringify(url.trim())} ${JSON.stringify(target)}\r`);
+        const parent = await this.fileDialogs.showOpenDialog({ title: CLONE_TARGET_TITLE, openLabel: CLONE_TARGET_LABEL, canSelectFolders: true, canSelectFiles: false, canSelectMany: false },
+            this.homeUri ? await this.fileStat(this.homeUri) : undefined);
+        if (!parent) {
+            return;
+        }
+        this.cloning = url.trim();
+        this.update();
+        try {
+            const target = await this.git.clone(url, parent.path.fsPath());
+            await this.workspace.open(URI.fromFilePath(target), { preserveWindow: true });
+        } catch (error) {
+            void this.messages.error(`Clone failed: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            this.cloning = undefined;
+            this.update();
+        }
     }
 
-    protected setTab(tab: WelcomeTab): void {
-        this.tab = tab;
+    protected async fileStat(uri: string): Promise<FileStat | undefined> {
+        return this.files.resolve(new URI(uri)).catch(() => undefined);
+    }
+
+    protected async install(extension: SuggestedExtension): Promise<void> {
+        this.suggestionStates.set(extension.id, 'installing');
+        this.update();
+        try {
+            await this.plugins.install(`vscode:extension/${extension.id}`);
+            this.suggestionStates.set(extension.id, 'installed');
+        } catch (error) {
+            this.suggestionStates.set(extension.id, 'failed');
+            void this.messages.error(`Could not install ${extension.label}: ${error instanceof Error ? error.message : String(error)}`);
+        }
         this.update();
     }
 
     protected render(): React.ReactNode {
-        return <div className='ingot-welcome-root'>
-            <nav className='ingot-welcome-nav'>
-                <div className='ingot-welcome-brand'>
-                    <span className='ingot-welcome-logo ingot-app-icon ingot-mark-host'><AnimatedMark size={48} /></span>
-                    <div>
-                        <div className='ingot-welcome-name'>{PRODUCT.name}</div>
-                        <div className='ingot-welcome-version'>{PRODUCT.version}</div>
-                    </div>
+        return <div className='ingot-welcome-page'>
+            <div className='ingot-welcome-column'>
+                <header className='ingot-welcome-hero'>
+                    <span className='ingot-welcome-logo ingot-app-icon ingot-mark-host'><AnimatedMark size={64} /></span>
+                    <h1 className='ingot-welcome-title'>{PRODUCT.name}</h1>
+                </header>
+                <div className='ingot-welcome-buttons'>
+                    <button id='ingot-welcome-open' type='button' className='ingot-welcome-btn primary' onClick={() => this.run(WELCOME_COMMANDS.openFolder)}>
+                        <span className='codicon codicon-folder' />Open Folder
+                    </button>
+                    <button id='ingot-welcome-clone' type='button' className='ingot-welcome-btn secondary' disabled={!!this.cloning} onClick={() => void this.cloneRepository()}>
+                        <span className={`codicon ${this.cloning ? 'codicon-loading codicon-modifier-spin' : 'codicon-repo-clone'}`} />{this.cloning ? 'Cloning…' : 'Clone Repository'}
+                    </button>
+                    <button id='ingot-welcome-open-workspace' type='button' className='ingot-welcome-link' onClick={() => this.run(WELCOME_COMMANDS.openWorkspace)}>Open Workspace…</button>
                 </div>
-                {WELCOME_TABS.map(t => (
-                    <button key={t.id} id={`ingot-welcome-tab-${t.id}`} type='button' className={`ingot-welcome-navitem ${this.tab === t.id ? 'active' : ''}`} onClick={() => this.setTab(t.id)}>{t.label}</button>
-                ))}
-            </nav>
-            <main className='ingot-welcome-main'>{this.renderTab()}</main>
+                {this.renderWorkspaces()}
+                {this.renderSuggestions()}
+                {this.renderThemes()}
+            </div>
         </div>;
     }
 
-    protected renderTab(): React.ReactNode {
-        switch (this.tab) {
-            case 'customize': return this.renderCustomize();
-            case 'plugins': return this.renderPlugins();
-            case 'learn': return this.renderLearn();
-            default: return this.renderProjects();
-        }
-    }
-
-    protected renderProjects(): React.ReactNode {
-        const projects = toRecentProjects(this.recentUris, this.home, this.filter);
-        return <div className='ingot-welcome-projects'>
-            <div className='ingot-welcome-actions'>
-                <input id='ingot-welcome-search' className='theia-input ingot-welcome-search' placeholder='Search projects' value={this.filter}
-                    onChange={e => { this.filter = e.currentTarget.value; this.update(); }} />
-                <button id='ingot-welcome-new' type='button' className='theia-button secondary' onClick={() => this.run(WELCOME_COMMANDS.newFile)}>New File</button>
-                <button id='ingot-welcome-open' type='button' className='theia-button secondary' onClick={() => this.run(WELCOME_COMMANDS.openFolder)}>Open</button>
-                <button id='ingot-welcome-open-workspace' type='button' className='theia-button secondary' onClick={() => this.run(WELCOME_COMMANDS.openWorkspace)}>Open Workspace</button>
-                <button id='ingot-welcome-clone' type='button' className='theia-button secondary' onClick={() => this.cloneRepository()}>Get from VCS</button>
-            </div>
+    protected renderWorkspaces(): React.ReactNode {
+        const projects = toRecentProjects(this.recentUris, this.home);
+        const { shown, more } = visibleWorkspaces(projects, this.expanded, WELCOME_WORKSPACES_VISIBLE);
+        return <section className='ingot-welcome-block' id='ingot-welcome-workspaces'>
+            <h2>Workspaces</h2>
             {projects.length === 0
-                ? <div className='ingot-welcome-empty'>No recent projects yet. Open a folder or clone a repository to get started.</div>
+                ? <div className='ingot-welcome-empty'>No recent workspaces yet. Open a folder or clone a repository to get started.</div>
                 : <ul className='ingot-welcome-list'>
-                    {projects.map(p => (
+                    {shown.map(p => (
                         <li key={p.uri}>
                             <button type='button' className='ingot-welcome-project' title={p.path} onClick={() => this.openProject(p)}>
-                                <span className='ingot-welcome-initials'>{p.initials}</span>
-                                <span className='ingot-welcome-project-text'>
-                                    <span className='ingot-welcome-project-name'>{p.name}{p.kind !== 'folder' && <span className='ingot-badge'>{p.kind}</span>}</span>
-                                    <span className='ingot-welcome-project-path'>{p.path}</span>
-                                </span>
+                                <span className='ingot-welcome-project-name'>{p.name}{p.kind !== 'folder' && <span className='ingot-welcome-kind'> ({p.kind === 'group' ? 'Group' : 'Workspace'})</span>}</span>
+                                <span className='ingot-welcome-project-path'>{p.path}</span>
                             </button>
                         </li>
                     ))}
                 </ul>}
-        </div>;
+            {more && <button id='ingot-welcome-more' type='button' className='ingot-welcome-more' onClick={() => { this.expanded = true; this.update(); }}>Show More...</button>}
+        </section>;
     }
 
-    protected renderCustomize(): React.ReactNode {
-        const current = this.appearance.mode;
-        return <div className='ingot-welcome-section'>
-            <h2>Color theme</h2>
-            <div className='ingot-welcome-themes'>
-                {THEME_CHOICES.map(t => (
-                    <button key={t.id} id={`ingot-theme-${t.id}`} type='button' className={`ingot-welcome-theme ${t.id} ${current === t.id ? 'active' : ''}`} onClick={async () => { await this.appearance.setMode(t.id); this.update(); }}>
-                        <span className='ingot-welcome-theme-preview' />
-                        <span>{t.label}</span>
-                    </button>
-                ))}
-            </div>
-            <h2>Keymap</h2>
-            <p>Ingot ({navigator.platform.toLowerCase().includes('mac') ? 'macOS' : 'Windows/Linux'}) is the default keymap.</p>
-            <button type='button' className='theia-button secondary' onClick={() => this.run(WELCOME_COMMANDS.keymap)}>Configure keymap</button>
-            <button type='button' className='theia-button secondary' onClick={() => this.run(WELCOME_COMMANDS.settings)}>All settings…</button>
-        </div>;
-    }
-
-    protected renderPlugins(): React.ReactNode {
-        return <div className='ingot-welcome-section'>
-            <h2>Plugins</h2>
-            <p>Install themes, languages and tools from Open VSX.</p>
-            <button id='ingot-welcome-open-plugins' type='button' className='theia-button' onClick={() => this.run(WELCOME_COMMANDS.plugins)}>Open Plugins</button>
-        </div>;
-    }
-
-    protected renderLearn(): React.ReactNode {
-        return <div className='ingot-welcome-section'>
-            <h2>Learn</h2>
-            <ul className='ingot-welcome-links'>
-                {LEARN_LINKS.map(l => <li key={l.url}><a href={l.url} onClick={e => { e.preventDefault(); this.windows.openNewWindow(l.url, { external: true }); }}>{l.label}</a></li>)}
+    protected renderSuggestions(): React.ReactNode {
+        return <section className='ingot-welcome-block' id='ingot-welcome-suggested'>
+            <h2>Suggested extensions</h2>
+            <ul className='ingot-welcome-list'>
+                {SUGGESTED_EXTENSIONS.map(s => {
+                    const state = this.suggestionStates.get(s.id) ?? 'idle';
+                    const icon = this.icons.get(s.id);
+                    return <li key={s.id} className='ingot-welcome-ext' data-ext={s.id}>
+                        {icon ? <img className='ingot-welcome-ext-icon' src={icon} alt='' /> : <span className={`ingot-welcome-ext-icon codicon ${s.icon}`} />}
+                        <span className='ingot-welcome-ext-text'>
+                            <span className='ingot-welcome-ext-name'>{s.label}</span>
+                            <span className='ingot-welcome-ext-desc'>{s.description}</span>
+                        </span>
+                        <button type='button' className='ingot-welcome-install' disabled={state === 'installing' || state === 'installed'} onClick={() => void this.install(s)}>
+                            {state === 'installing' ? 'Installing…' : state === 'installed' ? 'Installed' : state === 'failed' ? 'Retry' : 'Install'}
+                        </button>
+                    </li>;
+                })}
             </ul>
+            <button id='ingot-welcome-open-plugins' type='button' className='ingot-welcome-more' onClick={() => this.run(WELCOME_COMMANDS.plugins)}>Browse all extensions</button>
+        </section>;
+    }
+
+    protected renderThemes(): React.ReactNode {
+        const current = this.appearance.mode;
+        return <div className='ingot-welcome-themes' role='group' aria-label='Theme'>
+            {THEME_CHOICES.map(t => (
+                <button key={t.id} id={`ingot-theme-${t.id}`} type='button' className={`ingot-welcome-theme ${current === t.id ? 'active' : ''}`}
+                    onClick={async () => { await this.appearance.setMode(t.id); this.update(); }}>{t.label}</button>
+            ))}
         </div>;
     }
 }
