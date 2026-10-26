@@ -75,7 +75,8 @@ test.describe('IDEA-131 agent terminal and run tools', () => {
 
         // Same command again: no card.
         await ask(page, 'run the hello script again');
-        await expect(page.locator('#ingot-agents .ingot-chat-agent').last()).toContainText('The script printed hello.', { timeout: 30_000 });
+        // Wait for the second answer (the first one also says it), so the next message is not sent mid-run.
+        await expect(page.locator('#ingot-agents .ingot-chat-agent', { hasText: 'The script printed hello.' })).toHaveCount(2, { timeout: 30_000 });
         await expect(page.locator('#ingot-approval')).toHaveCount(0);
 
         // A different command still asks.

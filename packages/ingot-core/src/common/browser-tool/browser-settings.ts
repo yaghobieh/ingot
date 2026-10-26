@@ -1,4 +1,4 @@
-/** IDEA-130/133: Settings › Tools › Agent browser. */
+/** IDEA-130/133: Settings › Tools › Agent tools. */
 export const BROWSER_PREFS = {
     enabled: 'ingot.agent.browser.enabled',
     /** Open, click, type, scroll and back wait on the approval card. */
