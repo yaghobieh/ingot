@@ -46,6 +46,10 @@ test.describe('IDEA-173 Zaprex link', () => {
         await setTheme(page, 'Ingot Dark');
         await expect(logo).toBeVisible();
         await shotHeader(page, 'ide-agent-zaprex-dark');
+        // The T-rex stands alone on a transparent background: no circle or tile behind it, even on hover.
+        await logo.hover();
+        const backgrounds = await logo.evaluate(element => [element, element.firstElementChild!].map(node => getComputedStyle(node).backgroundColor));
+        expect(backgrounds).toEqual(['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)']);
 
         const popup = page.waitForEvent('popup');
         await logo.click();
