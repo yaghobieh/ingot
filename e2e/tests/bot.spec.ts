@@ -28,7 +28,7 @@ const signIn = async (page: Page): Promise<void> => {
 };
 
 /** IDEA-154: the Ingot Bot panel shares the website thread, pauses on approvals and lists runs; the token stays in the backend. */
-test.describe('IDEA-154 Ingot Bot panel', () => {
+test.describe('IDEA-154 Zaprex panel', () => {
     let server: FakeIngotServer;
     test.beforeEach(async () => { server = await startFakeIngotServer(); });
     test.afterEach(async ({ page }) => {
@@ -39,7 +39,7 @@ test.describe('IDEA-154 Ingot Bot panel', () => {
     test('signed out shows sign in; a plan without the bot sees the upgrade card', async ({ page }) => {
         await openIngot(page);
         await dismissNotifications(page);
-        await runCommand(page, 'Ingot Bot');
+        await runCommand(page, 'Zaprex');
         await expect(page.locator('#ingot-bot-signed-out')).toBeVisible();
         server.bot.enabled = false;
         await signIn(page);
@@ -51,8 +51,8 @@ test.describe('IDEA-154 Ingot Bot panel', () => {
         await openIngot(page);
         await dismissNotifications(page);
         await signIn(page);
-        await runCommand(page, 'Ingot Bot');
-        await expect(page.locator('#ingot-bot-usage')).toContainText('3 / 300 bot min');
+        await runCommand(page, 'Zaprex');
+        await expect(page.locator('#ingot-bot-usage')).toContainText('3 / 300 min this month');
         await expect(page.locator('#ingot-bot-test-mode')).toBeVisible();
         await page.locator('#ingot-bot-repo').selectOption({ label: 'ingot-dev/sample-app' });
 

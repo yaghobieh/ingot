@@ -10,7 +10,7 @@ import { IngotBotService } from './bot-service';
 import { BOT_COMPOSER_PLACEHOLDER, BOT_WIDGET_ID, BOT_WIDGET_LABEL } from './bot.browser-consts';
 
 /**
- * IDEA-154: Ingot Bot panel. Reuses the chat look (messages, agent head), the approval card and the processes list
+ * IDEA-154: Zaprex panel. Reuses the chat look (messages, agent head), the approval card and the processes list
  * for runs, over the same `/api/bot` thread as the website.
  */
 @injectable()
@@ -74,7 +74,7 @@ export class IngotBotWidget extends ReactWidget {
         const state = this.bot.snapshot;
         return <div className='ingot-agents-root ingot-bot-root' id='ingot-bot-root'>
             <div className='ingot-agents-header'>
-                <span className='ingot-bot-title'><span className='codicon codicon-sparkle' /> Ingot Bot</span>
+                <span className='ingot-bot-title'><span className='ingot-zaprex-avatar' aria-hidden='true' /> Zaprex</span>
                 {state.runner && state.runner !== 'fly' && <span className='ingot-badge' id='ingot-bot-test-mode' title='Runs use a local sandbox and the mock model'>Test mode</span>}
                 <span className='ingot-flex' />
                 {state.repos.length > 0 && <select className='theia-select ingot-bot-repo' id='ingot-bot-repo' aria-label='Repository' value={state.repoId} onChange={e => this.bot.selectRepo(e.target.value)}>
@@ -92,7 +92,7 @@ export class IngotBotWidget extends ReactWidget {
         const state = this.bot.snapshot;
         if (!state.signedIn) {
             return <div className='ingot-agents-hint' id='ingot-bot-signed-out'>
-                Sign in to Ingot to give the bot background tasks.
+                Sign in to Ingot to give Zaprex background tasks.
                 <div><button type='button' className='theia-button main' id='ingot-bot-sign-in' onClick={() => void this.account.signIn(this.account.devSignInAvailable)}>Sign in</button></div>
             </div>;
         }
@@ -104,17 +104,17 @@ export class IngotBotWidget extends ReactWidget {
         }
         if (state.entitlement && !state.entitlement.enabled) {
             return <div className='ingot-agents-hint' id='ingot-bot-upsell'>
-                {state.entitlement.reason === 'kill_switch' ? 'Ingot Bot is paused by the Ingot team right now.' : 'Ingot Bot is part of Pro+ and Ultra. It fixes tests overnight and opens a draft PR.'}
+                {state.entitlement.reason === 'kill_switch' ? 'Zaprex is paused by the Ingot team right now.' : 'Zaprex is part of Pro+ and Ultra. It fixes tests overnight and opens a draft PR.'}
                 {state.entitlement.reason !== 'kill_switch' && <div><button type='button' className='theia-button main' id='ingot-bot-upgrade' onClick={() => this.account.openBilling()}>See plans</button></div>}
             </div>;
         }
         const pending = state.approvals.filter(a => a.status === 'pending');
         return <>
             {state.usage && <div className='ingot-bot-usage ingot-dim' id='ingot-bot-usage'>
-                {state.usage.minutesUsed}{state.usage.minutesLimit ? ` / ${state.usage.minutesLimit}` : ''} bot min this month · {state.usage.activeRuns}{state.usage.concurrentLimit ? ` / ${state.usage.concurrentLimit}` : ''} running
+                {state.usage.minutesUsed}{state.usage.minutesLimit ? ` / ${state.usage.minutesLimit}` : ''} min this month · {state.usage.activeRuns}{state.usage.concurrentLimit ? ` / ${state.usage.concurrentLimit}` : ''} running
             </div>}
             <div className='ingot-agents-chat' id='ingot-bot-thread'>
-                {state.messages.length ? state.messages.map(m => this.renderMessage(m)) : <div className='ingot-agents-hint'>Try “Fix the failing tests”. The bot works in a sandbox and opens a draft PR. Nothing is pushed to protected branches.</div>}
+                {state.messages.length ? state.messages.map(m => this.renderMessage(m)) : <div className='ingot-agents-hint'>Try “Fix the failing tests”. Zaprex works in a sandbox and opens a draft PR. Nothing is pushed to protected branches.</div>}
             </div>
             {this.renderRuns(state.runs)}
             {pending.map(a => this.renderApproval(a))}
@@ -134,7 +134,7 @@ export class IngotBotWidget extends ReactWidget {
         }
         const pr = m.role === 'bot' ? prLinkIn(m.text) : undefined;
         return <div key={m.id} className={`ingot-chat-msg ingot-chat-${m.role === 'bot' ? 'agent' : 'user'}`} data-role={m.role}>
-            {m.role === 'bot' && <div className='ingot-chat-agent-head'><span className='ingot-chat-logo' aria-hidden='true'>&lt;/&gt;</span><b>Ingot Bot</b></div>}
+            {m.role === 'bot' && <div className='ingot-chat-agent-head'><span className='ingot-zaprex-avatar' aria-hidden='true' /><b>Zaprex</b></div>}
             <div className='ingot-bot-text'>{m.text}</div>
             {pr && <a className='ingot-bot-pr' id='ingot-bot-pr-link' href={pr} target='_blank' rel='noreferrer'>Open draft PR</a>}
         </div>;
@@ -164,7 +164,7 @@ export class IngotBotWidget extends ReactWidget {
         const running = runs.filter(isActiveRun).length;
         return <div className='ingot-processes ingot-bot-runs' id='ingot-bot-runs'>
             <div className='ingot-processes-head'>
-                <span className='ingot-processes-title'>Bot runs</span>
+                <span className='ingot-processes-title'>Zaprex runs</span>
                 <span className='ingot-processes-count' id='ingot-bot-runs-count'>{running ? `${running} running` : 'none running'}</span>
             </div>
             <div className='ingot-processes-list' role='list'>
