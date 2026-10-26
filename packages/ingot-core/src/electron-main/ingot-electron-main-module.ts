@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import { app } from '@theia/core/electron-shared/electron';
 import { ContainerModule } from '@theia/core/shared/inversify';
@@ -8,11 +9,24 @@ import { IngotDeepLinkContribution } from './ingot-deep-link-contribution';
 import { IngotAutoUpdateContribution } from './ingot-auto-update-contribution';
 import { DEFAULT_PLUGINS_ENV, PACKAGED_PLUGINS_DIR } from '../common/update/auto-update.consts';
 import { defaultPluginsValue } from '../common/update/auto-update.utils';
+import { BAKED_ENDPOINTS_KEY } from '../common/account/account.consts';
+import { bakedEndpointEnv } from '../common/account/account-endpoints.utils';
 
 // IDEA-134: packaged apps ship the built-in language plugins in <resources>/plugins (electron-builder extraResources).
 // Set before the backend process is forked (it inherits this env); dev runs pass --plugins=local-dir:../../plugins.
 if (app.isPackaged) {
     process.env[DEFAULT_PLUGINS_ENV] = defaultPluginsValue(process.env[DEFAULT_PLUGINS_ENV], path.join(process.resourcesPath, PACKAGED_PLUGINS_DIR));
+    // IDEA-140: release builds bake the public server and portal URLs into package.json (see docs/release.md).
+    Object.assign(process.env, bakedEndpointEnv(readBakedEndpoints(), process.env));
+}
+
+function readBakedEndpoints(): Record<string, unknown> | undefined {
+    try {
+        const pkg = JSON.parse(fs.readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8'));
+        return pkg?.[BAKED_ENDPOINTS_KEY];
+    } catch {
+        return undefined;
+    }
 }
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
