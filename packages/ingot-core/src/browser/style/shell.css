@@ -23,7 +23,8 @@ body.ingot-shell {
 .ingot-tb-search { display: inline-flex; align-items: center; gap: 8px; height: 26px; width: 240px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--theia-panel-border); background: var(--theia-editor-background); color: var(--theia-descriptionForeground); font: inherit; font-size: 12px; cursor: text; }
 .ingot-tb-search .ingot-icon { width: 14px; height: 14px; }
 .ingot-tb-search-text { flex: 1; text-align: left; }
-.ingot-tb-search-kbd { font-size: 11px; opacity: .8; }
+.ingot-tb-search-kbd { font-size: 11px; line-height: 16px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--ingot-border); background: var(--ingot-panel); color: var(--ingot-text-muted); }
+.ingot-tb-search:hover { color: var(--ingot-text); border-color: var(--ingot-text-muted); }
 .ingot-tb-agents { height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: var(--theia-button-background); color: var(--theia-button-foreground); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
 .ingot-tb-agents:hover { background: var(--theia-button-hoverBackground); }
 
@@ -86,7 +87,25 @@ body.ingot-shell .theia-header, body.ingot-shell .theia-view-container-part-head
 body.ingot-shell .lm-TabBar.theia-app-centers .lm-TabBar-tab { height: 30px; line-height: 30px; font-size: 13px; border: 0 !important; background: transparent; }
 body.ingot-shell .lm-TabBar.theia-app-centers .lm-TabBar-tab.lm-mod-current { box-shadow: inset 0 -2px 0 var(--theia-tab-activeBorder); }
 body.ingot-shell #theia-bottom-content-panel .lm-TabBar-tab .lm-TabBar-tabLabel { text-transform: none !important; }
-body.ingot-shell #theia-bottom-content-panel .lm-TabBar.theia-app-centers .lm-TabBar-tab.lm-mod-current { box-shadow: none; background: var(--theia-list-activeSelectionBackground); border-radius: 6px; height: 24px; line-height: 24px; margin: 3px 2px; }
+/* ---------- Bottom panel tabs (IDEA-121): compact text tabs with icon, gold underline on the active one ---------- */
+body.ingot-shell { --ingot-bottom-tab-height: 30px; --ingot-bottom-tab-hover: rgba(27, 38, 71, 0.06); }
+body.ingot-shell.theia-dark { --ingot-bottom-tab-hover: var(--ingot-forge-navy); }
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar.theia-app-centers { min-height: var(--ingot-bottom-tab-height); max-height: var(--ingot-bottom-tab-height); border-bottom: 1px solid var(--theia-panel-border); background: var(--theia-panel-background); }
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar.theia-app-centers .lm-TabBar-tab,
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar.theia-app-centers .lm-TabBar-tab.lm-mod-current {
+  height: var(--ingot-bottom-tab-height); line-height: var(--ingot-bottom-tab-height); margin: 0 1px; padding: 0 8px 0 10px; border-radius: 0;
+  display: flex; align-items: center; gap: 6px; background: transparent; box-shadow: none; color: var(--theia-descriptionForeground); font-size: 12.5px;
+}
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar.theia-app-centers .lm-TabBar-tab:hover { background: var(--ingot-bottom-tab-hover); color: var(--theia-foreground); }
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar.theia-app-centers .lm-TabBar-tab.lm-mod-current { color: var(--theia-foreground); box-shadow: inset 0 -2px 0 var(--ingot-ingot-gold); font-weight: 600; }
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar.theia-app-centers .lm-TabBar-tab:focus-visible { outline: 2px solid var(--ingot-forge-blue); outline-offset: -2px; border-radius: 4px; }
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar-tab .lm-TabBar-tabIcon { font-size: 14px; width: 14px; margin: 0; opacity: 0.85; }
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar-tab.lm-mod-current .lm-TabBar-tabIcon { color: var(--ingot-ingot-gold); opacity: 1; }
+/* Close buttons appear on hover (and on the active tab). */
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar-tab.lm-mod-closable > .lm-TabBar-tabCloseIcon { visibility: hidden; margin-left: 2px; border-radius: 4px; }
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar-tab.lm-mod-closable:hover > .lm-TabBar-tabCloseIcon,
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar-tab.lm-mod-closable.lm-mod-current > .lm-TabBar-tabCloseIcon { visibility: visible; }
+body.ingot-shell #theia-bottom-content-panel .lm-TabBar-tab > .lm-TabBar-tabCloseIcon:hover { background: var(--ingot-bottom-tab-hover); }
 
 /* ---------- Status bar: flat ---------- */
 body.ingot-shell #theia-statusBar { font-size: 12px; border-top: 0; background: var(--ingot-canvas); height: 24px; }

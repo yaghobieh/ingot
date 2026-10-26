@@ -10,6 +10,15 @@ import { IngotShellLayoutRestorer } from './agents-window-layout-restorer';
 import { IngotPanelsContribution } from './panels-contribution';
 import { IngotShortcutConflictsContribution } from './shortcut-conflicts-contribution';
 import { IngotLayoutCustomContribution } from './layout-custom-contribution';
+import { PreferenceProvider } from '@theia/core/lib/common/preferences/preference-provider';
+import { PreferenceScope } from '@theia/core/lib/common/preferences/preference-scope';
+import { DefaultsPreferenceProvider } from '@theia/core/lib/common/preferences/defaults-preference-provider';
+import { SessionPreferenceProvider } from '@theia/core/lib/common/preferences/session-preference-provider';
+import { JsonSchemaContribution } from '@theia/core/lib/browser/json-schema-store';
+import { WorkspacePreferenceProvider } from '@theia/preferences/lib/browser/workspace-preference-provider';
+import { FoldersPreferencesProvider } from '@theia/preferences/lib/browser/folders-preferences-provider';
+import { IngotUserConfigsPreferenceProvider } from '../settings/global-settings-provider';
+import { IngotGlobalSettingsContribution } from '../settings/global-settings-contribution';
 import '../../../src/browser/style/workbench.css';
 
 /**
@@ -41,4 +50,15 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CommandContribution).toService(IngotLayoutCustomContribution);
     bind(MenuContribution).toService(IngotLayoutCustomContribution);
     bind(FrontendApplicationContribution).toService(IngotLayoutCustomContribution);
+    // IDEA-94: the user scope also reads ~/.ingot/ingot.settings.json. rebind drops every scope's provider, so all five
+    // are bound again exactly as Theia binds them, with only the user one swapped.
+    rebind(PreferenceProvider).to(DefaultsPreferenceProvider).inSingletonScope().whenTargetNamed(PreferenceScope.Default);
+    bind(PreferenceProvider).to(SessionPreferenceProvider).inSingletonScope().whenTargetNamed(PreferenceScope.Session);
+    bind(PreferenceProvider).to(IngotUserConfigsPreferenceProvider).inSingletonScope().whenTargetNamed(PreferenceScope.User);
+    bind(PreferenceProvider).to(WorkspacePreferenceProvider).inSingletonScope().whenTargetNamed(PreferenceScope.Workspace);
+    bind(PreferenceProvider).to(FoldersPreferencesProvider).inSingletonScope().whenTargetNamed(PreferenceScope.Folder);
+    bind(IngotGlobalSettingsContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(IngotGlobalSettingsContribution);
+    bind(JsonSchemaContribution).toService(IngotGlobalSettingsContribution);
+    bind(FrontendApplicationContribution).toService(IngotGlobalSettingsContribution);
 });

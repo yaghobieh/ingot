@@ -1,0 +1,73 @@
+import type { RpcServer } from '@theia/core/lib/common/messaging';
+
+/** IDEA-131/132: processes started by the agent (or the user from the chat's process list). */
+export type ProcessStatus = 'running' | 'exited' | 'failed' | 'stopped';
+export type ProcessOrigin = 'agent' | 'user';
+export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';
+
+export interface ProcessInfo {
+    readonly id: string;
+    readonly command: string;
+    readonly cwd: string;
+    readonly origin: ProcessOrigin;
+    readonly status: ProcessStatus;
+    /** Long-running (dev server, watcher): the agent did not wait for it. */
+    readonly background: boolean;
+    readonly startedAt: number;
+    readonly endedAt?: number;
+    readonly exitCode?: number;
+    readonly pid?: number;
+    /** Ports found in the output ("Local: http://localhost:5173"). */
+    readonly ports: readonly number[];
+}
+
+export interface ProcessStartOptions {
+    readonly cwd: string;
+    readonly command: string;
+    readonly origin?: ProcessOrigin;
+    readonly background?: boolean;
+}
+
+export interface ForegroundOptions extends ProcessStartOptions {
+    /** Wait this long; a process still running then keeps running in the background. */
+    readonly timeoutMs?: number;
+    readonly maxOutput?: number;
+}
+
+export interface ForegroundResult {
+    readonly info: ProcessInfo;
+    readonly output: string;
+    /** Still running after the timeout: it was moved to the background. */
+    readonly movedToBackground: boolean;
+}
+
+export interface ProcessOutput {
+    readonly id: string;
+    readonly text: string;
+    readonly truncated: boolean;
+}
+
+export interface PackageScripts {
+    readonly manager: PackageManager;
+    readonly scripts: Readonly<Record<string, string>>;
+}
+
+export interface ProcessClient {
+    onProcessesChanged(processes: ProcessInfo[]): void;
+}
+
+export const ProcessService = Symbol('IngotProcessService');
+
+export interface ProcessService extends RpcServer<ProcessClient> {
+    list(): Promise<ProcessInfo[]>;
+    /** Starts a process and returns at once (background). */
+    start(options: ProcessStartOptions): Promise<ProcessInfo>;
+    /** Starts a process and waits for it (up to `timeoutMs`). */
+    run(options: ForegroundOptions): Promise<ForegroundResult>;
+    /** The tail of a process's output (ANSI codes removed). */
+    output(id: string, maxChars?: number): Promise<ProcessOutput | undefined>;
+    stop(id: string): Promise<boolean>;
+    /** Removes finished processes from the list. */
+    clearFinished(): Promise<void>;
+    scripts(cwd: string): Promise<PackageScripts | undefined>;
+}
