@@ -86,3 +86,9 @@
 .ingot-fbadge-file::before { content: "\00b7"; }
 .ingot-fbadge-ts { color: #3178C6; } .ingot-fbadge-js { color: #C9A40A; } .ingot-fbadge-npm, .ingot-fbadge-json { color: #C9A13B; }
 .ingot-fbadge-agent { color: var(--ingot-primary); }
+
+/* Settings › Account (IDEA-143). */
+.ingot-settings-account-row { display: flex; align-items: center; gap: 14px; padding: 12px 0; }
+.ingot-settings-account-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.ingot-settings-account-hint { font-size: 11px; }
+.ingot-settings-account-icon { font-size: 32px !important; opacity: .7; }
