@@ -116,7 +116,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
     };
 
     protected optionsFor(key: string): Option[] | undefined {
-        if (key === SETTINGS_PREFS.colorTheme) {
+        if (key === SETTINGS_PREFS.colorTheme || key === 'ingot.appearance.lightTheme' || key === 'ingot.appearance.darkTheme') {
             return this.themes.getThemes().map(t => ({ value: t.id, label: t.label }));
         }
         if (key === SETTINGS_PREFS.iconTheme) {

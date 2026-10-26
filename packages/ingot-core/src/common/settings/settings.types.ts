@@ -1,4 +1,4 @@
-export type SettingsAction = 'openKeymap' | 'openModels' | 'openAgentConfig' | 'openPlugins' | 'importTheme' | 'removeTheme' | 'openAllSettings' | 'openSettingsJson';
+export type SettingsAction = 'pickTheme' | 'openKeymap' | 'openModels' | 'openAgentConfig' | 'openPlugins' | 'importTheme' | 'removeTheme' | 'openAllSettings' | 'openSettingsJson';
 
 export interface SettingsPage {
     readonly id: string;

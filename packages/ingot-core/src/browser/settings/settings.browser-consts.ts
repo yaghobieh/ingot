@@ -10,6 +10,7 @@ export const PLUGINS_OPEN_COMMAND = 'vsxExtensions.toggle';
 
 /** Settings page buttons → commands they run after the dialog closes. */
 export const SETTINGS_ACTION_COMMANDS: Record<SettingsAction, string> = {
+    pickTheme: 'ingot.theme.pick',
     openKeymap: 'keymaps:open',
     openModels: 'ingot.models.open',
     openAgentConfig: 'ingot.agentConfig.open',
@@ -21,7 +22,7 @@ export const SETTINGS_ACTION_COMMANDS: Record<SettingsAction, string> = {
 };
 
 /** Actions that keep the dialog open (they open a picker on top). */
-export const INLINE_ACTIONS: ReadonlySet<SettingsAction> = new Set(['importTheme', 'removeTheme']);
+export const INLINE_ACTIONS: ReadonlySet<SettingsAction> = new Set(['pickTheme', 'importTheme', 'removeTheme']);
 
 export const settingDomId = (key: string): string => `ingot-setting-${key.replace(/[^a-zA-Z0-9]+/g, '-')}`;
 
