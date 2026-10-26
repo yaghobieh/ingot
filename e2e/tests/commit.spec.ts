@@ -155,8 +155,12 @@ test.describe('IDEA-74 commit tool window', () => {
         await diff.locator('.ingot-hunk-revert').first().click();
         await expect(diff.locator('#ingot-diff-summary')).toHaveText('1 change · 1 included');
         await expect.poll(() => fs.readFileSync(path.join(repo, 'a.ts'), 'utf8'), { timeout: 10_000 }).toBe(A_WORK.replace('line 2 changed\n', 'line 2\n'));
-        await diff.locator('.editor.modified .view-lines').click();
-        await page.keyboard.press('Control+z');
+        // Undo needs keyboard focus in the editable side; on slow machines the first click can land before it is ready.
+        await expect(async () => {
+            await diff.locator('.editor.modified .view-lines').click();
+            await expect(diff.locator('.editor.modified .monaco-editor.focused')).toHaveCount(1, { timeout: 1000 });
+        }).toPass({ timeout: 15000 });
+        await page.keyboard.press('ControlOrMeta+z');
         await expect(diff.locator('#ingot-diff-summary')).toHaveText('2 changes · 2 included');
 
         // Toolbar: revert the chunk at the caret, then Revert File… restores HEAD after confirmation.

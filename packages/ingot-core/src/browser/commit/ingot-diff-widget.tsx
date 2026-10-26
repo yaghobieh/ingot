@@ -52,6 +52,8 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
     protected editor: monaco.editor.IStandaloneDiffEditor | undefined;
     protected readonly fileDisposables = new DisposableCollection();
     protected hunks: ChangeHunk[] = [];
+    /** Editable-side content before and after each chunk revert, newest last, so undo can put a revert back exactly. */
+    protected reverted: { before: string; after: string }[] = [];
     protected decorations: monaco.editor.IEditorDecorationsCollection | undefined;
     protected headSha = '';
     protected viewer: Viewer = 'side-by-side';
@@ -79,6 +81,8 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
         this.focusKey = this.contextKeys.createKey<boolean>(DIFF_FOCUS, false);
         this.node.addEventListener('focusin', () => this.focusKey?.set(true));
         this.node.addEventListener('focusout', e => { if (!this.node.contains(e.relatedTarget as Node | null)) { this.focusKey?.set(false); } });
+        // The embedded diff editor has its own keybindings, so ⌘Z / Ctrl+Z is taken here first (capture) to undo a chunk revert too.
+        this.node.addEventListener('keydown', e => this.onUndoKey(e), true);
     }
 
     protected get tracked(): boolean {
@@ -95,18 +99,54 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
             return;
         }
         const next = revertHunk(original.getValue(), modified.getValue(), hunk.index);
+        this.reverted.push({ before: modified.getValue(), after: next });
         editor.getModifiedEditor().pushUndoStop();
         modified.pushEditOperations([], [{ range: modified.getFullModelRange(), text: next }], () => null);
         editor.getModifiedEditor().pushUndoStop();
         this.fileModel?.save().catch(() => undefined);
     }
 
+    /**
+     * Undo in the editable side. Right after a chunk revert the content from before it is put back directly (the
+     * editor's history can be reset when the saved file is re-read); otherwise the model's own undo runs.
+     */
     undo(): void {
-        this.editor?.getModifiedEditor().trigger('keyboard', 'undo', undefined);
+        const model = this.editor?.getModifiedEditor().getModel();
+        if (!model) {
+            return;
+        }
+        const last = this.reverted[this.reverted.length - 1];
+        if (last && model.getValue() === last.after) {
+            this.reverted.pop();
+            model.pushStackElement();
+            model.pushEditOperations([], [{ range: model.getFullModelRange(), text: last.before }], () => null);
+            model.pushStackElement();
+            this.fileModel?.save().catch(() => undefined);
+            return;
+        }
+        if (model.canUndo()) {
+            model.undo();
+        }
+    }
+
+    protected onUndoKey(e: KeyboardEvent): void {
+        if (!(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== 'z') {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.shiftKey) {
+            this.redo();
+        } else {
+            this.undo();
+        }
     }
 
     redo(): void {
-        this.editor?.getModifiedEditor().trigger('keyboard', 'redo', undefined);
+        const model = this.editor?.getModifiedEditor().getModel();
+        if (model?.canRedo()) {
+            model.redo();
+        }
     }
 
     /** × on a chunk: exclude it from the commit (click again to include); the file is not changed. */
@@ -192,6 +232,7 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
     /** Shows another file in this tab (prev/next file navigation). */
     async showFile(path: string): Promise<void> {
         this.fileDisposables.dispose();
+        this.reverted = [];
         this.path = path;
         this.title.label = path.split('/').pop() ?? path;
         this.title.caption = `${path} (HEAD ↔ Your version)`;
