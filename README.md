@@ -7,7 +7,16 @@ Bring any model. Keep your shortcuts. Own your tools.</p>
 
 ---
 
-> **Status:** 0.1.0 in development — UI-first. Nothing to download yet. Tracked in Jira project **IDEA** (board 236).
+> **Status:** 0.1.0 beta — the first public beta is out. Tracked in Jira project **IDEA** (board 236).
+
+## Download
+
+Ingot **0.1.0-beta.1** is a **beta**: expect rough edges, and please report anything that breaks.
+
+- **[Download Ingot](https://ingot-portal.vercel.app/download)** — picks the right installer for your system.
+- **[All releases on GitHub](https://github.com/yaghobieh/ingot/releases)** — macOS (Apple Silicon and Intel `.dmg`), Windows (`.exe`) and Linux (`.AppImage`, `.deb`).
+
+> **macOS first open:** beta builds are not notarized yet. The first time, right-click (or Control-click) Ingot in Applications and choose **Open**, then confirm **Open**. After that it opens normally.
 
 ## Why Ingot
 
