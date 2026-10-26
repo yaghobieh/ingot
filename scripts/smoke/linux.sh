@@ -47,6 +47,16 @@ FATAL='Cannot find module|was compiled against a different Node.js version|ERR_D
 
 # descendants <pid>: every child process, recursively (exact PIDs, so cleanup never touches anything else).
 descendants() { local k; for k in $(ps -o pid= --ppid "$1"); do echo "$k"; descendants "$k"; done; }
+# alive <pid>: running and not a zombie (the container's PID 1 does not reap orphans, so exited ones linger as <defunct>).
+alive() { local st; st="$(ps -o stat= -p "$1" 2>/dev/null)"; [ -n "$st" ] && [ "${st#Z}" = "$st" ]; }
+# electron_main <pid>: the Electron main process at or below <pid> (the AppImage runtime starts it as a child).
+electron_main() {
+  local p="$1"
+  while [ -n "$p" ] && [ "$(basename "$(readlink "/proc/$p/exe" 2>/dev/null)" | cut -d' ' -f1)" != ingot ]; do
+    p="$(ps -o pid= --ppid "$p" | head -1 | tr -d ' ')"
+  done
+  echo "${p:-$1}"
+}
 
 # run_app <name> <cmd...>: launch, wait, check alive + backend listening + log clean, screenshot, stop.
 run_app() {
@@ -67,16 +77,19 @@ run_app() {
   if grep -E "$FATAL" "$OUT/$name.log" > "$OUT/$name-fatal.txt"; then fail "$name: fatal lines in the log: $(head -3 "$OUT/$name-fatal.txt")"; fi
   find "$home" -name '*.log' -size -5M -exec cp --parents {} "$OUT/" \; 2>/dev/null || true
   # IDEA-170: hard-kill the main process (like a crash) and require the backend tree to stop by itself.
-  local tree; tree="$(descendants "$pid" | tr '\n' ' ')"
-  kill -9 "$pid" 2>/dev/null
+  local main; main="$(electron_main "$pid")"
+  local tree; tree="$(descendants "$main" | tr '\n' ' ')"
+  echo "$name: killing Electron main $main (launched as $pid)"
+  kill -9 "$main" 2>/dev/null
   sleep "${SMOKE_ORPHAN_WAIT_SECONDS:-20}"
-  local left=""; for p in $tree; do kill -0 "$p" 2>/dev/null && left="$left $p"; done
+  local left=""; for p in $tree; do alive "$p" && left="$left $p"; done
   if [ -n "$left" ]; then
     fail "$name: processes left running after the main process was killed: $(for p in $left; do ps -o args= -p "$p" | cut -c1-80; done | tr '\n' ';')"
     for p in $left; do kill -9 "$p" 2>/dev/null; done
   else
     echo "$name: all $(echo $tree | wc -w) child processes exited after the main process was killed"
   fi
+  alive "$pid" && kill -9 "$pid" 2>/dev/null
   sleep 2
 }
 
