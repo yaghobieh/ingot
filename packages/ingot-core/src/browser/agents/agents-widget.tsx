@@ -55,6 +55,7 @@ import type { CodeChange } from '../../common/changes/changes.types';
 import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
 import { ProcessStore } from '../processes/process-store';
 import { ProcessesPanel } from '../processes/processes-panel';
+import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
 import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
@@ -619,6 +620,9 @@ export class IngotAgentsWidget extends ReactWidget {
                         ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
                             : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
                         : m.text}
+                    {m.role === 'tool' && !!m.images?.length && <div className='ingot-chat-tool-images'>{m.images.filter(img => img.data).map(img =>
+                        <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
+                            onClick={() => { this.lightbox = img; this.update(); }} />)}</div>}
                     {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && !this.tracker.forMessage(session.id, i).length && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
                     {m.role === 'agent' && this.tracker.forMessage(session.id, i).map(change => <CodeChangeBlock key={change.id} change={change}
                         expanded={!this.collapsedChanges.has(change.id)}
@@ -881,7 +885,7 @@ export class IngotAgentsWidget extends ReactWidget {
             onStop={id => void this.processes.service.stop(id)}
             onRun={() => void this.commands.executeCommand(PROCESS_COMMANDS.run.id)}
             onClear={() => void this.processes.service.clearFinished()}
-            onOpenPort={port => this.windows.openNewWindow(`http://localhost:${port}`, { external: true })}
+            onOpenPort={port => void this.commands.executeCommand(BROWSER_COMMANDS.open.id, `http://localhost:${port}`)}
             readOutput={id => this.processes.service.output(id)} />;
     }
 

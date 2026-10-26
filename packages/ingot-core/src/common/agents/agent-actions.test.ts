@@ -60,4 +60,13 @@ describe('IDEA-109 agent actions', () => {
         expect(updateAlwaysRunCommands(commands, '/p', 'npm test', true)).toEqual({});
         expect(toAlwaysRunCommands({ '/p': ['npm test', ' ', 3], '/q': [] })).toEqual({ '/p': ['npm test'] });
     });
+
+    it('IDEA-130: browser actions read well on the card', () => {
+        const b = (tool: string, args: Record<string, unknown>) => describeAction({ server: 'ingot', tool, args });
+        expect(b('browser_open', { url: 'http://localhost:5173' })).toEqual({ kind: 'browser', label: 'Open page', detail: 'http://localhost:5173' });
+        expect(b('browser_click', { text: 'Sign in' })?.detail).toBe('"Sign in"');
+        expect(b('browser_type', { label: 'Search', text: 'red shoes', submit: true })?.detail).toBe('"red shoes" into "Search" and submit');
+        expect(b('browser_type', { ref: 4, text: 'x' })?.detail).toBe('"x" into [4]');
+        expect(b('browser_read', {})?.kind).toBe('browser');
+    });
 });
