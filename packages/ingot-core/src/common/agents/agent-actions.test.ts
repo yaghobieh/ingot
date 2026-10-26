@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    actionLine, activityLine, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap, updateAlwaysRun, updateAlwaysRunCommands
+    builtinToolEnabled, builtinToolProtocol, actionLine, activityLine, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap, updateAlwaysRun, updateAlwaysRunCommands
 } from './agent-actions';
 
 const git = (args: Record<string, unknown>) => ({ server: 'ingot', tool: 'git', args });
@@ -68,5 +68,19 @@ describe('IDEA-109 agent actions', () => {
         expect(b('browser_type', { label: 'Search', text: 'red shoes', submit: true })?.detail).toBe('"red shoes" into "Search" and submit');
         expect(b('browser_type', { ref: 4, text: 'x' })?.detail).toBe('"x" into [4]');
         expect(b('browser_read', {})?.kind).toBe('browser');
+    });
+
+    it('IDEA-133: Agent tools settings hide the command and browser tools from the prompt', () => {
+        const all = builtinToolProtocol();
+        expect(all).toContain('ingot/run:');
+        expect(all).toContain('ingot/browser_open:');
+        const off = builtinToolProtocol({ terminal: false, browser: false });
+        expect(off).not.toContain('ingot/run:');
+        expect(off).not.toContain('ingot/run_script:');
+        expect(off).not.toContain('ingot/browser_');
+        expect(off).toContain('ingot/scripts:');
+        expect(off).toContain('ingot/processes:');
+        expect(builtinToolEnabled('browser_read', { terminal: true, browser: false })).toBe(false);
+        expect(builtinToolEnabled('process_stop', { terminal: false, browser: true })).toBe(true);
     });
 });

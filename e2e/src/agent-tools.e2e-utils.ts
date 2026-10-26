@@ -32,6 +32,8 @@ export const makeToolsProject = (prefix: string): string => {
 export const setAppearance = async (page: Page, mode: 'light' | 'dark'): Promise<void> => {
     const dialog = page.locator('#ingot-settings');
     await actUntilVisible(() => page.keyboard.press('Control+Alt+S'), dialog);
+    // Settings reopens on the last page; go to Appearance first.
+    await page.locator('#ingot-settings-node-appearance').click();
     await page.locator('#ingot-setting-ingot-appearance').selectOption(mode);
     await page.locator('#ingot-settings-ok').click();
     await expect(dialog).toBeHidden();

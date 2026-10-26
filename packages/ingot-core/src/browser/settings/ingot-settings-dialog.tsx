@@ -15,6 +15,9 @@ import {
     APPROVAL_KIND_LABELS, APPROVAL_PREFS, toAlwaysRunCommands, toAlwaysRunMap, updateAlwaysRun, updateAlwaysRunCommands, type ApprovalKind
 } from '../../common/agents/agent-actions';
 import { MemoryStore } from '../agents/memory-store';
+import { IngotAccountService } from '../account/account-service';
+import { AccountAvatar } from '../account/account-avatar';
+import { SETTINGS_ACCOUNT_TEXT } from '../account/account.consts';
 import { INLINE_ACTIONS, SETTINGS_ACTION_COMMANDS, SettingsDialogProps, settingDomId } from './settings.browser-consts';
 
 interface Option { readonly value: string; readonly label: string }
@@ -29,6 +32,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
     @inject(ThemeService) protected readonly themes: ThemeService;
     @inject(IconThemeService) protected readonly iconThemes: IconThemeService;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
+    @inject(IngotAccountService) protected readonly accounts: IngotAccountService;
 
     protected query = '';
     protected selected = 'appearance';
@@ -51,6 +55,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
         this.acceptButton!.id = 'ingot-settings-ok';
         this.closeButton!.id = 'ingot-settings-cancel';
         this.toDispose.push(this.themes.onDidColorThemeChange(() => this.update()));
+        this.toDispose.push(this.accounts.onDidChange(() => this.update()));
     }
 
     protected override onAfterAttach(msg: Message): void {
@@ -213,6 +218,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
         return <div className='ingot-settings-body' id={`ingot-settings-page-${page.id}`}>
             {page.description && <p className='ingot-settings-description'>{page.description}</p>}
             {page.custom === 'approvals' && this.renderAlwaysRun()}
+            {page.custom === 'account' && this.renderAccount()}
             {page.custom === 'memories' && <section className='ingot-settings-card ingot-settings-memories'><MemoriesManager store={this.memoryStore} /></section>}
             {this.groupsFor(page, keys).map(group => <section key={group.label} className='ingot-settings-card'>
                 <h3 className='ingot-settings-card-title'>{group.label}</h3>
@@ -227,6 +233,33 @@ export class IngotSettingsDialog extends ReactDialog<void> {
                 </a>)}
             </section>}
         </div>;
+    }
+
+    /** IDEA-143: who is signed in, with the Google / GitHub photo (initials when there is none). */
+    protected renderAccount(): React.ReactNode {
+        const account = this.accounts.account;
+        const plan = this.accounts.snapshot.user?.plan;
+        if (!account) {
+            return <section className='ingot-settings-card ingot-settings-account' id='ingot-settings-account'>
+                <div className='ingot-settings-account-row'>
+                    <span className='codicon codicon-account ingot-settings-account-icon' />
+                    <div className='ingot-settings-account-text'><b>{SETTINGS_ACCOUNT_TEXT.notSignedIn}</b></div>
+                    <button type='button' id='ingot-settings-account-sign-in' className='theia-button' onClick={() => this.accounts.signIn(false)}>{SETTINGS_ACCOUNT_TEXT.signIn}</button>
+                </div>
+            </section>;
+        }
+        const src = this.accounts.avatarSrc;
+        return <section className='ingot-settings-card ingot-settings-account' id='ingot-settings-account'>
+            <div className='ingot-settings-account-row'>
+                <AccountAvatar id='ingot-settings-avatar' account={account} src={src} className='ingot-avatar-lg' />
+                <div className='ingot-settings-account-text'>
+                    <b id='ingot-settings-account-name'>{account.name}</b>
+                    {account.email && <span className='ingot-dim'>{account.email}{plan ? ` · ${plan[0].toUpperCase()}${plan.slice(1)}` : ''}</span>}
+                    <span className='ingot-dim ingot-settings-account-hint'>{src ? SETTINGS_ACCOUNT_TEXT.photo : SETTINGS_ACCOUNT_TEXT.initials}</span>
+                </div>
+                <button type='button' id='ingot-settings-account-dashboard' className='theia-button secondary' onClick={() => this.accounts.openDashboard()}>{SETTINGS_ACCOUNT_TEXT.dashboard}</button>
+            </div>
+        </section>;
     }
 
     protected renderSetting(key: string): React.ReactNode {

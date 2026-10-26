@@ -1036,3 +1036,10 @@ button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true']
 .ingot-blocked-actions { display: flex; gap: 8px; justify-content: center; }
 .ingot-blocked-screen[hidden] { display: none; }
 .ingot-update-icon { font-size: 32px !important; color: var(--theia-button-background); }
+
+/* IDEA-143: provider photo (Google / GitHub) with initials fallback. */
+.ingot-avatar-img { object-fit: cover; background: var(--theia-sideBar-background); }
+.ingot-avatar[data-initials]:empty::before { content: attr(data-initials); }
+.ingot-avatar-lg { width: 48px; height: 48px; font-size: 18px; flex: none; }
+.ingot-agents .ingot-chat-user.ingot-chat-has-avatar { position: relative; margin-right: 28px; }
+.ingot-chat-user-avatar { position: absolute; right: -28px; top: 2px; width: 20px; height: 20px; font-size: 9px; }

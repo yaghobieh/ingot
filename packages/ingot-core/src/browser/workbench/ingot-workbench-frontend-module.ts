@@ -9,6 +9,7 @@ import { IngotAgentsWindowContribution } from './agents-window-contribution';
 import { IngotShellLayoutRestorer } from './agents-window-layout-restorer';
 import { IngotPanelsContribution } from './panels-contribution';
 import { IngotShortcutConflictsContribution } from './shortcut-conflicts-contribution';
+import { IngotLayoutCustomContribution } from './layout-custom-contribution';
 import { PreferenceProvider } from '@theia/core/lib/common/preferences/preference-provider';
 import { PreferenceScope } from '@theia/core/lib/common/preferences/preference-scope';
 import { DefaultsPreferenceProvider } from '@theia/core/lib/common/preferences/defaults-preference-provider';
@@ -45,6 +46,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotShortcutConflictsContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(IngotShortcutConflictsContribution);
 
+    bind(IngotLayoutCustomContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(IngotLayoutCustomContribution);
+    bind(MenuContribution).toService(IngotLayoutCustomContribution);
+    bind(FrontendApplicationContribution).toService(IngotLayoutCustomContribution);
     // IDEA-94: the user scope also reads ~/.ingot/ingot.settings.json. rebind drops every scope's provider, so all five
     // are bound again exactly as Theia binds them, with only the user one swapped.
     rebind(PreferenceProvider).to(DefaultsPreferenceProvider).inSingletonScope().whenTargetNamed(PreferenceScope.Default);

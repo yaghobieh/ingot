@@ -68,3 +68,20 @@ check the app it just started, fill a form, read docs.
 - The desktop app uses an isolated web view (its own cookie store, no Node access, http and https only). The web
   build shows pages through Ingot's server without running their scripts, so use the desktop app for
   script-heavy sites and for screenshots.
+
+## Settings
+
+**Settings › Tools › Agent tools** (also in `settings.json`):
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| Let the agent run commands (`ingot.agent.terminal.enabled`) | on | Off hides `ingot/run` and `ingot/run_script` from the agent; it can still list scripts and processes. |
+| Ask before running commands (`ingot.agent.terminal.requireApproval`) | on | Off runs commands without the approval card. |
+| Foreground timeout (`ingot.agent.terminal.foregroundTimeoutSeconds`) | 120 | After this, a foreground command keeps running in the background. |
+| Output sent to the agent (`ingot.agent.terminal.maxOutputChars`) | 16000 | The latest characters of output per result. |
+| Show background processes in the chat (`ingot.agent.processes.showInChat`) | on | The Processes list above the composer. |
+| Let the agent use the browser (`ingot.agent.browser.enabled`) | on | Off hides the browser tools from the agent. |
+| Ask before browser actions (`ingot.agent.browser.requireApproval`) | on | Open, click, type, scroll and back wait on the card. |
+| Also ask before reading pages and screenshots (`ingot.agent.browser.approveReads`) | off | Reads and screenshots ask too. |
+
+**Always Run** choices (per command, or per action type) are listed under Settings › Tools › Agent approvals.
