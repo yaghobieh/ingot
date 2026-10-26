@@ -83,6 +83,7 @@
           "editor.fontSize": 13,
           "editor.lineHeight": 20,
           "editor.minimap.enabled": false,
+          "editor.wordWrap": "on",
           "editor.renderLineHighlight": "all",
           "terminal.integrated.fontFamily": "'JetBrains Mono', Menlo, Consolas, monospace",
           "terminal.integrated.fontSize": 13,
