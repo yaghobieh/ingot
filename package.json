@@ -60,6 +60,13 @@
     "vscode.git": "https://open-vsx.org/api/vscode/git/1.95.3/file/vscode.git-1.95.3.vsix",
     "vscode.git-base": "https://open-vsx.org/api/vscode/git-base/1.95.3/file/vscode.git-base-1.95.3.vsix",
     "vscode.npm": "https://open-vsx.org/api/vscode/npm/1.95.3/file/vscode.npm-1.95.3.vsix",
-    "vscode.emmet": "https://open-vsx.org/api/vscode/emmet/1.95.3/file/vscode.emmet-1.95.3.vsix"
+    "vscode.emmet": "https://open-vsx.org/api/vscode/emmet/1.95.3/file/vscode.emmet-1.95.3.vsix",
+    "ms-vscode.js-debug": "https://open-vsx.org/api/ms-vscode/js-debug/1.140.0/file/ms-vscode.js-debug-1.140.0.vsix",
+    "xdebug.php-debug": "https://open-vsx.org/api/xdebug/php-debug/1.40.2/file/xdebug.php-debug-1.40.2.vsix",
+    "redhat.java": "https://open-vsx.org/api/redhat/java/${targetPlatform}/1.58.0/file/redhat.java-1.58.0@${targetPlatform}.vsix",
+    "vscjava.vscode-java-debug": "https://open-vsx.org/api/vscjava/vscode-java-debug/0.60.0/file/vscjava.vscode-java-debug-0.60.0.vsix",
+    "vscode.php": "https://open-vsx.org/api/vscode/php/1.95.3/file/vscode.php-1.95.3.vsix",
+    "vscode.java": "https://open-vsx.org/api/vscode/java/1.95.3/file/vscode.java-1.95.3.vsix",
+    "vscode.python": "https://open-vsx.org/api/vscode/python/1.95.3/file/vscode.python-1.95.3.vsix"
   }
 }

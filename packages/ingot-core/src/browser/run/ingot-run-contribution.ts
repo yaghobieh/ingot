@@ -9,10 +9,12 @@ import type { TerminalWidget } from '@theia/terminal/lib/browser/base/terminal-w
 import { INGOT_RUN_COMMANDS } from '../../common/keymap/ingot.keymap.consts';
 import { pickRunScript } from '../../common/vcs/vcs.utils';
 import { runCommandLine } from '../../common/vcs/run.utils';
+import { IngotDebugLauncher } from '../debug/ingot-debug-launcher';
 
-type RunKind = 'run' | 'debug';
-
-/** Run / Debug the project's default run configuration (its dev/start npm script) like a full IDE (IDEA-24). */
+/**
+ * Run / Debug like a full IDE (IDEA-24, IDEA-138): Run starts the project's dev/start npm script in a terminal
+ * (or the selected run/debug configuration without the debugger); Debug starts a real debug session.
+ */
 @injectable()
 export class IngotRunContribution implements CommandContribution {
 
@@ -21,13 +23,14 @@ export class IngotRunContribution implements CommandContribution {
     @inject(TerminalService) protected readonly terminals: TerminalService;
     @inject(ApplicationShell) protected readonly shell: ApplicationShell;
     @inject(MessageService) protected readonly messages: MessageService;
+    @inject(IngotDebugLauncher) protected readonly debugLauncher: IngotDebugLauncher;
 
     protected session?: TerminalWidget;
 
     registerCommands(registry: CommandRegistry): void {
-        registry.registerCommand(INGOT_RUN_COMMANDS.run, { execute: () => this.start('run') });
-        registry.registerCommand(INGOT_RUN_COMMANDS.debug, { execute: () => this.start('debug') });
-        registry.registerCommand(INGOT_RUN_COMMANDS.stop, { execute: () => this.stop(), isEnabled: () => !!this.session && !this.session.isDisposed });
+        registry.registerCommand(INGOT_RUN_COMMANDS.run, { execute: () => this.runSelected() });
+        registry.registerCommand(INGOT_RUN_COMMANDS.debug, { execute: () => this.debugLauncher.launch() });
+        registry.registerCommand(INGOT_RUN_COMMANDS.stop, { execute: () => this.stopAll(), isEnabled: () => this.terminalAlive || this.debugLauncher.sessionActive });
     }
 
     protected async script(): Promise<{ root: string; script: string } | undefined> {
@@ -43,24 +46,41 @@ export class IngotRunContribution implements CommandContribution {
         }
     }
 
-    protected async start(kind: RunKind): Promise<void> {
+    protected get terminalAlive(): boolean {
+        return !!this.session && !this.session.isDisposed;
+    }
+
+    /** A selected launch configuration runs without the debugger; otherwise the npm script runs in a terminal. */
+    protected async runSelected(): Promise<void> {
+        if (this.debugLauncher.explicitName) {
+            await this.debugLauncher.launch(true);
+            return;
+        }
         const target = await this.script();
         if (!target) {
-            this.messages.info('No run configuration: add a "dev" or "start" script to package.json, or run a task.');
+            if (this.debugLauncher.hasConfiguration) {
+                await this.debugLauncher.launch(true);
+            } else {
+                this.messages.info('No run configuration: add a "dev" or "start" script to package.json, or create a run/debug configuration.');
+            }
             return;
         }
         // Like classic IDE single-instance run configurations: rerunning stops the previous process.
         this.stop();
         this.session?.dispose();
-        const title = `${kind === 'run' ? 'Run' : 'Debug'}: ${target.script}`;
+        const title = `Run: ${target.script}`;
         const terminal = await this.terminals.newTerminal({ title, cwd: target.root, destroyTermOnClose: true, useServerTitle: false });
         await terminal.start();
         this.terminals.open(terminal, { widgetOptions: { area: 'bottom' }, mode: 'activate' });
         this.shell.expandPanel('bottom');
-        terminal.sendText(`${runCommandLine(target.script, kind === 'debug')}\r`);
+        terminal.sendText(`${runCommandLine(target.script, false)}\r`);
         this.session = terminal;
-        if (kind === 'debug') {
-            this.messages.info(`Started "${target.script}" with the Node inspector (--inspect). Attach from the Debug tool window (Alt+5).`);
+    }
+
+    protected async stopAll(): Promise<void> {
+        this.stop();
+        if (this.debugLauncher.sessionActive) {
+            await this.debugLauncher.stop();
         }
     }
 

@@ -77,7 +77,12 @@
           "terminal.integrated.fontSize": 13,
           "workbench.tree.indent": 12,
           "workbench.statusBar.visible": true,
-          "window.menuBarVisibility": "compact"
+          "window.menuBarVisibility": "compact",
+          "debug.inlineValues": true,
+          "redhat.telemetry.enabled": false,
+          "java.help.firstView": "none",
+          "java.help.showReleaseNotes": false,
+          "java.configuration.updateBuildConfiguration": "automatic"
         }
       }
     },

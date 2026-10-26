@@ -19,6 +19,8 @@ export const INGOT_RUN_COMMANDS = {
 /** Keeps Ingot shortcuts from stealing the agent review keys (Ctrl+Y / Ctrl+N, ⌥↑ / ⌥↓) while changes wait. */
 const NOT_REVIEWING = `!${CHANGES_PENDING_KEY}`;
 const EDITOR = 'editorTextFocus';
+/** A debug session is running. */
+const IN_DEBUG = 'inDebugMode';
 /** Focus is inside the Agents tool window (chat). */
 const AGENTS_FOCUS = 'ingotAgentsFocus';
 const EDITOR_NOT_REVIEWING = `${EDITOR} && ${NOT_REVIEWING}`;
@@ -87,6 +89,13 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Run', command: INGOT_RUN_COMMANDS.run.id, mac: 'ctrl+r', other: 'shift+f10' },
     { action: 'Debug', command: INGOT_RUN_COMMANDS.debug.id, mac: 'ctrl+d', other: 'shift+f9' },
     { action: 'Stop', command: INGOT_RUN_COMMANDS.stop.id, mac: 'ctrlcmd+f2', other: 'ctrl+f2' },
+    // Debugger (IDEA-138)
+    { action: 'Run/Debug Configurations', command: 'ingot.debug.selectConfiguration', mac: 'ctrl+alt+r', other: 'alt+shift+f10' },
+    { action: 'Toggle Line Breakpoint', command: 'editor.debug.action.toggleBreakpoint', mac: 'ctrlcmd+f8', other: 'ctrl+f8', when: EDITOR },
+    { action: 'Step Over', command: 'workbench.action.debug.stepOver', mac: 'f8', other: 'f8', when: IN_DEBUG },
+    { action: 'Step Into', command: 'workbench.action.debug.stepInto', mac: 'f7', other: 'f7', when: IN_DEBUG },
+    { action: 'Step Out', command: 'workbench.action.debug.stepOut', mac: 'shift+f8', other: 'shift+f8', when: IN_DEBUG },
+    { action: 'Resume Program', command: 'workbench.action.debug.continue', mac: 'ctrlcmd+alt+r', other: 'f9', when: IN_DEBUG },
     // Settings
     { action: 'Settings', command: 'ingot.settings.open', mac: 'ctrlcmd+,', other: 'ctrl+alt+s' },
     { action: 'Keymap', command: 'keymaps:open', mac: 'ctrlcmd+alt+k', other: 'ctrl+alt+k' },
