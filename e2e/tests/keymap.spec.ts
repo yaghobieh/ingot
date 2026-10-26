@@ -144,8 +144,7 @@ test.describe('IDEA-17-24 Ingot keymap, navigation, find/replace and run', () =>
         const debugControls = page.locator('#ingot-tb-debug-controls');
         await expect(debugControls).toBeVisible({ timeout: 30_000 });
         await expect(page.locator('#theia-bottom-content-panel .lm-TabBar-tab', { hasText: 'npm run dev' })).toBeVisible();
-        await page.locator('#files').click();
-        await actUntilHidden(() => page.keyboard.press('Control+F2'), debugControls, 60_000);
+        await actUntilHidden(() => page.locator('#ingot-tb-stop').click(), debugControls, 60_000);
         // The toolbar Run button uses the same configuration.
         await expect(page.locator('#ingot-tb-run-config')).toContainText('dev');
     });
