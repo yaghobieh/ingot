@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { actionLine, activityLine, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunMap, updateAlwaysRun } from './agent-actions';
+import {
+    actionLine, activityLine, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap, updateAlwaysRun, updateAlwaysRunCommands
+} from './agent-actions';
 
 const git = (args: Record<string, unknown>) => ({ server: 'ingot', tool: 'git', args });
 
@@ -36,5 +38,26 @@ describe('IDEA-109 agent actions', () => {
         expect(activityLine([{ kind: 'read', target: 'a.ts, b.ts' }, { kind: 'read', target: 'rules: x' }, { kind: 'run', target: 'ingot/web_search' }, { kind: 'search', target: 'q' }])).toBe('Exploring 2 files, 2 searches');
         expect(activityLine([])).toBeUndefined();
         expect(skippedResult({ kind: 'git', label: 'Git push', detail: 'main → origin' }, 'not yet')).toContain('Reason: not yet');
+    });
+
+    it('IDEA-131: run tools describe their command; reads run at once', () => {
+        const run = (args: Record<string, unknown>) => describeAction({ server: 'ingot', tool: 'run', args });
+        expect(run({ command: ' npm test ' })).toEqual({ kind: 'terminal', label: 'Run command', detail: 'npm test', command: 'npm test' });
+        expect(run({ command: 'npm run dev', background: true })?.label).toBe('Run in background');
+        for (const tool of ['scripts', 'processes', 'process_output']) {
+            expect(describeAction({ server: 'ingot', tool, args: {} })).toBeUndefined();
+        }
+        expect(describeAction({ server: 'ingot', tool: 'process_stop', args: { id: 'p2' } })).toEqual({ kind: 'terminal', label: 'Stop process', detail: 'p2' });
+    });
+
+    it('IDEA-131: Always Run for commands is per command', () => {
+        const test = { kind: 'terminal' as const, label: 'Run command', detail: 'npm test', command: 'npm test' };
+        const commands = updateAlwaysRunCommands(undefined, '/p', 'npm test');
+        expect(needsApproval(test, '/p', {}, true, commands)).toBe(false);
+        expect(needsApproval({ ...test, detail: 'rm -rf x', command: 'rm -rf x' }, '/p', {}, true, commands)).toBe(true);
+        expect(needsApproval(test, '/q', {}, true, commands)).toBe(true);
+        expect(updateAlwaysRunCommands(updateAlwaysRunCommands(commands, '/p', 'npm test'), '/p', 'npm run build')).toEqual({ '/p': ['npm test', 'npm run build'] });
+        expect(updateAlwaysRunCommands(commands, '/p', 'npm test', true)).toEqual({});
+        expect(toAlwaysRunCommands({ '/p': ['npm test', ' ', 3], '/q': [] })).toEqual({ '/p': ['npm test'] });
     });
 });

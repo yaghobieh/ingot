@@ -6,6 +6,9 @@ import { PORTS_SERVICE_PATH } from '../common/ports/ports.consts';
 import { PortsService } from '../common/ports/ports.types';
 import { IngotPortsService } from './ingot-ports-service';
 import { IngotAgentActionsService } from './ingot-agent-actions-service';
+import { IngotProcessService } from './ingot-process-service';
+import { ProcessService, type ProcessClient } from '../common/processes/processes.types';
+import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
 import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agents/agent-actions-service';
 import { IngotModelService } from './ingot-model-service';
 import { MODEL_SERVICE_PATH } from '../common/models/models.consts';
@@ -35,6 +38,14 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotAgentActionsService).toSelf().inSingletonScope();
     bind(AgentActionsService).toService(IngotAgentActionsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(AGENT_ACTIONS_SERVICE_PATH, () => ctx.container.get<AgentActionsService>(AgentActionsService))).inSingletonScope();
+    bind(IngotProcessService).toSelf().inSingletonScope();
+    bind(ProcessService).toService(IngotProcessService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<ProcessClient>(PROCESS_SERVICE_PATH, client => {
+        const service = ctx.container.get(IngotProcessService);
+        service.setClient(client);
+        client.onDidCloseConnection(() => service.removeClient(client));
+        return service;
+    })).inSingletonScope();
     bind(IngotAccountBackend).toSelf().inSingletonScope();
     bind(AccountBackend).toService(IngotAccountBackend);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<AccountClient>(ACCOUNT_SERVICE_PATH, client => {

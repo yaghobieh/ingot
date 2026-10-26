@@ -36,9 +36,12 @@ import type { ProjectCommand } from '../../common/project-config/project-config.
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import {
-    APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunMap, updateAlwaysRun,
-    type AgentAction, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
+    APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
+    updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
 } from '../../common/agents/agent-actions';
+import { ProcessStore } from '../processes/process-store';
+import { describeProcesses, isSafeScriptName, scriptCommand } from '../../common/processes/processes.utils';
+import { runToolSettings, type RunToolSettings } from '../../common/processes/run-settings';
 import { AgentActionsService, type AgentActionResult } from '../../common/agents/agent-actions-service';
 import { GitService } from '../../common/git/git.types';
 import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
@@ -62,6 +65,7 @@ export class AgentStore {
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
     @inject(AgentActionsService) protected readonly actions: AgentActionsService;
     @inject(GitService) protected readonly git: GitService;
+    @inject(ProcessStore) protected readonly processes: ProcessStore;
     /** IDEA-109: runs waiting on the approval card, per session. */
     protected readonly approvals = new Map<string, (choice: { decision: ApprovalDecision; reason?: string; stopped?: boolean }) => void>();
     /** IDEA-105: paused runs waiting for Continue (or the countdown), per session. */
@@ -417,6 +421,20 @@ export class AgentStore {
         this.changed();
     }
 
+    /** IDEA-131: commands that run without the card, per project. */
+    get alwaysRunCommands(): AlwaysRunCommands {
+        return toAlwaysRunCommands(this.preferences.get(APPROVAL_PREFS.alwaysRunCommands));
+    }
+
+    async setAlwaysRunCommand(project: string, command: string, enabled: boolean): Promise<void> {
+        await this.preferences.set(APPROVAL_PREFS.alwaysRunCommands, updateAlwaysRunCommands(this.alwaysRunCommands, project, command, !enabled), PreferenceScope.User);
+        this.changed();
+    }
+
+    get runSettings(): RunToolSettings {
+        return runToolSettings(key => this.preferences.get(key));
+    }
+
     protected askApproval(session: AgentSession, action: AgentAction): Promise<{ decision: ApprovalDecision; reason?: string; stopped?: boolean }> {
         const previous = session.status;
         session.approval = { ...action, id: `approval-${Date.now().toString(36)}-${nextId++}` };
@@ -730,14 +748,24 @@ export class AgentStore {
     protected async runTools(session: AgentSession, calls: readonly AgentToolCall[]): Promise<boolean> {
         const root = this.rootFor(session);
         const rootPath = root?.path.fsPath();
-        for (const call of calls) {
+        for (const raw of calls) {
+            const resolved = await this.resolveCall(raw, rootPath);
+            if ('error' in resolved) {
+                session.messages.push({ role: 'tool', from: `${raw.server}/${raw.tool}`, text: `Error: ${resolved.error}` });
+                this.changed();
+                continue;
+            }
+            const call = resolved.call;
             const target = `${call.server}/${call.tool}`;
             const isGit = call.server === BUILTIN_TOOL_SERVER && call.tool === 'git';
             const branch = isGit && rootPath && call.args.op === 'push' && !call.args.branch
                 ? (await this.git.run(rootPath, { kind: 'currentBranch' }).catch(() => ({ output: '' }))).output.trim() || undefined : undefined;
-            const action = describeAction(call, branch);
+            const described = describeAction(call, branch);
+            // Stopping a process the agent started itself never asks; the user's own processes do.
+            const action = call.server === BUILTIN_TOOL_SERVER && call.tool === 'process_stop' && this.processes.find(String(call.args.id))?.origin !== 'user' ? undefined : described;
             const requireGit = this.preferences.get<boolean>(APPROVAL_PREFS.gitRequireApproval, true) !== false;
-            if (action && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit)) {
+            const requireRun = action?.kind !== 'terminal' || this.runSettings.requireApproval;
+            if (action && requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)) {
                 const choice = await this.askApproval(session, action);
                 if (choice.stopped) {
                     return false;
@@ -748,7 +776,7 @@ export class AgentStore {
                     continue;
                 }
                 if (choice.decision === 'always' && rootPath) {
-                    await this.setAlwaysRun(rootPath, action.kind, true);
+                    await (action.command ? this.setAlwaysRunCommand(rootPath, action.command, true) : this.setAlwaysRun(rootPath, action.kind, true));
                 }
             }
             session.steps = [...session.steps, { kind: 'run', target, done: false }];
@@ -779,7 +807,26 @@ export class AgentStore {
                     const result = await this.git.run(rootPath, gitOperationFor(call.args));
                     return { text: result.output.trim() || 'Done.', isError: false };
                 }
-                case 'run': return await this.actions.runCommand(rootPath, str(call.args.command));
+                case 'run': return await this.runCommand(rootPath, str(call.args.command), call.args.background === true);
+                case 'scripts': {
+                    const found = await this.processes.service.scripts(rootPath);
+                    if (!found || !Object.keys(found.scripts).length) {
+                        return { text: 'No package.json scripts in this project.', isError: false };
+                    }
+                    return { text: [`Package manager: ${found.manager}`, ...Object.entries(found.scripts).map(([name, cmd]) => `- ${name}: ${cmd}`)].join('\n'), isError: false };
+                }
+                case 'processes': return { text: describeProcesses(await this.processes.service.list(), Date.now()), isError: false };
+                case 'process_output': {
+                    const out = await this.processes.service.output(str(call.args.id), this.runSettings.maxOutputChars);
+                    const info = this.processes.find(str(call.args.id)) ?? (await this.processes.service.list()).find(p => p.id === str(call.args.id));
+                    return out
+                        ? { text: `${info ? describeProcesses([info], Date.now()) : out.id}\n${out.truncated ? '… (earlier output cut)\n' : ''}${out.text.trimEnd() || '(no output yet)'}`, isError: false }
+                        : { text: `No process "${str(call.args.id)}". Use ingot/processes to list them.`, isError: true };
+                }
+                case 'process_stop': {
+                    const stopped = await this.processes.service.stop(str(call.args.id));
+                    return stopped ? { text: `Stopped ${str(call.args.id)}.`, isError: false } : { text: `Process "${str(call.args.id)}" is not running.`, isError: true };
+                }
                 case 'web_search': return await this.actions.search(str(call.args.query));
                 case 'web_fetch': return await this.actions.fetchUrl(str(call.args.url));
                 case 'delete': {
@@ -795,6 +842,49 @@ export class AgentStore {
         } catch (error) {
             return { text: error instanceof Error ? error.message : String(error), isError: true };
         }
+    }
+
+    /**
+     * IDEA-131: `run_script` becomes a `run` of "<manager> run <script>" so the card shows (and Always Run remembers)
+     * the real command.
+     */
+    protected async resolveCall(call: AgentToolCall, rootPath: string | undefined): Promise<{ call: AgentToolCall } | { error: string }> {
+        if (call.server !== BUILTIN_TOOL_SERVER || call.tool !== 'run_script') {
+            return { call };
+        }
+        const script = typeof call.args.script === 'string' ? call.args.script.trim() : '';
+        if (!rootPath) {
+            return { error: 'Open a project first.' };
+        }
+        const found = await this.processes.service.scripts(rootPath).catch(() => undefined);
+        if (!script || !isSafeScriptName(script) || !found || !(script in found.scripts)) {
+            const known = found ? Object.keys(found.scripts).join(', ') : '';
+            return { error: `No script "${script}" in package.json.${known ? ` Scripts: ${known}.` : ''}` };
+        }
+        return { call: { server: BUILTIN_TOOL_SERVER, tool: 'run', args: { command: scriptCommand(found.manager, script), background: call.args.background === true } } };
+    }
+
+    /** IDEA-131: a command in the foreground (waits, then moves to the background after the timeout) or in the background. */
+    protected async runCommand(cwd: string, command: string, background: boolean): Promise<AgentActionResult> {
+        if (!command.trim()) {
+            return { text: 'No command given.', isError: true };
+        }
+        const settings = this.runSettings;
+        if (!settings.enabled) {
+            return { text: 'Running commands is turned off in Settings › Tools › Agent terminal.', isError: true };
+        }
+        const service = this.processes.service;
+        if (background) {
+            const info = await service.start({ cwd, command, background: true, origin: 'agent' });
+            const out = await service.output(info.id, settings.maxOutputChars);
+            const state = info.status === 'running' ? `Running in the background as ${info.id}${info.ports.length ? ` on port ${info.ports.join(', ')}` : ''}.` : `Exited with code ${info.exitCode ?? '?'}.`;
+            return { text: `${state} Read more output with ingot/process_output, stop it with ingot/process_stop.\n${out?.text.trimEnd() ?? ''}`.trim(), isError: info.status === 'failed' };
+        }
+        const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: settings.foregroundTimeoutSeconds * 1000, maxOutput: settings.maxOutputChars });
+        const status = result.movedToBackground
+            ? `Still running after ${settings.foregroundTimeoutSeconds}s: moved to the background as ${result.info.id}${result.info.ports.length ? ` (port ${result.info.ports.join(', ')})` : ''}. Use ingot/process_output or ingot/process_stop.`
+            : result.info.status === 'stopped' ? 'Stopped.' : `Exit code ${result.info.exitCode ?? '?'}.`;
+        return { text: `${result.output.trimEnd()}\n${status}`.trim(), isError: !result.movedToBackground && result.info.status !== 'exited' };
     }
 
     /** Where an agent message's edits come from (its chat, itself, and the user message it answers). */

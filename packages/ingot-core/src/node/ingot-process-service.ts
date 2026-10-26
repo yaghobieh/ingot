@@ -1,0 +1,222 @@
+import { spawn, type ChildProcess } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import { injectable } from '@theia/core/shared/inversify';
+import type {
+    ForegroundOptions, ForegroundResult, PackageScripts, ProcessClient, ProcessInfo, ProcessOutput, ProcessService, ProcessStartOptions
+} from '../common/processes/processes.types';
+import {
+    BACKGROUND_SETTLE_MS, FOREGROUND_TIMEOUT_MS, MAX_FINISHED_PROCESSES, PROCESS_AGENT_OUTPUT_CHARS, PROCESS_BUFFER_CHARS, PROCESS_LIST_DEBOUNCE_MS, STOP_GRACE_MS
+} from '../common/processes/processes.consts';
+import { appendTail, detectPorts, finalStatus, packageManagerFor, parseScripts, sortProcesses, stripAnsi } from '../common/processes/processes.utils';
+
+interface Entry {
+    info: ProcessInfo;
+    child?: ChildProcess;
+    output: string;
+    dropped: boolean;
+    stopRequested: boolean;
+    exited: Promise<void>;
+}
+
+let nextId = 1;
+
+/**
+ * IDEA-131/132: runs commands for the agent (and the user, from the chat's process list) in their own process group,
+ * keeps the tail of their output, detects ports, and pushes live status to every window.
+ */
+@injectable()
+export class IngotProcessService implements ProcessService {
+
+    protected readonly entries = new Map<string, Entry>();
+    protected readonly clients = new Set<ProcessClient>();
+    protected notifyTimer?: ReturnType<typeof setTimeout>;
+
+    constructor() {
+        process.once('exit', () => this.killAll());
+    }
+
+    setClient(client: ProcessClient | undefined): void {
+        if (client) {
+            this.clients.add(client);
+        }
+    }
+
+    removeClient(client: ProcessClient): void {
+        this.clients.delete(client);
+    }
+
+    dispose(): void {
+        this.killAll();
+    }
+
+    async list(): Promise<ProcessInfo[]> {
+        return sortProcesses([...this.entries.values()].map(e => e.info));
+    }
+
+    async start(options: ProcessStartOptions): Promise<ProcessInfo> {
+        const entry = this.spawn({ ...options, background: options.background ?? true });
+        // Give a dev server a moment so the caller sees its first output (and port).
+        await Promise.race([entry.exited, delay(BACKGROUND_SETTLE_MS)]);
+        return entry.info;
+    }
+
+    async run(options: ForegroundOptions): Promise<ForegroundResult> {
+        const entry = this.spawn({ ...options, background: false });
+        const finished = await Promise.race([entry.exited.then(() => true), delay(options.timeoutMs ?? FOREGROUND_TIMEOUT_MS).then(() => false)]);
+        if (!finished) {
+            this.update(entry, { background: true });
+        }
+        const max = options.maxOutput ?? PROCESS_AGENT_OUTPUT_CHARS;
+        const text = entry.output.length > max ? `… (${entry.output.length - max} earlier characters cut)\n${entry.output.slice(-max)}` : entry.output;
+        return { info: entry.info, output: text, movedToBackground: !finished };
+    }
+
+    async output(id: string, maxChars = PROCESS_AGENT_OUTPUT_CHARS): Promise<ProcessOutput | undefined> {
+        const entry = this.entries.get(id);
+        if (!entry) {
+            return undefined;
+        }
+        const cut = entry.output.length > maxChars;
+        return { id, text: cut ? entry.output.slice(-maxChars) : entry.output, truncated: cut || entry.dropped };
+    }
+
+    async stop(id: string): Promise<boolean> {
+        const entry = this.entries.get(id);
+        if (!entry || entry.info.status !== 'running' || !entry.child) {
+            return false;
+        }
+        entry.stopRequested = true;
+        this.signal(entry.child, 'SIGTERM');
+        const killer = setTimeout(() => entry.child && this.signal(entry.child, 'SIGKILL'), STOP_GRACE_MS);
+        await entry.exited;
+        clearTimeout(killer);
+        return true;
+    }
+
+    async clearFinished(): Promise<void> {
+        for (const [id, entry] of this.entries) {
+            if (entry.info.status !== 'running') {
+                this.entries.delete(id);
+            }
+        }
+        this.notify();
+    }
+
+    async scripts(cwd: string): Promise<PackageScripts | undefined> {
+        try {
+            const text = await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8');
+            return { manager: packageManagerFor(await fs.promises.readdir(cwd)), scripts: parseScripts(text) };
+        } catch {
+            return undefined;
+        }
+    }
+
+    protected spawn(options: ProcessStartOptions): Entry {
+        const id = `p${nextId++}`;
+        const win = process.platform === 'win32';
+        const shell = win ? { cmd: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/s', '/c', options.command] } : { cmd: process.env.SHELL || '/bin/sh', args: ['-c', options.command] };
+        const info: ProcessInfo = {
+            id, command: options.command, cwd: options.cwd, origin: options.origin ?? 'agent', status: 'running',
+            background: !!options.background, startedAt: Date.now(), ports: []
+        };
+        let resolveExit!: () => void;
+        const entry: Entry = { info, output: '', dropped: false, stopRequested: false, exited: new Promise(r => { resolveExit = r; }) };
+        this.entries.set(id, entry);
+        this.prune();
+        try {
+            const child = spawn(shell.cmd, shell.args, {
+                cwd: options.cwd, env: { ...process.env, FORCE_COLOR: '0', CI: process.env.CI ?? '' }, stdio: ['ignore', 'pipe', 'pipe'], detached: !win, windowsHide: true
+            });
+            entry.child = child;
+            this.update(entry, { pid: child.pid });
+            const add = (chunk: Buffer): void => {
+                const text = stripAnsi(chunk.toString('utf8'));
+                const next = appendTail(entry.output, text, PROCESS_BUFFER_CHARS);
+                entry.output = next.text;
+                entry.dropped = entry.dropped || next.dropped;
+                const ports = detectPorts(text).filter(p => !entry.info.ports.includes(p));
+                if (ports.length) {
+                    this.update(entry, { ports: [...entry.info.ports, ...ports] });
+                }
+            };
+            child.stdout?.on('data', add);
+            child.stderr?.on('data', add);
+            child.on('error', error => {
+                entry.output += `${error.message}\n`;
+                this.finish(entry, 1, resolveExit);
+            });
+            child.on('close', code => this.finish(entry, code, resolveExit));
+        } catch (error) {
+            entry.output += `${error instanceof Error ? error.message : String(error)}\n`;
+            this.finish(entry, 1, resolveExit);
+        }
+        this.notify();
+        return entry;
+    }
+
+    protected finish(entry: Entry, code: number | null, resolve: () => void): void {
+        if (entry.info.status !== 'running') {
+            return;
+        }
+        this.update(entry, { status: finalStatus(code, entry.stopRequested), exitCode: code ?? undefined, endedAt: Date.now() });
+        entry.child = undefined;
+        resolve();
+    }
+
+    protected signal(child: ChildProcess, signal: NodeJS.Signals): void {
+        if (!child.pid) {
+            return;
+        }
+        try {
+            if (process.platform === 'win32') {
+                spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+            } else {
+                // The whole group: `npm run dev` → node → vite.
+                process.kill(-child.pid, signal);
+            }
+        } catch {
+            child.kill(signal);
+        }
+    }
+
+    protected update(entry: Entry, patch: Partial<ProcessInfo>): void {
+        entry.info = { ...entry.info, ...patch };
+        this.notify();
+    }
+
+    protected prune(): void {
+        const finished = [...this.entries.values()].filter(e => e.info.status !== 'running').sort((a, b) => a.info.startedAt - b.info.startedAt);
+        for (const e of finished.slice(0, Math.max(0, finished.length - MAX_FINISHED_PROCESSES))) {
+            this.entries.delete(e.info.id);
+        }
+    }
+
+    protected notify(): void {
+        if (this.notifyTimer) {
+            return;
+        }
+        this.notifyTimer = setTimeout(async () => {
+            this.notifyTimer = undefined;
+            const list = await this.list();
+            for (const client of this.clients) {
+                try {
+                    client.onProcessesChanged(list);
+                } catch {
+                    this.clients.delete(client);
+                }
+            }
+        }, PROCESS_LIST_DEBOUNCE_MS);
+    }
+
+    protected killAll(): void {
+        for (const entry of this.entries.values()) {
+            if (entry.child && entry.info.status === 'running') {
+                entry.stopRequested = true;
+                this.signal(entry.child, 'SIGKILL');
+            }
+        }
+    }
+}
+
+const delay = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms));

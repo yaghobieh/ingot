@@ -12,6 +12,11 @@ export const approvalPreferenceSchema: PreferenceSchema = {
             type: 'object', default: {},
             description: 'Action types that run without the approval card, per project (set with "Always Run"; revoke in Settings › Agent approvals).',
             additionalProperties: { type: 'array', items: { type: 'string', enum: ['git', 'terminal', 'web', 'mcp', 'delete'] } }
+        },
+        [APPROVAL_PREFS.alwaysRunCommands]: {
+            type: 'object', default: {},
+            description: 'Terminal commands the agent may run without the approval card, per project (set with "Always Run" on a command; revoke in Settings › Agent approvals).',
+            additionalProperties: { type: 'array', items: { type: 'string' } }
         }
     }
 };

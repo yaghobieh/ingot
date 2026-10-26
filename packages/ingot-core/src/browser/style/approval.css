@@ -120,3 +120,15 @@
     white-space: nowrap;
     max-width: 60%;
 }
+
+.ingot-always-run-command {
+    font-family: var(--theia-code-font-family, monospace);
+    font-size: 12px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--ingot-ingot-gold) 16%, transparent);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 40%;
+}

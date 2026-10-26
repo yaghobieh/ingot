@@ -14,6 +14,9 @@ import { ServiceConnectionProvider } from '@theia/core/lib/browser/messaging/ser
 import { PORTS_SERVICE_PATH } from '../common/ports/ports.consts';
 import { PortsService } from '../common/ports/ports.types';
 import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agents/agent-actions-service';
+import { ProcessService } from '../common/processes/processes.types';
+import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
+import { ProcessClientImpl, ProcessStore } from './processes/process-store';
 import { IngotPortsWidget } from './ports/ingot-ports-widget';
 import { IngotPortsContribution } from './ports/ingot-ports-contribution';
 import { PORTS_WIDGET_ID } from './ports/ingot-ports.consts';
@@ -240,6 +243,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bindViewContribution(bind, IngotWelcomeContribution);
     bind(FrontendApplicationContribution).toService(IngotWelcomeContribution);
 
+    bind(ProcessClientImpl).toSelf().inSingletonScope();
+    bind(ProcessService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ProcessService>(ctx.container, PROCESS_SERVICE_PATH, ctx.container.get(ProcessClientImpl))).inSingletonScope();
+    bind(ProcessStore).toSelf().inSingletonScope();
     bind(AgentActionsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<AgentActionsService>(ctx.container, AGENT_ACTIONS_SERVICE_PATH)).inSingletonScope();
     bind(PortsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<PortsService>(ctx.container, PORTS_SERVICE_PATH)).inSingletonScope();
     bind(IngotPortsWidget).toSelf();

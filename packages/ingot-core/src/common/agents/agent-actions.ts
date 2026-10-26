@@ -19,16 +19,21 @@ export const APPROVAL_PREFS = {
     /** Git writes (commit, push, reset, rebase, tag…) wait for Run. Off: they run without the card. */
     gitRequireApproval: 'ingot.agent.git.requireApproval',
     /** "Always Run" choices: project root path → action kinds that run without asking. */
-    alwaysRun: 'ingot.agent.approvals.alwaysRun'
+    alwaysRun: 'ingot.agent.approvals.alwaysRun',
+    /** IDEA-131: "Always Run" for terminal commands is per command: project root path → exact commands. */
+    alwaysRunCommands: 'ingot.agent.approvals.alwaysRunCommands'
 } as const;
 
 export type AlwaysRunMap = Record<string, readonly ApprovalKind[]>;
+export type AlwaysRunCommands = Record<string, readonly string[]>;
 
 /** What the approval card shows: "<label>: <detail>". */
 export interface AgentAction {
     readonly kind: ApprovalKind;
     readonly label: string;
     readonly detail: string;
+    /** IDEA-131: terminal commands are remembered one by one for "Always Run". */
+    readonly command?: string;
 }
 
 export interface PendingApproval extends AgentAction {
@@ -37,7 +42,12 @@ export interface PendingApproval extends AgentAction {
 
 export const BUILTIN_TOOLS = [
     { name: 'git', description: 'Run a git action in the project. Arguments: {"op": "status" | "diff" | "log" | "add" | "commit" | "push" | "reset" | "rebase" | "tag" | "branch" | "checkout", "message"?, "paths"?, "remote"?, "branch"?, "ref"?, "mode"?: "soft" | "mixed" | "hard", "onto"?, "name"?}. Reads run at once; writes wait for the user\'s approval.' },
-    { name: 'run', description: 'Run a shell command in the project root and get its output. Arguments: {"command": "npm test"}. Waits for the user\'s approval.' },
+    { name: 'run', description: 'Run a shell command in the project root (compilers, tests, builds, package scripts). Arguments: {"command": "npm test", "background"?: true}. Foreground (default) waits for the exit code and output; a command still running after the timeout keeps running in the background. Use "background": true for dev servers and watchers: you get a process id. Waits for the user\'s approval.' },
+    { name: 'scripts', description: 'List the project\'s package.json scripts and its package manager (npm, pnpm, yarn or bun). No arguments. Runs at once.' },
+    { name: 'run_script', description: 'Run a package.json script with the project\'s package manager. Arguments: {"script": "dev", "background"?: true}. Waits for the user\'s approval.' },
+    { name: 'processes', description: 'List running and recent processes (id, status, command, uptime, port). No arguments. Runs at once.' },
+    { name: 'process_output', description: 'Read the latest output of a process. Arguments: {"id": "p3"}. Runs at once.' },
+    { name: 'process_stop', description: 'Stop a running process and its children. Arguments: {"id": "p3"}. Processes the user started wait for approval.' },
     { name: 'web_search', description: 'Search the web. Arguments: {"query": "…"}. Waits for the user\'s approval.' },
     { name: 'web_fetch', description: 'Fetch a web page as text. Arguments: {"url": "https://…"}. Waits for the user\'s approval.' },
     { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' }
@@ -100,7 +110,12 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
                 default: return { kind: 'git', label: `Git ${op || 'action'}`, detail: [str(a.name), str(a.branch), str(a.ref)].filter(Boolean).join(' ') };
             }
         }
-        case 'run': return { kind: 'terminal', label: 'Run command', detail: str(a.command) };
+        case 'run': {
+            const command = str(a.command).trim();
+            return { kind: 'terminal', label: a.background === true ? 'Run in background' : 'Run command', detail: command, command };
+        }
+        case 'scripts': case 'processes': case 'process_output': return undefined;
+        case 'process_stop': return { kind: 'terminal', label: 'Stop process', detail: str(a.id) };
         case 'web_search': return { kind: 'web', label: 'Search web', detail: str(a.query) };
         case 'web_fetch': return { kind: 'web', label: 'Fetch', detail: str(a.url) };
         case 'delete': return { kind: 'delete', label: 'Delete file', detail: str(a.path) };
@@ -109,11 +124,41 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
 };
 
 /** Whether an action waits for the card, given the settings. */
-export const needsApproval = (action: AgentAction, project: string, alwaysRun: AlwaysRunMap, gitRequireApproval: boolean): boolean => {
+export const needsApproval = (action: AgentAction, project: string, alwaysRun: AlwaysRunMap, gitRequireApproval: boolean, commands: AlwaysRunCommands = {}): boolean => {
     if (action.kind === 'git' && !gitRequireApproval) {
         return false;
     }
+    if (action.command && (commands[project] ?? []).includes(action.command)) {
+        return false;
+    }
     return !(alwaysRun[project] ?? []).includes(action.kind);
+};
+
+/** IDEA-131: adds (or revokes) one command in the per-command "Always Run" list. */
+export const updateAlwaysRunCommands = (map: AlwaysRunCommands | undefined, project: string, command: string, remove = false): AlwaysRunCommands => {
+    const current = (map?.[project] ?? []).filter(c => c !== command);
+    const list = remove ? current : [...current, command];
+    const next: Record<string, readonly string[]> = { ...(map ?? {}) };
+    if (list.length) {
+        next[project] = list;
+    } else {
+        delete next[project];
+    }
+    return next;
+};
+
+export const toAlwaysRunCommands = (value: unknown): AlwaysRunCommands => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return {};
+    }
+    const out: Record<string, readonly string[]> = {};
+    for (const [project, commands] of Object.entries(value as Record<string, unknown>)) {
+        const valid = list(commands).map(c => c.trim()).filter(Boolean);
+        if (valid.length) {
+            out[project] = valid;
+        }
+    }
+    return out;
 };
 
 /** Adds (or with `remove`, revokes) an "Always Run" choice; returns a new map without empty projects. */
