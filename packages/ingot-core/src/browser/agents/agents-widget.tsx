@@ -1,4 +1,5 @@
 import * as React from '@theia/core/shared/react';
+import { ImageHoverService } from '../preview/image-hover-service';
 import { actionLine, activityLine } from '../../common/agents/agent-actions';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
@@ -88,6 +89,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(FileService) protected readonly files: FileService;
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
+    @inject(ImageHoverService) protected readonly imageHovers: ImageHoverService;
 
     protected readonly markdown = new AgentMarkdownRenderer(() => this.update());
     /** Expanded "Read rules" step rows, by session id + step index. */
@@ -617,7 +619,7 @@ export class IngotAgentsWidget extends ReactWidget {
                         {c.kind === 'memory' && <span className='codicon codicon-lightbulb' />}{c.kind === 'rule' && <span className='codicon codicon-law' />}{c.label}</span>)}</div>}
                     {m.role === 'agent' && <div className='ingot-chat-agent-head'><span className='ingot-chat-logo' aria-hidden='true'>&lt;/&gt;</span><b>Ingot</b><span className='ingot-dim'>· {this.replyModel(session)}</span></div>}
                     {m.parts ? '' : m.role === 'agent'
-                        ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
+                        ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
                             : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
                         : m.text}
                     {m.role === 'tool' && !!m.images?.length && <div className='ingot-chat-tool-images'>{m.images.filter(img => img.data).map(img =>
@@ -666,6 +668,14 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     /** Copy buttons on code blocks and links in rendered replies. */
+    /** IDEA-145: hovering an image path (inline code or link text) shows a thumbnail. */
+    protected onMarkdownHover(e: React.MouseEvent<HTMLDivElement>): void {
+        const target = (e.target as HTMLElement).closest('code, a');
+        if (target instanceof HTMLElement && !target.closest('pre')) {
+            void this.imageHovers.showFor(target);
+        }
+    }
+
     protected onMarkdownClick(e: React.MouseEvent<HTMLDivElement>): void {
         const target = e.target as HTMLElement;
         const copy = target.closest<HTMLElement>('[data-md-copy]');
