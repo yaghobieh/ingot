@@ -32,7 +32,9 @@ test.describe('IDEA-131 agent terminal and run tools', () => {
         fs.writeFileSync(path.join(dir, 'server.js'), "require('http').createServer((q, s) => s.end('ok')).listen(0, () => { console.log('Local: http://localhost:' + 4567); setInterval(() => undefined, 1000); });\n");
         server = await startFakeOllama((_system, user) => reply(user), { delayMs: 0 });
     });
-    test.afterEach(async () => {
+    test.afterEach(async ({ page }) => {
+        // Leave no rows in the chat's process list for later specs.
+        await page.locator('#ingot-processes-clear').click({ timeout: 2_000 }).catch(() => undefined);
         await server.close();
         fs.rmSync(dir, { recursive: true, force: true });
     });

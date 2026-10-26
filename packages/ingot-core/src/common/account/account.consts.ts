@@ -19,3 +19,9 @@ export const ACCOUNT_PREFERENCES = {
 
 /** Backend route the desktop main process forwards ingot://auth links to (loopback only). */
 export const DEEP_LINK_BACKEND_PATH = '/ingot/deep-link';
+
+/** IDEA-140: runtime overrides read by the backend (an explicit setting in ~/.ingot wins over these). */
+export const SERVER_URL_ENV = 'INGOT_SERVER_URL';
+export const PORTAL_URL_ENV = 'INGOT_PORTAL_URL';
+/** Key in the packaged app's package.json where the release build bakes the public URLs. */
+export const BAKED_ENDPOINTS_KEY = 'ingotEndpoints';

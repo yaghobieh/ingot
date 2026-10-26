@@ -53,6 +53,12 @@ import { formatCountdown, reviewFileState } from '../../common/review/review';
 import { ReviewComments } from '../review/review-comments';
 import type { CodeChange } from '../../common/changes/changes.types';
 import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
+import { ProcessStore } from '../processes/process-store';
+import { ProcessesPanel } from '../processes/processes-panel';
+import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
+import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
+import { PreferenceService } from '@theia/core/lib/common/preferences';
+import { RUN_PREFS } from '../../common/processes/run-settings';
 
 type Popover = 'mode' | 'model' | 'history' | 'context' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
@@ -80,6 +86,8 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(ContextMenuRenderer) protected readonly contextMenu: ContextMenuRenderer;
     @inject(WindowService) protected readonly windows: WindowService;
     @inject(FileService) protected readonly files: FileService;
+    @inject(ProcessStore) protected readonly processes: ProcessStore;
+    @inject(PreferenceService) protected readonly preferences: PreferenceService;
 
     protected readonly markdown = new AgentMarkdownRenderer(() => this.update());
     /** Expanded "Read rules" step rows, by session id + step index. */
@@ -172,6 +180,8 @@ export class IngotAgentsWidget extends ReactWidget {
         this.title.iconClass = 'ingot-icon ingot-icon-ai';
         this.addClass('ingot-agents');
         this.toDispose.push(this.store.onDidChange(() => this.update()));
+        this.toDispose.push(this.processes.onDidChange(() => this.update()));
+        this.toDispose.push(this.preferences.onPreferenceChanged(e => { if (e.preferenceName === RUN_PREFS.showProcesses) { this.update(); } }));
         this.toDispose.push(this.tracker.onDidChange(() => {
             // IDEA-105: deciding a file during a checkpoint is review activity, so the countdown stops.
             const current = this.store.current;
@@ -438,6 +448,9 @@ export class IngotAgentsWidget extends ReactWidget {
                 {this.renderTabs(tabs, current)}
                 <button type='button' id='ingot-agents-new' className='ingot-icon-button codicon codicon-add' aria-label='New chat'
                     title={`New chat${this.shortcut(AGENT_COMMANDS.newAgent.id) ? ` (${this.shortcut(AGENT_COMMANDS.newAgent.id)})` : ''}`} onClick={() => this.newChat()} />
+                <button type='button' id='ingot-agents-processes' className={`ingot-icon-button codicon codicon-server-process${this.processes.pinned ? ' active' : ''}`}
+                    aria-label='Processes' aria-pressed={this.processes.pinned} title={`Processes${this.processes.running.length ? ` · ${this.processes.running.length} running` : ''}`}
+                    onClick={() => this.processes.setPinned(!this.processes.pinned)} />
                 <button type='button' id='ingot-agents-history' className={`ingot-icon-button codicon codicon-history${this.popover === 'history' ? ' active' : ''}`} aria-label='Chat history'
                     title={`Chat history${this.shortcut(AGENT_COMMANDS.history.id) ? ` (${this.shortcut(AGENT_COMMANDS.history.id)})` : ''}`} onClick={() => this.toggleHistory()} />
                 {this.popover === 'history' && <ChatHistory chats={this.store.sessions} current={current?.id}
@@ -455,6 +468,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 ? <div className='ingot-agents-chat ingot-agents-memories-pane'><MemoriesManager store={this.memoryStore} onClose={() => this.toggleMemories()} /></div>
                 : <div className='ingot-agents-chat'>{current && current.messages.length ? this.renderSession(current)
                     : <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>}</div>}
+            {!this.showMemories && this.renderProcesses()}
             {!this.showMemories && this.renderApproval(current)}
             {!this.showMemories && this.renderChangesBar(current)}
             {this.renderComposer()}
@@ -606,6 +620,9 @@ export class IngotAgentsWidget extends ReactWidget {
                         ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
                             : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
                         : m.text}
+                    {m.role === 'tool' && !!m.images?.length && <div className='ingot-chat-tool-images'>{m.images.filter(img => img.data).map(img =>
+                        <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
+                            onClick={() => { this.lightbox = img; this.update(); }} />)}</div>}
                     {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && !this.tracker.forMessage(session.id, i).length && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
                     {m.role === 'agent' && this.tracker.forMessage(session.id, i).map(change => <CodeChangeBlock key={change.id} change={change}
                         expanded={!this.collapsedChanges.has(change.id)}
@@ -857,6 +874,19 @@ export class IngotAgentsWidget extends ReactWidget {
                     onClick={e => { e.stopPropagation(); this.touchReview(session); void this.tracker.decide(change.id, 'all', 'accepted'); }}><span className='codicon codicon-check' /></button>
             </>}
         </div>;
+    }
+
+    /** IDEA-132: processes started by the agent or the user, live, above the composer. */
+    protected renderProcesses(): React.ReactNode {
+        if (this.preferences.get<boolean>(RUN_PREFS.showProcesses, true) === false) {
+            return undefined;
+        }
+        return <ProcessesPanel processes={this.processes.processes} pinned={this.processes.pinned}
+            onStop={id => void this.processes.service.stop(id)}
+            onRun={() => void this.commands.executeCommand(PROCESS_COMMANDS.run.id)}
+            onClear={() => void this.processes.service.clearFinished()}
+            onOpenPort={port => void this.commands.executeCommand(BROWSER_COMMANDS.open.id, `http://localhost:${port}`)}
+            readOutput={id => this.processes.service.output(id)} />;
     }
 
     protected renderComposer(): React.ReactNode {

@@ -4,15 +4,16 @@
  */
 import type { GitOperation } from '../git/git-ops';
 import type { AgentToolCall } from './agent-protocol';
+import { describeTarget, toTarget } from '../browser-tool/browser-tool.utils';
 
 export const BUILTIN_TOOL_SERVER = 'ingot';
 
-export type ApprovalKind = 'git' | 'terminal' | 'web' | 'mcp' | 'delete';
+export type ApprovalKind = 'git' | 'terminal' | 'web' | 'browser' | 'mcp' | 'delete';
 export type ApprovalDecision = 'run' | 'skip' | 'always';
 
-export const APPROVAL_KINDS: readonly ApprovalKind[] = ['git', 'terminal', 'web', 'mcp', 'delete'];
+export const APPROVAL_KINDS: readonly ApprovalKind[] = ['git', 'terminal', 'web', 'browser', 'mcp', 'delete'];
 export const APPROVAL_KIND_LABELS: Record<ApprovalKind, string> = {
-    git: 'Git actions', terminal: 'Terminal commands', web: 'Web search and fetch', mcp: 'MCP tool calls', delete: 'File deletes'
+    git: 'Git actions', terminal: 'Terminal commands', web: 'Web search and fetch', browser: 'Browser actions', mcp: 'MCP tool calls', delete: 'File deletes'
 };
 
 export const APPROVAL_PREFS = {
@@ -50,6 +51,13 @@ export const BUILTIN_TOOLS = [
     { name: 'process_stop', description: 'Stop a running process and its children. Arguments: {"id": "p3"}. Processes the user started wait for approval.' },
     { name: 'web_search', description: 'Search the web. Arguments: {"query": "…"}. Waits for the user\'s approval.' },
     { name: 'web_fetch', description: 'Fetch a web page as text. Arguments: {"url": "https://…"}. Waits for the user\'s approval.' },
+    { name: 'browser_open', description: 'Open a URL in Ingot\'s browser panel (the user sees it) and get the page: title, interactive elements with refs, and text. Arguments: {"url": "http://localhost:5173"}. Waits for the user\'s approval.' },
+    { name: 'browser_read', description: 'Read the current page again: interactive elements with refs and the visible text. No arguments.' },
+    { name: 'browser_click', description: 'Click an element. Arguments: {"ref": 3} from the last read, or {"selector": "#submit"}, or {"text": "Sign in"}. Waits for the user\'s approval.' },
+    { name: 'browser_type', description: 'Type into a field. Arguments: {"ref": 2} or {"selector": "#email"} or {"label": "Email"}, plus {"text": "…", "submit"?: true} (submit presses Enter). Waits for the user\'s approval.' },
+    { name: 'browser_scroll', description: 'Scroll the page. Arguments: {"direction": "down" | "up" | "top" | "bottom"}.' },
+    { name: 'browser_back', description: 'Go back one page. No arguments.' },
+    { name: 'browser_screenshot', description: 'Take a screenshot of the browser panel (shown to the user; sent to you when the model reads images). No arguments.' },
     { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' }
 ] as const;
 
@@ -119,6 +127,13 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
         case 'web_search': return { kind: 'web', label: 'Search web', detail: str(a.query) };
         case 'web_fetch': return { kind: 'web', label: 'Fetch', detail: str(a.url) };
         case 'delete': return { kind: 'delete', label: 'Delete file', detail: str(a.path) };
+        case 'browser_open': return { kind: 'browser', label: 'Open page', detail: str(a.url) };
+        case 'browser_read': return { kind: 'browser', label: 'Read page', detail: '' };
+        case 'browser_click': return { kind: 'browser', label: 'Click', detail: describeTarget(toTarget(a, 'click')) };
+        case 'browser_type': return { kind: 'browser', label: 'Type', detail: `"${str(a.text)}" into ${describeTarget(toTarget(a, 'type'))}${a.submit === true ? ' and submit' : ''}` };
+        case 'browser_scroll': return { kind: 'browser', label: 'Scroll', detail: str(a.direction) || 'down' };
+        case 'browser_back': return { kind: 'browser', label: 'Go back', detail: '' };
+        case 'browser_screenshot': return { kind: 'browser', label: 'Screenshot', detail: '' };
         default: return { kind: 'mcp', label: capitalize(call.tool), detail: '' };
     }
 };

@@ -58,6 +58,9 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # Public URLs baked into the app (Actions *variables*, not secrets). Unset -> the app keeps localhost (dev).
+          INGOT_SERVER_URL: ${{ vars.INGOT_SERVER_URL }}
+          INGOT_PORTAL_URL: ${{ vars.INGOT_PORTAL_URL }}
         run: |
           if [ "$RUNNER_OS" = "macOS" ] && [ -n "$MAC_CSC_LINK" ]; then
             export CSC_LINK="$MAC_CSC_LINK" CSC_KEY_PASSWORD="$MAC_CSC_KEY_PASSWORD"
@@ -80,6 +83,11 @@ jobs:
           fi
           # Tag v0.1.0-beta.1 -> app version 0.1.0-beta.1 (drives the installer names and the update channel).
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then EXTRA+=("-c.extraMetadata.version=${GITHUB_REF_NAME#v}"); fi
+          if [ -n "$INGOT_SERVER_URL" ]; then EXTRA+=("-c.extraMetadata.ingotEndpoints.serverUrl=$INGOT_SERVER_URL"); fi
+          if [ -n "$INGOT_PORTAL_URL" ]; then EXTRA+=("-c.extraMetadata.ingotEndpoints.portalUrl=$INGOT_PORTAL_URL"); fi
+          if [ -z "$INGOT_SERVER_URL" ] || [ -z "$INGOT_PORTAL_URL" ]; then
+            echo "::warning::INGOT_SERVER_URL / INGOT_PORTAL_URL repository variables are not set: this build points at localhost."
+          fi
           npm run package:electron -- ${{ matrix.args }} "${EXTRA[@]}"
       - uses: actions/upload-artifact@v4
         with:

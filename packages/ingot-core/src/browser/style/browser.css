@@ -1,0 +1,180 @@
+/* IDEA-130: the Ingot browser panel. Gold = the user is in control, blue = the agent is driving. */
+.ingot-browser-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--theia-editor-background);
+}
+
+.ingot-browser-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--theia-widget-border, var(--theia-panel-border));
+    background: var(--theia-editorGroupHeader-tabsBackground);
+}
+
+.ingot-browser-address-form {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid var(--theia-widget-border, var(--theia-panel-border));
+    border-radius: 13px;
+    background: var(--theia-editor-background);
+}
+
+.ingot-browser-address-form:focus-within {
+    border-color: var(--theia-focusBorder);
+}
+
+.ingot-browser-address-icon {
+    color: var(--theia-descriptionForeground);
+    font-size: 12px;
+}
+
+.ingot-browser-address {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: none;
+    color: var(--theia-foreground);
+    font-size: 12px;
+}
+
+.ingot-browser-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 12px;
+    border-radius: 13px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.ingot-browser-control.take {
+    border: 1px solid color-mix(in srgb, var(--ingot-ingot-gold) 70%, transparent);
+    background: color-mix(in srgb, var(--ingot-ingot-gold) 14%, transparent);
+    color: var(--theia-foreground);
+}
+
+.ingot-browser-control.take:hover {
+    background: color-mix(in srgb, var(--ingot-ingot-gold) 26%, transparent);
+}
+
+.ingot-browser-control.give-back {
+    border: 1px solid var(--ingot-forge-blue);
+    background: var(--ingot-forge-blue);
+    color: var(--theia-button-foreground);
+}
+
+.ingot-browser-control.give-back:hover {
+    background: var(--theia-button-hoverBackground);
+}
+
+.ingot-browser-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--theia-widget-border, var(--theia-panel-border));
+}
+
+.ingot-browser-banner.user {
+    background: color-mix(in srgb, var(--ingot-ingot-gold) 16%, var(--theia-editor-background));
+    color: var(--theia-foreground);
+}
+
+.ingot-browser-banner.agent {
+    background: color-mix(in srgb, var(--ingot-forge-blue) 14%, var(--theia-editor-background));
+    color: var(--theia-foreground);
+}
+
+.ingot-browser-agent-mark {
+    font-family: var(--theia-code-font-family, monospace);
+    font-weight: 700;
+    color: var(--ingot-forge-blue);
+}
+
+.ingot-browser-host {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    background: var(--theia-editor-background);
+}
+
+.ingot-browser-page {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    color-scheme: light;
+    background: Canvas;
+}
+
+.ingot-browser-root.user-control .ingot-browser-host {
+    box-shadow: inset 0 0 0 2px var(--ingot-ingot-gold);
+}
+
+.ingot-browser-root.agent-control .ingot-browser-host {
+    box-shadow: inset 0 0 0 2px var(--ingot-forge-blue);
+}
+
+.ingot-browser-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    cursor: not-allowed;
+    background: color-mix(in srgb, var(--ingot-forge-navy) 6%, transparent);
+}
+
+.ingot-browser-empty {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    text-align: center;
+    padding: 24px;
+    background: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    font-size: 13px;
+}
+
+.ingot-browser-empty .codicon {
+    font-size: 32px;
+    color: var(--ingot-ingot-gold);
+    margin-bottom: 6px;
+}
+
+.ingot-browser-empty p {
+    margin: 0;
+    max-width: 380px;
+}
+
+.ingot-chat-tool-images {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.ingot-chat-tool-image {
+    max-width: 220px;
+    max-height: 140px;
+    border: 1px solid var(--theia-widget-border, var(--theia-panel-border));
+    border-radius: var(--ingot-radius);
+    cursor: zoom-in;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    appendTail, describeProcesses, detectPorts, finalStatus, formatUptime, isSafeScriptName, packageManagerFor, parseScripts, scriptCommand, sortProcesses, stripAnsi
+    appendTail, describeProcesses, isListed, detectPorts, finalStatus, formatUptime, isSafeScriptName, packageManagerFor, parseScripts, scriptCommand, sortProcesses, stripAnsi
 } from './processes.utils';
 import type { ProcessInfo } from './processes.types';
 
@@ -46,5 +46,11 @@ describe('IDEA-131 process helpers', () => {
         expect(finalStatus(0, false)).toBe('exited');
         expect(finalStatus(1, false)).toBe('failed');
         expect(finalStatus(null, true)).toBe('stopped');
+    });
+
+    it('IDEA-132: lists running and background processes, not finished foreground ones', () => {
+        expect(isListed(proc({ status: 'running', background: false }))).toBe(true);
+        expect(isListed(proc({ status: 'stopped', background: true }))).toBe(true);
+        expect(isListed(proc({ status: 'exited', background: false }))).toBe(false);
     });
 });
