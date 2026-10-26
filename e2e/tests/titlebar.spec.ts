@@ -1,3 +1,4 @@
+import * as path from 'path';
 import { expect, test } from '@playwright/test';
 import { dismissNotifications, openIngot } from '../src/app.utils';
 import { SHELL_SELECTOR } from '../src/e2e.consts';
@@ -64,4 +65,22 @@ test.describe('IDEA-118 title bar window actions', () => {
         await expect(page.locator('#theia-left-content-panel')).toBeVisible();
         await expect(page.locator('#theia-main-content-panel #ingot-agents')).toHaveCount(0);
     });
+
+    // Dark mode must use the dark Ingot tokens: muted icons are light gray on dark, not the light theme's dark gray.
+    for (const [scheme, muted, panel] of [['dark', 'rgb(154, 160, 171)', 'rgb(42, 45, 54)'], ['light', 'rgb(94, 102, 115)', 'rgb(238, 240, 244)']] as const) {
+        test(`title bar icons, Shift Shift chip and Agents pill use the ${scheme} tokens`, async ({ page }) => {
+            await openIngot(page);
+            await dismissNotifications(page);
+            await page.locator('#ingot-rs-theme').click();
+            await page.locator('.quick-input-widget .monaco-list-row', { hasText: scheme === 'dark' ? 'Dark' : 'Light' }).first().click();
+            await expect(page.locator('body')).toHaveClass(new RegExp(`ingot-${scheme}`));
+            await expect(page.locator('#ingot-tb-settings')).toHaveCSS('color', muted);
+            await expect(page.locator('.ingot-tb-search-kbd')).toHaveCSS('background-color', panel);
+            await expect(page.locator('#ingot-tb-agents-window')).toHaveCSS('background-color', panel);
+            if (process.env.SHOTS_DIR) {
+                await page.locator('#ingot-tb-settings').hover();
+                await page.locator('.ingot-tb').screenshot({ path: path.join(process.env.SHOTS_DIR, `titlebar-${scheme}.png`) });
+            }
+        });
+    }
 });

@@ -4,13 +4,17 @@
 .ingot-tb-window-actions { display: flex; align-items: center; gap: 2px; margin-left: 4px; }
 .ingot-tb-window-actions .ingot-tb-icon { color: var(--ingot-text-muted); border-radius: 6px; }
 .ingot-tb-window-actions .ingot-tb-icon:hover { color: var(--ingot-text); background: var(--theia-toolbar-hoverBackground); }
-.ingot-tb-window-actions .ingot-tb-icon.pressed { color: var(--ingot-text); }
+.ingot-tb-window-actions .ingot-tb-icon:active { background: var(--ingot-selection); }
+.ingot-tb-window-actions .ingot-tb-icon.pressed { color: var(--ingot-primary); }
+.ingot-tb-window-actions .ingot-tb-icon.pressed:hover { color: var(--ingot-primary-hover); }
 .ingot-tb-pill {
     display: inline-flex; align-items: center; gap: 6px; height: 24px; margin-left: 8px; padding: 0 10px 0 12px;
     border: 0; border-radius: 12px; background: var(--ingot-panel); color: var(--ingot-text);
     font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap;
 }
-.ingot-tb-pill:hover { background: var(--ingot-selection); }
+.ingot-tb-pill { box-shadow: inset 0 0 0 1px var(--ingot-border); }
+.ingot-tb-pill:hover { background: var(--ingot-selection); box-shadow: inset 0 0 0 1px var(--ingot-primary); }
+.ingot-tb-pill:active { background: var(--ingot-primary); color: var(--ingot-primary-text); }
 .ingot-tb-pill:focus-visible { outline: 2px solid var(--ingot-forge-blue); outline-offset: 1px; }
 .ingot-tb-pill-arrow { font-size: 12px; opacity: .85; }
 .ingot-tb-running {
