@@ -7,6 +7,10 @@ Third-party components:
 - File and folder icons in assets/file-icons (the "Ingot Files" icon theme) come from Material Icon Theme,
   Copyright (c) 2025 Material Extensions, licensed under the MIT License (assets/file-icons/LICENSE).
   https://github.com/material-extensions/vscode-material-icon-theme
+- The PDF viewer bundles PDF.js (pdfjs-dist), Copyright Mozilla Foundation, licensed under the Apache License 2.0
+  (shipped as vendor/pdfjs/LICENSE). https://github.com/mozilla/pdf.js
+- Markdown diagrams use Mermaid, Copyright (c) 2014 - 2022 Knut Sveidqvist, licensed under the MIT License
+  (shipped as vendor/mermaid/LICENSE). https://github.com/mermaid-js/mermaid
 
 Debugger and language support (IDEA-138), downloaded from Open VSX at build time and bundled unmodified:
 

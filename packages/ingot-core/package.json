@@ -33,6 +33,8 @@
     "@theia/variable-resolver": "1.76.0",
     "@theia/workspace": "1.76.0",
     "electron-updater": "^6.8.11",
+    "mermaid": "12.2.0",
+    "pdfjs-dist": "6.4.299",
     "jsonc-parser": "^3.3.1"
   },
   "devDependencies": {
