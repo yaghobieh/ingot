@@ -47,7 +47,8 @@ jobs:
       - run: npm run build:browser
       - run: npx playwright install --with-deps chromium
         working-directory: e2e
-      - run: npm run e2e -- --shard=${{ matrix.shard }}/3
+      # Call the e2e workspace directly so --shard reaches Playwright (through the root script npm swallowed it).
+      - run: npm run test -w e2e -- --shard=${{ matrix.shard }}/3
         env:
           CI: 'true'
       - uses: actions/upload-artifact@v4
