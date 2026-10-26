@@ -18,6 +18,7 @@
     "build:packages": "npm run build -w @ingot/core",
     "build:browser": "npm run bundle -w applications/browser",
     "build:electron": "npm run bundle -w applications/electron",
+    "package:electron": "npm run package -w applications/electron --",
     "build": "npm run build:packages && npm run build:browser && npm run build:electron",
     "start:browser": "npm run start -w applications/browser",
     "start:electron": "npm run start -w applications/electron",

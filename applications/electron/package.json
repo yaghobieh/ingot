@@ -2,6 +2,11 @@
   "private": true,
   "name": "@ingot/electron-app",
   "productName": "Ingot",
+  "description": "Ingot - the open-source AI IDE",
+  "homepage": "https://github.com/yaghobieh/ingot",
+  "author": {
+    "name": "Ingot contributors"
+  },
   "version": "0.1.0",
   "license": "Apache-2.0",
   "main": "lib/backend/electron-main.js",
@@ -43,14 +48,16 @@
   },
   "devDependencies": {
     "@theia/cli": "1.76.0",
-    "electron": "42.8.1"
+    "electron": "42.8.1",
+    "electron-builder": "^26.18.0"
   },
   "scripts": {
     "bundle": "npm run rebuild && theia build --mode production",
     "rebuild": "theia rebuild:electron --cacheRoot ../..",
     "start": "theia start --plugins=local-dir:../../plugins",
     "watch": "theia build --watch --mode development",
-    "clean": "theia clean"
+    "clean": "theia clean",
+    "package": "electron-builder --config electron-builder.yml --publish never"
   },
   "theia": {
     "target": "electron",
@@ -76,6 +83,7 @@
           "editor.fontSize": 13,
           "editor.lineHeight": 20,
           "editor.minimap.enabled": false,
+          "editor.wordWrap": "on",
           "editor.renderLineHighlight": "all",
           "terminal.integrated.fontFamily": "'JetBrains Mono', Menlo, Consolas, monospace",
           "terminal.integrated.fontSize": 13,

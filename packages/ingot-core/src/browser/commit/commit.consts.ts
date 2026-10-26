@@ -33,3 +33,6 @@ export const UNVERSIONED_GROUP = 'Unversioned Files';
 export const CONFLICTS_GROUP = 'Merge Conflicts';
 /** Context key while a diff tab has focus (revert chunk ⌘⌥Z, F7 / ⇧F7). */
 export const DIFF_FOCUS = 'ingotDiffFocus';
+
+/** Above the focused-editor undo handler (10000), so ⌘Z / Ctrl+Z in the diff viewer reaches its own undo first. */
+export const DIFF_UNDO_PRIORITY = 20000;

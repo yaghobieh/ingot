@@ -1,4 +1,5 @@
 import * as React from '@theia/core/shared/react';
+import { actionLine, activityLine } from '../../common/agents/agent-actions';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
@@ -52,6 +53,12 @@ import { formatCountdown, reviewFileState } from '../../common/review/review';
 import { ReviewComments } from '../review/review-comments';
 import type { CodeChange } from '../../common/changes/changes.types';
 import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
+import { ProcessStore } from '../processes/process-store';
+import { ProcessesPanel } from '../processes/processes-panel';
+import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
+import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
+import { PreferenceService } from '@theia/core/lib/common/preferences';
+import { RUN_PREFS } from '../../common/processes/run-settings';
 
 type Popover = 'mode' | 'model' | 'history' | 'context' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
@@ -79,6 +86,8 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(ContextMenuRenderer) protected readonly contextMenu: ContextMenuRenderer;
     @inject(WindowService) protected readonly windows: WindowService;
     @inject(FileService) protected readonly files: FileService;
+    @inject(ProcessStore) protected readonly processes: ProcessStore;
+    @inject(PreferenceService) protected readonly preferences: PreferenceService;
 
     protected readonly markdown = new AgentMarkdownRenderer(() => this.update());
     /** Expanded "Read rules" step rows, by session id + step index. */
@@ -171,6 +180,8 @@ export class IngotAgentsWidget extends ReactWidget {
         this.title.iconClass = 'ingot-icon ingot-icon-ai';
         this.addClass('ingot-agents');
         this.toDispose.push(this.store.onDidChange(() => this.update()));
+        this.toDispose.push(this.processes.onDidChange(() => this.update()));
+        this.toDispose.push(this.preferences.onPreferenceChanged(e => { if (e.preferenceName === RUN_PREFS.showProcesses) { this.update(); } }));
         this.toDispose.push(this.tracker.onDidChange(() => {
             // IDEA-105: deciding a file during a checkpoint is review activity, so the countdown stops.
             const current = this.store.current;
@@ -437,6 +448,9 @@ export class IngotAgentsWidget extends ReactWidget {
                 {this.renderTabs(tabs, current)}
                 <button type='button' id='ingot-agents-new' className='ingot-icon-button codicon codicon-add' aria-label='New chat'
                     title={`New chat${this.shortcut(AGENT_COMMANDS.newAgent.id) ? ` (${this.shortcut(AGENT_COMMANDS.newAgent.id)})` : ''}`} onClick={() => this.newChat()} />
+                <button type='button' id='ingot-agents-processes' className={`ingot-icon-button codicon codicon-server-process${this.processes.pinned ? ' active' : ''}`}
+                    aria-label='Processes' aria-pressed={this.processes.pinned} title={`Processes${this.processes.running.length ? ` · ${this.processes.running.length} running` : ''}`}
+                    onClick={() => this.processes.setPinned(!this.processes.pinned)} />
                 <button type='button' id='ingot-agents-history' className={`ingot-icon-button codicon codicon-history${this.popover === 'history' ? ' active' : ''}`} aria-label='Chat history'
                     title={`Chat history${this.shortcut(AGENT_COMMANDS.history.id) ? ` (${this.shortcut(AGENT_COMMANDS.history.id)})` : ''}`} onClick={() => this.toggleHistory()} />
                 {this.popover === 'history' && <ChatHistory chats={this.store.sessions} current={current?.id}
@@ -454,6 +468,8 @@ export class IngotAgentsWidget extends ReactWidget {
                 ? <div className='ingot-agents-chat ingot-agents-memories-pane'><MemoriesManager store={this.memoryStore} onClose={() => this.toggleMemories()} /></div>
                 : <div className='ingot-agents-chat'>{current && current.messages.length ? this.renderSession(current)
                     : <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>}</div>}
+            {!this.showMemories && this.renderProcesses()}
+            {!this.showMemories && this.renderApproval(current)}
             {!this.showMemories && this.renderChangesBar(current)}
             {this.renderComposer()}
         </div>;
@@ -604,6 +620,9 @@ export class IngotAgentsWidget extends ReactWidget {
                         ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
                             : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
                         : m.text}
+                    {m.role === 'tool' && !!m.images?.length && <div className='ingot-chat-tool-images'>{m.images.filter(img => img.data).map(img =>
+                        <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
+                            onClick={() => { this.lightbox = img; this.update(); }} />)}</div>}
                     {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && !this.tracker.forMessage(session.id, i).length && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
                     {m.role === 'agent' && this.tracker.forMessage(session.id, i).map(change => <CodeChangeBlock key={change.id} change={change}
                         expanded={!this.collapsedChanges.has(change.id)}
@@ -750,6 +769,70 @@ export class IngotAgentsWidget extends ReactWidget {
         </div>;
     }
 
+    /**
+     * IDEA-109 approval card (design: docs/design/approval-card-reference.png): a muted activity line, then one
+     * muted line "<action>: <detail…>" and Skip / Always Run / Run ⏎. Enter = Run, Esc = Skip; with a note typed in
+     * the composer, Enter or Skip sends it to the agent as the reason.
+     */
+    protected renderApproval(session: AgentSession | undefined): React.ReactNode {
+        const approval = session?.approval;
+        if (!session || !approval) {
+            return undefined;
+        }
+        const activity = activityLine(session.steps);
+        const full = approval.detail ? `${approval.label}: ${approval.detail}` : approval.label;
+        return <div className='ingot-approval-wrap' id='ingot-approval-wrap'>
+            {activity && <div className='ingot-approval-activity' id='ingot-approval-activity'><span className='ingot-approval-activity-verb'>Exploring</span> {activity.replace(/^Exploring /, '')}</div>}
+            <div className='ingot-approval' id='ingot-approval' role='alertdialog' aria-label={full} tabIndex={0} data-kind={approval.kind}
+                ref={el => this.focusApproval(el, approval.id)}
+                onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); this.store.decideApproval(session.id, 'run'); }
+                    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.decideFromComposer('skip'); }
+                }}>
+                <div className='ingot-approval-line' id='ingot-approval-line' title={full} aria-label={actionLine(approval, 200)}>
+                    <span className='ingot-approval-label'>{approval.label}{approval.detail ? ':' : ''}</span>{approval.detail && <span className='ingot-approval-detail'> {approval.detail.replace(/\s+/g, ' ').trim()}</span>}
+                </div>
+                <div className='ingot-approval-actions'>
+                    {!this.composerEmpty && <span className='ingot-approval-note ingot-dim'>Your note is sent as the reason</span>}
+                    <button type='button' id='ingot-approval-skip' className='ingot-approval-skip' title='Skip (Esc)' onClick={() => this.decideFromComposer('skip')}>Skip</button>
+                    <button type='button' id='ingot-approval-always' className='ingot-approval-always' title={approval.command ? `Run "${approval.command}" now and every time in this project without asking` : `Run this and future ${approval.kind === 'mcp' ? 'MCP tool calls' : approval.kind} actions in this project without asking`}
+                        onClick={() => this.store.decideApproval(session.id, 'always')}>Always Run</button>
+                    <button type='button' id='ingot-approval-run' className='ingot-approval-run' title='Run (Enter)' onClick={() => this.store.decideApproval(session.id, 'run')}>Run <span className='ingot-approval-key'>⏎</span></button>
+                </div>
+            </div>
+        </div>;
+    }
+
+    protected focusedApproval?: string;
+    /** Takes focus when a new card appears and focus is already in the chat, so Enter / Esc answer it. */
+    protected focusApproval(el: HTMLDivElement | null, id: string): void {
+        if (!el || this.focusedApproval === id) {
+            return;
+        }
+        this.focusedApproval = id;
+        const active = document.activeElement;
+        // The composer answers Enter / Esc itself, so it keeps focus (a note typed there becomes the Skip reason).
+        if ((!active || active === document.body || this.node.contains(active)) && active?.id !== COMPOSER_INPUT_ID) {
+            el.focus();
+        }
+    }
+
+    /** Skip (with the composer text as the reason) or Run from the keyboard. */
+    protected decideFromComposer(decision: 'run' | 'skip'): void {
+        const session = this.store.current;
+        if (!session?.approval) {
+            return;
+        }
+        const reason = decision === 'skip' && this.inline && !this.inline.empty ? this.inline.text.trim() : undefined;
+        if (reason !== undefined) {
+            this.inline?.clear();
+            this.draft = '';
+            this.composerEmpty = true;
+        }
+        this.store.decideApproval(session.id, decision, reason);
+        this.composer?.focus();
+    }
+
     /** Review off: the info list stays until the next message. */
     protected lastRunVisible(session: AgentSession): boolean {
         const lastAgent = session.messages.map(m => m.role).lastIndexOf('agent');
@@ -793,6 +876,19 @@ export class IngotAgentsWidget extends ReactWidget {
         </div>;
     }
 
+    /** IDEA-132: processes started by the agent or the user, live, above the composer. */
+    protected renderProcesses(): React.ReactNode {
+        if (this.preferences.get<boolean>(RUN_PREFS.showProcesses, true) === false) {
+            return undefined;
+        }
+        return <ProcessesPanel processes={this.processes.processes} pinned={this.processes.pinned}
+            onStop={id => void this.processes.service.stop(id)}
+            onRun={() => void this.commands.executeCommand(PROCESS_COMMANDS.run.id)}
+            onClear={() => void this.processes.service.clearFinished()}
+            onOpenPort={port => void this.commands.executeCommand(BROWSER_COMMANDS.open.id, `http://localhost:${port}`)}
+            readOutput={id => this.processes.service.output(id)} />;
+    }
+
     protected renderComposer(): React.ReactNode {
         const items = this.slashItems;
         return <div className='ingot-composer'>
@@ -829,6 +925,11 @@ export class IngotAgentsWidget extends ReactWidget {
                             this.update();
                             return;
                         }
+                    }
+                    if (this.store.current?.approval && (e.key === 'Enter' && !e.shiftKey || e.key === 'Escape')) {
+                        e.preventDefault();
+                        this.decideFromComposer(e.key === 'Enter' && this.composerEmpty ? 'run' : 'skip');
+                        return;
                     }
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.submit(); }
                     if (e.key === 'Escape' && this.store.current && this.store.isRunning(this.store.current.id)) { e.preventDefault(); this.store.stop(this.store.current.id); }

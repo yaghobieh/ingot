@@ -1,10 +1,18 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
+import { KeyStoreService } from '@theia/core/lib/common/key-store';
+import { DEV_FILE_KEYSTORE_ENV, DevFileKeyStoreService } from './dev-file-key-store';
 import { IngotEditorImportService } from './editor-import-backend';
 import { EDITOR_IMPORT_SERVICE_PATH, EditorImportService } from '../common/import/editor-import.types';
 import { ConnectionHandler, RpcConnectionHandler } from '@theia/core/lib/common/messaging';
 import { PORTS_SERVICE_PATH } from '../common/ports/ports.consts';
 import { PortsService } from '../common/ports/ports.types';
 import { IngotPortsService } from './ingot-ports-service';
+import { IngotAgentActionsService } from './ingot-agent-actions-service';
+import { IngotProcessService } from './ingot-process-service';
+import { BrowserProxyEndpoint } from './browser-proxy-endpoint';
+import { ProcessService, type ProcessClient } from '../common/processes/processes.types';
+import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
+import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agents/agent-actions-service';
 import { IngotModelService } from './ingot-model-service';
 import { MODEL_SERVICE_PATH } from '../common/models/models.consts';
 import { ModelService } from '../common/models/models.types';
@@ -29,11 +37,30 @@ import { AccountDeepLinkEndpoint } from './account/account-deeplink-endpoint';
 import { ACCOUNT_SERVICE_PATH, AccountBackend, type AccountClient } from '../common/account/account-protocol';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
+    // Dev preview only: keep secrets in a 0600 file instead of the OS keychain (no keychain prompt after each rebuild).
+    const devKeyStore = process.env[DEV_FILE_KEYSTORE_ENV];
+    if (devKeyStore) {
+        rebind(KeyStoreService).toConstantValue(new DevFileKeyStoreService(devKeyStore));
+        console.warn(`Ingot dev build: secrets are stored in a local file (${DEV_FILE_KEYSTORE_ENV}), not the OS keychain.`);
+    }
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
     rebind(WorkspaceFileService).toService(IngotWorkspaceFileService);
     bind(IngotPortsService).toSelf().inSingletonScope();
     bind(PortsService).toService(IngotPortsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(PORTS_SERVICE_PATH, () => ctx.container.get<PortsService>(PortsService))).inSingletonScope();
+    bind(IngotAgentActionsService).toSelf().inSingletonScope();
+    bind(AgentActionsService).toService(IngotAgentActionsService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(AGENT_ACTIONS_SERVICE_PATH, () => ctx.container.get<AgentActionsService>(AgentActionsService))).inSingletonScope();
+    bind(BrowserProxyEndpoint).toSelf().inSingletonScope();
+    bind(BackendApplicationContribution).toService(BrowserProxyEndpoint);
+    bind(IngotProcessService).toSelf().inSingletonScope();
+    bind(ProcessService).toService(IngotProcessService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<ProcessClient>(PROCESS_SERVICE_PATH, client => {
+        const service = ctx.container.get(IngotProcessService);
+        service.setClient(client);
+        client.onDidCloseConnection(() => service.removeClient(client));
+        return service;
+    })).inSingletonScope();
     bind(IngotAccountBackend).toSelf().inSingletonScope();
     bind(AccountBackend).toService(IngotAccountBackend);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<AccountClient>(ACCOUNT_SERVICE_PATH, client => {

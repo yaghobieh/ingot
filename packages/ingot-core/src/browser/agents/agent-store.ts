@@ -35,6 +35,19 @@ import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.cons
 import type { ProjectCommand } from '../../common/project-config/project-config.types';
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
+import {
+    APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
+    updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
+} from '../../common/agents/agent-actions';
+import { ProcessStore } from '../processes/process-store';
+import type { ImageChip } from '../../common/agents/composer-parts.types';
+import { BrowserController } from '../browser-tool/browser-controller';
+import { BROWSER_READ_TOOLS, browserNeedsCard, browserToolSettings } from '../../common/browser-tool/browser-settings';
+import { toTarget } from '../../common/browser-tool/browser-tool.utils';
+import { describeProcesses, isSafeScriptName, scriptCommand } from '../../common/processes/processes.utils';
+import { runToolSettings, type RunToolSettings } from '../../common/processes/run-settings';
+import { AgentActionsService, type AgentActionResult } from '../../common/agents/agent-actions-service';
+import { GitService } from '../../common/git/git.types';
 import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
 
 let nextId = 1;
@@ -54,6 +67,12 @@ export class AgentStore {
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
+    @inject(AgentActionsService) protected readonly actions: AgentActionsService;
+    @inject(GitService) protected readonly git: GitService;
+    @inject(ProcessStore) protected readonly processes: ProcessStore;
+    @inject(BrowserController) protected readonly browser: BrowserController;
+    /** IDEA-109: runs waiting on the approval card, per session. */
+    protected readonly approvals = new Map<string, (choice: { decision: ApprovalDecision; reason?: string; stopped?: boolean }) => void>();
     /** IDEA-105: paused runs waiting for Continue (or the countdown), per session. */
     protected readonly pauses = new Map<string, { resolve: (go: boolean) => void; timer?: ReturnType<typeof setTimeout> }>();
     /** Live edit views started while a reply streams, keyed by chat, message and path. */
@@ -375,7 +394,7 @@ export class AgentStore {
         session.status = 'thinking';
         session.updatedAt = Date.now();
         this.changed();
-        this.runModel(session);
+        this.runModel(session).finally(() => this.browser.endAgentRun(session.id));
         return session;
     }
 
@@ -388,7 +407,55 @@ export class AgentStore {
         this.running.get(id)?.();
         this.running.delete(id);
         this.releasePause(id, false);
+        this.approvals.get(id)?.({ decision: 'skip', stopped: true });
+        this.browser.endAgentRun(id);
         this.changed();
+    }
+
+    /** IDEA-109: the approval card's choice (Run ⏎, Skip with an optional reason, Always Run). */
+    decideApproval(id: string, decision: ApprovalDecision, reason?: string): void {
+        this.approvals.get(id)?.({ decision, reason });
+    }
+
+    get alwaysRun(): AlwaysRunMap {
+        return toAlwaysRunMap(this.preferences.get(APPROVAL_PREFS.alwaysRun));
+    }
+
+    /** Settings › Agent approvals: revoke (or grant) "Always Run" for a project and action kind. */
+    async setAlwaysRun(project: string, kind: ApprovalKind, enabled: boolean): Promise<void> {
+        await this.preferences.set(APPROVAL_PREFS.alwaysRun, updateAlwaysRun(this.alwaysRun, project, kind, !enabled), PreferenceScope.User);
+        this.changed();
+    }
+
+    /** IDEA-131: commands that run without the card, per project. */
+    get alwaysRunCommands(): AlwaysRunCommands {
+        return toAlwaysRunCommands(this.preferences.get(APPROVAL_PREFS.alwaysRunCommands));
+    }
+
+    async setAlwaysRunCommand(project: string, command: string, enabled: boolean): Promise<void> {
+        await this.preferences.set(APPROVAL_PREFS.alwaysRunCommands, updateAlwaysRunCommands(this.alwaysRunCommands, project, command, !enabled), PreferenceScope.User);
+        this.changed();
+    }
+
+    get runSettings(): RunToolSettings {
+        return runToolSettings(key => this.preferences.get(key));
+    }
+
+    protected askApproval(session: AgentSession, action: AgentAction): Promise<{ decision: ApprovalDecision; reason?: string; stopped?: boolean }> {
+        const previous = session.status;
+        session.approval = { ...action, id: `approval-${Date.now().toString(36)}-${nextId++}` };
+        session.status = 'approval';
+        session.updatedAt = Date.now();
+        this.changed();
+        return new Promise(resolve => {
+            this.approvals.set(session.id, choice => {
+                this.approvals.delete(session.id);
+                session.approval = undefined;
+                session.status = choice.stopped ? 'idle' : previous === 'approval' ? 'thinking' : previous;
+                this.changed();
+                resolve(choice);
+            });
+        });
     }
 
     get review(): ReviewSettings {
@@ -524,7 +591,9 @@ export class AgentStore {
                     return { role: 'user' as const, content: `${m.from}: ${m.text}` };
                 }
                 if (m.role === 'tool') {
-                    return { role: 'user' as const, content: `Tool result (${m.from}):\n${m.expanded ?? m.text}` };
+                    const content = `Tool result (${m.from}):\n${m.expanded ?? m.text}`;
+                    // IDEA-130: a browser screenshot goes to the model as an image when it can read images.
+                    return m.images?.length ? this.userMessage(session, { ...m, expanded: content }) : { role: 'user' as const, content };
                 }
                 return this.userMessage(session, m);
             });
@@ -569,7 +638,7 @@ export class AgentStore {
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
-        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', toolProtocol(tools), this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
+        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol() : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
         const rulesText = formatRules(rules);
         const memoriesText = formatMemories(memories);
         const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
@@ -596,7 +665,13 @@ export class AgentStore {
                 return;
             }
             if (parsed.toolCalls.length && round < MAX_TOOL_ROUNDS) {
-                await this.runTools(session, parsed.toolCalls);
+                if (!await this.runTools(session, parsed.toolCalls)) {
+                    session.messages.push({ role: 'system', text: 'Stopped while waiting for approval.' });
+                    session.status = 'idle';
+                    session.updatedAt = Date.now();
+                    this.changed();
+                    return;
+                }
                 continue;
             }
             await this.saveMemories(session, parsed.memories, root);
@@ -674,17 +749,180 @@ export class AgentStore {
         return stopped ? { ...parsed, toolCalls: [], edits: [], memories: [] } : { ...parsed, memories };
     }
 
-    protected async runTools(session: AgentSession, calls: readonly AgentToolCall[]): Promise<void> {
-        for (const call of calls) {
+    /**
+     * Runs a round of tool calls. Actions that need approval (IDEA-109) wait on the card first; Skip returns the
+     * reason to the agent as the tool result. Returns false when the user stopped the run on the card.
+     */
+    protected async runTools(session: AgentSession, calls: readonly AgentToolCall[]): Promise<boolean> {
+        const root = this.rootFor(session);
+        const rootPath = root?.path.fsPath();
+        for (const raw of calls) {
+            const resolved = await this.resolveCall(raw, rootPath);
+            if ('error' in resolved) {
+                session.messages.push({ role: 'tool', from: `${raw.server}/${raw.tool}`, text: `Error: ${resolved.error}` });
+                this.changed();
+                continue;
+            }
+            const call = resolved.call;
             const target = `${call.server}/${call.tool}`;
+            const isGit = call.server === BUILTIN_TOOL_SERVER && call.tool === 'git';
+            const branch = isGit && rootPath && call.args.op === 'push' && !call.args.branch
+                ? (await this.git.run(rootPath, { kind: 'currentBranch' }).catch(() => ({ output: '' }))).output.trim() || undefined : undefined;
+            const described = describeAction(call, branch);
+            // Stopping a process the agent started itself never asks; the user's own processes do.
+            const action = call.server === BUILTIN_TOOL_SERVER && call.tool === 'process_stop' && this.processes.find(String(call.args.id))?.origin !== 'user' ? undefined : described;
+            const requireGit = this.preferences.get<boolean>(APPROVAL_PREFS.gitRequireApproval, true) !== false;
+            const isBrowser = call.server === BUILTIN_TOOL_SERVER && call.tool.startsWith('browser_');
+            const requireRun = action?.kind === 'terminal' ? this.runSettings.requireApproval
+                : isBrowser ? browserNeedsCard(call.tool, browserToolSettings(key => this.preferences.get(key))) : true;
+            if (action && requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)) {
+                const choice = await this.askApproval(session, action);
+                if (choice.stopped) {
+                    return false;
+                }
+                if (choice.decision === 'skip') {
+                    session.messages.push({ role: 'tool', from: target, text: skippedResult(action, choice.reason) });
+                    this.changed();
+                    continue;
+                }
+                if (choice.decision === 'always' && rootPath) {
+                    await (action.command ? this.setAlwaysRunCommand(rootPath, action.command, true) : this.setAlwaysRun(rootPath, action.kind, true));
+                }
+            }
             session.steps = [...session.steps, { kind: 'run', target, done: false }];
             session.status = 'thinking';
             this.changed();
-            const result = await this.mcp.callTool(call.server, call.tool, call.args);
+            const result: AgentActionResult & { images?: ImageChip[] } = isBrowser ? await this.runBrowser(session, call)
+                : call.server === BUILTIN_TOOL_SERVER ? await this.runBuiltin(call, root) : await this.mcp.callTool(call.server, call.tool, call.args);
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
-            session.messages.push({ role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}` });
+            session.messages.push({ role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}) });
             this.changed();
         }
+        return true;
+    }
+
+    /** Ingot's built-in agent tools (IDEA-109): git, terminal command, web search / fetch, file delete. */
+    protected async runBuiltin(call: AgentToolCall, root: URI | undefined): Promise<AgentActionResult> {
+        const rootPath = root?.path.fsPath();
+        if (!root || !rootPath) {
+            return { text: 'Open a project first.', isError: true };
+        }
+        const str = (v: unknown): string => typeof v === 'string' ? v : '';
+        try {
+            switch (call.tool) {
+                case 'git': {
+                    if (call.args.op === 'log') {
+                        const commits = await this.git.log(rootPath, 20);
+                        return { text: commits.map(c => `${c.hash.slice(0, 8)} ${c.subject}`).join('\n') || 'No commits.', isError: false };
+                    }
+                    const result = await this.git.run(rootPath, gitOperationFor(call.args));
+                    return { text: result.output.trim() || 'Done.', isError: false };
+                }
+                case 'run': return await this.runCommand(rootPath, str(call.args.command), call.args.background === true);
+                case 'scripts': {
+                    const found = await this.processes.service.scripts(rootPath);
+                    if (!found || !Object.keys(found.scripts).length) {
+                        return { text: 'No package.json scripts in this project.', isError: false };
+                    }
+                    return { text: [`Package manager: ${found.manager}`, ...Object.entries(found.scripts).map(([name, cmd]) => `- ${name}: ${cmd}`)].join('\n'), isError: false };
+                }
+                case 'processes': return { text: describeProcesses(await this.processes.service.list(), Date.now()), isError: false };
+                case 'process_output': {
+                    const out = await this.processes.service.output(str(call.args.id), this.runSettings.maxOutputChars);
+                    const info = this.processes.find(str(call.args.id)) ?? (await this.processes.service.list()).find(p => p.id === str(call.args.id));
+                    return out
+                        ? { text: `${info ? describeProcesses([info], Date.now()) : out.id}\n${out.truncated ? '… (earlier output cut)\n' : ''}${out.text.trimEnd() || '(no output yet)'}`, isError: false }
+                        : { text: `No process "${str(call.args.id)}". Use ingot/processes to list them.`, isError: true };
+                }
+                case 'process_stop': {
+                    const stopped = await this.processes.service.stop(str(call.args.id));
+                    return stopped ? { text: `Stopped ${str(call.args.id)}.`, isError: false } : { text: `Process "${str(call.args.id)}" is not running.`, isError: true };
+                }
+                case 'web_search': return await this.actions.search(str(call.args.query));
+                case 'web_fetch': return await this.actions.fetchUrl(str(call.args.url));
+                case 'delete': {
+                    const path = str(call.args.path);
+                    if (!isSafeRelativePath(path)) {
+                        return { text: `Refusing to delete "${path}": use a path inside the project.`, isError: true };
+                    }
+                    await this.files.delete(root.resolve(path), { recursive: false, useTrash: true });
+                    return { text: `Deleted ${path}.`, isError: false };
+                }
+                default: return { text: `Unknown Ingot tool "${call.tool}".`, isError: true };
+            }
+        } catch (error) {
+            return { text: error instanceof Error ? error.message : String(error), isError: true };
+        }
+    }
+
+    /** IDEA-130: the agent's browser tools, run in the Ingot browser panel (they wait while the user has control). */
+    protected async runBrowser(session: AgentSession, call: AgentToolCall): Promise<AgentActionResult & { images?: ImageChip[] }> {
+        if (!browserToolSettings(key => this.preferences.get(key)).enabled) {
+            return { text: 'The browser tool is turned off in Settings › Tools › Agent browser.', isError: true };
+        }
+        const a = call.args;
+        const str = (v: unknown): string => typeof v === 'string' ? v : '';
+        const text = (t: string): AgentActionResult => ({ text: t, isError: /^(Browser error|Cannot open|No element|No field|Invalid selector|Stopped while)/.test(t) });
+        switch (call.tool) {
+            case 'browser_open': return text(await this.browser.agentOpen(session.id, str(a.url)));
+            case 'browser_read': return text(await this.browser.agentRead(session.id));
+            case 'browser_click': return text(await this.browser.agentClick(session.id, toTarget(a, 'click')));
+            case 'browser_type': return text(await this.browser.agentType(session.id, toTarget(a, 'type'), str(a.text), a.submit === true));
+            case 'browser_scroll': {
+                const d = str(a.direction);
+                return text(await this.browser.agentScroll(session.id, d === 'up' || d === 'top' || d === 'bottom' ? d : 'down'));
+            }
+            case 'browser_back': return text(await this.browser.agentBack(session.id));
+            case 'browser_screenshot': {
+                const shot = await this.browser.agentScreenshot(session.id);
+                const data = shot.image?.dataUrl.replace(/^data:image\/png;base64,/, '');
+                return { ...text(shot.text), ...(data ? { images: [{ id: `shot-${Date.now().toString(36)}`, name: 'screenshot.png', mediaType: 'image/png', data }] } : {}) };
+            }
+            default: return { text: `Unknown browser tool "${call.tool}". Tools: ${['browser_open', 'browser_click', 'browser_type', 'browser_scroll', 'browser_back', ...BROWSER_READ_TOOLS].join(', ')}.`, isError: true };
+        }
+    }
+
+    /**
+     * IDEA-131: `run_script` becomes a `run` of "<manager> run <script>" so the card shows (and Always Run remembers)
+     * the real command.
+     */
+    protected async resolveCall(call: AgentToolCall, rootPath: string | undefined): Promise<{ call: AgentToolCall } | { error: string }> {
+        if (call.server !== BUILTIN_TOOL_SERVER || call.tool !== 'run_script') {
+            return { call };
+        }
+        const script = typeof call.args.script === 'string' ? call.args.script.trim() : '';
+        if (!rootPath) {
+            return { error: 'Open a project first.' };
+        }
+        const found = await this.processes.service.scripts(rootPath).catch(() => undefined);
+        if (!script || !isSafeScriptName(script) || !found || !(script in found.scripts)) {
+            const known = found ? Object.keys(found.scripts).join(', ') : '';
+            return { error: `No script "${script}" in package.json.${known ? ` Scripts: ${known}.` : ''}` };
+        }
+        return { call: { server: BUILTIN_TOOL_SERVER, tool: 'run', args: { command: scriptCommand(found.manager, script), background: call.args.background === true } } };
+    }
+
+    /** IDEA-131: a command in the foreground (waits, then moves to the background after the timeout) or in the background. */
+    protected async runCommand(cwd: string, command: string, background: boolean): Promise<AgentActionResult> {
+        if (!command.trim()) {
+            return { text: 'No command given.', isError: true };
+        }
+        const settings = this.runSettings;
+        if (!settings.enabled) {
+            return { text: 'Running commands is turned off in Settings › Tools › Agent terminal.', isError: true };
+        }
+        const service = this.processes.service;
+        if (background) {
+            const info = await service.start({ cwd, command, background: true, origin: 'agent' });
+            const out = await service.output(info.id, settings.maxOutputChars);
+            const state = info.status === 'running' ? `Running in the background as ${info.id}${info.ports.length ? ` on port ${info.ports.join(', ')}` : ''}.` : `Exited with code ${info.exitCode ?? '?'}.`;
+            return { text: `${state} Read more output with ingot/process_output, stop it with ingot/process_stop.\n${out?.text.trimEnd() ?? ''}`.trim(), isError: info.status === 'failed' };
+        }
+        const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: settings.foregroundTimeoutSeconds * 1000, maxOutput: settings.maxOutputChars });
+        const status = result.movedToBackground
+            ? `Still running after ${settings.foregroundTimeoutSeconds}s: moved to the background as ${result.info.id}${result.info.ports.length ? ` (port ${result.info.ports.join(', ')})` : ''}. Use ingot/process_output or ingot/process_stop.`
+            : result.info.status === 'stopped' ? 'Stopped.' : `Exit code ${result.info.exitCode ?? '?'}.`;
+        return { text: `${result.output.trimEnd()}\n${status}`.trim(), isError: !result.movedToBackground && result.info.status !== 'exited' };
     }
 
     /** Where an agent message's edits come from (its chat, itself, and the user message it answers). */

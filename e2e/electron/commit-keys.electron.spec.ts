@@ -76,6 +76,8 @@ test.describe('IDEA-122 commit and push shortcuts (desktop)', () => {
         await page.keyboard.press(`${MOD}+Shift+k`);
         await expect(page.locator('.dialogBlock .dialogTitle')).toContainText('Push', { timeout: 4_000 });
         await page.waitForTimeout(800);
+        // The editor's Delete Line must not run on the same press.
+        await expect(page.locator('#theia-main-content-panel .monaco-editor .view-lines').first()).toContainText('export const a = 2;');
         await shot(page, '122-push-before.png');
     });
 

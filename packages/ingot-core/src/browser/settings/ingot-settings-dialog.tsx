@@ -11,6 +11,9 @@ import { SETTINGS_PREFS, SETTINGS_TREE } from '../../common/settings/settings.co
 import type { SettingInfo, SettingsAction, SettingsPage } from '../../common/settings/settings.types';
 import { coerceSetting, flattenPages, searchPages, settingLabel, visiblePreferences } from '../../common/settings/settings.utils';
 import { MemoriesManager } from '../agents/chat-popovers';
+import {
+    APPROVAL_KIND_LABELS, APPROVAL_PREFS, toAlwaysRunCommands, toAlwaysRunMap, updateAlwaysRun, updateAlwaysRunCommands, type ApprovalKind
+} from '../../common/agents/agent-actions';
 import { MemoryStore } from '../agents/memory-store';
 import { INLINE_ACTIONS, SETTINGS_ACTION_COMMANDS, SettingsDialogProps, settingDomId } from './settings.browser-consts';
 
@@ -209,6 +212,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
         const children = page.children ?? [];
         return <div className='ingot-settings-body' id={`ingot-settings-page-${page.id}`}>
             {page.description && <p className='ingot-settings-description'>{page.description}</p>}
+            {page.custom === 'approvals' && this.renderAlwaysRun()}
             {page.custom === 'memories' && <section className='ingot-settings-card ingot-settings-memories'><MemoriesManager store={this.memoryStore} /></section>}
             {this.groupsFor(page, keys).map(group => <section key={group.label} className='ingot-settings-card'>
                 <h3 className='ingot-settings-card-title'>{group.label}</h3>
@@ -261,4 +265,37 @@ export class IngotSettingsDialog extends ReactDialog<void> {
         const rest = keys.filter(k => !grouped.has(k));
         return [...groups, ...(rest.length ? [{ label: groups.length ? 'Other' : 'General', preferences: rest }] : [])].filter(g => g.preferences.length);
     }
+
+    /** IDEA-109: "Always Run" choices per project, each revocable. */
+    protected renderAlwaysRun(): React.ReactNode {
+        const map = toAlwaysRunMap(this.preferences.get(APPROVAL_PREFS.alwaysRun));
+        const rows = Object.entries(map).flatMap(([project, kinds]) => kinds.map(kind => ({ project, kind })));
+        const revoke = async (project: string, kind: ApprovalKind): Promise<void> => {
+            await this.preferences.set(APPROVAL_PREFS.alwaysRun, updateAlwaysRun(toAlwaysRunMap(this.preferences.get(APPROVAL_PREFS.alwaysRun)), project, kind, true), PreferenceScope.User);
+            this.update();
+        };
+        const commands = Object.entries(toAlwaysRunCommands(this.preferences.get(APPROVAL_PREFS.alwaysRunCommands))).flatMap(([project, list]) => list.map(command => ({ project, command })));
+        const revokeCommand = async (project: string, command: string): Promise<void> => {
+            await this.preferences.set(APPROVAL_PREFS.alwaysRunCommands,
+                updateAlwaysRunCommands(toAlwaysRunCommands(this.preferences.get(APPROVAL_PREFS.alwaysRunCommands)), project, command, true), PreferenceScope.User);
+            this.update();
+        };
+        return <section className='ingot-settings-card ingot-settings-always-run' id='ingot-always-run'>
+            <h3 className='ingot-settings-card-title'>Always Run</h3>
+            {!rows.length && !commands.length && <p className='ingot-dim' id='ingot-always-run-empty'>Nothing runs without asking. Choose “Always Run” on an approval card to skip it for that kind of action in a project.</p>}
+            {rows.map(({ project, kind }) => <div key={`${project}:${kind}`} className='ingot-always-run-row' data-kind={kind}>
+                <span className='ingot-always-run-kind'>{APPROVAL_KIND_LABELS[kind]}</span>
+                <span className='ingot-dim ingot-always-run-project' title={project}>{project}</span>
+                <span className='ingot-flex' />
+                <button type='button' className='ingot-btn-ghost ingot-always-run-revoke' onClick={() => void revoke(project, kind)}>Revoke</button>
+            </div>)}
+            {commands.map(({ project, command }) => <div key={`${project}:cmd:${command}`} className='ingot-always-run-row' data-kind='command' data-command={command}>
+                <code className='ingot-always-run-command' title={command}>{command}</code>
+                <span className='ingot-dim ingot-always-run-project' title={project}>{project}</span>
+                <span className='ingot-flex' />
+                <button type='button' className='ingot-btn-ghost ingot-always-run-revoke' onClick={() => void revokeCommand(project, command)}>Revoke</button>
+            </div>)}
+        </section>;
+    }
+
 }

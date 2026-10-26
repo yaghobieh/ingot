@@ -95,6 +95,10 @@ test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => 
         await newOllamaAgent(page);
         await composer(page).fill('What is 2 + 3? Use the calculator.');
         await composer(page).press('Enter');
+        // IDEA-109: MCP tool calls wait on the approval card.
+        await expect(page.locator('#ingot-approval-line')).toContainText('calc: add', { timeout: 30_000 });
+        await page.locator('#ingot-approval-run').click();
+        await expect(page.locator('#ingot-approval')).toHaveCount(0);
         await expect(page.locator('#ingot-agents .ingot-chat-tool')).toContainText('5');
         await expect(page.locator('#ingot-agents .ingot-chat-tool')).toContainText('calc/add');
         await expect(page.locator('#ingot-agents .ingot-chat-agent .ingot-md').last()).toHaveText('The sum is 5.');

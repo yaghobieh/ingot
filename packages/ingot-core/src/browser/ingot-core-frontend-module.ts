@@ -1,6 +1,6 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
-import { bindViewContribution, FrontendApplicationContribution, KeybindingContribution, WidgetFactory } from '@theia/core/lib/browser';
+import { bindViewContribution, FrontendApplicationContribution, KeybindingContribution, UndoRedoHandler, WidgetFactory } from '@theia/core/lib/browser';
 import { AboutDialog } from '@theia/core/lib/browser/about-dialog';
 import { IngotCoreContribution } from './ingot-core-contribution';
 import { IngotThemeContribution } from './theme/ingot-theme-contribution';
@@ -13,6 +13,15 @@ import { IngotAboutDialog } from './about/ingot-about-dialog';
 import { ServiceConnectionProvider } from '@theia/core/lib/browser/messaging/service-connection-provider';
 import { PORTS_SERVICE_PATH } from '../common/ports/ports.consts';
 import { PortsService } from '../common/ports/ports.types';
+import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agents/agent-actions-service';
+import { ProcessService } from '../common/processes/processes.types';
+import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
+import { ProcessClientImpl, ProcessStore } from './processes/process-store';
+import { ProcessesContribution } from './processes/processes-contribution';
+import { BrowserController } from './browser-tool/browser-controller';
+import { IngotBrowserWidget } from './browser-tool/browser-widget';
+import { IngotBrowserContribution } from './browser-tool/browser-contribution';
+import { BROWSER_WIDGET_ID } from '../common/browser-tool/browser-tool.consts';
 import { IngotPortsWidget } from './ports/ingot-ports-widget';
 import { IngotPortsContribution } from './ports/ingot-ports-contribution';
 import { PORTS_WIDGET_ID } from './ports/ingot-ports.consts';
@@ -75,6 +84,7 @@ import { DebugToolsService } from '../common/debug/debug.types';
 import { PreferenceContribution } from '@theia/core/lib/common/preferences';
 import { layoutPreferenceSchema } from './layout/layout-preferences';
 import { reviewPreferenceSchema } from './review/review-preferences';
+import { approvalPreferenceSchema } from './agents/approval-preferences';
 import { ReviewContribution } from './review/review-contribution';
 import { ReviewComments } from './review/review-comments';
 import { IngotLayoutContribution } from './layout/layout-contribution';
@@ -99,6 +109,7 @@ import { IngotCommitContribution, createDiffWidgetFactory } from './commit/commi
 import { LocalChangesModel } from './commit/local-changes-model';
 import { LocalChangesWidget } from './commit/local-changes-widget';
 import { IngotDiffWidget } from './commit/ingot-diff-widget';
+import { DiffUndoRedoHandler } from './commit/diff-undo-redo-handler';
 import { IngotMergeWidget } from './merge/merge-tool-widget';
 import { BreadcrumbRenderer, BreadcrumbsRenderer, BreadcrumbsRendererFactory } from '@theia/core/lib/browser/breadcrumbs';
 import { FilepathBreadcrumbsContribution } from '@theia/filesystem/lib/browser/breadcrumbs/filepath-breadcrumbs-contribution';
@@ -137,6 +148,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: appearancePreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: layoutPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: reviewPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: approvalPreferenceSchema });
     bind(ReviewComments).toSelf().inSingletonScope();
     bind(ReviewContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(ReviewContribution);
@@ -176,6 +188,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         return widget;
     })).inSingletonScope();
     bindViewContribution(bind, IngotCommitContribution);
+    bind(DiffUndoRedoHandler).toSelf().inSingletonScope();
+    bind(UndoRedoHandler).toService(DiffUndoRedoHandler);
     bind(IngotMergeWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => createMergeWidgetFactory(options => {
         const widget = ctx.container.get(IngotMergeWidget);
@@ -251,6 +265,16 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bindViewContribution(bind, IngotWelcomeContribution);
     bind(FrontendApplicationContribution).toService(IngotWelcomeContribution);
 
+    bind(ProcessClientImpl).toSelf().inSingletonScope();
+    bind(ProcessService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ProcessService>(ctx.container, PROCESS_SERVICE_PATH, ctx.container.get(ProcessClientImpl))).inSingletonScope();
+    bind(ProcessStore).toSelf().inSingletonScope();
+    bind(ProcessesContribution).toSelf().inSingletonScope();
+    bind(BrowserController).toSelf().inSingletonScope();
+    bind(IngotBrowserWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: BROWSER_WIDGET_ID, createWidget: () => ctx.container.get(IngotBrowserWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotBrowserContribution);
+    bind(CommandContribution).toService(ProcessesContribution);
+    bind(AgentActionsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<AgentActionsService>(ctx.container, AGENT_ACTIONS_SERVICE_PATH)).inSingletonScope();
     bind(PortsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<PortsService>(ctx.container, PORTS_SERVICE_PATH)).inSingletonScope();
     bind(IngotPortsWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: PORTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotPortsWidget) })).inSingletonScope();

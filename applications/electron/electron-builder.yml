@@ -1,8 +1,15 @@
-# Packaging config for the Ingot desktop app (IDEA-54). Unsigned builds until IDEA-39 provides certificates.
+# Packaging config for the Ingot desktop app (IDEA-54, release pipeline IDEA-134).
+# Unsigned by default. Signing/notarization switch on only when the CI secrets exist (docs/release.md).
 appId: dev.ingot.ide
 productName: Ingot
 copyright: Copyright © 2026 Ingot contributors
 electronDist: ../../node_modules/electron/dist
+# Everything the app needs is bundled into lib/ by `theia build` (esbuild, native modules in lib/backend/native),
+# so node_modules are not shipped and nothing is rebuilt here (`npm run bundle` already ran `theia rebuild:electron`).
+npmRebuild: false
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+asar: false
 directories:
   buildResources: ../../assets/brand
   output: dist
@@ -11,23 +18,62 @@ files:
   - src-gen
   - resources
   - package.json
-  - "!**/node_modules/electron/**"
+  - "!**/node_modules/**"
+  - "!**/*.map"
+# Built-in language plugins; the main process points THEIA_DEFAULT_PLUGINS at <resources>/plugins.
+extraResources:
+  - from: ../../plugins
+    to: plugins
+    filter: ["**/*", "!.gitkeep"]
+# One name per OS/arch, so parallel CI jobs never collide on a GitHub Release.
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 # ingot:// links from the website (Open in Ingot sign-in handoff, IDEA-101).
 protocols:
   - name: Ingot
     schemes: [ingot]
+# Auto-update feed (electron-updater reads app-update.yml generated from this). CI builds with --publish never;
+# the release job uploads the installers + latest*.yml to the GitHub Release.
+publish:
+  - provider: github
+    owner: yaghobieh
+    repo: ingot
+    releaseType: draft
 mac:
   category: public.app-category.developer-tools
   icon: ../../assets/brand/app-icon.icns
-  target: [dmg, zip]
+  target: [dmg, zip]   # zip is what the auto-updater downloads on macOS
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: packaging/entitlements.mac.plist
+  entitlementsInherit: packaging/entitlements.mac.plist
   extendInfo:
     CFBundleDisplayName: Ingot
     CFBundleName: Ingot
     NSMicrophoneUsageDescription: Ingot uses the microphone for voice dictation in the chat composer.
+dmg:
+  title: ${productName} ${version}
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
 win:
   icon: ../../assets/brand/app-icon.ico
   target: [nsis]
+  executableName: Ingot
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Ingot
+  artifactName: ${productName}-${version}-win-${arch}.${ext}
 linux:
   icon: ../../assets/brand/app-icon-1024.png
   category: Development
+  executableName: ingot
+  maintainer: Ingot contributors
+  synopsis: The open-source AI IDE
   target: [AppImage, deb]
+  mimeTypes: [x-scheme-handler/ingot]
+deb:
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}
+appImage:
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}
