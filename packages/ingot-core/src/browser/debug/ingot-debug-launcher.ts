@@ -189,8 +189,9 @@ export class IngotDebugLauncher {
         return !!session;
     }
 
+    /** Stops every session, parents included (an npm script session keeps its parent alive otherwise). */
     async stop(): Promise<void> {
-        await this.commands.executeCommand(DEBUG_SESSION_COMMANDS.stop);
+        await Promise.all(this.sessions.sessions.map(session => this.sessions.terminateSession(session)));
     }
 
     protected async target(): Promise<DebugTarget | undefined> {
