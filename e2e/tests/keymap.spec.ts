@@ -137,9 +137,12 @@ test.describe('IDEA-17-24 Ingot keymap, navigation, find/replace and run', () =>
         await actUntilVisible(() => page.keyboard.press('Shift+F10'), runTab);
         await page.keyboard.press('Control+F2');
         await page.locator('#files').click();
-        const debugTab = page.locator('#theia-bottom-content-panel .lm-TabBar-tab', { hasText: 'Debug: dev' });
-        await actUntilVisible(() => page.keyboard.press('Shift+F9'), debugTab);
-        await expect(page.locator('.theia-notification-list-item').filter({ hasText: '--inspect' }).first()).toBeVisible();
+        // IDEA-138: Shift+F9 starts a real debug session from a run/debug configuration detected in the project.
+        const npmDev = page.locator('.quick-input-list .monaco-list-row').filter({ hasText: 'npm run dev' }).first();
+        await actUntilVisible(() => page.keyboard.press('Shift+F9'), npmDev);
+        await npmDev.click();
+        await expect(page.locator('#theia-bottom-content-panel .lm-TabBar-tab', { hasText: 'Debug Console' })).toBeVisible({ timeout: 30_000 });
+        await page.keyboard.press('Control+F2');
         // The toolbar Run button uses the same configuration.
         await expect(page.locator('#ingot-tb-run-config')).toContainText('dev');
     });
