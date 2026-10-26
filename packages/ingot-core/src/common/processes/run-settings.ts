@@ -1,6 +1,6 @@
 import { FOREGROUND_TIMEOUT_MS, PROCESS_AGENT_OUTPUT_CHARS } from './processes.consts';
 
-/** IDEA-131/133: Settings › Tools › Agent terminal. */
+/** IDEA-131/133: Settings › Tools › Agent tools. */
 export const RUN_PREFS = {
     enabled: 'ingot.agent.terminal.enabled',
     requireApproval: 'ingot.agent.terminal.requireApproval',
