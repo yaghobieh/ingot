@@ -54,6 +54,9 @@ test.describe('IDEA-154 Zaprex panel', () => {
         await runCommand(page, 'Zaprex');
         await expect(page.locator('#ingot-bot-usage')).toContainText('3 / 300 min this month');
         await expect(page.locator('#ingot-bot-test-mode')).toBeVisible();
+        // The living T-rex in the header follows the real runs (pose on the SVG itself, which drives its CSS).
+        const mascot = page.locator('#ingot-zaprex-mascot svg');
+        await expect(mascot).toBeVisible();
         await page.locator('#ingot-bot-repo').selectOption({ label: 'ingot-dev/sample-app' });
 
         await page.locator('#ingot-bot-input').fill('Fix the failing tests and add a dependency for dates');
@@ -61,6 +64,7 @@ test.describe('IDEA-154 Zaprex panel', () => {
         const approval = page.locator('#ingot-bot-approval');
         await expect(approval).toContainText('Add or upgrade dependencies');
         await expect(page.locator('#ingot-bot-runs')).toContainText('Waiting for you');
+        await expect(mascot).toHaveAttribute('data-state', 'approval');
         await setTheme(page, 'Ingot Dark');
         await shot(page, 'ide-bot-approval-dark');
         await setTheme(page, 'Ingot Light');
@@ -70,6 +74,7 @@ test.describe('IDEA-154 Zaprex panel', () => {
         await expect(approval).toBeHidden();
         await expect(page.locator('#ingot-bot-pr-link')).toHaveAttribute('href', 'https://github.com/ingot-dev/sample-app/pull/7');
         await expect(page.locator('#ingot-bot-runs')).toContainText('Done');
+        await expect(mascot).toHaveAttribute('data-state', 'done');
         await page.locator('#ingot-bot-runs .ingot-process-row').first().click();
         await expect(page.locator('#ingot-bot-run-log')).toContainText('$ npm test → exit 1');
         await shot(page, 'ide-bot-done-light');
