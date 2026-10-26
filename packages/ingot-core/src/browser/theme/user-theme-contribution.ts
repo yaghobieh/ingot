@@ -14,6 +14,8 @@ import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service
 import { MonacoThemingService } from '@theia/monaco/lib/browser/monaco-theming-service';
 import { SETTINGS_PREFS } from '../../common/settings/settings.consts';
 import { parseVsCodeTheme, upsertTheme, USER_THEMES_STORAGE_KEY, type ImportedTheme } from '../../common/theme/theme-import.utils';
+import type { StoreInstalledTheme } from '../../common/theme/theme-store.types';
+import { Emitter } from '@theia/core/lib/common/event';
 import { THEME_IMPORT_COMMAND, THEME_REMOVE_COMMAND } from '../settings/settings.browser-consts';
 
 /** User color themes imported from color theme files (IDEA-35), kept in browser storage and re-registered on start. */
@@ -31,11 +33,16 @@ export class UserThemeContribution implements FrontendApplicationContribution, C
     @inject(QuickInputService) protected readonly quickInput: QuickInputService;
 
     protected readonly registered = new Map<string, Disposable>();
+    protected readonly onDidChangeEmitter = new Emitter<void>();
+    /** Fires when themes are installed, imported or removed (IDEA-144). */
+    readonly onDidChange = this.onDidChangeEmitter.event;
 
     async onStart(): Promise<void> {
         for (const theme of await this.load()) {
             this.register(theme);
         }
+        // Slot themes (IDEA-144) may be store themes: let Appearance re-check once they exist.
+        this.onDidChangeEmitter.fire();
     }
 
     registerCommands(registry: CommandRegistry): void {
@@ -43,14 +50,47 @@ export class UserThemeContribution implements FrontendApplicationContribution, C
         registry.registerCommand(THEME_REMOVE_COMMAND, { execute: () => this.removeTheme() });
     }
 
-    protected async load(): Promise<ImportedTheme[]> {
-        const stored = await this.storage.getData<ImportedTheme[]>(USER_THEMES_STORAGE_KEY, []);
+    async load(): Promise<StoreInstalledTheme[]> {
+        const stored = await this.storage.getData<StoreInstalledTheme[]>(USER_THEMES_STORAGE_KEY, []);
         return Array.isArray(stored) ? stored : [];
     }
 
-    protected register(theme: ImportedTheme): void {
+    protected register(theme: StoreInstalledTheme): void {
         this.registered.get(theme.id)?.dispose();
-        this.registered.set(theme.id, this.theming.registerParsedTheme({ id: theme.id, label: `${theme.label} (imported)`, uiTheme: theme.uiTheme, json: theme.json }));
+        // Store themes keep their own name; themes imported from a file are marked as such.
+        const label = theme.source ? theme.label : `${theme.label} (imported)`;
+        this.registered.set(theme.id, this.theming.registerParsedTheme({ id: theme.id, label, uiTheme: theme.uiTheme, json: theme.json }));
+    }
+
+    /** IDEA-144: adds (or updates) themes from an Open VSX package. */
+    async install(themes: readonly StoreInstalledTheme[]): Promise<void> {
+        let all = await this.load();
+        for (const theme of themes) {
+            all = upsertTheme(all, theme);
+        }
+        await this.storage.setData(USER_THEMES_STORAGE_KEY, all);
+        themes.forEach(theme => this.register(theme));
+        this.onDidChangeEmitter.fire();
+    }
+
+    /** IDEA-144: removes every theme of an extension (or one imported theme by id). Returns the removed ids. */
+    async uninstall(match: { extensionId?: string; themeId?: string }): Promise<string[]> {
+        const all = await this.load();
+        const removed = all.filter(t => (match.extensionId && t.source?.extensionId === match.extensionId) || (match.themeId && t.id === match.themeId));
+        if (!removed.length) {
+            return [];
+        }
+        await this.storage.setData(USER_THEMES_STORAGE_KEY, all.filter(t => !removed.includes(t)));
+        const ids = removed.map(t => t.id);
+        if (ids.includes(this.themes.getCurrentTheme().id) || ids.includes(this.preferences.get<string>(SETTINGS_PREFS.colorTheme) ?? '')) {
+            await this.preferences.set(SETTINGS_PREFS.colorTheme, undefined, PreferenceScope.User);
+        }
+        for (const id of ids) {
+            this.registered.get(id)?.dispose();
+            this.registered.delete(id);
+        }
+        this.onDidChangeEmitter.fire();
+        return ids;
     }
 
     async importTheme(given?: URI): Promise<ImportedTheme | undefined> {
@@ -67,6 +107,7 @@ export class UserThemeContribution implements FrontendApplicationContribution, C
             const theme = parseVsCodeTheme(content.value, uri.path.base);
             await this.storage.setData(USER_THEMES_STORAGE_KEY, upsertTheme(await this.load(), theme));
             this.register(theme);
+            this.onDidChangeEmitter.fire();
             await this.preferences.set(SETTINGS_PREFS.colorTheme, theme.id, PreferenceScope.User);
             this.messages.info(`Imported color theme “${theme.label}”.`);
             return theme;
@@ -86,11 +127,6 @@ export class UserThemeContribution implements FrontendApplicationContribution, C
         if (!pick) {
             return;
         }
-        await this.storage.setData(USER_THEMES_STORAGE_KEY, themes.filter(t => t.id !== pick.id));
-        if (this.themes.getCurrentTheme().id === pick.id) {
-            await this.preferences.set(SETTINGS_PREFS.colorTheme, undefined, PreferenceScope.User);
-        }
-        this.registered.get(pick.id)?.dispose();
-        this.registered.delete(pick.id);
+        await this.uninstall({ themeId: pick.id });
     }
 }

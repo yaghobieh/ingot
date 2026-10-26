@@ -127,6 +127,9 @@ import { IngotSettingsDialog } from './settings/ingot-settings-dialog';
 import { IngotSettingsContribution } from './settings/ingot-settings-contribution';
 import { SettingsDialogProps, SettingsDialogProvider } from './settings/settings.browser-consts';
 import { UserThemeContribution } from './theme/user-theme-contribution';
+import { ThemeStoreService } from './theme/theme-store-service';
+import { ThemePickerDialog, ThemePickerDialogProps } from './theme/theme-picker-dialog';
+import { ThemePickerContribution } from './theme/theme-picker-contribution';
 import { ImagePreviewContribution, ImagePreviewOpenHandler } from './preview/image-preview-contribution';
 import { ImageHoverService } from './preview/image-hover-service';
 import { ImagePreviewUri, ImagePreviewWidget } from './preview/image-preview-widget';
@@ -345,6 +348,11 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(UserThemeContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(UserThemeContribution);
     bind(CommandContribution).toService(UserThemeContribution);
+    bind(ThemeStoreService).toSelf().inSingletonScope();
+    bind(ThemePickerDialogProps).toConstantValue({ title: 'Color Theme' });
+    bind(ThemePickerDialog).toSelf().inSingletonScope();
+    bind(ThemePickerContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(ThemePickerContribution);
     // IDEA-145: image preview
     bind(ImageHoverService).toSelf().inSingletonScope();
     bind(ImagePreviewOpenHandler).toSelf().inSingletonScope();
