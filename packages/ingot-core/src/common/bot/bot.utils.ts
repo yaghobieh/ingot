@@ -50,3 +50,23 @@ export function modeNotice(state: { runner?: string; runnerLive?: boolean; model
     if (!state.modelsLive) { return 'test'; }
     return state.runner !== 'fly' || !state.runnerLive ? 'sandbox' : undefined;
 }
+
+/** Zaprex mascot pose (matches the animated asset's states). */
+export type ZaprexPose = 'idle' | 'thinking' | 'working' | 'approval' | 'done' | 'error';
+
+/** How long a finished run keeps the mascot in its done / error pose. */
+export const RECENT_RUN_MS = 15 * 60 * 1000;
+
+const ACTIVE_POSE: Partial<Record<BotRun['status'], ZaprexPose>> = { queued: 'thinking', starting: 'thinking', running: 'working', finishing: 'working', awaiting_approval: 'approval' };
+const FINISHED_POSE: Partial<Record<BotRun['status'], ZaprexPose>> = { succeeded: 'done', failed: 'error', cancelled: 'error', timed_out: 'error' };
+const POSE_PRIORITY: ZaprexPose[] = ['approval', 'working', 'thinking'];
+
+/** Mascot pose from the real runs: an active run wins (approval > working > thinking); else the latest run if recent; else idle. */
+export function mascotPose(runs: readonly BotRun[], now = Date.now()): ZaprexPose {
+    const active = runs.map(run => ACTIVE_POSE[run.status]).filter(Boolean);
+    for (const pose of POSE_PRIORITY) { if (active.includes(pose)) { return pose; } }
+    const time = (run: BotRun) => Date.parse(run.endedAt ?? run.createdAt);
+    const latest = [...runs].sort((a, b) => time(b) - time(a))[0];
+    const pose = latest && FINISHED_POSE[latest.status];
+    return pose && now - time(latest) <= RECENT_RUN_MS ? pose : 'idle';
+}
