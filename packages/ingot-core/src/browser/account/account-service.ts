@@ -4,6 +4,7 @@ import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import type { IngotAccount } from '../../common/account/account.types';
 import { AccountBackend, type AccountSnapshot, type GatewayModelInfo } from '../../common/account/account-protocol';
+import { billingUrl } from '../../common/account/gateway-errors';
 import { ACCOUNT_PREFERENCES, AVATAR_CACHE_KEY, AVATAR_CACHE_MAX_BYTES, DEFAULT_PORTAL_URL, DEFAULT_SERVER_URL, DEV_ACCOUNT_EMAIL } from '../../common/account/account.consts';
 import type { AvatarCache } from '../../common/account/avatar.types';
 import { avatarSource, isImageDataUrl, needsAvatarRefresh, parseAvatarCache, safeAvatarUrl } from '../../common/account/avatar.utils';
@@ -169,6 +170,11 @@ export class IngotAccountService {
     /** Admin powers are website-only (IDEA-124); this opens the portal's back-office (IDEA-129). */
     openAdmin(): void {
         this.windows.openNewWindow(`${this.urls.portalUrl.replace(/\/$/, '')}/backoffice`, { external: true });
+    }
+
+    /** Plans, top-ups and Manage subscription on the portal (IDEA-147). */
+    openBilling(): void {
+        this.windows.openNewWindow(billingUrl(this.urls.portalUrl), { external: true });
     }
 
     openDashboard(): void {

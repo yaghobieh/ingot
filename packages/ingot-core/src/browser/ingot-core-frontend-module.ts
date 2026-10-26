@@ -146,6 +146,7 @@ import { LabelProviderContribution } from '@theia/core/lib/browser/label-provide
 import { AppearanceContribution, appearancePreferenceSchema } from './theme/appearance-contribution';
 import { IngotEditorContextMenuContribution } from './editor/editor-context-menu-contribution';
 import '../../src/browser/style/index.css';
+import { ErrorReportingContribution } from './error-reporting-contribution';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
@@ -182,6 +183,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CommandContribution).toService(EditorImportContribution);
     bind(MenuContribution).toService(EditorImportContribution);
     bind(FrontendApplicationContribution).toService(EditorImportContribution);
+    bind(ErrorReportingContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(ErrorReportingContribution);
     bind(GitService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<GitService>(ctx.container, GIT_SERVICE_PATH)).inSingletonScope();
     bind(GitResourceResolver).toSelf().inSingletonScope();
     bind(ResourceResolver).toService(GitResourceResolver);

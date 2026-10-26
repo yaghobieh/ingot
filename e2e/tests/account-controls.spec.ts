@@ -63,7 +63,7 @@ test.describe('IDEA-124 server-controlled models and account state', () => {
         await page.keyboard.press('Escape');
     });
 
-    test('429 counts down Retry-After and retries once; 402 stops with an Open usage link', async ({ page }) => {
+    test('429 counts down Retry-After and retries once; 402 stops with an Upgrade prompt', async ({ page }) => {
         await signIn(page);
         await page.locator('#ingot-agents-new').click();
         await pickModel(page, 'ingot:ingot-mock');
@@ -76,7 +76,10 @@ test.describe('IDEA-124 server-controlled models and account state', () => {
 
         server.chatErrors.push({ status: 402, code: 'token_allowance_exhausted', message: 'You have used all the tokens on your plan.', details: { scope: 'plan', unit: 'tokens' } });
         await send(page, 'second try');
-        await expect(systemText(page)).toContainText(`You have used all the tokens on your plan. Open usage: ${server.url}/dashboard/usage`);
+        await expect(systemText(page)).toContainText(`You have used all the tokens on your plan. Upgrade or top up: ${server.url}/dashboard/billing`);
+        const upgrade = page.locator('.theia-notification-list-item').filter({ hasText: 'Upgrade your plan or top up' }).first();
+        await expect(upgrade).toBeVisible();
+        await expect(upgrade.locator('button', { hasText: 'Upgrade' })).toBeVisible();
         await shot(page, 'allowance-exhausted');
         expect(server.calls.filter(c => c.model === 'ingot-mock')).toHaveLength(3);
     });

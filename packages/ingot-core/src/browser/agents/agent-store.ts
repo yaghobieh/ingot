@@ -2,7 +2,9 @@ import { inject, injectable } from '@theia/core/shared/inversify';
 import { IngotModelClient } from '../models/model-client';
 import { IngotFeatureFlags } from '../config/feature-flags';
 import { UPDATE_TEXT } from '../../common/config/remote-config.consts';
-import { chatErrorText, decodeGatewayError, fallsBackToDefault, rateLimitText, refetchesModels, type GatewayError } from '../../common/account/gateway-errors';
+import { chatErrorText, decodeGatewayError, fallsBackToDefault, rateLimitText, refetchesModels, UPGRADE_ACTION, UPGRADE_DISMISS, upgradePromptText, type GatewayError } from '../../common/account/gateway-errors';
+import { MessageService } from '@theia/core/lib/common/message-service';
+import { IngotAccountService } from '../account/account-service';
 import { AGENT_SYSTEM_PROMPTS, AUTO_MODEL_ID, DEFAULT_CONTEXT_WINDOW } from '../../common/models/models.consts';
 import { findModel, supportsVision } from '../../common/models/models.utils';
 import type { ComposedMessage } from '../../common/agents/composer-parts.types';
@@ -61,6 +63,8 @@ export type AgentCommandHandler = (session: AgentSession, prompt: string) => boo
 export class AgentStore {
 
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
+    @inject(MessageService) protected readonly messageService: MessageService;
+    @inject(IngotAccountService) protected readonly account: IngotAccountService;
     @inject(IngotFeatureFlags) protected readonly flags: IngotFeatureFlags;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(FileService) protected readonly files: FileService;
@@ -1142,10 +1146,22 @@ export class AgentStore {
             }
         }
         session.messages.push({ role: 'system', text: chatErrorText(error, { portalUrl: this.models.portalUrl, fallback }) });
+        if (error.kind === 'allowance') {
+            this.promptUpgrade(error);
+        }
         session.status = error.kind === 'blocked' ? 'idle' : 'error';
         session.updatedAt = Date.now();
         this.changed();
         return undefined;
+    }
+
+    /** Out of hosted allowance (IDEA-147): a notification whose Upgrade button opens the portal billing page. */
+    protected promptUpgrade(error: GatewayError): void {
+        void this.messageService.warn(upgradePromptText(error), UPGRADE_ACTION, UPGRADE_DISMISS).then(choice => {
+            if (choice === UPGRADE_ACTION) {
+                this.account.openBilling();
+            }
+        });
     }
 
     /** Shows "Retrying in m:ss" and resolves true when the wait finished (false when the user pressed Stop). */

@@ -11,6 +11,7 @@ import { DEFAULT_PLUGINS_ENV, PACKAGED_PLUGINS_DIR } from '../common/update/auto
 import { defaultPluginsValue } from '../common/update/auto-update.utils';
 import { BAKED_ENDPOINTS_KEY } from '../common/account/account.consts';
 import { bakedEndpointEnv } from '../common/account/account-endpoints.utils';
+import { installProcessReporter } from '../common/telemetry/process-reporter';
 
 // IDEA-134: packaged apps ship the built-in language plugins in <resources>/plugins (electron-builder extraResources).
 // Set before the backend process is forked (it inherits this env); dev runs pass --plugins=local-dir:../../plugins.
@@ -19,6 +20,9 @@ if (app.isPackaged) {
     // IDEA-140: release builds bake the public server and portal URLs into package.json (see docs/release.md).
     Object.assign(process.env, bakedEndpointEnv(readBakedEndpoints(), process.env));
 }
+
+// IDEA-149: main-process crashes go to Sentry only when SENTRY_DSN is set.
+installProcessReporter('ide-main');
 
 function readBakedEndpoints(): Record<string, unknown> | undefined {
     try {
