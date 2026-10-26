@@ -45,6 +45,9 @@ sleep 2
 
 FATAL='Cannot find module|was compiled against a different Node.js version|ERR_DLOPEN_FAILED|error while loading shared libraries|Segmentation fault|FATAL:|Uncaught Exception|unhandledRejection.*backend|Backend process exited|Failed to start the backend'
 
+# descendants <pid>: every child process, recursively (exact PIDs, so cleanup never touches anything else).
+descendants() { local k; for k in $(ps -o pid= --ppid "$1"); do echo "$k"; descendants "$k"; done; }
+
 # run_app <name> <cmd...>: launch, wait, check alive + backend listening + log clean, screenshot, stop.
 run_app() {
   local name="$1"; shift
@@ -63,7 +66,18 @@ run_app() {
   import -window root "$OUT/$name.png" || echo "::warning::screenshot failed"
   if grep -E "$FATAL" "$OUT/$name.log" > "$OUT/$name-fatal.txt"; then fail "$name: fatal lines in the log: $(head -3 "$OUT/$name-fatal.txt")"; fi
   find "$home" -name '*.log' -size -5M -exec cp --parents {} "$OUT/" \; 2>/dev/null || true
-  kill "$pid" 2>/dev/null; sleep 3; pkill -f /opt/Ingot/ingot 2>/dev/null; pkill -f appimage_extracted 2>/dev/null; sleep 2
+  # IDEA-170: hard-kill the main process (like a crash) and require the backend tree to stop by itself.
+  local tree; tree="$(descendants "$pid" | tr '\n' ' ')"
+  kill -9 "$pid" 2>/dev/null
+  sleep "${SMOKE_ORPHAN_WAIT_SECONDS:-20}"
+  local left=""; for p in $tree; do kill -0 "$p" 2>/dev/null && left="$left $p"; done
+  if [ -n "$left" ]; then
+    fail "$name: processes left running after the main process was killed: $(for p in $left; do ps -o args= -p "$p" | cut -c1-80; done | tr '\n' ';')"
+    for p in $left; do kill -9 "$p" 2>/dev/null; done
+  else
+    echo "$name: all $(echo $tree | wc -w) child processes exited after the main process was killed"
+  fi
+  sleep 2
 }
 
 run_app ubuntu-deb /opt/Ingot/ingot

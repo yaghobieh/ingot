@@ -76,8 +76,17 @@ $fatal = 'Cannot find module|was compiled against a different Node.js version|ER
 $hits = Get-ChildItem $OutDir -Filter *.log | Select-String -Pattern $fatal
 if ($hits) { $hits | Out-File (Join-Path $OutDir 'windows-fatal.txt'); Fail "fatal lines in the log: $(($hits | Select-Object -First 3 | ForEach-Object { $_.Line }) -join ' | ')" }
 
-# 5) Stop and uninstall silently.
-$ids | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+# 5) IDEA-170: hard-kill only the main process (TerminateProcess, like a crash); its backend tree must stop by itself.
+$children = @($ids | Where-Object { $_ -ne $proc.Id })
+Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 20
+$left = @(Get-Process -Id $children -ErrorAction SilentlyContinue)
+if ($left.Count -gt 0) {
+  Fail "processes left running after the main process was killed: $(($left | ForEach-Object { "$($_.Id) $($_.ProcessName)" }) -join ', ')"
+  $left | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
+} else { Write-Host "All $($children.Count) child processes exited after the main process was killed" }
+
+# 6) Uninstall silently.
 Start-Sleep -Seconds 3
 $uninst = Join-Path $appDir 'Uninstall Ingot.exe'
 if (Test-Path $uninst) {
