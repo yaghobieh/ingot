@@ -19,6 +19,7 @@ import { IDE_FLAGS } from '../../common/config/remote-config.consts';
 import type { DictationState } from './dictation.types';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { IngotAccountService } from '../account/account-service';
+import { AccountAvatar } from '../account/account-avatar';
 import { SIGN_IN_FOR_MODELS } from '../../common/models/models.consts';
 import { MemoryStore } from './memory-store';
 import { CommandRegistry } from '@theia/core/lib/common/command';
@@ -182,6 +183,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.title.iconClass = 'ingot-icon ingot-icon-ai';
         this.addClass('ingot-agents');
         this.toDispose.push(this.store.onDidChange(() => this.update()));
+        this.toDispose.push(this.account.onDidChange(() => this.update()));
         this.toDispose.push(this.processes.onDidChange(() => this.update()));
         this.toDispose.push(this.preferences.onPreferenceChanged(e => { if (e.preferenceName === RUN_PREFS.showProcesses) { this.update(); } }));
         this.toDispose.push(this.tracker.onDidChange(() => {
@@ -613,7 +615,8 @@ export class IngotAgentsWidget extends ReactWidget {
                     {!m.memory.undone && <button type='button' className='ingot-btn-ghost ingot-memory-undo' onClick={() => this.store.undoMemory(session.id, i)}>Undo</button>}
                 </div>
                 : (
-                <div key={i} className={`ingot-chat-msg ingot-chat-${m.role}`}>
+                <div key={i} className={`ingot-chat-msg ingot-chat-${m.role}${m.role === 'user' && this.account.account ? ' ingot-chat-has-avatar' : ''}`}>
+                    {m.role === 'user' && this.account.account && <AccountAvatar account={this.account.account} src={this.account.avatarSrc} className='ingot-chat-user-avatar' textless />}
                     {m.from && <div className='ingot-chat-from'>{m.from}</div>}
                     {m.parts ? this.renderParts(m.parts, m.images) : m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className={`ingot-chip ingot-chip-sent ingot-chip-${c.kind ?? 'code'}`} title={c.kind === 'memory' ? 'Memory' : c.kind === 'rule' ? `Rule ${c.path}` : c.path}>
                         {c.kind === 'memory' && <span className='codicon codicon-lightbulb' />}{c.kind === 'rule' && <span className='codicon codicon-law' />}{c.label}</span>)}</div>}

@@ -236,9 +236,21 @@ export const activityLine = (steps: readonly { kind: string; target: string }[])
 export const skippedResult = (action: AgentAction, reason?: string): string =>
     `The user skipped this action (${actionLine(action, 200)}). Do not retry it unless the user asks.${reason?.trim() ? ` Reason: ${reason.trim()}` : ''}`;
 
+/** IDEA-133: which built-in tools Settings › Tools › Agent tools turns on. */
+export interface BuiltinToolSwitches {
+    readonly terminal: boolean;
+    readonly browser: boolean;
+}
+
+/** Tools that start commands (listing scripts and reading processes stay available). */
+export const COMMAND_TOOLS: readonly string[] = ['run', 'run_script'];
+
+export const builtinToolEnabled = (name: string, on: BuiltinToolSwitches): boolean =>
+    COMMAND_TOOLS.includes(name) ? on.terminal : name.startsWith('browser_') ? on.browser : true;
+
 /** The system-prompt section for Ingot's built-in tools. */
-export const builtinToolProtocol = (): string => [
+export const builtinToolProtocol = (on: BuiltinToolSwitches = { terminal: true, browser: true }): string => [
     'Ingot tools (same block format, server "ingot"):',
-    ...BUILTIN_TOOLS.map(t => `- ${BUILTIN_TOOL_SERVER}/${t.name}: ${t.description}`),
+    ...BUILTIN_TOOLS.filter(t => builtinToolEnabled(t.name, on)).map(t => `- ${BUILTIN_TOOL_SERVER}/${t.name}: ${t.description}`),
     'If the user skips an action you get its reason as the tool result; adapt instead of retrying.'
 ].join('\n');

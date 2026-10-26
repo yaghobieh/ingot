@@ -78,6 +78,7 @@ import { PreferenceContribution } from '@theia/core/lib/common/preferences';
 import { layoutPreferenceSchema } from './layout/layout-preferences';
 import { reviewPreferenceSchema } from './review/review-preferences';
 import { approvalPreferenceSchema } from './agents/approval-preferences';
+import { agentToolsPreferenceSchema } from './agents/agent-tools-preferences';
 import { ReviewContribution } from './review/review-contribution';
 import { ReviewComments } from './review/review-comments';
 import { IngotLayoutContribution } from './layout/layout-contribution';
@@ -148,6 +149,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: layoutPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: reviewPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: approvalPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: agentToolsPreferenceSchema });
     bind(ReviewComments).toSelf().inSingletonScope();
     bind(ReviewContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(ReviewContribution);

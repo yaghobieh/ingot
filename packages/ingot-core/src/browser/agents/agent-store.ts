@@ -36,7 +36,7 @@ import type { ProjectCommand } from '../../common/project-config/project-config.
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import {
-    APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
+    APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
     updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
 } from '../../common/agents/agent-actions';
 import { ProcessStore } from '../processes/process-store';
@@ -638,7 +638,7 @@ export class AgentStore {
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
-        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol() : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
+        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
         const rulesText = formatRules(rules);
         const memoriesText = formatMemories(memories);
         const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
@@ -775,7 +775,10 @@ export class AgentStore {
             const isBrowser = call.server === BUILTIN_TOOL_SERVER && call.tool.startsWith('browser_');
             const requireRun = action?.kind === 'terminal' ? this.runSettings.requireApproval
                 : isBrowser ? browserNeedsCard(call.tool, browserToolSettings(key => this.preferences.get(key))) : true;
-            if (action && requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)) {
+            // IDEA-133: a tool turned off in Settings › Agent tools is refused at once, without a card.
+            const turnedOff = call.server === BUILTIN_TOOL_SERVER
+                && !builtinToolEnabled(call.tool, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled });
+            if (action && !turnedOff && requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)) {
                 const choice = await this.askApproval(session, action);
                 if (choice.stopped) {
                     return false;
@@ -858,7 +861,7 @@ export class AgentStore {
     /** IDEA-130: the agent's browser tools, run in the Ingot browser panel (they wait while the user has control). */
     protected async runBrowser(session: AgentSession, call: AgentToolCall): Promise<AgentActionResult & { images?: ImageChip[] }> {
         if (!browserToolSettings(key => this.preferences.get(key)).enabled) {
-            return { text: 'The browser tool is turned off in Settings › Tools › Agent browser.', isError: true };
+            return { text: 'The browser tool is turned off in Settings › Tools › Agent tools.', isError: true };
         }
         const a = call.args;
         const str = (v: unknown): string => typeof v === 'string' ? v : '';
@@ -909,7 +912,7 @@ export class AgentStore {
         }
         const settings = this.runSettings;
         if (!settings.enabled) {
-            return { text: 'Running commands is turned off in Settings › Tools › Agent terminal.', isError: true };
+            return { text: 'Running commands is turned off in Settings › Tools › Agent tools.', isError: true };
         }
         const service = this.processes.service;
         if (background) {
