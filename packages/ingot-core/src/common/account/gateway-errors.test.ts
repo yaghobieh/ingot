@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chatErrorText, countdownLabel, decodeGatewayError, rateLimitText, encodeGatewayError, fallsBackToDefault, parseGatewayError, refetchesModels, retryAfterSeconds } from './gateway-errors';
+import { billingUrl, chatErrorText, countdownLabel, upgradePromptText, decodeGatewayError, rateLimitText, encodeGatewayError, fallsBackToDefault, parseGatewayError, refetchesModels, retryAfterSeconds } from './gateway-errors';
 
 describe('gateway errors', () => {
     it('parses rate limits with Retry-After', () => {
@@ -38,9 +38,12 @@ describe('gateway errors', () => {
 
 describe('chat error text', () => {
     const portalUrl = 'http://localhost:3200/';
-    it('links usage for allowance errors and names the fallback', () => {
+    it('links billing for allowance errors and names the fallback', () => {
         const allowance = parseGatewayError(402, { error: { code: 'token_cap_reached', message: 'Cap reached.', scope: 'plan' } })!;
-        expect(chatErrorText(allowance, { portalUrl })).toBe('Cap reached. Open usage: http://localhost:3200/dashboard/usage (upgrade your plan there for more).');
+        expect(chatErrorText(allowance, { portalUrl })).toBe('Cap reached. Upgrade or top up: http://localhost:3200/dashboard/billing (usage: http://localhost:3200/dashboard/usage).');
+        expect(billingUrl(`${portalUrl}/`)).toBe('http://localhost:3200/dashboard/billing');
+        expect(upgradePromptText(allowance)).toContain('Upgrade your plan or top up');
+        expect(parseGatewayError(503, { error: { code: 'hosted_models_paused' } })?.kind).toBe('model_unavailable');
         const disabled = parseGatewayError(503, { error: { code: 'model_disabled', message: 'Turned off.' } })!;
         expect(chatErrorText(disabled, { portalUrl, fallback: 'Ingot Fast' })).toBe('Turned off. Switched to Ingot Fast; send your message again.');
         const limited = parseGatewayError(429, { error: { code: 'rate_limited', message: 'Slow down.' } }, '65')!;

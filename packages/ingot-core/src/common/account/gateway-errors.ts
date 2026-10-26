@@ -22,7 +22,7 @@ const KIND_BY_CODE: Record<string, GatewayErrorKind> = {
     rate_limited: 'rate_limited',
     token_allowance_exhausted: 'allowance', token_cap_reached: 'allowance', spend_cap_reached: 'allowance',
     model_disabled: 'model_disabled',
-    provider_disabled: 'model_unavailable', model_unavailable: 'model_unavailable',
+    provider_disabled: 'model_unavailable', model_unavailable: 'model_unavailable', hosted_models_paused: 'model_unavailable',
     model_not_in_plan: 'not_in_plan',
     model_not_found: 'not_found',
     upstream_rejected: 'upstream', all_providers_failed: 'upstream',
@@ -105,19 +105,30 @@ export const countdownLabel = (seconds: number): string => {
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
+/** Portal page with plans, top-ups and Manage subscription (IDEA-147). */
+export const billingUrl = (portalUrl: string): string => `${portalUrl.replace(/\/+$/, '')}/dashboard/billing`;
+
+/** Buttons of the "out of allowance" prompt (IDEA-147). */
+export const UPGRADE_ACTION = 'Upgrade';
+export const UPGRADE_DISMISS = 'Not now';
+
+/** Notification shown when hosted usage runs out; Upgrade opens the portal billing page. */
+export const upgradePromptText = (error: GatewayError): string =>
+    `${error.message} Upgrade your plan or top up hosted credit to keep going. Your own model keys keep working.`;
+
 /** Chat text for a gateway error (IDEA-124). `fallback` = the model the chat switched to, if any. */
 export const chatErrorText = (error: GatewayError, context: { portalUrl: string; fallback?: string }): string => {
     const portal = context.portalUrl.replace(/\/$/, '');
     switch (error.kind) {
         case 'allowance':
-            return `${error.message} Open usage: ${portal}/dashboard/usage${error.scope === 'plan' ? ' (upgrade your plan there for more).' : ''}`;
+            return `${error.message} Upgrade or top up: ${portal}/dashboard/billing (usage: ${portal}/dashboard/usage).`;
         case 'model_disabled':
         case 'not_found':
             return `${error.message}${error.reason ? ` (${error.reason})` : ''}${context.fallback ? ` Switched to ${context.fallback}; send your message again.` : ''}`;
         case 'model_unavailable':
             return `${error.message} Pick another model from the model picker.`;
         case 'not_in_plan':
-            return `${error.message} Upgrade at ${portal}/dashboard/usage, or pick another model.`;
+            return `${error.message} Upgrade at ${portal}/dashboard/billing, or pick another model.`;
         case 'upstream':
             return `${error.message} Use Retry to try again.`;
         default:
