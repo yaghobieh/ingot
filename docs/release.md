@@ -39,6 +39,29 @@ ls applications/electron/dist
 
 Native modules are compiled for the machine that runs `build:electron`, so build each architecture on its own OS/arch.
 
+## Server and website URLs (repository variables)
+
+Release builds bake the public URLs into the app, so testers sign in against production without any setup.
+Set them under GitHub › Settings › Secrets and variables › Actions › **Variables** (they are not secret):
+
+| Variable | Example | Used for |
+| --- | --- | --- |
+| `INGOT_SERVER_URL` | `https://api.example.com` | account, usage and the model gateway |
+| `INGOT_PORTAL_URL` | `https://example.com` | sign-in page and dashboard links |
+
+When a variable is missing the build still succeeds, prints a warning and the app keeps the localhost defaults
+(`http://127.0.0.1:3300` and `http://localhost:3200`), which is what dev runs use.
+
+Which URL the app uses, first match wins:
+
+1. `ingot.account.serverUrl` / `ingot.account.portalUrl` in `~/.ingot/ingot.settings.json` (or Settings › Ingot account)
+2. `INGOT_SERVER_URL` / `INGOT_PORTAL_URL` in the environment when the app starts
+3. the URLs baked into the release build (`ingotEndpoints` in the packaged `package.json`)
+4. the localhost defaults
+
+For a local packaged build, pass them the same way the workflow does:
+`npm run package:electron -- --mac --arm64 -c.extraMetadata.ingotEndpoints.serverUrl=https://api.example.com`.
+
 ## Signing and notarization (optional, secret-gated)
 
 Without these secrets the pipeline still succeeds and produces **unsigned** installers. Add them under
