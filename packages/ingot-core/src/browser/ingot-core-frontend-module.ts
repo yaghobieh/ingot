@@ -17,6 +17,7 @@ import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agent
 import { ProcessService } from '../common/processes/processes.types';
 import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
 import { ProcessClientImpl, ProcessStore } from './processes/process-store';
+import { ProcessesContribution } from './processes/processes-contribution';
 import { IngotPortsWidget } from './ports/ingot-ports-widget';
 import { IngotPortsContribution } from './ports/ingot-ports-contribution';
 import { PORTS_WIDGET_ID } from './ports/ingot-ports.consts';
@@ -246,6 +247,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(ProcessClientImpl).toSelf().inSingletonScope();
     bind(ProcessService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ProcessService>(ctx.container, PROCESS_SERVICE_PATH, ctx.container.get(ProcessClientImpl))).inSingletonScope();
     bind(ProcessStore).toSelf().inSingletonScope();
+    bind(ProcessesContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(ProcessesContribution);
     bind(AgentActionsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<AgentActionsService>(ctx.container, AGENT_ACTIONS_SERVICE_PATH)).inSingletonScope();
     bind(PortsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<PortsService>(ctx.container, PORTS_SERVICE_PATH)).inSingletonScope();
     bind(IngotPortsWidget).toSelf();
