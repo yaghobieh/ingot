@@ -22,7 +22,7 @@ const render = async (svg, size) => {
 };
 
 const pngs = new Map();
-for (const size of [16, 32, 48, 64, 128, 256, 512, 1024]) {
+for (const size of [16, 24, 32, 48, 64, 128, 256, 512, 1024]) {
     pngs.set(size, await render(svgFor(size), size));
 }
 writeFileSync(join(BRAND, 'app-icon-1024.png'), pngs.get(1024));
@@ -43,6 +43,15 @@ icoSizes.forEach((size, i) => {
     offset += data.length;
 });
 writeFileSync(join(BRAND, 'app-icon.ico'), Buffer.concat([header, ...icoSizes.map(s => pngs.get(s))]));
+
+// Linux hicolor set (IDEA-171): electron-builder installs every <size>x<size>.png of this folder into
+// /usr/share/icons/hicolor/<size>x<size>/apps (deb) and the AppImage, so menus and docks get a crisp icon.
+const LINUX_DIR = join(BRAND, 'linux');
+rmSync(LINUX_DIR, { recursive: true, force: true });
+mkdirSync(LINUX_DIR);
+for (const size of [16, 24, 32, 48, 64, 128, 256, 512, 1024]) {
+    writeFileSync(join(LINUX_DIR, `${size}x${size}.png`), pngs.get(size) ?? await render(svgFor(size), size));
+}
 
 // macOS .icns via an .iconset (16@1x … 512@2x).
 if (process.platform === 'darwin') {
@@ -69,4 +78,4 @@ body{margin:0;font:14px -apple-system,Inter,sans-serif}
 </style></head><body><div class="hero"><div class="light">${big}</div><div class="dark">${big}</div></div><div class="row light">${cells}</div><div class="row dark">${cells}</div></body></html>`);
 writeFileSync(join(BRAND, 'app-icon-preview.png'), await page.screenshot({ fullPage: true }));
 await browser.close();
-console.log('app icon: wrote png, ico' + (process.platform === 'darwin' ? ', icns' : '') + ' and preview');
+console.log('app icon: wrote png, linux set, ico' + (process.platform === 'darwin' ? ', icns' : '') + ' and preview');

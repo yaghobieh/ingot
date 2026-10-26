@@ -30,7 +30,9 @@ fi
 echo "== Desktop entry, icon, native modules =="
 test -f /usr/share/applications/ingot.desktop || fail "missing /usr/share/applications/ingot.desktop"
 cp /usr/share/applications/ingot.desktop "$OUT/" 2>/dev/null || true
-ls /usr/share/icons/hicolor/*/apps/ingot.png >/dev/null 2>&1 || fail "missing hicolor icon ingot.png"
+for size in 16 24 32 48 64 128 256 512; do
+  test -f "/usr/share/icons/hicolor/${size}x${size}/apps/ingot.png" || fail "missing hicolor icon ${size}x${size}/apps/ingot.png"
+done
 for f in drivelist.node keytar.node watcher.node keymapping.node rg; do
   test -e "/opt/Ingot/resources/app/lib/backend/native/$f" || fail "missing native module $f"
 done
