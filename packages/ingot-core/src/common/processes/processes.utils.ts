@@ -87,3 +87,6 @@ export const describeProcesses = (list: readonly ProcessInfo[], now: number): st
 /** Running first (newest first), then finished (newest first). */
 export const sortProcesses = (list: readonly ProcessInfo[]): ProcessInfo[] => [...list].sort((a, b) =>
     (a.status === 'running' ? 0 : 1) - (b.status === 'running' ? 0 : 1) || b.startedAt - a.startedAt);
+
+/** IDEA-132: the chat lists running processes and finished background ones (until cleared); finished foreground commands stay in the transcript. */
+export const isListed = (p: Pick<ProcessInfo, 'status' | 'background'>): boolean => p.status === 'running' || p.background;

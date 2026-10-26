@@ -27,3 +27,20 @@ foreground (it waits for the output) or in the background (dev servers, watchers
 Every command waits on the approval card (`Run command: npm test`, `Run in background: npm run dev`).
 **Always Run** on a command remembers *that exact command* for the project; other commands still ask.
 Settings › Tools › Agent approvals lists the remembered commands with **Revoke**.
+
+## Processes in the chat
+
+A compact **Processes** list sits above the composer whenever something runs in the background, whether the
+agent started it or you did:
+
+- each row shows the command, who started it (agent or you), a live uptime, the port it announced (click to open
+  it) and a Stop button (■);
+- click a row to see its output, which updates live;
+- **+** runs a `package.json` script or any command in the project root as one of *your* processes;
+- the clear button drops finished rows; finished foreground commands (a build, a test run) stay in the chat
+  transcript instead of the list;
+- the processes button in the chat header shows the list even when nothing runs.
+
+The agent sees the same list through `ingot/processes` and can read any process's output; it stops its own
+processes freely and asks before stopping yours. Commands: **Processes: Run Script or Command…**,
+**Processes: Stop All Processes**.
