@@ -66,7 +66,8 @@ nsis:
   shortcutName: Ingot
   artifactName: ${productName}-${version}-win-${arch}.${ext}
 linux:
-  icon: ../../assets/brand/app-icon-1024.png
+  # Full hicolor set 16..1024 (IDEA-171), rendered by scripts/build-app-icon.mjs.
+  icon: ../../assets/brand/linux
   category: Development
   executableName: ingot
   maintainer: Ingot contributors
