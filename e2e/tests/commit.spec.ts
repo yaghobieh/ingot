@@ -160,7 +160,7 @@ test.describe('IDEA-74 commit tool window', () => {
             await diff.locator('.editor.modified .view-lines').click();
             await expect(diff.locator('.editor.modified .monaco-editor.focused')).toHaveCount(1, { timeout: 1000 });
         }).toPass({ timeout: 15000 });
-        await page.keyboard.press('Control+z');
+        await page.keyboard.press('ControlOrMeta+z');
         await expect(diff.locator('#ingot-diff-summary')).toHaveText('2 changes · 2 included');
 
         // Toolbar: revert the chunk at the caret, then Revert File… restores HEAD after confirmation.
