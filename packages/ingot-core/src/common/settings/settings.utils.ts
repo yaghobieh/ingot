@@ -5,7 +5,18 @@ export const flattenPages = (pages: readonly SettingsPage[], parents: readonly s
 
 /** Human label for a preference key: `editor.fontSize` → "Font Size". */
 /** Labels that read better than the key's last segment. */
-const SETTING_LABELS: Record<string, string> = { 'ingot.account.syncSettings': 'Sync settings' };
+const SETTING_LABELS: Record<string, string> = {
+    'ingot.account.syncSettings': 'Sync settings',
+    // IDEA-133: Agent tools.
+    'ingot.agent.terminal.enabled': 'Let the agent run commands',
+    'ingot.agent.terminal.requireApproval': 'Ask before running commands',
+    'ingot.agent.terminal.foregroundTimeoutSeconds': 'Foreground timeout (seconds)',
+    'ingot.agent.terminal.maxOutputChars': 'Output sent to the agent (characters)',
+    'ingot.agent.processes.showInChat': 'Show background processes in the chat',
+    'ingot.agent.browser.enabled': 'Let the agent use the browser',
+    'ingot.agent.browser.requireApproval': 'Ask before browser actions',
+    'ingot.agent.browser.approveReads': 'Also ask before reading pages and screenshots'
+};
 
 export const settingLabel = (key: string): string => {
     if (SETTING_LABELS[key]) {
