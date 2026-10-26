@@ -6,6 +6,7 @@ import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-renderer';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import { AppearanceContribution } from '../theme/appearance-contribution';
+import { THEME_PICKER_COMMAND } from '../../common/theme/theme-store.consts';
 import { AGENT_COMMANDS } from '../agents/agents.consts';
 import { APPEARANCE_PREFERENCE, DEFAULT_APPEARANCE, toAppearanceMode, type AppearanceMode } from '../../common/theme/appearance.utils';
 import { PRODUCT } from '../../common/product.consts';
@@ -79,6 +80,7 @@ export class IngotGearMenuContribution implements CommandContribution, MenuContr
         menus.registerMenuAction(GEAR_MENU_THEME_SUBMENU, { commandId: GEAR_COMMANDS.themeLight.id, label: GEAR_COMMANDS.themeLight.label, order: 'a' });
         menus.registerMenuAction(GEAR_MENU_THEME_SUBMENU, { commandId: GEAR_COMMANDS.themeDark.id, label: GEAR_COMMANDS.themeDark.label, order: 'b' });
         menus.registerMenuAction(GEAR_MENU_THEME_SUBMENU, { commandId: GEAR_COMMANDS.themeSystem.id, label: GEAR_COMMANDS.themeSystem.label, order: 'c' });
+        menus.registerMenuAction([...GEAR_MENU_THEME_SUBMENU, 'z_pick'], { commandId: THEME_PICKER_COMMAND.id, label: 'Choose Theme…', order: 'd' });
         const tools = [GEAR_COMMANDS.extensions, GEAR_COMMANDS.mcp, GEAR_COMMANDS.rules, GEAR_COMMANDS.models, GEAR_COMMANDS.keymap, GEAR_COMMANDS.shortcuts, GEAR_COMMANDS.memories];
         tools.forEach((c, i) => menus.registerMenuAction(GEAR_MENU_TOOLS, { commandId: c.id, order: String.fromCharCode(97 + i) }));
         menus.registerMenuAction(GEAR_MENU_APP, { commandId: GEAR_COMMANDS.checkUpdates.id, order: 'a' });

@@ -1,0 +1,47 @@
+/* IDEA-144: theme picker popup - search, slots, grouped installed themes, Open VSX cards. Uses theme vars so it reads in light and dark. */
+.ingot-theme-picker-dialog .dialogBlock { width: min(640px, 92vw); max-width: none; height: min(560px, 82vh); border-radius: 12px; overflow: hidden; box-shadow: 0 12px 40px rgba(0, 0, 0, .35); }
+.ingot-theme-picker-dialog .dialogTitle { font-size: 13px; font-weight: 600; }
+.ingot-theme-picker-dialog .dialogContent { flex: 1; min-height: 0; padding: 0; }
+.ingot-theme-picker-dialog .dialogControl .theia-button.main { background: var(--ingot-primary); color: var(--ingot-primary-text); }
+.ingot-theme-picker { --ingot-tp-accent: var(--ingot-primary); display: flex; flex-direction: column; height: 100%; min-height: 0; font-size: 13px; }
+.ingot-theme-picker-top { display: flex; align-items: center; gap: 8px; margin: 10px 12px 6px; padding: 0 4px 0 10px; height: 34px; border: 1px solid var(--theia-input-border, var(--theia-panel-border)); border-radius: 8px; background: var(--theia-input-background); }
+.ingot-theme-picker-top:focus-within { border-color: var(--ingot-tp-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ingot-tp-accent) 25%, transparent); }
+.ingot-theme-picker-top > .codicon { opacity: .6; }
+.ingot-theme-picker-search { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--theia-input-foreground); font: inherit; height: 100%; }
+.ingot-theme-slots { display: flex; gap: 2px; padding: 2px; border-radius: 6px; background: var(--theia-editorWidget-background, var(--theia-sideBar-background)); }
+.ingot-theme-slot { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--theia-descriptionForeground); font: inherit; font-size: 12px; padding: 3px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+.ingot-theme-slot.selected { background: var(--ingot-tp-accent); color: var(--ingot-primary-text); }
+.ingot-theme-slot .codicon { font-size: 12px; }
+.ingot-theme-picker-list { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 8px; }
+.ingot-theme-browse-link { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; border-bottom: 1px solid var(--theia-panel-border); background: transparent; color: var(--theia-foreground); font: inherit; padding: 7px 8px; margin-bottom: 4px; cursor: pointer; text-align: left; }
+.ingot-theme-browse-link:hover { color: var(--ingot-tp-accent); }
+.ingot-theme-group-title { padding: 8px 8px 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ingot-accent); }
+.ingot-theme-row { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 6px; cursor: pointer; color: var(--theia-foreground); }
+.ingot-theme-row:hover { background: var(--theia-list-hoverBackground); }
+.ingot-theme-row.active { background: var(--theia-list-activeSelectionBackground, var(--ingot-selection)); color: var(--theia-list-activeSelectionForeground, inherit); }
+.ingot-theme-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-theme-description { color: var(--theia-descriptionForeground); font-size: 12px; white-space: nowrap; }
+.ingot-theme-current { color: var(--ingot-tp-accent); }
+.ingot-theme-uninstall { visibility: hidden; border: 0; background: transparent; color: var(--theia-descriptionForeground); cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+.ingot-theme-row:hover .ingot-theme-uninstall, .ingot-theme-row.active .ingot-theme-uninstall { visibility: visible; }
+.ingot-theme-uninstall:hover { color: var(--ingot-danger); background: var(--theia-toolbar-hoverBackground); }
+.ingot-theme-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; border: 1px solid var(--theia-panel-border); }
+.ingot-theme-dot.light { background: linear-gradient(135deg, #FFFFFF 50%, #3B6FD9 50%); }
+.ingot-theme-dot.dark { background: linear-gradient(135deg, #1E1F22 50%, #E0A458 50%); }
+.ingot-theme-swatch { display: inline-flex; align-items: center; gap: 2px; padding: 3px 4px; border-radius: 4px; border: 1px solid var(--theia-panel-border); flex-shrink: 0; }
+.ingot-theme-swatch > span { width: 6px; height: 10px; border-radius: 2px; }
+.ingot-theme-empty { padding: 18px 8px; color: var(--theia-descriptionForeground); text-align: center; }
+.ingot-theme-error { color: var(--ingot-danger); }
+.ingot-theme-card { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; }
+.ingot-theme-card:hover { background: var(--theia-list-hoverBackground); }
+.ingot-theme-card-art { width: 44px; height: 32px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ingot-theme-card-art img { width: 32px; height: 32px; object-fit: contain; border-radius: 6px; }
+.ingot-theme-card-art .ingot-theme-swatch { padding: 6px 5px; }
+.ingot-theme-card-art .ingot-theme-swatch > span { height: 18px; }
+.ingot-theme-card-text { flex: 1; min-width: 0; }
+.ingot-theme-card-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-theme-card-meta { display: flex; gap: 12px; color: var(--theia-descriptionForeground); font-size: 12px; }
+.ingot-theme-card-meta .codicon { font-size: 12px; margin-right: 3px; vertical-align: -2px; }
+.ingot-theme-card-meta .codicon-star-full { color: var(--ingot-accent); }
+.ingot-theme-installed { display: inline-flex; align-items: center; gap: 3px; color: var(--ingot-success); font-size: 12px; }
+.ingot-theme-install { min-width: 72px; background: var(--ingot-primary); color: var(--ingot-primary-text); }
