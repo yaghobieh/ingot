@@ -1,0 +1,135 @@
+# Installer smoke test (IDEA-166): install the desktop app the way a user would, launch it, and check that it stays up,
+# starts its backend and logs nothing fatal. Screenshots + logs are uploaded as artifacts.
+# - Pull requests that touch packaging: builds the Windows + Linux installers from the branch, then tests them.
+# - Published releases / manual runs: downloads the installers from the GitHub Release tag and tests those.
+name: Installer smoke test
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/smoke-installers.yml
+      - scripts/smoke/**
+      - applications/electron/electron-builder.yml
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to test (e.g. v0.1.0-beta.1)
+        required: true
+        default: v0.1.0-beta.1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }} installer (PR)
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            args: --win --x64
+          - name: Linux x64
+            os: ubuntu-latest
+            args: --linux --x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: System deps for native modules
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev libxkbfile-dev
+      - run: npm ci
+      - run: npm run build:electron
+      - name: Package (unsigned)
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run package:electron -- ${{ matrix.args }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoke-installers-${{ runner.os }}
+          if-no-files-found: error
+          retention-days: 3
+          path: |
+            applications/electron/dist/*.exe
+            applications/electron/dist/*.AppImage
+            applications/electron/dist/*.deb
+
+  linux:
+    name: Smoke Ubuntu 24.04 (deb + AppImage)
+    needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    # A clean Ubuntu image, so a missing runtime dependency in the .deb shows up (the runner has everything installed).
+    container:
+      image: ubuntu:24.04
+      options: --shm-size=1g
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get installers from the PR build
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        with:
+          name: smoke-installers-Linux
+          path: installers
+      - name: Get installers from the release
+        if: github.event_name != 'pull_request'
+        run: |
+          apt-get update -qq && apt-get install -y -qq ca-certificates curl >/dev/null
+          V="${TAG#v}"; B="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          mkdir -p installers
+          curl -fsSL -o "installers/Ingot-${V}-linux-amd64.deb" "$B/Ingot-${V}-linux-amd64.deb"
+          curl -fsSL -o "installers/Ingot-${V}-linux-x86_64.AppImage" "$B/Ingot-${V}-linux-x86_64.AppImage"
+      - name: Smoke test
+        run: bash scripts/smoke/linux.sh installers smoke-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-linux
+          path: smoke-out
+          if-no-files-found: warn
+
+  windows:
+    name: Smoke Windows (NSIS installer)
+    needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get installer from the PR build
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        with:
+          name: smoke-installers-Windows
+          path: installers
+      - name: Get installer from the release
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        run: |
+          $v = $env:TAG.TrimStart('v')
+          New-Item -ItemType Directory -Force installers | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:TAG/Ingot-$v-win-x64.exe" -OutFile "installers/Ingot-$v-win-x64.exe"
+      - name: Smoke test
+        shell: pwsh
+        run: ./scripts/smoke/windows.ps1 -InstallerDir installers -OutDir smoke-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-windows
+          path: smoke-out
+          if-no-files-found: warn

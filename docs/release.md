@@ -39,6 +39,15 @@ ls applications/electron/dist
 
 Native modules are compiled for the machine that runs `build:electron`, so build each architecture on its own OS/arch.
 
+## Installer smoke test (Windows + Linux)
+
+`.github/workflows/smoke-installers.yml` installs the app the way a user would and checks that it really starts:
+
+- **Windows** (`windows-latest`): silent NSIS install (`/S`), Start menu + uninstall entries, launch, the app is still up after 60 s, its backend is listening, no fatal lines in the logs, a screenshot, then a silent uninstall. Script: `scripts/smoke/windows.ps1`.
+- **Ubuntu 24.04** (clean `ubuntu:24.04` container): `apt install ./Ingot-*.deb`, then every shared library of the app and its native modules must resolve (catches a missing `Depends`), desktop entry + icon, launch the `.deb` build and the AppImage under Xvfb with the same checks. Script: `scripts/smoke/linux.sh`.
+
+It runs on pull requests that touch packaging (building the installers from the branch), on every published release, and by hand: **Actions -> Installer smoke test -> Run workflow** with a tag such as `v0.1.0-beta.1`. Screenshots and logs are in the run's `smoke-windows` / `smoke-linux` artifacts.
+
 ## Server and website URLs (repository variables)
 
 Release builds bake the public URLs into the app, so testers sign in against production without any setup.
