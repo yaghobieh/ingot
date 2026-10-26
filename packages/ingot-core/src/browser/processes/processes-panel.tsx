@@ -67,7 +67,7 @@ const ProcessRow = ({ process: p, now, open, onToggle, props }: { process: Proce
             <span className='ingot-process-dot' aria-hidden='true' />
             <span className={`ingot-process-origin codicon codicon-${p.origin === 'agent' ? 'sparkle' : 'person'}`} title={p.origin === 'agent' ? 'Started by the agent' : 'Started by you'} />
             <code className='ingot-process-command'>{p.command}</code>
-            {p.ports.map(port => <button type='button' key={port} className='ingot-process-port' title={`Open http://localhost:${port}`}
+            {p.ports.map(port => <button type='button' key={port} className='ingot-process-port' title={`Open http://localhost:${port} in the Ingot browser`}
                 onClick={e => { e.stopPropagation(); props.onOpenPort(port); }}>:{port}</button>)}
             <span className='ingot-process-status'>{p.status === 'running' ? '' : `${STATUS_LABELS[p.status]}${p.status === 'failed' && p.exitCode !== undefined ? ` (${p.exitCode})` : ''}`}</span>
             <span className='ingot-process-uptime'>{formatUptime(uptimeOf(p, now))}</span>

@@ -40,6 +40,10 @@ import {
     updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
 } from '../../common/agents/agent-actions';
 import { ProcessStore } from '../processes/process-store';
+import type { ImageChip } from '../../common/agents/composer-parts.types';
+import { BrowserController } from '../browser-tool/browser-controller';
+import { BROWSER_READ_TOOLS, browserNeedsCard, browserToolSettings } from '../../common/browser-tool/browser-settings';
+import { toTarget } from '../../common/browser-tool/browser-tool.utils';
 import { describeProcesses, isSafeScriptName, scriptCommand } from '../../common/processes/processes.utils';
 import { runToolSettings, type RunToolSettings } from '../../common/processes/run-settings';
 import { AgentActionsService, type AgentActionResult } from '../../common/agents/agent-actions-service';
@@ -66,6 +70,7 @@ export class AgentStore {
     @inject(AgentActionsService) protected readonly actions: AgentActionsService;
     @inject(GitService) protected readonly git: GitService;
     @inject(ProcessStore) protected readonly processes: ProcessStore;
+    @inject(BrowserController) protected readonly browser: BrowserController;
     /** IDEA-109: runs waiting on the approval card, per session. */
     protected readonly approvals = new Map<string, (choice: { decision: ApprovalDecision; reason?: string; stopped?: boolean }) => void>();
     /** IDEA-105: paused runs waiting for Continue (or the countdown), per session. */
@@ -389,7 +394,7 @@ export class AgentStore {
         session.status = 'thinking';
         session.updatedAt = Date.now();
         this.changed();
-        this.runModel(session);
+        this.runModel(session).finally(() => this.browser.endAgentRun(session.id));
         return session;
     }
 
@@ -403,6 +408,7 @@ export class AgentStore {
         this.running.delete(id);
         this.releasePause(id, false);
         this.approvals.get(id)?.({ decision: 'skip', stopped: true });
+        this.browser.endAgentRun(id);
         this.changed();
     }
 
@@ -585,7 +591,9 @@ export class AgentStore {
                     return { role: 'user' as const, content: `${m.from}: ${m.text}` };
                 }
                 if (m.role === 'tool') {
-                    return { role: 'user' as const, content: `Tool result (${m.from}):\n${m.expanded ?? m.text}` };
+                    const content = `Tool result (${m.from}):\n${m.expanded ?? m.text}`;
+                    // IDEA-130: a browser screenshot goes to the model as an image when it can read images.
+                    return m.images?.length ? this.userMessage(session, { ...m, expanded: content }) : { role: 'user' as const, content };
                 }
                 return this.userMessage(session, m);
             });
@@ -764,7 +772,9 @@ export class AgentStore {
             // Stopping a process the agent started itself never asks; the user's own processes do.
             const action = call.server === BUILTIN_TOOL_SERVER && call.tool === 'process_stop' && this.processes.find(String(call.args.id))?.origin !== 'user' ? undefined : described;
             const requireGit = this.preferences.get<boolean>(APPROVAL_PREFS.gitRequireApproval, true) !== false;
-            const requireRun = action?.kind !== 'terminal' || this.runSettings.requireApproval;
+            const isBrowser = call.server === BUILTIN_TOOL_SERVER && call.tool.startsWith('browser_');
+            const requireRun = action?.kind === 'terminal' ? this.runSettings.requireApproval
+                : isBrowser ? browserNeedsCard(call.tool, browserToolSettings(key => this.preferences.get(key))) : true;
             if (action && requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)) {
                 const choice = await this.askApproval(session, action);
                 if (choice.stopped) {
@@ -782,9 +792,10 @@ export class AgentStore {
             session.steps = [...session.steps, { kind: 'run', target, done: false }];
             session.status = 'thinking';
             this.changed();
-            const result = call.server === BUILTIN_TOOL_SERVER ? await this.runBuiltin(call, root) : await this.mcp.callTool(call.server, call.tool, call.args);
+            const result: AgentActionResult & { images?: ImageChip[] } = isBrowser ? await this.runBrowser(session, call)
+                : call.server === BUILTIN_TOOL_SERVER ? await this.runBuiltin(call, root) : await this.mcp.callTool(call.server, call.tool, call.args);
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
-            session.messages.push({ role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}` });
+            session.messages.push({ role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}) });
             this.changed();
         }
         return true;
@@ -841,6 +852,33 @@ export class AgentStore {
             }
         } catch (error) {
             return { text: error instanceof Error ? error.message : String(error), isError: true };
+        }
+    }
+
+    /** IDEA-130: the agent's browser tools, run in the Ingot browser panel (they wait while the user has control). */
+    protected async runBrowser(session: AgentSession, call: AgentToolCall): Promise<AgentActionResult & { images?: ImageChip[] }> {
+        if (!browserToolSettings(key => this.preferences.get(key)).enabled) {
+            return { text: 'The browser tool is turned off in Settings › Tools › Agent browser.', isError: true };
+        }
+        const a = call.args;
+        const str = (v: unknown): string => typeof v === 'string' ? v : '';
+        const text = (t: string): AgentActionResult => ({ text: t, isError: /^(Browser error|Cannot open|No element|No field|Invalid selector|Stopped while)/.test(t) });
+        switch (call.tool) {
+            case 'browser_open': return text(await this.browser.agentOpen(session.id, str(a.url)));
+            case 'browser_read': return text(await this.browser.agentRead(session.id));
+            case 'browser_click': return text(await this.browser.agentClick(session.id, toTarget(a, 'click')));
+            case 'browser_type': return text(await this.browser.agentType(session.id, toTarget(a, 'type'), str(a.text), a.submit === true));
+            case 'browser_scroll': {
+                const d = str(a.direction);
+                return text(await this.browser.agentScroll(session.id, d === 'up' || d === 'top' || d === 'bottom' ? d : 'down'));
+            }
+            case 'browser_back': return text(await this.browser.agentBack(session.id));
+            case 'browser_screenshot': {
+                const shot = await this.browser.agentScreenshot(session.id);
+                const data = shot.image?.dataUrl.replace(/^data:image\/png;base64,/, '');
+                return { ...text(shot.text), ...(data ? { images: [{ id: `shot-${Date.now().toString(36)}`, name: 'screenshot.png', mediaType: 'image/png', data }] } : {}) };
+            }
+            default: return { text: `Unknown browser tool "${call.tool}". Tools: ${['browser_open', 'browser_click', 'browser_type', 'browser_scroll', 'browser_back', ...BROWSER_READ_TOOLS].join(', ')}.`, isError: true };
         }
     }
 
