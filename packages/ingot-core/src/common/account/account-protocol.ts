@@ -1,6 +1,7 @@
 import type { RpcServer } from '@theia/core/lib/common/messaging';
 import type { RemoteConfigSnapshot } from '../config/remote-config.types';
 import type { SyncResponse } from '../sync/sync.types';
+import type { BotResponse } from '../bot/bot.types';
 
 export const ACCOUNT_SERVICE_PATH = '/services/ingot/account';
 export const AccountBackend = Symbol('IngotAccountBackend');
@@ -82,4 +83,6 @@ export interface AccountBackend extends RpcServer<AccountClient> {
     remoteConfig(): Promise<RemoteConfigSnapshot>;
     /** One /v1/sync call with the session token (IDEA-126). Only `/v1/sync…` paths; status 0 when signed out or offline. */
     syncRequest(method: 'GET' | 'PUT' | 'DELETE' | 'POST', path: string, body?: unknown): Promise<SyncResponse>;
+    /** One Ingot Bot call (IDEA-154) with the session token. Only `/api/bot…` paths (never GitHub connect); status 0 when signed out or offline. */
+    botRequest(method: string, path: string, body?: unknown): Promise<BotResponse>;
 }
