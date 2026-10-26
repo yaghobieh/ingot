@@ -209,12 +209,14 @@ body.ingot-shell #theia-statusBar .ingot-status-branch { color: var(--theia-fore
 .ingot-agents-new:hover { background: var(--theia-list-hoverBackground); }
 .ingot-agents-list { display: flex; flex-direction: column; gap: 2px; padding: 6px; border-bottom: 1px solid var(--theia-panel-border); flex: none; max-height: 40%; overflow: auto; }
 .ingot-agents-empty, .ingot-agents-hint { color: var(--theia-descriptionForeground); font-size: 12px; padding: 10px 8px; }
-/* IDEA-165: empty chat - title and composer sit in the middle, disclaimer at the bottom. */
+/* IDEA-174: the composer is pinned to the bottom of the panel in every dock position; the empty-state title sits right above it
+   and the disclaimer right below it (was centered in IDEA-165). */
 .ingot-agents-root-empty .ingot-agents-chat { justify-content: flex-end; }
+.ingot-agents-root > .ingot-composer { flex: none; }
 .ingot-agents-empty-state { display: flex; flex-direction: column; gap: 2px; padding: 0 2px; }
 .ingot-agents-empty-title { font-size: 15px; font-weight: 600; color: var(--theia-foreground); padding: 0 0 2px; }
 .ingot-agents-empty-state .ingot-agents-hint, .ingot-agents .ingot-agents-empty-state .ingot-agents-hint { padding: 0; }
-.ingot-agents-disclaimer { flex: 1; display: flex; align-items: flex-end; padding: 0 14px 10px; font-size: 11px; color: var(--theia-descriptionForeground); }
+.ingot-agents-disclaimer { flex: none; display: flex; align-items: flex-end; padding: 0 14px 10px; font-size: 11px; color: var(--theia-descriptionForeground); }
 .ingot-agent-item { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; width: 100%; }
 .ingot-agent-item:hover { background: var(--theia-list-hoverBackground); }
 .ingot-agent-item.selected { background: var(--theia-list-inactiveSelectionBackground); }
