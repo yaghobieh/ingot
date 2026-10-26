@@ -10,12 +10,24 @@ export const DEFAULT_APPEARANCE: AppearanceMode = 'system';
 export const toAppearanceMode = (value: unknown): AppearanceMode =>
     APPEARANCE_MODES.includes(value as AppearanceMode) ? value as AppearanceMode : DEFAULT_APPEARANCE;
 
+/** IDEA-144: the theme picked for the Light and the Dark slot (System uses the one matching the OS). */
+export interface ThemeSlots {
+    readonly light?: string;
+    readonly dark?: string;
+}
+
 /** Color theme to use for a mode, or undefined for "custom". */
-export const themeForAppearance = (mode: AppearanceMode, osPrefersDark: boolean): string | undefined => {
+export const themeForAppearance = (mode: AppearanceMode, osPrefersDark: boolean, slots: ThemeSlots = {}): string | undefined => {
+    const light = slots.light || THEME_IDS.light;
+    const dark = slots.dark || THEME_IDS.dark;
     switch (mode) {
-        case 'light': return THEME_IDS.light;
-        case 'dark': return THEME_IDS.dark;
-        case 'system': return osPrefersDark ? THEME_IDS.dark : THEME_IDS.light;
+        case 'light': return light;
+        case 'dark': return dark;
+        case 'system': return osPrefersDark ? dark : light;
         default: return undefined;
     }
 };
+
+/** The slot a picker edits for the current mode; "custom" edits the color theme directly. */
+export const slotForAppearance = (mode: AppearanceMode, osPrefersDark: boolean): 'light' | 'dark' | undefined =>
+    mode === 'light' ? 'light' : mode === 'dark' ? 'dark' : mode === 'system' ? (osPrefersDark ? 'dark' : 'light') : undefined;
