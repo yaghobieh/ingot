@@ -81,6 +81,8 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
         this.focusKey = this.contextKeys.createKey<boolean>(DIFF_FOCUS, false);
         this.node.addEventListener('focusin', () => this.focusKey?.set(true));
         this.node.addEventListener('focusout', e => { if (!this.node.contains(e.relatedTarget as Node | null)) { this.focusKey?.set(false); } });
+        // The embedded diff editor has its own keybindings, so ⌘Z / Ctrl+Z is taken here first (capture) to undo a chunk revert too.
+        this.node.addEventListener('keydown', e => this.onUndoKey(e), true);
     }
 
     protected get tracked(): boolean {
@@ -124,6 +126,19 @@ export class IngotDiffWidget extends BaseWidget implements Navigatable, Stateful
         }
         if (model.canUndo()) {
             model.undo();
+        }
+    }
+
+    protected onUndoKey(e: KeyboardEvent): void {
+        if (!(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== 'z') {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.shiftKey) {
+            this.redo();
+        } else {
+            this.undo();
         }
     }
 
