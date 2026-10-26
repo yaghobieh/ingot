@@ -80,6 +80,9 @@ export interface BotSnapshot {
     readonly entitlement?: BotEntitlement;
     readonly usage?: BotUsage;
     readonly runner?: string;
+    /** False = the server answers with the mock model (test mode). */
+    readonly modelsLive?: boolean;
+    readonly runnerLive?: boolean;
     readonly repos: readonly BotRepo[];
     readonly repoId: string;
     readonly messages: readonly BotMessage[];

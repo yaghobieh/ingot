@@ -68,6 +68,8 @@ export class IngotBotService implements Disposable {
                 loading: false, error: undefined,
                 entitlement: status.body.entitlement as BotEntitlement,
                 runner: String(status.body.runner ?? ''),
+                modelsLive: status.body.modelsLive === true,
+                runnerLive: status.body.runnerLive === true,
                 usage: usage.status === 200 ? usage.body.usage as BotUsage : this.state.usage,
                 repos: repos.status === 200 ? (repos.body.repos as BotRepo[] ?? []).filter(repo => repo.enabled) : this.state.repos,
                 messages: chat.status === 200 ? chat.body.messages as BotMessage[] ?? [] : this.state.messages,
