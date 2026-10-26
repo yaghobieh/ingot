@@ -177,6 +177,11 @@ export class IngotAccountService {
         this.windows.openNewWindow(billingUrl(this.urls.portalUrl), { external: true });
     }
 
+    /** Ingot Bot on the website (IDEA-154): GitHub connect, routines and memory live there. */
+    openBotPage(): void {
+        this.windows.openNewWindow(`${this.urls.portalUrl.replace(/\/$/, '')}/dashboard/bot`, { external: true });
+    }
+
     openDashboard(): void {
         this.windows.openNewWindow(`${this.urls.portalUrl.replace(/\/$/, '')}/dashboard`, { external: true });
     }
