@@ -15,6 +15,7 @@
     "@fontsource/inter": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@theia/core": "1.76.0",
+    "@theia/debug": "1.76.0",
     "@theia/editor": "1.76.0",
     "@theia/file-search": "1.76.0",
     "@theia/filesystem": "1.76.0",
@@ -33,7 +34,8 @@
     "@theia/workspace": "1.76.0",
     "electron-updater": "^6.8.11",
     "mermaid": "12.2.0",
-    "pdfjs-dist": "6.4.299"
+    "pdfjs-dist": "6.4.299",
+    "jsonc-parser": "^3.3.1"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

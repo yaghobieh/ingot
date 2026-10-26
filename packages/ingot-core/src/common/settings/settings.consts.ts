@@ -10,11 +10,11 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
     {
         id: 'appearance-behavior', label: 'Appearance & Behavior', icon: 'symbol-color', children: [
             {
-                id: 'appearance', label: 'Appearance', preferences: ['ingot.appearance', SETTINGS_PREFS.colorTheme, SETTINGS_PREFS.iconTheme, 'ingot.layout.chatPosition', 'window.zoomLevel', 'workbench.tree.indent'],
-                actions: [{ id: 'importTheme', label: 'Import Color Theme…' }, { id: 'removeTheme', label: 'Remove Imported Theme…' }],
-                description: 'Theme follows Light, Dark or System (your OS, live). Choosing another color theme switches to Custom theme.',
+                id: 'appearance', label: 'Appearance', preferences: ['ingot.appearance', SETTINGS_PREFS.colorTheme, 'ingot.appearance.lightTheme', 'ingot.appearance.darkTheme', SETTINGS_PREFS.iconTheme, 'ingot.layout.chatPosition', 'window.zoomLevel', 'workbench.tree.indent'],
+                actions: [{ id: 'pickTheme', label: 'Choose Theme…' }, { id: 'importTheme', label: 'Import Color Theme…' }, { id: 'removeTheme', label: 'Remove Imported Theme…' }],
+                description: 'Theme follows Light, Dark or System (your OS, live), using the Light and Dark themes below. Choose Theme… previews themes live and browses more on Open VSX. Choosing another color theme switches to Custom theme.',
                 groups: [
-                    { label: 'Theme', preferences: ['ingot.appearance', SETTINGS_PREFS.colorTheme, SETTINGS_PREFS.iconTheme] },
+                    { label: 'Theme', preferences: ['ingot.appearance', SETTINGS_PREFS.colorTheme, 'ingot.appearance.lightTheme', 'ingot.appearance.darkTheme', SETTINGS_PREFS.iconTheme] },
                     { label: 'Layout', preferences: ['ingot.layout.chatPosition', 'window.zoomLevel', 'workbench.tree.indent'] }
                 ]
             },

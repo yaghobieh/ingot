@@ -59,6 +59,12 @@ Any shortcut can be changed in Keymap › Edit Shortcuts.
 | Run | ⌃R | Shift+F10 |
 | Debug | ⌃D | Shift+F9 |
 | Stop | ⌘F2 | Ctrl+F2 |
+| Run/Debug Configurations | ⌃⌥R | Alt+Shift+F10 |
+| Toggle Line Breakpoint | ⌘F8 | Ctrl+F8 |
+| Step Over (debugging) | F8 | F8 |
+| Step Into (debugging) | F7 | F7 |
+| Step Out (debugging) | ⇧F8 | Shift+F8 |
+| Resume Program (debugging) | ⌘⌥R | F9 |
 | Settings | ⌘, | Ctrl+Alt+S |
 | Keymap | ⌘⌥K | Ctrl+Alt+K |
 | Commit… (Local Changes) | ⌘K | Ctrl+K |

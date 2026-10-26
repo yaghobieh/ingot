@@ -44,6 +44,10 @@ An IDE built around AI beats an AI bolted onto an IDE. Most AI editors today are
 
 Ingot also reads rule folders and `mcp.json` files that other AI editors left in the project, the legacy `.alloy/` folder and `AGENTS.md`. When names collide, `.ingot` wins.
 
+## Debugging
+
+Debug Java, PHP (Xdebug), JavaScript / TypeScript and Python with breakpoints, conditional breakpoints, logpoints, step controls, Variables, Watch, Call Stack and the Debug Console. Ingot detects run/debug configurations from Maven / Gradle, PHP and npm projects. See [`docs/debugging.md`](docs/debugging.md).
+
 ## Keymap
 
 See [`docs/keymap.md`](docs/keymap.md) for every default shortcut (macOS and Windows/Linux). Switch to the platform defaults with **Settings › Keymap › Alternative**.

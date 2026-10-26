@@ -11,3 +11,19 @@ Third-party components:
   (shipped as vendor/pdfjs/LICENSE). https://github.com/mozilla/pdf.js
 - Markdown diagrams use Mermaid, Copyright (c) 2014 - 2022 Knut Sveidqvist, licensed under the MIT License
   (shipped as vendor/mermaid/LICENSE). https://github.com/mermaid-js/mermaid
+
+Debugger and language support (IDEA-138), downloaded from Open VSX at build time and bundled unmodified:
+
+- Language Support for Java(TM) by Red Hat (redhat.java), Copyright Red Hat, Inc. and others,
+  licensed under the Eclipse Public License 2.0. Includes Eclipse JDT Language Server and an Eclipse Temurin
+  Java runtime (GPLv2 with Classpath Exception). https://github.com/redhat-developer/vscode-java
+- Debugger for Java (vscjava.vscode-java-debug), Copyright (c) Microsoft Corporation, MIT License;
+  bundles java-debug (EPL-1.0). https://github.com/microsoft/vscode-java-debug
+- PHP Debug (xdebug.php-debug), Copyright (c) 2016-2018 Felix Frederick Becker and contributors, MIT License.
+  https://github.com/xdebug/vscode-php-debug
+- JavaScript Debugger (ms-vscode.js-debug), Copyright (c) Microsoft Corporation, MIT License.
+  https://github.com/microsoft/vscode-js-debug
+- PHP, Java and Python language basics (vscode.php, vscode.java, vscode.python), Copyright (c) Microsoft Corporation,
+  MIT License. https://github.com/microsoft/vscode
+- Installed on demand: Python Debugger (ms-python.debugpy), Copyright (c) Microsoft Corporation, MIT License.
+  https://github.com/microsoft/vscode-python-debugger
