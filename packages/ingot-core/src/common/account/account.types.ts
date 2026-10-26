@@ -2,4 +2,6 @@
 export interface IngotAccount {
     readonly name: string;
     readonly email?: string;
+    /** IDEA-143: Google / GitHub photo (https), shown with an initials fallback. */
+    readonly avatarUrl?: string;
 }

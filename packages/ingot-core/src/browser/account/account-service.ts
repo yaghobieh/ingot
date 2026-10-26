@@ -4,7 +4,9 @@ import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import type { IngotAccount } from '../../common/account/account.types';
 import { AccountBackend, type AccountSnapshot, type GatewayModelInfo } from '../../common/account/account-protocol';
-import { ACCOUNT_PREFERENCES, DEFAULT_PORTAL_URL, DEFAULT_SERVER_URL, DEV_ACCOUNT_EMAIL } from '../../common/account/account.consts';
+import { ACCOUNT_PREFERENCES, AVATAR_CACHE_KEY, AVATAR_CACHE_MAX_BYTES, DEFAULT_PORTAL_URL, DEFAULT_SERVER_URL, DEV_ACCOUNT_EMAIL } from '../../common/account/account.consts';
+import type { AvatarCache } from '../../common/account/avatar.types';
+import { avatarSource, isImageDataUrl, needsAvatarRefresh, parseAvatarCache, safeAvatarUrl } from '../../common/account/avatar.utils';
 import { isLoopbackUrl } from '../../common/account/gateway.utils';
 import { IngotAccountClient } from './account-client';
 
@@ -23,6 +25,9 @@ export class IngotAccountService {
     protected current: AccountSnapshot = { signedIn: false, updatedAt: 0 };
     protected configured?: Promise<void>;
     protected backendUrls?: { serverUrl: string; portalUrl: string };
+    /** IDEA-143: local copy of the provider photo (data URL in localStorage). */
+    protected avatarCache: AvatarCache | undefined = parseAvatarCache(localStorage.getItem(AVATAR_CACHE_KEY));
+    protected avatarFetching?: string;
 
     @postConstruct()
     protected init(): void {
@@ -39,6 +44,53 @@ export class IngotAccountService {
     protected apply(snapshot: AccountSnapshot): void {
         this.current = snapshot;
         this.onDidChangeEmitter.fire(this.account);
+        this.syncAvatar();
+    }
+
+    /** Every snapshot (sign-in, sync, status refresh) re-checks the photo; signing out forgets it. */
+    protected syncAvatar(): void {
+        if (!this.current.signedIn) {
+            if (this.avatarCache && !this.current.pending) {
+                this.avatarCache = undefined;
+                localStorage.removeItem(AVATAR_CACHE_KEY);
+            }
+            return;
+        }
+        const url = safeAvatarUrl(this.current.user?.avatarUrl);
+        if (!needsAvatarRefresh(this.avatarCache, url, Date.now()) || this.avatarFetching === url) {
+            return;
+        }
+        this.avatarFetching = url;
+        this.cacheAvatar(url).finally(() => { this.avatarFetching = undefined; });
+    }
+
+    protected async cacheAvatar(url: string): Promise<void> {
+        try {
+            const response = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer' });
+            const blob = response.ok ? await response.blob() : undefined;
+            if (!blob || blob.size > AVATAR_CACHE_MAX_BYTES || !blob.type.startsWith('image/')) {
+                return;
+            }
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result));
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(blob);
+            });
+            if (!isImageDataUrl(dataUrl) || safeAvatarUrl(this.current.user?.avatarUrl) !== url) {
+                return;
+            }
+            this.avatarCache = { url, dataUrl, savedAt: Date.now() };
+            localStorage.setItem(AVATAR_CACHE_KEY, JSON.stringify(this.avatarCache));
+            this.onDidChangeEmitter.fire(this.account);
+        } catch {
+            // Offline or the photo host refuses cross-origin reads: the <img> loads the URL directly instead.
+        }
+    }
+
+    /** What avatars show: the cached photo, else the provider URL, else '' (initials). */
+    get avatarSrc(): string {
+        return this.current.signedIn ? avatarSource(this.avatarCache, safeAvatarUrl(this.current.user?.avatarUrl)) : '';
     }
 
     /** URLs the user set explicitly ('' = keep the backend's default, which INGOT_SERVER_URL / INGOT_PORTAL_URL can change). */
@@ -68,7 +120,7 @@ export class IngotAccountService {
     /** Name and email for the avatar (kept for the stripe and menus). */
     get account(): IngotAccount | undefined {
         const user = this.current.user;
-        return this.current.signedIn && user ? { name: user.name, email: user.email } : undefined;
+        return this.current.signedIn && user ? { name: user.name, email: user.email, avatarUrl: safeAvatarUrl(user.avatarUrl) || undefined } : undefined;
     }
 
     /** Dev sign-in shows only against a local server. */
@@ -114,9 +166,9 @@ export class IngotAccountService {
         return !!this.current.blocked;
     }
 
-    /** Admin powers are website-only (IDEA-124); this opens the portal's /admin. */
+    /** Admin powers are website-only (IDEA-124); this opens the portal's back-office (IDEA-129). */
     openAdmin(): void {
-        this.windows.openNewWindow(`${this.urls.portalUrl.replace(/\/$/, '')}/admin`, { external: true });
+        this.windows.openNewWindow(`${this.urls.portalUrl.replace(/\/$/, '')}/backoffice`, { external: true });
     }
 
     openDashboard(): void {
