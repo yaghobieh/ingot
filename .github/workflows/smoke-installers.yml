@@ -11,6 +11,8 @@ on:
       - scripts/smoke/**
       - applications/electron/electron-builder.yml
       - .github/workflows/release.yml
+      - packages/ingot-core/src/electron-browser/**   # desktop-only shell code (title bar, menus)
+      - packages/ingot-core/src/electron-main/**
   release:
     types: [published]
   workflow_dispatch:
