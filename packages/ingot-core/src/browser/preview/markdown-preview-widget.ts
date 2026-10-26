@@ -166,7 +166,7 @@ export class MarkdownPreviewWidget extends BaseWidget implements NavigatableWidg
             }
             let n = 0;
             for (const block of blocks) {
-                const source = block.dataset.source ?? '';
+                const source = decodeURIComponent(block.dataset.source ?? '');
                 let svg = this.mermaidSvgs.get(source);
                 if (!svg) {
                     try {

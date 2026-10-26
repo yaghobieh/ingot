@@ -14,6 +14,10 @@ export const DOC_ID_PREFIX = 'ingot-md-';
 /** Tags that could restyle or take over the whole window, or submit anything. */
 const FORBIDDEN_TAGS = ['style', 'link', 'meta', 'base', 'iframe', 'frame', 'frameset', 'form', 'input', 'button', 'select', 'textarea', 'object', 'embed', 'script'];
 
+/** Tries before a code block stays plain text (grammars load lazily the first time a language is seen). */
+const HIGHLIGHT_RETRIES = 3;
+const HIGHLIGHT_RETRY_MS = 700;
+
 const slugify = (text: string): string => text.trim().toLowerCase().replace(/<[^>]+>/g, '').replace(/[^\p{L}\p{N}\s-]/gu, '').replace(/\s+/g, '-');
 
 /**
@@ -25,6 +29,8 @@ export class MarkdownDocumentRenderer {
     protected readonly md = createMarkdown({ html: true, linkify: true, breaks: false, typographer: false });
     protected readonly highlighted = new Map<string, string>();
     protected readonly pending = new Set<string>();
+    protected readonly retries = new Map<string, number>();
+    protected readonly requestedLanguages = new Set<string>();
 
     constructor(protected readonly onHighlighted: () => void) {
         const md = this.md;
@@ -42,7 +48,8 @@ export class MarkdownDocumentRenderer {
             const line = token.attrGet('data-line') ?? '';
             const code = token.content.replace(/\n$/, '');
             if (lang.toLowerCase() === 'mermaid') {
-                return `<div class="ingot-mdp-mermaid" data-line="${line}" data-source="${escapeHtml(code)}"><pre>${escapeHtml(code)}</pre></div>`;
+                // URI-encoded: the sanitizer drops attribute values containing "-->", which every flowchart arrow does.
+                return `<div class="ingot-mdp-mermaid" data-line="${line}" data-source="${encodeURIComponent(code)}"><pre>${escapeHtml(code)}</pre></div>`;
             }
             const body = this.highlight(code, lang) ?? escapeHtml(code);
             const label = lang ? `<span class="ingot-mdp-code-lang">${escapeHtml(lang)}</span>` : '';
@@ -114,7 +121,16 @@ export class MarkdownDocumentRenderer {
         }
         if (!this.pending.has(key) && monaco.languages.getLanguages().some(l => l.id === language)) {
             this.pending.add(key);
+            this.requestGrammar(language);
             monaco.editor.colorize(code, language, { tabSize: 4 }).then(html => {
+                // Plain output means the grammar was still loading: try again shortly instead of caching it.
+                const tries = this.retries.get(key) ?? 0;
+                if (!/class="mtk(?!1")\d+"/.test(html) && /\S/.test(code) && tries < HIGHLIGHT_RETRIES) {
+                    this.retries.set(key, tries + 1);
+                    window.setTimeout(() => this.onHighlighted(), HIGHLIGHT_RETRY_MS);
+                    return;
+                }
+                this.retries.delete(key);
                 if (this.highlighted.size > 500) {
                     this.highlighted.clear();
                 }
@@ -123,5 +139,13 @@ export class MarkdownDocumentRenderer {
             }, () => undefined).finally(() => this.pending.delete(key));
         }
         return undefined;
+    }
+
+    /** colorize() only asks for basic language support; a model asks for the full grammar the editor uses. */
+    protected requestGrammar(language: string): void {
+        if (!this.requestedLanguages.has(language)) {
+            this.requestedLanguages.add(language);
+            monaco.editor.createModel('', language).dispose();
+        }
     }
 }
