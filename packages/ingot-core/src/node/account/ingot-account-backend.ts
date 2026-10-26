@@ -12,7 +12,7 @@ import { defaultRemoteConfig, parseRemoteConfig } from '../../common/config/remo
 import { DEFAULT_KEYCHAIN_SERVICE } from '../../common/models/models.consts';
 import type { AccountBackend, AccountClient, AccountSnapshot, AccountUrls, GatewayModelInfo, SignInOptions } from '../../common/account/account-protocol';
 import {
-    ACCOUNT_KEYCHAIN_KEY, DEFAULT_PORTAL_URL, DEFAULT_SERVER_URL, DEV_ACCOUNT_EMAIL, GATEWAY_PATH, SIGN_IN_TIMEOUT_MS, STATUS_POLL_MS, USAGE_REFRESH_DELAY_MS
+    ACCOUNT_KEYCHAIN_KEY, DEFAULT_PORTAL_URL, DEFAULT_SERVER_URL, DEV_ACCOUNT_EMAIL, GATEWAY_PATH, PORTAL_URL_ENV, SERVER_URL_ENV, SIGN_IN_TIMEOUT_MS, STATUS_POLL_MS, USAGE_REFRESH_DELAY_MS
 } from '../../common/account/account.consts';
 import { completeDevSignIn } from './dev-sign-in';
 import { devLoginUrl, ideHeaders, isLoopbackUrl, parseGatewayModels, roleOf, snapshotOf } from '../../common/account/gateway.utils';
@@ -33,7 +33,7 @@ export class IngotAccountBackend implements AccountBackend {
 
     protected readonly keychainService = process.env.INGOT_KEYCHAIN_SERVICE || DEFAULT_KEYCHAIN_SERVICE;
     protected readonly clients = new Set<AccountClient>();
-    protected currentUrls: AccountUrls = { serverUrl: process.env.INGOT_SERVER_URL || DEFAULT_SERVER_URL, portalUrl: process.env.INGOT_PORTAL_URL || DEFAULT_PORTAL_URL };
+    protected currentUrls: AccountUrls = { serverUrl: process.env[SERVER_URL_ENV] || DEFAULT_SERVER_URL, portalUrl: process.env[PORTAL_URL_ENV] || DEFAULT_PORTAL_URL };
     protected session?: IngotAccountSession;
     protected current: AccountSnapshot = { signedIn: false, updatedAt: 0 };
     protected restored?: Promise<AccountSnapshot>;
@@ -167,7 +167,7 @@ export class IngotAccountBackend implements AccountBackend {
         return this.restored;
     }
 
-    protected readonly defaults: AccountUrls = { serverUrl: process.env.INGOT_SERVER_URL || DEFAULT_SERVER_URL, portalUrl: process.env.INGOT_PORTAL_URL || DEFAULT_PORTAL_URL };
+    protected readonly defaults: AccountUrls = { serverUrl: process.env[SERVER_URL_ENV] || DEFAULT_SERVER_URL, portalUrl: process.env[PORTAL_URL_ENV] || DEFAULT_PORTAL_URL };
 
     async urls(): Promise<AccountUrls> {
         return this.currentUrls;
