@@ -13,6 +13,8 @@ export interface FakeIngotServer {
     usedTokens: number;
     /** IDEA-124 controls: `/api/me` role, 403 account_blocked on every authed call, models dropped from /v1/models. */
     role: 'user' | 'admin';
+    /** IDEA-143: `user.avatarUrl` in status and /api/me ('' = no photo, initials). */
+    avatarUrl: string;
     blocked: boolean;
     readonly disabledModels: Set<string>;
     /** Served (in order) instead of the next chat completions, e.g. a 429 with Retry-After. */
@@ -59,12 +61,12 @@ const send = (res: http.ServerResponse, status: number, body: unknown): void => 
  */
 export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<FakeIngotServer> => {
     const state: FakeIngotServer = {
-        url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', blocked: false, disabledModels: new Set(), chatErrors: [],
+        url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', avatarUrl: '', blocked: false, disabledModels: new Set(), chatErrors: [],
         flags: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined, close: async () => undefined
     };
     const access = 'ingot_at_e2e_access';
     const status = () => ({
-        user: { id: 'u1', email: 'test@ingot.dev', name: 'Test User', avatarUrl: '', plan: 'pro' },
+        user: { id: 'u1', email: 'test@ingot.dev', name: 'Test User', avatarUrl: state.avatarUrl, plan: 'pro' },
         balance: { plan: 'pro', period: { start: '', end: '' }, tokens: { allowance: ALLOWANCE, granted: 0, used: state.usedTokens, remaining: ALLOWANCE - state.usedTokens }, spend: { budgetUsd: null, usedUsd: 0, remainingUsd: null }, byModel: [] },
         activity: []
     });

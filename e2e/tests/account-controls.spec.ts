@@ -105,7 +105,7 @@ test.describe('IDEA-124 server-controlled models and account state', () => {
         const popup = page.waitForEvent('popup');
         await admin.click();
         const portal = await popup;
-        expect(portal.url()).toBe(`${server.url}/admin`);
+        expect(portal.url()).toBe(`${server.url}/backoffice`);
         await portal.close();
 
         server.blocked = true;
