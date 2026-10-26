@@ -1,0 +1,64 @@
+/* IDEA-146: Markdown preview and PDF viewer. */
+.ingot-markdown-preview { outline: none; background: var(--theia-editor-background); }
+.ingot-mdp-scroll { position: absolute; inset: 0; overflow: auto; }
+.ingot-mdp-body { max-width: 860px; margin: 0 auto; padding: 24px 32px 40vh; color: var(--theia-editor-foreground, var(--theia-foreground));
+  font-family: var(--theia-ui-font-family); font-size: 14px; line-height: 1.65; overflow-wrap: break-word; user-select: text; }
+.ingot-mdp-body > :first-child { margin-top: 0; }
+.ingot-mdp-body h1, .ingot-mdp-body h2, .ingot-mdp-body h3, .ingot-mdp-body h4, .ingot-mdp-body h5, .ingot-mdp-body h6 { margin: 1.4em 0 .6em; line-height: 1.25; font-weight: 600; color: var(--theia-foreground); }
+.ingot-mdp-body h1 { font-size: 2em; padding-bottom: .3em; border-bottom: 1px solid var(--theia-panel-border); }
+.ingot-mdp-body h2 { font-size: 1.5em; padding-bottom: .3em; border-bottom: 1px solid var(--theia-panel-border); }
+.ingot-mdp-body h3 { font-size: 1.25em; }
+.ingot-mdp-body h4 { font-size: 1em; }
+.ingot-mdp-body h6 { color: var(--theia-descriptionForeground); }
+.ingot-mdp-body p, .ingot-mdp-body ul, .ingot-mdp-body ol, .ingot-mdp-body blockquote, .ingot-mdp-body .ingot-mdp-table, .ingot-mdp-body .ingot-mdp-code, .ingot-mdp-body details { margin: 0 0 1em; }
+.ingot-mdp-body ul, .ingot-mdp-body ol { padding-left: 2em; }
+.ingot-mdp-body li + li { margin-top: .25em; }
+.ingot-mdp-body li:has(> .ingot-mdp-task), .ingot-mdp-body li:has(> p > .ingot-mdp-task) { list-style: none; margin-left: -1.4em; }
+.ingot-mdp-task { margin-right: 6px; vertical-align: -2px; color: var(--theia-descriptionForeground); }
+.ingot-mdp-task.done { color: var(--ingot-primary); }
+.ingot-mdp-body a { color: var(--theia-textLink-foreground); text-decoration: none; cursor: pointer; }
+.ingot-mdp-body a:hover { text-decoration: underline; }
+.ingot-mdp-body blockquote { padding: 0 1em; color: var(--theia-descriptionForeground); border-left: 3px solid color-mix(in srgb, var(--ingot-primary) 55%, var(--theia-panel-border)); }
+.ingot-mdp-body hr { height: 1px; margin: 1.5em 0; border: 0; background: var(--theia-panel-border); }
+.ingot-mdp-body img { max-width: 100%; border-radius: 4px; }
+.ingot-mdp-body img.ingot-mdp-missing { display: inline-block; min-width: 120px; min-height: 24px; padding: 2px 8px; border: 1px dashed var(--theia-panel-border); color: var(--theia-descriptionForeground); font-size: 12px; }
+.ingot-mdp-body code { font-family: var(--theia-code-font-family); font-size: .9em; padding: .15em .4em; border-radius: 4px; background: var(--theia-textCodeBlock-background, color-mix(in srgb, var(--theia-foreground) 8%, transparent)); }
+.ingot-mdp-code { position: relative; border-radius: 6px; border: 1px solid var(--theia-panel-border); background: var(--theia-textCodeBlock-background, var(--theia-editorWidget-background)); }
+.ingot-mdp-code pre { margin: 0; padding: 12px 14px; overflow: auto; font-family: var(--theia-code-font-family); font-size: 12.5px; line-height: 1.5; }
+.ingot-mdp-code pre code { padding: 0; background: none; font-size: inherit; white-space: pre; }
+.ingot-mdp-code-lang { position: absolute; top: 4px; right: 8px; font-size: 11px; color: var(--theia-descriptionForeground); text-transform: lowercase; }
+.ingot-mdp-table { overflow-x: auto; }
+.ingot-mdp-table table { border-collapse: collapse; }
+.ingot-mdp-table th, .ingot-mdp-table td { padding: 6px 13px; border: 1px solid var(--theia-panel-border); }
+.ingot-mdp-table th { font-weight: 600; background: color-mix(in srgb, var(--theia-foreground) 5%, transparent); }
+.ingot-mdp-table tr:nth-child(2n) td { background: color-mix(in srgb, var(--theia-foreground) 3%, transparent); }
+.ingot-mdp-mermaid { margin: 0 0 1em; padding: 12px; border-radius: 6px; border: 1px solid var(--theia-panel-border); text-align: center; overflow-x: auto; }
+.ingot-mdp-mermaid > pre { margin: 0; text-align: left; font-family: var(--theia-code-font-family); font-size: 12px; color: var(--theia-descriptionForeground); }
+.ingot-mdp-mermaid.rendered svg { max-width: 100%; height: auto; }
+.ingot-mdp-mermaid.ingot-mdp-mermaid-error { border-color: var(--ingot-danger); }
+.ingot-mdp-body kbd { padding: 1px 5px; border-radius: 4px; border: 1px solid var(--theia-panel-border); border-bottom-width: 2px; font-size: .85em; font-family: var(--theia-code-font-family); }
+
+/* PDF viewer: pdf.js pages on the editor background; text stays selectable through pdf.js' text layer. */
+.ingot-pdf-viewer { display: flex; flex-direction: column; outline: none; background: var(--theia-editor-background); }
+.ingot-pdf-toolbar { display: flex; align-items: center; gap: 4px; height: 36px; flex-shrink: 0; padding: 0 10px; overflow: hidden; border-bottom: 1px solid var(--theia-panel-border); background: var(--theia-editorWidget-background, var(--theia-sideBar-background)); font-size: 12px; }
+.ingot-pdf-tool { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--theia-foreground); cursor: pointer; }
+.ingot-pdf-tool:hover { background: var(--theia-toolbar-hoverBackground); }
+.ingot-pdf-page { width: 42px; height: 22px; text-align: center; padding: 0 4px; }
+.ingot-pdf-count { color: var(--theia-descriptionForeground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ingot-pdf-sep { width: 1px; height: 18px; margin: 0 6px; background: var(--theia-panel-border); }
+.ingot-pdf-spacer { flex: 1; }
+.ingot-pdf-zoom { height: 24px; min-width: 104px; }
+.ingot-pdf-search { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.ingot-pdf-search > .codicon { color: var(--theia-descriptionForeground); }
+.ingot-pdf-search input { width: 180px; height: 22px; padding: 0 6px; }
+.ingot-pdf-search input.not-found { outline: 1px solid var(--ingot-danger); }
+.ingot-pdf-search .ingot-pdf-count { min-width: 62px; text-align: right; }
+.ingot-pdf-body { position: relative; flex: 1; min-height: 0; }
+.ingot-pdf-container { position: absolute; inset: 0; overflow: auto; background: color-mix(in srgb, var(--theia-editor-background) 88%, #808080); }
+.ingot-pdf-container .pdfViewer { padding: 12px 0 24px; }
+.ingot-pdf-container .pdfViewer .page { margin: 12px auto; border: 0; box-shadow: 0 1px 8px rgba(0, 0, 0, .28); border-radius: 2px; }
+.ingot-pdf-container .textLayer ::selection { background: color-mix(in srgb, var(--ingot-primary) 40%, transparent); }
+.ingot-pdf-container .textLayer .highlight { background-color: rgba(255, 196, 0, .45); }
+.ingot-pdf-container .textLayer .highlight.selected { background-color: color-mix(in srgb, var(--ingot-primary) 55%, transparent); }
+.ingot-pdf-message { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: 6px; background: var(--theia-editorWidget-background); color: var(--theia-descriptionForeground); box-shadow: 0 2px 8px rgba(0, 0, 0, .2); }
+.ingot-pdf-message.error { color: var(--ingot-danger); background: color-mix(in srgb, var(--ingot-danger) 15%, var(--theia-editor-background)); }

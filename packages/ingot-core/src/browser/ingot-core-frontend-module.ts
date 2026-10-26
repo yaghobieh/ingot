@@ -123,6 +123,10 @@ import { ImagePreviewContribution, ImagePreviewOpenHandler } from './preview/ima
 import { ImageHoverService } from './preview/image-hover-service';
 import { ImagePreviewUri, ImagePreviewWidget } from './preview/image-preview-widget';
 import { IMAGE_PREVIEW_WIDGET_ID } from '../common/preview/image-preview.consts';
+import { DocumentPreviewContribution, MarkdownPreviewOpenHandler, PdfViewerOpenHandler } from './preview/document-preview-contribution';
+import { MarkdownPreviewUri, MarkdownPreviewWidget } from './preview/markdown-preview-widget';
+import { PdfViewerUri, PdfViewerWidget } from './preview/pdf-viewer-widget';
+import { MARKDOWN_PREVIEW_WIDGET_ID, PDF_VIEWER_WIDGET_ID } from '../common/preview/document-preview.consts';
 import { TabBarToolbarContribution } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import URI from '@theia/core/lib/common/uri';
 import { IngotBadgeIconTheme, IngotFilesIconTheme, IngotIconTheme } from './icons/ingot-icon-theme';
@@ -346,6 +350,34 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(FrontendApplicationContribution).toService(ImagePreviewContribution);
     bind(CommandContribution).toService(ImagePreviewContribution);
     bind(TabBarToolbarContribution).toService(ImagePreviewContribution);
+    // IDEA-146: Markdown preview and PDF viewer
+    bind(MarkdownPreviewOpenHandler).toSelf().inSingletonScope();
+    bind(OpenHandler).toService(MarkdownPreviewOpenHandler);
+    bind(PdfViewerOpenHandler).toSelf().inSingletonScope();
+    bind(OpenHandler).toService(PdfViewerOpenHandler);
+    bind(WidgetFactory).toDynamicValue(ctx => ({
+        id: MARKDOWN_PREVIEW_WIDGET_ID,
+        createWidget: (options: NavigatableWidgetOptions) => {
+            const child = ctx.container.createChild();
+            child.bind(MarkdownPreviewUri).toConstantValue(new URI(options.uri));
+            child.bind(MarkdownPreviewWidget).toSelf();
+            return child.get(MarkdownPreviewWidget);
+        }
+    })).inSingletonScope();
+    bind(WidgetFactory).toDynamicValue(ctx => ({
+        id: PDF_VIEWER_WIDGET_ID,
+        createWidget: (options: NavigatableWidgetOptions) => {
+            const child = ctx.container.createChild();
+            child.bind(PdfViewerUri).toConstantValue(new URI(options.uri));
+            child.bind(PdfViewerWidget).toSelf();
+            return child.get(PdfViewerWidget);
+        }
+    })).inSingletonScope();
+    bind(DocumentPreviewContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(DocumentPreviewContribution);
+    bind(CommandContribution).toService(DocumentPreviewContribution);
+    bind(TabBarToolbarContribution).toService(DocumentPreviewContribution);
+    bind(KeybindingContribution).toService(DocumentPreviewContribution);
     bind(IngotIconTheme).toSelf().inSingletonScope();
     bind(IconThemeContribution).toService(IngotIconTheme);
     bind(LabelProviderContribution).toService(IngotIconTheme);
