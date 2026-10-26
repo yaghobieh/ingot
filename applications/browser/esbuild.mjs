@@ -6,6 +6,11 @@ import { browserOptions, watch } from './gen-esbuild.browser.mjs';
 import { nodeOptions } from './gen-esbuild.node.mjs';
 
 import esbuild from 'esbuild';
+import { copyVendorAssets, vendorEntryPoints } from '../../packages/ingot-core/vendor/vendor-assets.mjs';
+
+// IDEA-146: on-demand viewers (pdf.js, mermaid) for the Markdown and PDF previews.
+Object.assign(browserOptions.entryPoints, vendorEntryPoints());
+copyVendorAssets('lib/frontend');
 
 const browserContext = await esbuild.context(browserOptions);
 const nodeContext = await esbuild.context(nodeOptions);
