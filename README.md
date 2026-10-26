@@ -42,7 +42,7 @@ An IDE built around AI beats an AI bolted onto an IDE. Most AI editors today are
   mcp.json    # MCP servers
 ```
 
-Ingot also reads existing rule folders in the project (for example `.cursor/rules` and `mcp.json`), the legacy `.alloy/` folder and `AGENTS.md`. When names collide, `.ingot` wins.
+Ingot also reads rule folders and `mcp.json` files that other AI editors left in the project, the legacy `.alloy/` folder and `AGENTS.md`. When names collide, `.ingot` wins.
 
 ## Keymap
 
