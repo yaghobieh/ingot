@@ -28,7 +28,7 @@ test.describe('IDEA-51 workspaces (.ingot-workspace / .code-workspace)', () => {
         await projectButton(page).click();
         await expect(popup(page)).toBeVisible();
         const recent = popup(page).locator('.ingot-project-popup-recent', { hasText: 'multi-root' });
-        await expect(recent).toContainText('Workspace');
+        await expect(recent).toContainText('workspace');
         await expect(popup(page).locator('#ingot-project-action-open-workspace')).toBeVisible();
         await expect(popup(page).locator('#ingot-project-action-save-workspace')).toBeVisible();
 

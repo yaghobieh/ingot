@@ -1,11 +1,11 @@
 import * as path from 'path';
 import { expect, test } from '@playwright/test';
-import { openIngot, quickInput } from '../src/app.utils';
+import { actUntilVisible, openIngot } from '../src/app.utils';
 import { CONFIG_PROJECT, FIXTURES_DIR, FIXTURE_WORKSPACE, MULTI_ROOT_WORKSPACE } from '../src/e2e.consts';
 import { mockOpenVsx } from '../src/fake-open-vsx';
 
-/** A path that does not exist: Theia opens the window without a folder, like a fresh New Window. */
-const NO_FOLDER = path.join(FIXTURES_DIR, '.no-folder-open');
+/** The URL fragment New Window uses: the window opens without a folder. */
+const NO_FOLDER = '!empty';
 const SECOND_PROJECT = path.join(FIXTURES_DIR, 'second-project');
 
 test.describe('IDEA-165 new-window welcome page', () => {
@@ -48,12 +48,13 @@ test.describe('IDEA-165 new-window welcome page', () => {
 
     test('Clone Repository asks for a URL and rejects odd ones', async ({ page }) => {
         await openIngot(page, NO_FOLDER);
-        await page.locator('#ingot-welcome-clone').click();
-        await expect(quickInput(page)).toBeVisible();
-        await quickInput(page).fill('--upload-pack=evil');
+        const input = page.locator('.quick-input-widget input.input');
+        await actUntilVisible(() => page.locator('#ingot-welcome-clone').click(), input);
+        await expect(page.locator('.quick-input-widget')).toContainText('Repository URL');
+        await input.fill('--upload-pack=evil');
         await expect(page.locator('.quick-input-widget')).toContainText('Enter an https or ssh Git URL.');
         await page.keyboard.press('Escape');
-        await expect(quickInput(page)).toBeHidden();
+        await expect(input).toBeHidden();
     });
 
     test('opening a recent workspace from the welcome page loads it', async ({ page }) => {
