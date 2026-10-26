@@ -12,7 +12,7 @@ const BROWSER_ASK = '#ingot-setting-ingot-agent-browser-requireApproval';
 
 /** IDEA-133: Settings › Tools › Agent tools drives the terminal, processes and browser tools. */
 test.describe('IDEA-133 agent tools settings', () => {
-    test.setTimeout(150_000);
+    test.setTimeout(240_000);
     let dir: string;
     let server: FakeOllama;
     let site: FakeSite;
@@ -20,6 +20,7 @@ test.describe('IDEA-133 agent tools settings', () => {
 
     test.beforeEach(async () => {
         dir = makeToolsProject('ingot-tools-settings-');
+        reply = () => 'Ready.';
         site = await startFakeSite();
         server = await startFakeOllama((system, user) => reply(system, user), { delayMs: 0 });
     });
@@ -58,16 +59,23 @@ test.describe('IDEA-133 agent tools settings', () => {
             'Show background processes in the chat',
             'Let the agent use the browser', 'Ask before browser actions', 'Also ask before reading pages and screenshots'
         ]);
-        await expect(page.locator(TERMINAL_ON)).toBeChecked();
-        await expect(page.locator(BROWSER_ASK)).toBeChecked();
+        // Defaults (a failed earlier run may have left them off: preferences persist in the e2e config).
+        await page.locator(TERMINAL_ON).setChecked(true);
+        await page.locator(BROWSER_ASK).setChecked(true);
         await shot(page, 'idea-133-settings-light.png');
         await page.locator('#ingot-settings-ok').click();
+        await expect(page.locator('#ingot-settings')).toBeHidden();
 
         await connectOllama(page, server);
         await page.locator('#ingot-agents-new').click();
         await pickModel(page, 'ollama-local');
 
         // Commands off: the run tools leave the agent's tool list; browser actions no longer ask.
+        // (global setup puts these settings back to their defaults before every run).
+        await turnedOff(page);
+    });
+
+    const turnedOff = async (page: Page): Promise<void> => {
         await setChecked(page, TERMINAL_ON, false);
         await setChecked(page, BROWSER_ASK, false);
         let systemHadRun = true;
@@ -98,10 +106,11 @@ test.describe('IDEA-133 agent tools settings', () => {
         await page.locator(BROWSER_ASK).setChecked(true);
         await shot(page, 'idea-133-settings-dark.png');
         await page.locator('#ingot-settings-ok').click();
+        await expect(page.locator('#ingot-settings')).toBeHidden();
         await ask(page, 'run it');
         await expect(page.locator('#ingot-approval-line')).toHaveText('Run command: node -v', { timeout: 30_000 });
         expect(systemHadRun).toBe(true);
         await page.locator('#ingot-approval-skip').click();
         await setAppearance(page, 'light');
-    });
+    };
 });

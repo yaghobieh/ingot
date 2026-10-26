@@ -36,7 +36,7 @@ import type { ProjectCommand } from '../../common/project-config/project-config.
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import {
-    APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
+    APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
     updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
 } from '../../common/agents/agent-actions';
 import { ProcessStore } from '../processes/process-store';
@@ -775,7 +775,10 @@ export class AgentStore {
             const isBrowser = call.server === BUILTIN_TOOL_SERVER && call.tool.startsWith('browser_');
             const requireRun = action?.kind === 'terminal' ? this.runSettings.requireApproval
                 : isBrowser ? browserNeedsCard(call.tool, browserToolSettings(key => this.preferences.get(key))) : true;
-            if (action && requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)) {
+            // IDEA-133: a tool turned off in Settings › Agent tools is refused at once, without a card.
+            const turnedOff = call.server === BUILTIN_TOOL_SERVER
+                && !builtinToolEnabled(call.tool, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled });
+            if (action && !turnedOff && requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)) {
                 const choice = await this.askApproval(session, action);
                 if (choice.stopped) {
                     return false;

@@ -32,4 +32,12 @@ export const LEFT_PANEL = '#theia-left-side-panel';
 export const FAKE_INGOT_PORT = Number(process.env.INGOT_FAKE_SERVER_PORT ?? 3398);
 export const FAKE_INGOT_URL = `http://127.0.0.1:${FAKE_INGOT_PORT}`;
 /** e2e user settings: BYOK / Local models on, so specs can use the fake Ollama and key-based models. */
-export const E2E_USER_SETTINGS = { 'ingot.models.byok': true } as const;
+export const E2E_USER_SETTINGS = {
+    'ingot.models.byok': true,
+    // IDEA-133: agent tools start from their defaults even if an interrupted run left them changed.
+    'ingot.agent.terminal.enabled': true,
+    'ingot.agent.terminal.requireApproval': true,
+    'ingot.agent.browser.enabled': true,
+    'ingot.agent.browser.requireApproval': true,
+    'ingot.agent.browser.approveReads': false
+} as const;
