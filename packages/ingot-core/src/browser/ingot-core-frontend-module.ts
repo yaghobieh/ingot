@@ -1,6 +1,6 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
-import { bindViewContribution, FrontendApplicationContribution, KeybindingContribution, UndoRedoHandler, WidgetFactory } from '@theia/core/lib/browser';
+import { bindViewContribution, FrontendApplicationContribution, KeybindingContribution, OpenHandler, UndoRedoHandler, WidgetFactory, type NavigatableWidgetOptions } from '@theia/core/lib/browser';
 import { AboutDialog } from '@theia/core/lib/browser/about-dialog';
 import { IngotCoreContribution } from './ingot-core-contribution';
 import { IngotThemeContribution } from './theme/ingot-theme-contribution';
@@ -130,6 +130,12 @@ import { UserThemeContribution } from './theme/user-theme-contribution';
 import { ThemeStoreService } from './theme/theme-store-service';
 import { ThemePickerDialog, ThemePickerDialogProps } from './theme/theme-picker-dialog';
 import { ThemePickerContribution } from './theme/theme-picker-contribution';
+import { ImagePreviewContribution, ImagePreviewOpenHandler } from './preview/image-preview-contribution';
+import { ImageHoverService } from './preview/image-hover-service';
+import { ImagePreviewUri, ImagePreviewWidget } from './preview/image-preview-widget';
+import { IMAGE_PREVIEW_WIDGET_ID } from '../common/preview/image-preview.consts';
+import { TabBarToolbarContribution } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
+import URI from '@theia/core/lib/common/uri';
 import { IngotBadgeIconTheme, IngotFilesIconTheme, IngotIconTheme } from './icons/ingot-icon-theme';
 import { IconThemeContribution } from '@theia/core/lib/browser/icon-theme-contribution';
 import { LabelProviderContribution } from '@theia/core/lib/browser/label-provider';
@@ -347,6 +353,23 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(ThemePickerDialog).toSelf().inSingletonScope();
     bind(ThemePickerContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(ThemePickerContribution);
+    // IDEA-145: image preview
+    bind(ImageHoverService).toSelf().inSingletonScope();
+    bind(ImagePreviewOpenHandler).toSelf().inSingletonScope();
+    bind(OpenHandler).toService(ImagePreviewOpenHandler);
+    bind(WidgetFactory).toDynamicValue(ctx => ({
+        id: IMAGE_PREVIEW_WIDGET_ID,
+        createWidget: (options: NavigatableWidgetOptions) => {
+            const child = ctx.container.createChild();
+            child.bind(ImagePreviewUri).toConstantValue(new URI(options.uri));
+            child.bind(ImagePreviewWidget).toSelf();
+            return child.get(ImagePreviewWidget);
+        }
+    })).inSingletonScope();
+    bind(ImagePreviewContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(ImagePreviewContribution);
+    bind(CommandContribution).toService(ImagePreviewContribution);
+    bind(TabBarToolbarContribution).toService(ImagePreviewContribution);
     bind(IngotIconTheme).toSelf().inSingletonScope();
     bind(IconThemeContribution).toService(IngotIconTheme);
     bind(LabelProviderContribution).toService(IngotIconTheme);
