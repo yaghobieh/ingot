@@ -19,7 +19,8 @@ import { postConstruct } from '@theia/core/shared/inversify';
 import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
-import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
+import type { AgentMessage, AgentMode, AgentSession } from '../../common/agents/agents.types';
+import type { ToolCallInfo } from '../../common/agents/tool-cards';
 import { activeAgentCount, titleFromPrompt } from '../../common/agents/agents.utils';
 import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
 import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
@@ -798,11 +799,28 @@ export class AgentStore {
             }
             session.steps = [...session.steps, { kind: 'run', target, done: false }];
             session.status = 'thinking';
+            // IDEA-177: the card shows at once with a spinner, then fills in with the result.
+            const tool: ToolCallInfo = { server: call.server, tool: call.tool, args: call.args, state: 'running', startedAt: Date.now() };
+            const at = session.messages.push({ role: 'tool', from: target, text: '', tool }) - 1;
             this.changed();
-            const result: AgentActionResult & { images?: ImageChip[] } = isBrowser ? await this.runBrowser(session, call)
-                : call.server === BUILTIN_TOOL_SERVER ? await this.runBuiltin(call, root) : await this.mcp.callTool(call.server, call.tool, call.args);
+            const result: AgentActionResult & { images?: ImageChip[] } = await (isBrowser ? this.runBrowser(session, call)
+                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(call, root) : this.mcp.callTool(call.server, call.tool, call.args))
+                .catch((error: unknown) => {
+                    if (session.messages[at]?.tool === tool) {
+                        session.messages[at] = { role: 'tool', from: target, text: `Error: ${error instanceof Error ? error.message : String(error)}`, tool: { ...tool, state: 'error', endedAt: Date.now() } };
+                    }
+                    throw error;
+                });
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
-            session.messages.push({ role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}) });
+            const done: AgentMessage = {
+                role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}),
+                tool: { ...tool, state: result.isError ? 'error' : 'done', endedAt: Date.now() }
+            };
+            if (session.messages[at] && session.messages[at].tool === tool) {
+                session.messages[at] = done;
+            } else {
+                session.messages.push(done);
+            }
             this.changed();
         }
         return true;

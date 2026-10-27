@@ -1,6 +1,8 @@
 import * as React from '@theia/core/shared/react';
 import { ImageHoverService } from '../preview/image-hover-service';
 import { actionLine, activityLine } from '../../common/agents/agent-actions';
+import { exploredLine, extractThought } from '../../common/agents/tool-cards';
+import { ThoughtRow, ToolCardView } from './tool-card';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
@@ -617,6 +619,26 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     protected renderMessage(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+        if (m.role === 'tool' && m.tool) {
+            const key = `${session.id}:tool:${i}`;
+            return <ToolCardView key={i} info={m.tool} text={m.text} from={m.from} expanded={this.expandedSteps.has(key)}
+                onToggle={() => { if (!this.expandedSteps.delete(key)) { this.expandedSteps.add(key); } this.update(); }}
+                openLink={url => this.windows.openNewWindow(url, { external: true })} />;
+        }
+        const thought = m.role === 'agent' && !m.parts ? extractThought(m.text) : undefined;
+        if (thought?.thought !== undefined) {
+            const key = `${session.id}:thought:${i}`;
+            m = { ...m, text: thought.rest };
+            return <React.Fragment key={i}>
+                <ThoughtRow thought={thought.thought} thinking={thought.thinking && this.store.isRunning(session.id)} expanded={this.expandedSteps.has(key)}
+                    onToggle={() => { if (!this.expandedSteps.delete(key)) { this.expandedSteps.add(key); } this.update(); }} />
+                {this.renderMessageBody(session, m, i)}
+            </React.Fragment>;
+        }
+        return this.renderMessageBody(session, m, i);
+    }
+
+    protected renderMessageBody(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
         return m.memory
             ? <div key={i} className={`ingot-chat-memory${m.memory.undone ? ' undone' : ''}`}>
                     <span className='codicon codicon-lightbulb' />
@@ -712,6 +734,9 @@ export class IngotAgentsWidget extends ReactWidget {
     protected renderSession(session: AgentSession): React.ReactNode {
         const lastAgent = session.messages.map(m => m.role).lastIndexOf('agent');
         const readSteps = session.steps.map((step, index) => ({ step, index })).filter(({ step }) => step.kind === 'read');
+        // IDEA-177: tool steps are drawn as cards; the muted "Explored N files, M searches" line sums up the run.
+        const hasCards = session.messages.some(m => m.tool);
+        const explored = hasCards ? exploredLine(session.steps, this.store.isRunning(session.id)) : undefined;
         return <>
             {session.messages.map((m, i) => i === lastAgent && readSteps.length > 0
                 ? <React.Fragment key={i}>{readSteps.map(({ step, index }) => this.renderReadStep(session, step, index))}{this.renderMessage(session, m, i)}</React.Fragment>
@@ -723,7 +748,8 @@ export class IngotAgentsWidget extends ReactWidget {
                     <div key={i} className={`ingot-plan-item ingot-plan-${p.state}`}><span className='ingot-plan-mark'>{p.state === 'done' ? '✓' : p.state === 'active' ? '●' : '○'}</span>{p.text}</div>
                 ))}
             </div>}
-            {session.steps.map((step, i) => step.kind === 'read' ? undefined : (
+            {explored && <div className='ingot-chat-explored' id='ingot-chat-explored'><span className='ingot-chat-explored-verb'>{explored.split(' ')[0]}</span> {explored.split(' ').slice(1).join(' ')}</div>}
+            {session.steps.map((step, i) => step.kind === 'read' || (hasCards && step.kind === 'run' && !step.target.startsWith('/')) ? undefined : (
                 <div key={i} className={`ingot-chat-step ${step.done ? 'done' : 'running'}`}>
                     <span className='ingot-step-mark'>{step.done ? '✓' : '●'}</span>
                     <span className='ingot-step-text'>{stepVerb(step)} {step.target}</span>

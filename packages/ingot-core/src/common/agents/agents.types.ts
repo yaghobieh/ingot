@@ -33,6 +33,8 @@ export interface AgentMessage {
     readonly memory?: { readonly id: string; readonly scope: 'project' | 'global'; readonly undone?: boolean };
     /** A Plan-mode reply that can be built (IDEA-77). */
     readonly buildable?: boolean;
+    /** IDEA-177: the tool call behind a `tool` message, drawn as a rich card (terminal block, profile, …). */
+    readonly tool?: import('./tool-cards').ToolCallInfo;
 }
 
 /** What went into the last request of a chat (IDEA-77): shown as chips and in the usage ring. */
