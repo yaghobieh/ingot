@@ -190,6 +190,17 @@ export class ChangeTracker {
         return final;
     }
 
+    /** IDEA-180: drop one streaming edit (a file the Harmony lock gave to another agent) and put the file back. */
+    async cancelStream(sessionId: string, path: string): Promise<void> {
+        for (const change of this.items.filter(c => c.sessionId === sessionId && c.path === path && c.status === 'streaming')) {
+            this.streams.delete(change.id);
+            await this.applyText(change, change.oldText, false);
+            await this.settle({ ...change, hunks: [], status: 'rejected' });
+            this.items = this.items.filter(c => c.id !== change.id);
+        }
+        this.fire();
+    }
+
     /** Stop / error while an edit streams: put the file back. */
     async cancelStreams(sessionId: string): Promise<void> {
         for (const change of this.items.filter(c => c.sessionId === sessionId && c.status === 'streaming')) {

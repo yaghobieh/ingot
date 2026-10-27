@@ -18,7 +18,7 @@ import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-servi
 import { postConstruct } from '@theia/core/shared/inversify';
 import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
-import { DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
+import { ACTIVE_STATUSES, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
 import type { AgentMessage, AgentMode, AgentSession } from '../../common/agents/agents.types';
 import type { ToolCallInfo } from '../../common/agents/tool-cards';
 import { hookCardInfo } from '../../common/git/hooks';
@@ -27,6 +27,11 @@ import { activeAgentCount, titleFromPrompt } from '../../common/agents/agents.ut
 import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
 import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
+import {
+    GREP_MAX_FILE_BYTES, GREP_MAX_FILES, GREP_MAX_MATCHES, githubRepoFromRemote, globMatcher, grepMatcher, isTextCandidate, isWorkspaceTool, LIST_MAX_ENTRIES,
+    numberLines, printsShellInsteadOfRunning, SHELL_NUDGE, SKIPPED_DIRS, withRepoDefaults, workspaceProtocol, type GitHubRepo, type WorkspaceInfo
+} from '../../common/agents/workspace-tools';
+import { parseRemotes } from '../../common/git/git-ops';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
@@ -40,6 +45,7 @@ import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.cons
 import type { ProjectCommand } from '../../common/project-config/project-config.types';
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
+import { clampPieces, HARMONY_DEFAULTS, HARMONY_PREFS, harmonyLock, harmonyPrompt, isHeavyRun, pickHarmonyPiece, type HarmonyPiece } from '../../common/agents/harmony';
 import {
     APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
     updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
@@ -646,7 +652,9 @@ export class AgentStore {
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
-        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
+        const workspace = await this.workspaceInfo(root);
+        this.github = workspace.github;
+        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
         const rulesText = formatRules(rules);
         const memoriesText = formatMemories(memories);
         const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
@@ -667,10 +675,20 @@ export class AgentStore {
         session.changes = [];
         this.changed();
 
+        let nudged = false;
         for (let round = 0; ; round++) {
             const parsed = await this.streamRound(session, system);
             if (!parsed) {
                 return;
+            }
+            // IDEA-186: a reply that hands the user shell commands gets one nudge to run / read them itself.
+            if (!parsed.toolCalls.length && !nudged && round < MAX_TOOL_ROUNDS && printsShellInsteadOfRunning(session.messages[session.messages.map(m => m.role).lastIndexOf('agent')]?.text ?? '')) {
+                nudged = true;
+                // The printed commands are replaced by real reads, so the user never sees "run this yourself".
+                const printed = session.messages.map(m => m.role).lastIndexOf('agent');
+                session.messages[printed] = { ...session.messages[printed], hidden: true };
+                session.messages.push({ role: 'user', text: SHELL_NUDGE, hidden: true });
+                continue;
             }
             if (parsed.toolCalls.length && round < MAX_TOOL_ROUNDS) {
                 if (!await this.runTools(session, parsed.toolCalls)) {
@@ -721,6 +739,7 @@ export class AgentStore {
                 session.messages[index] = { role: 'agent', text: extractMemories(parsed.display).display };
                 if (parsed.plan.length) {
                     session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
+                    this.considerHarmony(session, parsed.edits.length);
                 }
                 session.status = parsed.editing ? 'editing' : 'thinking';
                 session.activeFile = parsed.editing ?? parsed.edits[parsed.edits.length - 1]?.path;
@@ -752,7 +771,9 @@ export class AgentStore {
         // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
         session.messages[index] = {
             role: 'agent', expanded: final,
-            text: display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)')
+            text: display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)'),
+            // IDEA-186: a silent round of project reads shows only in the Explored row.
+            ...(!display && !parsed.edits.length && parsed.toolCalls.length && parsed.toolCalls.every(c => c.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(c.tool)) ? { hidden: true } : {})
         };
         return stopped ? { ...parsed, toolCalls: [], edits: [], memories: [] } : { ...parsed, memories };
     }
@@ -771,7 +792,7 @@ export class AgentStore {
                 this.changed();
                 continue;
             }
-            const call = resolved.call;
+            const call = withRepoDefaults(resolved.call, this.github);
             const target = `${call.server}/${call.tool}`;
             const isGit = call.server === BUILTIN_TOOL_SERVER && call.tool === 'git';
             const branch = isGit && rootPath && call.args.op === 'push' && !call.args.branch
@@ -821,7 +842,8 @@ export class AgentStore {
                 hooksRan = true;
                 this.changed();
             }
-            session.steps = [...session.steps, { kind: 'run', target, done: false }];
+            const workspaceTool = call.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(call.tool);
+            session.steps = [...session.steps, workspaceTool ? this.workspaceStep(call) : { kind: 'run', target, done: false }];
             session.status = 'thinking';
             // IDEA-177: the card shows at once with a spinner, then fills in with the result.
             const tool: ToolCallInfo = { server: call.server, tool: call.tool, args: call.args, state: 'running', startedAt: Date.now() };
@@ -850,6 +872,125 @@ export class AgentStore {
         return true;
     }
 
+    /** IDEA-186: GitHub owner/repo of the open project (from its git remote), for GitHub tool calls. */
+    protected github?: GitHubRepo;
+
+    protected async workspaceInfo(root: URI | undefined): Promise<WorkspaceInfo> {
+        const path = root?.path.fsPath();
+        if (!root || !path) {
+            return {};
+        }
+        const [branch, remotes] = await Promise.all([
+            this.git.run(path, { kind: 'currentBranch' }).then(r => r.output.trim(), () => ''),
+            this.git.run(path, { kind: 'remotes' }).then(r => parseRemotes(r.output), () => [])
+        ]);
+        const remote = remotes.find(r => r.name === 'origin') ?? remotes[0];
+        return { name: root.path.base, ...(branch ? { branch } : {}), ...(githubRepoFromRemote(remote?.url) ? { github: githubRepoFromRemote(remote?.url) } : {}) };
+    }
+
+    protected workspaceStep(call: AgentToolCall): AgentSession['steps'][number] {
+        const s = (v: unknown): string => typeof v === 'string' ? v : '';
+        return call.tool === 'grep'
+            ? { kind: 'search', target: s(call.args.pattern), done: true }
+            : call.tool === 'list_dir'
+                ? { kind: 'read', target: `${(s(call.args.path) || '.').replace(/\/+$/, '')}/`, done: true }
+                : { kind: 'read', target: s(call.args.path) || '.', done: true };
+    }
+
+    protected safeUri(root: URI, path: string): URI | undefined {
+        const clean = path.trim().replace(/^\.\/+/, '').replace(/\/+$/, '');
+        if (!clean || clean === '.') {
+            return root;
+        }
+        return isSafeRelativePath(clean) ? root.resolve(clean) : undefined;
+    }
+
+    protected async readFileTool(root: URI, path: string, start: number, end: number | undefined): Promise<AgentActionResult> {
+        const uri = this.safeUri(root, path);
+        if (!uri || uri === root) {
+            return { text: `"${path}" is not a file path inside the project.`, isError: true };
+        }
+        const content = await this.files.read(uri).then(r => r.value, () => undefined);
+        if (content === undefined) {
+            return { text: `No file "${path}". Use ingot/list_dir or ingot/grep to find it.`, isError: true };
+        }
+        const { text, total, shown } = numberLines(content, start, end);
+        return { text: `${path} (lines ${shown[0]}-${shown[1]} of ${total})\n${text}`, isError: false };
+    }
+
+    protected async listDirTool(root: URI, path: string, depth: number): Promise<AgentActionResult> {
+        const base = this.safeUri(root, path);
+        if (!base) {
+            return { text: `"${path}" is not inside the project.`, isError: true };
+        }
+        const lines: string[] = [];
+        const walk = async (uri: URI, level: number): Promise<void> => {
+            const stat = await this.files.resolve(uri).catch(() => undefined);
+            const children = [...(stat?.children ?? [])].sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name));
+            for (const child of children) {
+                if (lines.length >= LIST_MAX_ENTRIES) {
+                    return;
+                }
+                const rel = root.relative(child.resource)?.toString() ?? child.name;
+                lines.push(`${'  '.repeat(level)}${child.isDirectory ? `${child.name}/` : child.name}${child.isDirectory && SKIPPED_DIRS.has(child.name) ? ' (skipped)' : ''}`);
+                if (child.isDirectory && level + 1 < depth && !SKIPPED_DIRS.has(child.name) && rel) {
+                    await walk(child.resource, level + 1);
+                }
+            }
+        };
+        const stat = await this.files.resolve(base).catch(() => undefined);
+        if (!stat?.isDirectory) {
+            return { text: `No folder "${path || '.'}".`, isError: true };
+        }
+        await walk(base, 0);
+        return { text: `${path || '.'}/\n${lines.join('\n') || '(empty)'}${lines.length >= LIST_MAX_ENTRIES ? '\n… (more)' : ''}`, isError: false };
+    }
+
+    protected async grepTool(root: URI, pattern: string, path: string, glob: string, regex: boolean): Promise<AgentActionResult> {
+        if (!pattern.trim()) {
+            return { text: 'No pattern given.', isError: true };
+        }
+        const base = this.safeUri(root, path);
+        if (!base) {
+            return { text: `"${path}" is not inside the project.`, isError: true };
+        }
+        const match = grepMatcher(pattern, regex);
+        const wanted = globMatcher(glob);
+        const hits: string[] = [];
+        let scanned = 0;
+        const visit = async (uri: URI): Promise<void> => {
+            const stat = await this.files.resolve(uri).catch(() => undefined);
+            if (!stat) {
+                return;
+            }
+            const entries = stat.isDirectory ? [...(stat.children ?? [])] : [stat];
+            for (const entry of entries) {
+                if (hits.length >= GREP_MAX_MATCHES || scanned >= GREP_MAX_FILES) {
+                    return;
+                }
+                if (entry.isDirectory) {
+                    if (!SKIPPED_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
+                        await visit(entry.resource);
+                    }
+                    continue;
+                }
+                const rel = root.relative(entry.resource)?.toString() ?? entry.name;
+                if (!isTextCandidate(rel) || !wanted(rel) || (entry.size ?? 0) > GREP_MAX_FILE_BYTES) {
+                    continue;
+                }
+                scanned++;
+                const content = await this.files.read(entry.resource).then(r => r.value, () => '');
+                content.split('\n').forEach((line, i) => {
+                    if (hits.length < GREP_MAX_MATCHES && match(line)) {
+                        hits.push(`${rel}:${i + 1}: ${line.trim().slice(0, 200)}`);
+                    }
+                });
+            }
+        };
+        await visit(base);
+        return { text: hits.length ? `${hits.length}${hits.length >= GREP_MAX_MATCHES ? '+' : ''} match(es) for "${pattern}" in ${scanned} file(s):\n${hits.join('\n')}` : `No matches for "${pattern}" (${scanned} file(s) searched).`, isError: false };
+    }
+
     /** Ingot's built-in agent tools (IDEA-109): git, terminal command, web search / fetch, file delete. */
     protected async runBuiltin(call: AgentToolCall, root: URI | undefined, hooksRan = false): Promise<AgentActionResult> {
         const rootPath = root?.path.fsPath();
@@ -868,6 +1009,9 @@ export class AgentStore {
                     const result = await this.git.run(rootPath, hooksRan && (op.kind === 'commit' || op.kind === 'push' || op.kind === 'pushTo') ? { ...op, hooksRan } : op);
                     return { text: result.output.trim() || 'Done.', isError: false };
                 }
+                case 'read_file': return await this.readFileTool(root, str(call.args.path), Number(call.args.start) || 1, Number(call.args.end) || undefined);
+                case 'list_dir': return await this.listDirTool(root, str(call.args.path), Math.min(3, Math.max(1, Number(call.args.depth) || 1)));
+                case 'grep': return await this.grepTool(root, str(call.args.pattern), str(call.args.path), str(call.args.glob), call.args.regex === true);
                 case 'run': return await this.runCommand(rootPath, str(call.args.command), call.args.background === true);
                 case 'scripts': {
                     const found = await this.processes.service.scripts(rootPath);
@@ -984,7 +1128,7 @@ export class AgentStore {
     /** Live editor view while an edit block streams (IDEA-102): the file fills in as the model types. */
     protected streamEdit(session: AgentSession, messageIndex: number, path: string | undefined, content: string | undefined): void {
         const root = this.rootFor(session);
-        if (!path || content === undefined || !root || !modeInfo(session.mode).canEdit || !isSafeRelativePath(path)) {
+        if (!path || content === undefined || !root || !modeInfo(session.mode).canEdit || !isSafeRelativePath(path) || this.lockedFor(session, path)) {
             return;
         }
         const key = `${session.id}\u0000${messageIndex}\u0000${path}`;
@@ -1001,6 +1145,7 @@ export class AgentStore {
      * the editor and the chat, and the agent is free for the next message meanwhile.
      */
     protected async applyEdits(session: AgentSession, edits: readonly AgentEdit[], root: URI | undefined): Promise<void> {
+        this.considerHarmony(session, edits.length);
         session.plan = session.plan.map(p => ({ ...p, state: 'done' }));
         const messageIndex = session.messages.map(m => m.role).lastIndexOf('agent');
         const origin = this.originOf(session, messageIndex);
@@ -1014,6 +1159,12 @@ export class AgentStore {
                 applied++;
                 if (!root || !isSafeRelativePath(edit.path)) {
                     session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": agents can only change files inside the project.` });
+                    continue;
+                }
+                const locked = this.lockedFor(session, edit.path);
+                if (locked) {
+                    session.messages.push({ role: 'system', text: locked });
+                    await this.tracker.cancelStream(session.id, edit.path);
                     continue;
                 }
                 // Wait for the live view of this file (if it streamed) so the final text lands on the same change.
@@ -1131,6 +1282,118 @@ export class AgentStore {
         session.mode = 'agent';
         session.messages = session.messages.map(m => m.buildable ? { ...m, buildable: false } : m);
         this.send(BUILD_PROMPT);
+    }
+
+    /** IDEA-180 Harmony mode: Zaprex's offer per lead chat (the bubble under the title bar T-rex). */
+    protected readonly harmonyOffers = new Map<string, HarmonyPiece>();
+    /** Runs (chat id + user message index) whose offer was dismissed or taken, so it is not offered again. */
+    protected readonly harmonyAsked = new Set<string>();
+
+    get harmonyEnabled(): boolean {
+        return this.preferences.get<boolean>(HARMONY_PREFS.enabled, HARMONY_DEFAULTS.enabled) !== false;
+    }
+
+    /** The newest open offer: which chat and which piece. */
+    get harmonyOffer(): { readonly sessionId: string; readonly piece: HarmonyPiece } | undefined {
+        const entries = [...this.harmonyOffers.entries()].filter(([id]) => this.items.some(s => s.id === id));
+        const last = entries[entries.length - 1];
+        return last && { sessionId: last[0], piece: last[1] };
+    }
+
+    /** The open offer for one chat. */
+    harmonyOfferFor(sessionId: string): HarmonyPiece | undefined {
+        return this.harmonyOffers.get(sessionId);
+    }
+
+    /** Zaprex pieces of a chat (running or done), newest first. */
+    zaprexPieces(leadId?: string): readonly AgentSession[] {
+        return this.items.filter(s => s.agent === 'zaprex' && (!leadId || s.parent === leadId));
+    }
+
+    /** True while Zaprex works on a piece (the T-rex thinks). */
+    get zaprexBusy(): boolean {
+        return this.zaprexPieces().some(s => this.isRunning(s.id) || ACTIVE_STATUSES.includes(s.status));
+    }
+
+    protected harmonyRunKey(session: AgentSession): string {
+        return `${session.id}:${session.messages.map(m => m.role).lastIndexOf('user')}`;
+    }
+
+    /** Offers (or, with "ask first" off, takes) one piece once a run gets heavy: many plan steps or files. */
+    protected considerHarmony(session: AgentSession, files: number): void {
+        if (!this.harmonyEnabled || session.agent === 'zaprex' || session.parent || (session.mode !== 'agent' && session.mode !== 'multi')
+            || this.harmonyOffers.has(session.id) || this.harmonyAsked.has(this.harmonyRunKey(session))
+            || !isHeavyRun(session.plan.length, Math.max(files, session.changes.length))) {
+            return;
+        }
+        const pieces = this.zaprexPieces(session.id);
+        if (pieces.length >= clampPieces(this.preferences.get(HARMONY_PREFS.maxPieces, HARMONY_DEFAULTS.maxPieces))) {
+            return;
+        }
+        const goal = [...session.messages].reverse().find(m => m.role === 'user')?.text ?? session.title;
+        const piece = pickHarmonyPiece(session.plan.map(p => p.text), goal, pieces.map(p => p.piece).filter(k => !!k));
+        if (!piece) {
+            return;
+        }
+        this.harmonyOffers.set(session.id, piece);
+        if (this.preferences.get<boolean>(HARMONY_PREFS.askFirst, HARMONY_DEFAULTS.askFirst) === false) {
+            this.acceptHarmony(session.id);
+            return;
+        }
+        this.changed();
+    }
+
+    dismissHarmony(sessionId: string): void {
+        const session = this.items.find(s => s.id === sessionId);
+        if (session) {
+            this.harmonyAsked.add(this.harmonyRunKey(session));
+        }
+        this.harmonyOffers.delete(sessionId);
+        this.changed();
+    }
+
+    /** Accept: Zaprex runs the piece in its own chat (locked to the piece's files); the lead gets a one-line note. */
+    acceptHarmony(sessionId: string): AgentSession | undefined {
+        const lead = this.items.find(s => s.id === sessionId);
+        const piece = this.harmonyOffers.get(sessionId);
+        this.harmonyOffers.delete(sessionId);
+        if (!lead || !piece) {
+            this.changed();
+            return undefined;
+        }
+        this.harmonyAsked.add(this.harmonyRunKey(lead));
+        const goal = [...lead.messages].reverse().find(m => m.role === 'user')?.text ?? lead.title;
+        const child: AgentSession = {
+            id: newChatId(), title: `Zaprex · ${piece.label}`, status: 'thinking', updatedAt: Date.now(), mode: 'agent', model: lead.model,
+            messages: [{ role: 'user', text: piece.task, expanded: `${piece.task}\n\n${harmonyPrompt(piece, goal)}` }],
+            plan: [], steps: [], changes: [], project: lead.project, open: false, parent: lead.id,
+            agent: 'zaprex', scope: piece.scope, piece: piece.kind
+        };
+        this.items = [child, ...this.items];
+        // A peer line: the lead agent sees it too, so it leaves the piece's files alone.
+        lead.messages.push({ role: 'peer', from: 'Zaprex', text: `Taking a piece in Harmony mode: ${piece.task}. I only change ${piece.scope.slice(0, 3).join(', ')}${piece.scope.length > 3 ? ', …' : ''}; leave those files to me.` });
+        this.changed();
+        this.runModel(child).catch(() => { child.status = 'error'; }).finally(() => {
+            child.updatedAt = Date.now();
+            this.changed();
+        });
+        return child;
+    }
+
+    /** Harmony file lock: why this chat may not change `path` right now, if it may not. */
+    protected lockedFor(session: AgentSession, path: string): string | undefined {
+        if (session.agent === 'zaprex') {
+            return harmonyLock(path, 'zaprex', session.scope);
+        }
+        for (const piece of this.zaprexPieces(session.id)) {
+            if (this.isRunning(piece.id) || ACTIVE_STATUSES.includes(piece.status)) {
+                const reason = harmonyLock(path, 'agent', piece.scope);
+                if (reason) {
+                    return reason;
+                }
+            }
+        }
+        return undefined;
     }
 
     /** Multi-agent: one Agent-mode chat per subtask, run in parallel in their own tabs; the lead chat reports progress. */

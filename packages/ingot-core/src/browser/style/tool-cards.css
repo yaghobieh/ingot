@@ -106,3 +106,11 @@ body.ingot-dark {
 @keyframes ingot-thought-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .ingot-chat-thought-text { margin: 4px 0 6px 18px; padding-left: 10px; border-left: 2px solid var(--ingot-tc-line); color: var(--ingot-text-muted); font-size: 12px; white-space: pre-wrap; }
 @media (prefers-reduced-motion: reduce) { .ingot-tc-spinner, .ingot-chat-thought.thinking .ingot-chat-thought-label { animation: none; } }
+/* IDEA-186: the Explored row opens the list of files read and searches made. */
+.ingot-chat-explored-head { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; padding: 1px 4px; margin-left: -4px; }
+.ingot-chat-explored-head:hover { background: color-mix(in srgb, var(--theia-foreground) 7%, transparent); }
+.ingot-chat-explored-head:focus-visible { outline: 2px solid var(--ingot-primary, #3B6FD9); }
+.ingot-chat-explored-head .codicon { font-size: 11px; opacity: .7; }
+.ingot-chat-explored-list { list-style: none; margin: 4px 0 0; padding: 0 0 0 4px; display: flex; flex-direction: column; gap: 2px; }
+.ingot-chat-explored-list li { display: flex; align-items: center; gap: 5px; font-family: var(--monaco-monospace-font, monospace); font-size: 11.5px; }
+.ingot-chat-explored-list .codicon { font-size: 12px; opacity: .7; }
