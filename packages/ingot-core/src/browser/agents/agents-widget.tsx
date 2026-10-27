@@ -70,6 +70,7 @@ import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
 import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
+import { composerBarWidthClass } from '../../common/agents/composer-bar';
 
 type Popover = 'mode' | 'model' | 'history' | 'context' | 'zaprex' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
@@ -1047,7 +1048,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.submit(); }
                     if (e.key === 'Escape' && this.store.current && this.store.isRunning(this.store.current.id)) { e.preventDefault(); this.store.stop(this.store.current.id); }
                 }} />
-            <div className='ingot-composer-bar'>
+            <div className='ingot-composer-bar' ref={el => this.observeBar(el)}>
                 <label className='ingot-icon-button codicon codicon-attach ingot-composer-attach' id='ingot-composer-attach' title='Attach images (or paste / drop them)' aria-label='Attach images' tabIndex={0}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.querySelector('input')?.click(); } }}>
                     <input type='file' accept='image/png,image/jpeg,image/gif,image/webp' multiple hidden onChange={e => this.attachImages(e.currentTarget)} />
@@ -1074,6 +1075,33 @@ export class IngotAgentsWidget extends ReactWidget {
             {current?.context?.rules.map(r => <span key={`r-${r}`} className='ingot-chip ingot-chip-rule' title={`Rule applied: ${r}`}><span className='codicon codicon-law' />{r}</span>)}
             {current?.context?.memories.map(m => <span key={`m-${m.id}`} className='ingot-chip ingot-chip-memory' title={m.text}><span className='codicon codicon-lightbulb' />{m.text.length > 28 ? `${m.text.slice(0, 27)}…` : m.text}</span>)}
         </>;
+    }
+
+    protected barObserver?: ResizeObserver;
+    protected observedBar?: HTMLElement;
+
+    /** IDEA-188: tags the composer bar with its width class so the toolbar collapses instead of clipping. */
+    protected observeBar(el: HTMLElement | null): void {
+        if (!el || el === this.observedBar) {
+            return;
+        }
+        if (!this.barObserver) {
+            this.barObserver = new ResizeObserver(entries => {
+                for (const entry of entries) {
+                    const target = entry.target as HTMLElement;
+                    const width = composerBarWidthClass(entry.contentRect.width);
+                    if (target.dataset.width !== width) {
+                        target.dataset.width = width;
+                    }
+                }
+            });
+            this.toDispose.push({ dispose: () => this.barObserver?.disconnect() });
+        }
+        if (this.observedBar) {
+            this.barObserver.unobserve(this.observedBar);
+        }
+        this.observedBar = el;
+        this.barObserver.observe(el);
     }
 
     /** IDEA-105 quick toggle: agent review on / off (Settings › Agent review has the rest). */
@@ -1127,7 +1155,7 @@ export class IngotAgentsWidget extends ReactWidget {
             <button type='button' id='ingot-composer-mode' className='ingot-pill ingot-mode-pill' data-mode={info.id} aria-haspopup='menu' aria-expanded={this.popover === 'mode'}
                 style={{ '--ingot-mode-color': info.color } as React.CSSProperties} title={`Mode: ${info.label}. ${info.description}${key ? ` (${key} to switch)` : ''}`}
                 onClick={() => { this.popover = this.popover === 'mode' ? undefined : 'mode'; this.update(); }}>
-                <span className={`codicon codicon-${info.icon}`} />{info.label}<span className='codicon codicon-chevron-down ingot-pill-caret' />
+                <span className={`codicon codicon-${info.icon}`} /><span className='ingot-pill-label'>{info.label}</span><span className='codicon codicon-chevron-down ingot-pill-caret' />
             </button>
             {this.popover === 'mode' && <ModeMenu mode={info.id} shortcut={key} onClose={() => this.closePopover()}
                 onPick={mode => { this.store.mode = mode; this.store.changed(); this.closePopover(); }} />}
@@ -1142,7 +1170,7 @@ export class IngotAgentsWidget extends ReactWidget {
             <button type='button' id='ingot-composer-model' className={`ingot-pill ingot-model-pill${ready ? '' : ' ingot-pill-warn'}`} data-model={model} aria-haspopup='listbox'
                 aria-expanded={this.popover === 'model'} title={ready ? `Model: ${this.modelLabel(resolved)}` : this.account.signedIn ? 'This model is not ready yet: pick another or add a key' : 'Sign in to use Ingot models'}
                 onClick={() => { this.popover = this.popover === 'model' ? undefined : 'model'; this.update(); }}>
-                {!ready && <span className='ingot-pill-dot' aria-hidden='true' />}{this.modelLabel(model)}<span className='codicon codicon-chevron-down ingot-pill-caret' />
+                {!ready && <span className='ingot-pill-dot' aria-hidden='true' />}<span className='ingot-pill-label'>{this.modelLabel(model)}</span><span className='codicon codicon-chevron-down ingot-pill-caret' />
             </button>
             {this.popover === 'model' && <ModelPicker current={model} models={this.models.catalog}
                 autoResolved={resolved !== AUTO_MODEL_ID && model === AUTO_MODEL_ID ? this.modelLabel(resolved) : undefined}
