@@ -26,6 +26,11 @@ export const HOOKS_DIR = 'hooks';
 
 export const RULES_DIR = 'rules';
 export const COMMANDS_DIR = 'commands';
+/**
+ * IDEA-249: other editors' command / prompt folders, read in the project and in the home folder so `/` lists them
+ * (lowest priority first; `.ingot/commands` always wins on a name clash).
+ */
+export const EXTRA_COMMAND_DIRS = ['.github/prompts', '.windsurf/workflows', '.claude/commands'] as const;
 export const SKILLS_DIR = 'skills';
 export const SKILL_FILE = 'SKILL.md';
 export const MCP_FILE = 'mcp.json';
