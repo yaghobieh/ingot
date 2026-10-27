@@ -957,18 +957,20 @@ export class IngotAgentsWidget extends ReactWidget {
                     if (e.key === 'Escape' && this.store.current && this.store.isRunning(this.store.current.id)) { e.preventDefault(); this.store.stop(this.store.current.id); }
                 }} />
             <div className='ingot-composer-bar'>
-                <label className='ingot-icon-button codicon codicon-attach ingot-composer-attach' id='ingot-composer-attach' title='Attach images' aria-label='Attach images'>
+                <label className='ingot-icon-button codicon codicon-attach ingot-composer-attach' id='ingot-composer-attach' title='Attach images (or paste / drop them)' aria-label='Attach images' tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.querySelector('input')?.click(); } }}>
                     <input type='file' accept='image/png,image/jpeg,image/gif,image/webp' multiple hidden onChange={e => this.attachImages(e.currentTarget)} />
                 </label>
                 {this.flags.enabled(IDE_FLAGS.micDictation) && this.renderMic()}
+                <span className='ingot-composer-divider' aria-hidden='true' />
                 {this.renderModePill()}
                 {this.renderModelPill()}
                 {this.renderReviewToggle()}
                 <span className='ingot-flex' />
                 {this.renderUsageRing()}
                 {this.store.isRunning(this.store.current?.id)
-                    ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}>■</button>
-                    : <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' disabled={this.composerEmpty} onClick={() => this.submit()}>↑</button>}
+                    ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}><span className='codicon codicon-debug-stop' /></button>
+                    : <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' title={this.composerEmpty ? 'Type a message to send' : 'Send (Enter)'} disabled={this.composerEmpty} onClick={() => this.submit()}><span className='codicon codicon-arrow-up' /></button>}
             </div>
         </div>;
     }
@@ -995,7 +997,7 @@ export class IngotAgentsWidget extends ReactWidget {
         const key = this.shortcut(AGENT_COMMANDS.cycleMode.id);
         return <span className='ingot-pill-anchor'>
             <button type='button' id='ingot-composer-mode' className='ingot-pill ingot-mode-pill' data-mode={info.id} aria-haspopup='menu' aria-expanded={this.popover === 'mode'}
-                style={{ '--ingot-mode-color': info.color } as React.CSSProperties} title={`${info.description}${key ? ` (${key} to switch)` : ''}`}
+                style={{ '--ingot-mode-color': info.color } as React.CSSProperties} title={`Mode: ${info.label}. ${info.description}${key ? ` (${key} to switch)` : ''}`}
                 onClick={() => { this.popover = this.popover === 'mode' ? undefined : 'mode'; this.update(); }}>
                 <span className={`codicon codicon-${info.icon}`} />{info.label}<span className='codicon codicon-chevron-down ingot-pill-caret' />
             </button>
@@ -1010,9 +1012,9 @@ export class IngotAgentsWidget extends ReactWidget {
         const ready = this.models.isModelConfigured(resolved);
         return <span className='ingot-pill-anchor'>
             <button type='button' id='ingot-composer-model' className={`ingot-pill ingot-model-pill${ready ? '' : ' ingot-pill-warn'}`} data-model={model} aria-haspopup='listbox'
-                aria-expanded={this.popover === 'model'} title={ready ? this.modelLabel(resolved) : 'No key for this model yet'}
+                aria-expanded={this.popover === 'model'} title={ready ? `Model: ${this.modelLabel(resolved)}` : this.account.signedIn ? 'This model is not ready yet: pick another or add a key' : 'Sign in to use Ingot models'}
                 onClick={() => { this.popover = this.popover === 'model' ? undefined : 'model'; this.update(); }}>
-                {this.modelLabel(model)}<span className='codicon codicon-chevron-down ingot-pill-caret' />
+                {!ready && <span className='ingot-pill-dot' aria-hidden='true' />}{this.modelLabel(model)}<span className='codicon codicon-chevron-down ingot-pill-caret' />
             </button>
             {this.popover === 'model' && <ModelPicker current={model} models={this.models.catalog}
                 autoResolved={resolved !== AUTO_MODEL_ID && model === AUTO_MODEL_ID ? this.modelLabel(resolved) : undefined}

@@ -1,0 +1,91 @@
+/*
+ * IDEA-175: chat composer toolbar. One control height, ghost icon buttons, quiet outlined pills,
+ * brand tokens only (no warning orange on the model pill) and a gold send button. Loaded last so it
+ * wins over the older layered composer rules in shell.css / review.css.
+ */
+.ingot-agents .ingot-composer {
+  --ingot-cb-h: 26px;
+  --ingot-cb-radius: 7px;
+  --ingot-cb-icon: 15px;
+  --ingot-cb-line: color-mix(in srgb, var(--theia-foreground) 13%, transparent);
+  --ingot-cb-fill: color-mix(in srgb, var(--theia-foreground) 7%, transparent);
+  --ingot-cb-fill-strong: color-mix(in srgb, var(--theia-foreground) 12%, transparent);
+  --ingot-cb-muted: var(--theia-descriptionForeground);
+  --ingot-cb-gold: var(--ingot-ingot-gold, #D9A04E);
+  --ingot-cb-navy: var(--ingot-forge-navy, #1B2647);
+  --ingot-cb-blue: var(--ingot-forge-blue, #3B6FD9);
+}
+
+.ingot-agents .ingot-composer .ingot-composer-bar { display: flex; align-items: center; gap: 4px; margin-top: 8px; min-height: var(--ingot-cb-h); }
+
+/* Ghost icon buttons: attach, mic, review. */
+.ingot-agents .ingot-composer-bar .ingot-icon-button,
+.ingot-agents .ingot-composer-bar .ingot-composer-attach {
+  width: var(--ingot-cb-h); height: var(--ingot-cb-h); box-sizing: border-box; display: inline-grid; place-items: center; flex: none;
+  padding: 0; border: 1px solid transparent; border-radius: var(--ingot-cb-radius); background: transparent;
+  color: var(--ingot-cb-muted); font-size: var(--ingot-cb-icon) !important; opacity: 1; cursor: pointer;
+  transition: background-color .12s ease, color .12s ease, border-color .12s ease;
+}
+.ingot-agents .ingot-composer-bar .ingot-icon-button:hover:not(:disabled),
+.ingot-agents .ingot-composer-bar .ingot-composer-attach:hover { background: var(--ingot-cb-fill); color: var(--theia-foreground); }
+.ingot-agents .ingot-composer-bar .ingot-icon-button:active:not(:disabled) { background: var(--ingot-cb-fill-strong); }
+.ingot-agents .ingot-composer-bar .ingot-icon-button:disabled { opacity: .5; cursor: default; }
+
+/* Review toggle: muted when off, brand blue tint when on (it used to be a lone blue eye). */
+.ingot-agents .ingot-composer-bar .ingot-composer-review { opacity: 1; }
+.ingot-agents .ingot-composer-bar .ingot-composer-review.on { color: var(--ingot-primary, var(--ingot-cb-blue)); background: color-mix(in srgb, var(--ingot-primary, #3B6FD9) 13%, transparent); }
+.ingot-agents .ingot-composer-bar .ingot-composer-review.on:hover { background: color-mix(in srgb, var(--ingot-primary, #3B6FD9) 20%, transparent); color: var(--ingot-primary, var(--ingot-cb-blue)); }
+
+/* Mic while listening keeps its pulse, inside the same square. */
+.ingot-agents .ingot-composer-bar .ingot-composer-mic.listening { color: #fff; background: var(--ingot-danger, #E5484D); border-radius: var(--ingot-cb-radius); }
+
+.ingot-agents .ingot-composer-bar .ingot-composer-divider { width: 1px; height: 14px; margin: 0 3px; background: var(--ingot-cb-line); flex: none; }
+
+/* Pills: mode and model share one look; the mode keeps only a colored icon. */
+.ingot-agents .ingot-composer-bar .ingot-pill,
+.ingot-agents .ingot-composer-bar .ingot-pill:focus {
+  height: var(--ingot-cb-h); box-sizing: border-box; padding: 0 8px 0 9px; gap: 5px; border-radius: var(--ingot-cb-radius);
+  border: 1px solid var(--ingot-cb-line) !important; background: transparent; box-shadow: none !important;
+  color: var(--theia-foreground); font-size: 12px; font-weight: 500; line-height: 1;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.ingot-agents .ingot-composer-bar .ingot-pill:hover,
+.ingot-agents .ingot-composer-bar .ingot-pill[aria-expanded='true'] { background: var(--ingot-cb-fill); border-color: color-mix(in srgb, var(--theia-foreground) 20%, transparent) !important; }
+.ingot-agents .ingot-composer-bar .ingot-pill .codicon { font-size: 13px !important; }
+.ingot-agents .ingot-composer-bar .ingot-pill .ingot-pill-caret { font-size: 11px !important; margin-left: 1px; opacity: .6; color: var(--ingot-cb-muted); }
+.ingot-agents .ingot-composer-bar .ingot-mode-pill .codicon:first-child { color: var(--ingot-mode-color); }
+
+/* A model that cannot run yet: same neutral pill, a small gold dot says "needs attention". */
+.ingot-agents .ingot-composer-bar .ingot-pill-warn { color: var(--theia-foreground); }
+.ingot-agents .ingot-composer-bar .ingot-pill-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--ingot-cb-gold); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ingot-cb-gold) 25%, transparent); }
+
+/* Context ring sits in the same square. */
+.ingot-agents .ingot-composer-bar button.ingot-context-ring { width: var(--ingot-cb-h); height: var(--ingot-cb-h); border-radius: var(--ingot-cb-radius); opacity: .75; }
+.ingot-agents .ingot-composer-bar button.ingot-context-ring:hover { opacity: 1; background: var(--ingot-cb-fill); }
+
+/* Send: brand gold with navy arrow when there is something to send; muted otherwise. */
+.ingot-agents .ingot-composer-bar .ingot-composer-send {
+  width: 28px; height: var(--ingot-cb-h); box-sizing: border-box; flex: none; display: inline-grid; place-items: center; padding: 0;
+  border: 1px solid transparent; border-radius: var(--ingot-cb-radius); margin-left: 2px; cursor: pointer;
+  transition: background-color .12s ease, color .12s ease, transform .08s ease;
+}
+.ingot-agents .ingot-composer-bar .ingot-composer-send .codicon { font-size: 15px; font-weight: 700; }
+.ingot-agents .ingot-composer-bar .ingot-composer-send:not(:disabled) { background: var(--ingot-cb-gold); color: var(--ingot-cb-navy); }
+.ingot-agents .ingot-composer-bar .ingot-composer-send:not(:disabled):hover { background: color-mix(in srgb, var(--ingot-cb-gold) 88%, #fff); }
+.ingot-agents .ingot-composer-bar .ingot-composer-send:not(:disabled):active { transform: translateY(1px); }
+.ingot-agents .ingot-composer-bar .ingot-composer-send:disabled { opacity: 1; background: var(--ingot-cb-fill); color: var(--ingot-cb-muted); border-color: var(--ingot-cb-line); cursor: default; }
+.ingot-agents .ingot-composer-bar .ingot-composer-stop,
+.ingot-agents .ingot-composer-bar .ingot-composer-stop:not(:disabled) { background: var(--ingot-cb-fill-strong); color: var(--theia-foreground); border-color: var(--ingot-cb-line); }
+.ingot-agents .ingot-composer-bar .ingot-composer-stop .codicon { font-size: 13px; color: var(--ingot-danger, #E06C66); }
+
+/* Keyboard focus: one visible ring for every control (mouse clicks stay clean). */
+.ingot-agents .ingot-composer-bar .ingot-icon-button:focus-visible,
+.ingot-agents .ingot-composer-bar .ingot-composer-attach:focus-visible,
+.ingot-agents .ingot-composer-bar .ingot-pill:focus-visible,
+.ingot-agents .ingot-composer-bar .ingot-composer-send:focus-visible,
+.ingot-agents .ingot-composer-bar button.ingot-context-ring:focus-visible {
+  outline: 2px solid var(--ingot-focus-ring, #8FB0F0) !important; outline-offset: 1px;
+}
+
+/* Light theme: slightly stronger lines so the pills don't vanish on white. */
+body.theia-light .ingot-agents .ingot-composer { --ingot-cb-line: color-mix(in srgb, var(--theia-foreground) 16%, transparent); }
