@@ -13,7 +13,15 @@ export class AiMessageController {
         protected readonly getMessage: () => string,
         protected readonly setMessage: (message: string) => void,
         protected readonly update: () => void
-    ) { }
+    ) {
+        this.listener = service.onDidChangeEnabled(() => this.update());
+    }
+
+    protected readonly listener: { dispose(): void };
+
+    get enabled(): boolean {
+        return this.service.enabled;
+    }
 
     toggle(): void {
         if (this.generating) {
@@ -50,10 +58,14 @@ export class AiMessageController {
 
     dispose(): void {
         this.run?.cancel();
+        this.listener.dispose();
     }
 }
 
-export const AiCommitButton = ({ controller, id }: { controller: AiMessageController; id: string }): React.ReactElement => {
+export const AiCommitButton = ({ controller, id }: { controller: AiMessageController; id: string }): React.ReactElement | null => {
+    if (!controller.enabled) {
+        return null;
+    }
     const busy = controller.generating;
     const label = busy ? AI_COMMIT_TEXT.generating : AI_COMMIT_TEXT.button;
     return <button type='button' id={id} className={`ingot-ai-commit${busy ? ' busy' : ''}`} title={label} aria-label={busy ? 'Stop writing the commit message' : 'Commit with AI'}

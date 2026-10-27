@@ -85,6 +85,7 @@ import { PreferenceContribution } from '@theia/core/lib/common/preferences';
 import { layoutPreferenceSchema } from './layout/layout-preferences';
 import { reviewPreferenceSchema } from './review/review-preferences';
 import { harmonyPreferenceSchema } from './agents/harmony-preferences';
+import { aiSettingsPreferenceSchema } from './agents/ai-settings-preferences';
 import { subagentsPreferenceSchema } from './agents/subagents-preferences';
 import { approvalPreferenceSchema } from './agents/approval-preferences';
 import { agentToolsPreferenceSchema } from './agents/agent-tools-preferences';
@@ -100,6 +101,8 @@ import { MCP_SERVICE_PATH } from '../common/project-config/project-config.consts
 import { McpService } from '../common/project-config/project-config.types';
 import { ResourceResolver } from '@theia/core/lib/common/resource';
 import { GIT_SERVICE_PATH } from '../common/git/git.consts';
+import { ZAPREX_DESKTOP_PATH, ZaprexDesktopService } from '../common/zaprex/zaprex-desktop.types';
+import { ZaprexLauncher } from './agents/zaprex-launcher';
 import { GitService } from '../common/git/git.types';
 import { EDITOR_IMPORT_SERVICE_PATH, EditorImportService } from '../common/import/editor-import.types';
 import { EditorImportContribution } from './import/editor-import-contribution';
@@ -172,6 +175,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: layoutPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: reviewPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: harmonyPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: aiSettingsPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: subagentsPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: approvalPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: agentToolsPreferenceSchema });
@@ -196,6 +200,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(ErrorReportingContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(ErrorReportingContribution);
     bind(GitService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<GitService>(ctx.container, GIT_SERVICE_PATH)).inSingletonScope();
+    bind(ZaprexDesktopService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ZaprexDesktopService>(ctx.container, ZAPREX_DESKTOP_PATH)).inSingletonScope();
+    bind(ZaprexLauncher).toSelf().inSingletonScope();
     bind(GitResourceResolver).toSelf().inSingletonScope();
     bind(ResourceResolver).toService(GitResourceResolver);
     bind(IngotGitLogWidget).toSelf();

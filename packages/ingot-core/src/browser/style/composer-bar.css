@@ -127,3 +127,27 @@ body.ingot-dark .ingot-zaprex-status .ingot-zs-badge.on { color: #E7B86A; }
 .ingot-zaprex-status .ingot-zs-dot.review { background: #3B6FD9; }
 @keyframes ingot-zs-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .ingot-zaprex-status .ingot-zs-dot.working { animation: none; } }
+
+/*
+ * IDEA-188: responsive toolbar. Icon buttons, the context ring, the T-rex and send never shrink (a shrinking
+ * ring went to 0px and could not be clicked); only the model label ellipsizes. In a narrow chat panel the
+ * mode pill shows just its icon (the label stays in the tooltip), and very narrow panels wrap to a second row
+ * instead of clipping.
+ */
+.ingot-agents .ingot-composer { container: ingot-composer / inline-size; }
+.ingot-agents .ingot-composer-bar > * { flex-shrink: 0; }
+.ingot-agents .ingot-composer-bar > .ingot-flex { flex: 1 1 0; min-width: 0; }
+.ingot-agents .ingot-composer-bar > .ingot-dictation-interim { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-agents .ingot-composer-bar .ingot-pill-anchor { flex: none; min-width: auto; }
+.ingot-agents .ingot-composer-bar .ingot-pill-anchor:has(> #ingot-composer-model) { flex: 0 1 auto; min-width: 0; }
+.ingot-agents .ingot-composer-bar .ingot-mode-pill { max-width: none; overflow: visible; }
+.ingot-agents .ingot-composer-bar .ingot-model-pill { min-width: 0; max-width: 100%; }
+.ingot-agents .ingot-composer-bar .ingot-pill-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-agents .ingot-composer-bar .ingot-mode-pill .ingot-pill-label { overflow: visible; }
+.ingot-agents .ingot-composer-bar button.ingot-context-ring { flex: none; display: inline-grid; place-items: center; padding: 0; }
+.ingot-agents .ingot-composer-bar:is([data-width='narrow'], [data-width='tiny']) { gap: 2px; }
+.ingot-agents .ingot-composer-bar:is([data-width='narrow'], [data-width='tiny']) .ingot-mode-pill .ingot-pill-label { display: none; }
+.ingot-agents .ingot-composer-bar:is([data-width='narrow'], [data-width='tiny']) .ingot-mode-pill { padding: 0 5px 0 6px; gap: 2px; }
+.ingot-agents .ingot-composer-bar:is([data-width='narrow'], [data-width='tiny']) .ingot-composer-divider { display: none; }
+.ingot-agents .ingot-composer-bar[data-width='tiny'] { flex-wrap: wrap; row-gap: 4px; }
+.ingot-agents .ingot-composer-bar[data-width='tiny'] .ingot-model-pill .ingot-pill-caret { display: none; }

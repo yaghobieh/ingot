@@ -46,7 +46,7 @@ import { InlineComposer, readImage } from './inline-composer';
 import { COMPOSER_INPUT_ID, MAX_DROPPED_FILE_CHARS } from './inline-composer.consts';
 import { AgentMarkdownRenderer } from './markdown-renderer';
 import { COPIED_LABEL, COPY_LABEL } from './markdown.consts';
-import { ZAPREX_APP_URL } from './zaprex-link.consts';
+import { ZaprexLauncher } from './zaprex-launcher';
 import { ZaprexStatus, type PieceState } from './zaprex-status';
 import { HARMONY_PREFS } from '../../common/agents/harmony';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
@@ -71,6 +71,7 @@ import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
 import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
+import { composerBarWidthClass } from '../../common/agents/composer-bar';
 
 type Popover = 'mode' | 'model' | 'history' | 'context' | 'zaprex' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
@@ -97,6 +98,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
     @inject(ContextMenuRenderer) protected readonly contextMenu: ContextMenuRenderer;
     @inject(WindowService) protected readonly windows: WindowService;
+    @inject(ZaprexLauncher) protected readonly zaprex: ZaprexLauncher;
     @inject(FileService) protected readonly files: FileService;
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
@@ -1224,7 +1226,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.submit(); }
                     if (e.key === 'Escape' && this.store.current && this.store.isRunning(this.store.current.id)) { e.preventDefault(); this.store.stop(this.store.current.id); }
                 }} />
-            <div className='ingot-composer-bar'>
+            <div className='ingot-composer-bar' ref={el => this.observeBar(el)}>
                 <label className='ingot-icon-button codicon codicon-attach ingot-composer-attach' id='ingot-composer-attach' title='Attach images (or paste / drop them)' aria-label='Attach images' tabIndex={0}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.querySelector('input')?.click(); } }}>
                     <input type='file' accept='image/png,image/jpeg,image/gif,image/webp' multiple hidden onChange={e => this.attachImages(e.currentTarget)} />
@@ -1235,7 +1237,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 {this.renderModelPill()}
                 {this.renderReviewToggle()}
                 <span className='ingot-flex' />
-                {this.renderComposerZaprex()}
+                {this.store.zaprexButtonVisible && this.renderComposerZaprex()}
                 {this.renderUsageRing()}
                 {this.store.isRunning(this.store.current?.id)
                     ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}><span className='codicon codicon-debug-stop' /></button>
@@ -1274,6 +1276,33 @@ export class IngotAgentsWidget extends ReactWidget {
         </>;
     }
 
+    protected barObserver?: ResizeObserver;
+    protected observedBar?: HTMLElement;
+
+    /** IDEA-188: tags the composer bar with its width class so the toolbar collapses instead of clipping. */
+    protected observeBar(el: HTMLElement | null): void {
+        if (!el || el === this.observedBar) {
+            return;
+        }
+        if (!this.barObserver) {
+            this.barObserver = new ResizeObserver(entries => {
+                for (const entry of entries) {
+                    const target = entry.target as HTMLElement;
+                    const width = composerBarWidthClass(entry.contentRect.width);
+                    if (target.dataset.width !== width) {
+                        target.dataset.width = width;
+                    }
+                }
+            });
+            this.toDispose.push({ dispose: () => this.barObserver?.disconnect() });
+        }
+        if (this.observedBar) {
+            this.barObserver.unobserve(this.observedBar);
+        }
+        this.observedBar = el;
+        this.barObserver.observe(el);
+    }
+
     /** IDEA-105 quick toggle: agent review on / off (Settings › Agent review has the rest). */
     protected renderReviewToggle(): React.ReactNode {
         const on = this.store.review.enabled;
@@ -1301,12 +1330,13 @@ export class IngotAgentsWidget extends ReactWidget {
                 <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
                 {(offer || busy) && <span className='ingot-composer-zaprex-dot' aria-hidden='true' />}
             </button>
-            {this.popover === 'zaprex' && <ZaprexStatus enabled={this.store.harmonyEnabled} offer={offer}
+            {this.popover === 'zaprex' && this.zaprex.installed === undefined && void this.zaprex.info().then(() => this.update())}
+            {this.popover === 'zaprex' && <ZaprexStatus enabled={this.store.harmonyEnabled} offer={offer} desktop={this.zaprex.installed} onGetApp={() => this.zaprex.openWeb()}
                 pieces={pieces.map(session => ({ session, state: this.pieceState(session) }))}
                 onAccept={() => { this.closePopover(); if (current) { this.store.acceptHarmony(current.id); } }}
                 onDismiss={() => { this.closePopover(); if (current) { this.store.dismissHarmony(current.id); } }}
                 onTurnOn={() => { void this.preferences.set(HARMONY_PREFS.enabled, true, PreferenceScope.User).then(() => this.update()); }}
-                onOpenApp={() => { this.closePopover(); this.windows.openNewWindow(ZAPREX_APP_URL, { external: true }); }}
+                onOpenApp={() => { this.closePopover(); void this.zaprex.openApp(); }}
                 onClose={() => this.closePopover()} />}
         </span>;
     }
@@ -1325,7 +1355,7 @@ export class IngotAgentsWidget extends ReactWidget {
             <button type='button' id='ingot-composer-mode' className='ingot-pill ingot-mode-pill' data-mode={info.id} aria-haspopup='menu' aria-expanded={this.popover === 'mode'}
                 style={{ '--ingot-mode-color': info.color } as React.CSSProperties} title={`Mode: ${info.label}. ${info.description}${key ? ` (${key} to switch)` : ''}`}
                 onClick={() => { this.popover = this.popover === 'mode' ? undefined : 'mode'; this.update(); }}>
-                <span className={`codicon codicon-${info.icon}`} />{info.label}<span className='codicon codicon-chevron-down ingot-pill-caret' />
+                <span className={`codicon codicon-${info.icon}`} /><span className='ingot-pill-label'>{info.label}</span><span className='codicon codicon-chevron-down ingot-pill-caret' />
             </button>
             {this.popover === 'mode' && <ModeMenu mode={info.id} shortcut={key} onClose={() => this.closePopover()}
                 onPick={mode => { this.store.mode = mode; this.store.changed(); this.closePopover(); }} />}
@@ -1340,7 +1370,7 @@ export class IngotAgentsWidget extends ReactWidget {
             <button type='button' id='ingot-composer-model' className={`ingot-pill ingot-model-pill${ready ? '' : ' ingot-pill-warn'}`} data-model={model} aria-haspopup='listbox'
                 aria-expanded={this.popover === 'model'} title={ready ? `Model: ${this.modelLabel(resolved)}` : this.account.signedIn ? 'This model is not ready yet: pick another or add a key' : 'Sign in to use Ingot models'}
                 onClick={() => { this.popover = this.popover === 'model' ? undefined : 'model'; this.update(); }}>
-                {!ready && <span className='ingot-pill-dot' aria-hidden='true' />}{this.modelLabel(model)}<span className='codicon codicon-chevron-down ingot-pill-caret' />
+                {!ready && <span className='ingot-pill-dot' aria-hidden='true' />}<span className='ingot-pill-label'>{this.modelLabel(model)}</span><span className='codicon codicon-chevron-down ingot-pill-caret' />
             </button>
             {this.popover === 'model' && <ModelPicker current={model} models={this.models.catalog}
                 autoResolved={resolved !== AUTO_MODEL_ID && model === AUTO_MODEL_ID ? this.modelLabel(resolved) : undefined}

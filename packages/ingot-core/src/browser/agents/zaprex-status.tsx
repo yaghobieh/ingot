@@ -2,12 +2,16 @@ import * as React from '@theia/core/shared/react';
 import type { AgentSession } from '../../common/agents/agents.types';
 import type { HarmonyPiece } from '../../common/agents/harmony';
 import { Backdrop } from './chat-popovers';
+import { HarmonyWhere } from './harmony-bubble';
 
 export type PieceState = 'working' | 'review' | 'done';
 
 export interface ZaprexStatusProps {
     readonly enabled: boolean;
     readonly offer?: HarmonyPiece;
+    /** IDEA-185: Zaprex desktop installed (undefined while checking). */
+    readonly desktop?: boolean;
+    readonly onGetApp?: () => void;
     readonly pieces: readonly { readonly session: AgentSession; readonly state: PieceState }[];
     readonly onAccept: () => void;
     readonly onDismiss: () => void;
@@ -30,6 +34,7 @@ export const ZaprexStatus = (p: ZaprexStatusProps): React.ReactElement => <>
         {p.offer && <div className='ingot-zs-offer' id='ingot-zs-offer'>
             <div className='ingot-zs-offer-text'>{p.offer.offer}</div>
             <div className='ingot-zs-scope'><span className='codicon codicon-lock' /> Only {p.offer.scope.slice(0, 2).join(', ')}{p.offer.scope.length > 2 ? ', …' : ''}</div>
+            <HarmonyWhere desktop={p.desktop} onGetApp={p.onGetApp} idPrefix='ingot-zs' />
             <div className='ingot-zs-actions'>
                 <button type='button' id='ingot-zs-dismiss' className='ingot-zs-ghost' onClick={p.onDismiss}>Dismiss</button>
                 <button type='button' id='ingot-zs-accept' className='ingot-zs-primary' onClick={p.onAccept}>Accept</button>
