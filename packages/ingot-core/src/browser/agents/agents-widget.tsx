@@ -1129,7 +1129,8 @@ export class IngotAgentsWidget extends ReactWidget {
                 onKeyUp={e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') { this.updateMention(); this.update(); } }}
                 onClick={() => { this.updateMention(); this.update(); }}
                 onKeyDown={e => {
-                    const mentions = this.mentionItems;
+                    // A fully typed path needs no picker: Enter sends as usual.
+                    const mentions = this.mention && this.mentionItems.includes(this.mention.query) && e.key === 'Enter' ? [] : this.mentionItems;
                     if (mentions.length && this.mention) {
                         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                             e.preventDefault();

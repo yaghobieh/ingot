@@ -96,6 +96,12 @@ for (const scheme of ['light', 'dark'] as const) {
             await page.keyboard.press('Escape');
             await expect(menu).toHaveCount(0);
             expect(await composerPlainText(page)).toBe('explain @src/cart.ts and @mo');
+
+            // A fully typed path: Enter sends instead of picking.
+            await composer(page).fill('');
+            await page.keyboard.type('look at @src/cart.ts');
+            await page.keyboard.press('Enter');
+            await expect(page.locator('#ingot-agents .ingot-chat-user').last()).toContainText('look at @src/cart.ts');
         });
 
         test('dropping tree files or OS files on the chat panel adds file chips', async ({ page }) => {
