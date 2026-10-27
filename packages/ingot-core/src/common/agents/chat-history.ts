@@ -19,7 +19,9 @@ export const serializeChats = (chats: readonly AgentSession[]): string => {
     return JSON.stringify(sorted.slice(0, MAX_STORED_CHATS).map(c => ({
         ...c, status: c.status === 'thinking' || c.status === 'editing' || c.status === 'review' || c.status === 'paused' || c.status === 'approval' ? 'idle' : c.status, activeFile: undefined, pause: undefined, approval: undefined,
         // Image bytes stay in memory; saved history keeps only their names (local storage is small).
-        messages: c.messages.map(m => m.images?.length ? { ...m, images: m.images.map(i => ({ ...i, data: '' })) } : m)
+        messages: c.messages
+            .filter(m => !(m.tool?.state === 'running' && !m.text))
+            .map(m => m.images?.length ? { ...m, images: m.images.map(i => ({ ...i, data: '' })) } : m)
     })));
 };
 
