@@ -1,6 +1,7 @@
 import * as React from '@theia/core/shared/react';
 import { ImageHoverService } from '../preview/image-hover-service';
 import { actionLine, activityLine } from '../../common/agents/agent-actions';
+import { isWorkspaceTool } from '../../common/agents/workspace-tools';
 import { exploredLine, extractThought } from '../../common/agents/tool-cards';
 import { ThoughtRow, ToolCardView } from './tool-card';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
@@ -616,7 +617,27 @@ export class IngotAgentsWidget extends ReactWidget {
         })}</div>;
     }
 
+    /** "Explored N files, M searches"; click to see which (IDEA-177 / IDEA-186). */
+    protected renderExplored(session: AgentSession, explored: string): React.ReactNode {
+        const key = `${session.id}:explored`;
+        const open = this.expandedSteps.has(key);
+        const items = session.steps.filter(st => (st.kind === 'read' && !st.target.startsWith('rules:')) || st.kind === 'search');
+        return <div className={`ingot-chat-explored${open ? ' open' : ''}`} id='ingot-chat-explored'>
+            <button type='button' className='ingot-chat-explored-head' aria-expanded={open} onClick={() => { if (!this.expandedSteps.delete(key)) { this.expandedSteps.add(key); } this.update(); }}>
+                <span className='ingot-chat-explored-verb'>{explored.split(' ')[0]}</span> {explored.split(' ').slice(1).join(' ')}
+                <span className={`codicon codicon-chevron-${open ? 'down' : 'right'}`} aria-hidden='true' />
+            </button>
+            {open && <ul className='ingot-chat-explored-list'>
+                {items.map((st, i) => <li key={i}><span className={`codicon codicon-${st.kind === 'search' ? 'search' : st.target.endsWith('/') ? 'folder' : 'file'}`} aria-hidden='true' />{st.kind === 'search' ? `"${st.target}"` : st.target}</li>)}
+            </ul>}
+        </div>;
+    }
+
     protected renderMessage(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+        // IDEA-186: hidden nudges are for the model only; project reads are summed up in the Explored row.
+        if (m.hidden || (m.role === 'tool' && m.tool?.server === 'ingot' && isWorkspaceTool(m.tool.tool) && m.tool.state !== 'error')) {
+            return undefined;
+        }
         if (m.role === 'tool' && m.tool) {
             const key = `${session.id}:tool:${i}`;
             return <ToolCardView key={i} info={m.tool} text={m.text} from={m.from} expanded={this.expandedSteps.has(key)}
@@ -736,18 +757,18 @@ export class IngotAgentsWidget extends ReactWidget {
         const hasCards = session.messages.some(m => m.tool);
         const explored = hasCards ? exploredLine(session.steps, this.store.isRunning(session.id)) : undefined;
         return <>
-            {session.messages.map((m, i) => i === lastAgent && readSteps.length > 0
+            {session.messages.map((m, i) => i === lastAgent && readSteps.length > 0 && !hasCards
                 ? <React.Fragment key={i}>{readSteps.map(({ step, index }) => this.renderReadStep(session, step, index))}{this.renderMessage(session, m, i)}</React.Fragment>
                 : this.renderMessage(session, m, i))}
-            {lastAgent < 0 && readSteps.map(({ step, index }) => this.renderReadStep(session, step, index))}
+            {lastAgent < 0 && !hasCards && readSteps.map(({ step, index }) => this.renderReadStep(session, step, index))}
             {session.plan.length > 0 && <div className='ingot-chat-plan'>
                 <div className='ingot-chat-label'>Plan</div>
                 {session.plan.map((p, i) => (
                     <div key={i} className={`ingot-plan-item ingot-plan-${p.state}`}><span className='ingot-plan-mark'>{p.state === 'done' ? '✓' : p.state === 'active' ? '●' : '○'}</span>{p.text}</div>
                 ))}
             </div>}
-            {explored && <div className='ingot-chat-explored' id='ingot-chat-explored'><span className='ingot-chat-explored-verb'>{explored.split(' ')[0]}</span> {explored.split(' ').slice(1).join(' ')}</div>}
-            {session.steps.map((step, i) => step.kind === 'read' || (hasCards && step.kind === 'run' && !step.target.startsWith('/')) ? undefined : (
+            {explored && this.renderExplored(session, explored)}
+            {session.steps.map((step, i) => step.kind === 'read' || (hasCards && step.kind === 'search') || (hasCards && step.kind === 'run' && !step.target.startsWith('/')) ? undefined : (
                 <div key={i} className={`ingot-chat-step ${step.done ? 'done' : 'running'}`}>
                     <span className='ingot-step-mark'>{step.done ? '✓' : '●'}</span>
                     <span className='ingot-step-text'>{stepVerb(step)} {step.target}</span>
