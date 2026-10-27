@@ -175,16 +175,19 @@ export const toolCard = (info: ToolCallInfo, text: string, builtinServer = 'ingo
 /** "Explored 3 files, 2 searches" from the run's read / search steps (past tense once the run is over). */
 export const exploredLine = (steps: readonly { kind: string; target: string }[], running: boolean): string | undefined => {
     const files = new Set<string>();
+    const folders = new Set<string>();
     let searches = 0;
     for (const step of steps) {
         if (step.kind === 'read' && !step.target.startsWith('rules:')) {
-            step.target.split(',').map(s => s.trim()).filter(Boolean).forEach(f => files.add(f));
+            // IDEA-186: a target ending in "/" is a listed folder.
+            step.target.split(',').map(s => s.trim()).filter(Boolean).forEach(f => (f.endsWith('/') ? folders : files).add(f));
         } else if (step.kind === 'search' || (step.kind === 'run' && /\/(?:web_search|search|search_code|grep)/.test(step.target))) {
             searches++;
         }
     }
     const parts = [
         files.size ? `${files.size} ${files.size === 1 ? 'file' : 'files'}` : '',
+        folders.size ? `${folders.size} ${folders.size === 1 ? 'folder' : 'folders'}` : '',
         searches ? `${searches} ${searches === 1 ? 'search' : 'searches'}` : ''
     ].filter(Boolean);
     return parts.length ? `${running ? 'Exploring' : 'Explored'} ${parts.join(', ')}` : undefined;

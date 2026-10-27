@@ -21,6 +21,8 @@ export interface AgentMessage {
     readonly role: 'user' | 'agent' | 'system' | 'peer' | 'tool';
     readonly text: string;
     readonly from?: string;
+    /** IDEA-186: sent to the model but not shown (e.g. the nudge to run commands instead of printing them). */
+    readonly hidden?: boolean;
     /** What the model sees when it differs from the visible text (an expanded /command). */
     readonly expanded?: string;
     /** Context chips attached to a user message (IDEA-65), shown under it. */

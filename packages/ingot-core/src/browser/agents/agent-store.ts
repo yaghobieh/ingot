@@ -25,6 +25,11 @@ import { activeAgentCount, titleFromPrompt } from '../../common/agents/agents.ut
 import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
 import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
+import {
+    GREP_MAX_FILE_BYTES, GREP_MAX_FILES, GREP_MAX_MATCHES, githubRepoFromRemote, globMatcher, grepMatcher, isTextCandidate, isWorkspaceTool, LIST_MAX_ENTRIES,
+    numberLines, printsShellInsteadOfRunning, SHELL_NUDGE, SKIPPED_DIRS, withRepoDefaults, workspaceProtocol, type GitHubRepo, type WorkspaceInfo
+} from '../../common/agents/workspace-tools';
+import { parseRemotes } from '../../common/git/git-ops';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
@@ -644,7 +649,9 @@ export class AgentStore {
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
-        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
+        const workspace = await this.workspaceInfo(root);
+        this.github = workspace.github;
+        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
         const rulesText = formatRules(rules);
         const memoriesText = formatMemories(memories);
         const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
@@ -665,10 +672,20 @@ export class AgentStore {
         session.changes = [];
         this.changed();
 
+        let nudged = false;
         for (let round = 0; ; round++) {
             const parsed = await this.streamRound(session, system);
             if (!parsed) {
                 return;
+            }
+            // IDEA-186: a reply that hands the user shell commands gets one nudge to run / read them itself.
+            if (!parsed.toolCalls.length && !nudged && round < MAX_TOOL_ROUNDS && printsShellInsteadOfRunning(session.messages[session.messages.map(m => m.role).lastIndexOf('agent')]?.text ?? '')) {
+                nudged = true;
+                // The printed commands are replaced by real reads, so the user never sees "run this yourself".
+                const printed = session.messages.map(m => m.role).lastIndexOf('agent');
+                session.messages[printed] = { ...session.messages[printed], hidden: true };
+                session.messages.push({ role: 'user', text: SHELL_NUDGE, hidden: true });
+                continue;
             }
             if (parsed.toolCalls.length && round < MAX_TOOL_ROUNDS) {
                 if (!await this.runTools(session, parsed.toolCalls)) {
@@ -751,7 +768,9 @@ export class AgentStore {
         // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
         session.messages[index] = {
             role: 'agent', expanded: final,
-            text: display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)')
+            text: display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)'),
+            // IDEA-186: a silent round of project reads shows only in the Explored row.
+            ...(!display && !parsed.edits.length && parsed.toolCalls.length && parsed.toolCalls.every(c => c.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(c.tool)) ? { hidden: true } : {})
         };
         return stopped ? { ...parsed, toolCalls: [], edits: [], memories: [] } : { ...parsed, memories };
     }
@@ -770,7 +789,7 @@ export class AgentStore {
                 this.changed();
                 continue;
             }
-            const call = resolved.call;
+            const call = withRepoDefaults(resolved.call, this.github);
             const target = `${call.server}/${call.tool}`;
             const isGit = call.server === BUILTIN_TOOL_SERVER && call.tool === 'git';
             const branch = isGit && rootPath && call.args.op === 'push' && !call.args.branch
@@ -799,7 +818,8 @@ export class AgentStore {
                     await (action.command ? this.setAlwaysRunCommand(rootPath, action.command, true) : this.setAlwaysRun(rootPath, action.kind, true));
                 }
             }
-            session.steps = [...session.steps, { kind: 'run', target, done: false }];
+            const workspaceTool = call.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(call.tool);
+            session.steps = [...session.steps, workspaceTool ? this.workspaceStep(call) : { kind: 'run', target, done: false }];
             session.status = 'thinking';
             // IDEA-177: the card shows at once with a spinner, then fills in with the result.
             const tool: ToolCallInfo = { server: call.server, tool: call.tool, args: call.args, state: 'running', startedAt: Date.now() };
@@ -828,6 +848,125 @@ export class AgentStore {
         return true;
     }
 
+    /** IDEA-186: GitHub owner/repo of the open project (from its git remote), for GitHub tool calls. */
+    protected github?: GitHubRepo;
+
+    protected async workspaceInfo(root: URI | undefined): Promise<WorkspaceInfo> {
+        const path = root?.path.fsPath();
+        if (!root || !path) {
+            return {};
+        }
+        const [branch, remotes] = await Promise.all([
+            this.git.run(path, { kind: 'currentBranch' }).then(r => r.output.trim(), () => ''),
+            this.git.run(path, { kind: 'remotes' }).then(r => parseRemotes(r.output), () => [])
+        ]);
+        const remote = remotes.find(r => r.name === 'origin') ?? remotes[0];
+        return { name: root.path.base, ...(branch ? { branch } : {}), ...(githubRepoFromRemote(remote?.url) ? { github: githubRepoFromRemote(remote?.url) } : {}) };
+    }
+
+    protected workspaceStep(call: AgentToolCall): AgentSession['steps'][number] {
+        const s = (v: unknown): string => typeof v === 'string' ? v : '';
+        return call.tool === 'grep'
+            ? { kind: 'search', target: s(call.args.pattern), done: true }
+            : call.tool === 'list_dir'
+                ? { kind: 'read', target: `${(s(call.args.path) || '.').replace(/\/+$/, '')}/`, done: true }
+                : { kind: 'read', target: s(call.args.path) || '.', done: true };
+    }
+
+    protected safeUri(root: URI, path: string): URI | undefined {
+        const clean = path.trim().replace(/^\.\/+/, '').replace(/\/+$/, '');
+        if (!clean || clean === '.') {
+            return root;
+        }
+        return isSafeRelativePath(clean) ? root.resolve(clean) : undefined;
+    }
+
+    protected async readFileTool(root: URI, path: string, start: number, end: number | undefined): Promise<AgentActionResult> {
+        const uri = this.safeUri(root, path);
+        if (!uri || uri === root) {
+            return { text: `"${path}" is not a file path inside the project.`, isError: true };
+        }
+        const content = await this.files.read(uri).then(r => r.value, () => undefined);
+        if (content === undefined) {
+            return { text: `No file "${path}". Use ingot/list_dir or ingot/grep to find it.`, isError: true };
+        }
+        const { text, total, shown } = numberLines(content, start, end);
+        return { text: `${path} (lines ${shown[0]}-${shown[1]} of ${total})\n${text}`, isError: false };
+    }
+
+    protected async listDirTool(root: URI, path: string, depth: number): Promise<AgentActionResult> {
+        const base = this.safeUri(root, path);
+        if (!base) {
+            return { text: `"${path}" is not inside the project.`, isError: true };
+        }
+        const lines: string[] = [];
+        const walk = async (uri: URI, level: number): Promise<void> => {
+            const stat = await this.files.resolve(uri).catch(() => undefined);
+            const children = [...(stat?.children ?? [])].sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name));
+            for (const child of children) {
+                if (lines.length >= LIST_MAX_ENTRIES) {
+                    return;
+                }
+                const rel = root.relative(child.resource)?.toString() ?? child.name;
+                lines.push(`${'  '.repeat(level)}${child.isDirectory ? `${child.name}/` : child.name}${child.isDirectory && SKIPPED_DIRS.has(child.name) ? ' (skipped)' : ''}`);
+                if (child.isDirectory && level + 1 < depth && !SKIPPED_DIRS.has(child.name) && rel) {
+                    await walk(child.resource, level + 1);
+                }
+            }
+        };
+        const stat = await this.files.resolve(base).catch(() => undefined);
+        if (!stat?.isDirectory) {
+            return { text: `No folder "${path || '.'}".`, isError: true };
+        }
+        await walk(base, 0);
+        return { text: `${path || '.'}/\n${lines.join('\n') || '(empty)'}${lines.length >= LIST_MAX_ENTRIES ? '\n… (more)' : ''}`, isError: false };
+    }
+
+    protected async grepTool(root: URI, pattern: string, path: string, glob: string, regex: boolean): Promise<AgentActionResult> {
+        if (!pattern.trim()) {
+            return { text: 'No pattern given.', isError: true };
+        }
+        const base = this.safeUri(root, path);
+        if (!base) {
+            return { text: `"${path}" is not inside the project.`, isError: true };
+        }
+        const match = grepMatcher(pattern, regex);
+        const wanted = globMatcher(glob);
+        const hits: string[] = [];
+        let scanned = 0;
+        const visit = async (uri: URI): Promise<void> => {
+            const stat = await this.files.resolve(uri).catch(() => undefined);
+            if (!stat) {
+                return;
+            }
+            const entries = stat.isDirectory ? [...(stat.children ?? [])] : [stat];
+            for (const entry of entries) {
+                if (hits.length >= GREP_MAX_MATCHES || scanned >= GREP_MAX_FILES) {
+                    return;
+                }
+                if (entry.isDirectory) {
+                    if (!SKIPPED_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
+                        await visit(entry.resource);
+                    }
+                    continue;
+                }
+                const rel = root.relative(entry.resource)?.toString() ?? entry.name;
+                if (!isTextCandidate(rel) || !wanted(rel) || (entry.size ?? 0) > GREP_MAX_FILE_BYTES) {
+                    continue;
+                }
+                scanned++;
+                const content = await this.files.read(entry.resource).then(r => r.value, () => '');
+                content.split('\n').forEach((line, i) => {
+                    if (hits.length < GREP_MAX_MATCHES && match(line)) {
+                        hits.push(`${rel}:${i + 1}: ${line.trim().slice(0, 200)}`);
+                    }
+                });
+            }
+        };
+        await visit(base);
+        return { text: hits.length ? `${hits.length}${hits.length >= GREP_MAX_MATCHES ? '+' : ''} match(es) for "${pattern}" in ${scanned} file(s):\n${hits.join('\n')}` : `No matches for "${pattern}" (${scanned} file(s) searched).`, isError: false };
+    }
+
     /** Ingot's built-in agent tools (IDEA-109): git, terminal command, web search / fetch, file delete. */
     protected async runBuiltin(call: AgentToolCall, root: URI | undefined): Promise<AgentActionResult> {
         const rootPath = root?.path.fsPath();
@@ -845,6 +984,9 @@ export class AgentStore {
                     const result = await this.git.run(rootPath, gitOperationFor(call.args));
                     return { text: result.output.trim() || 'Done.', isError: false };
                 }
+                case 'read_file': return await this.readFileTool(root, str(call.args.path), Number(call.args.start) || 1, Number(call.args.end) || undefined);
+                case 'list_dir': return await this.listDirTool(root, str(call.args.path), Math.min(3, Math.max(1, Number(call.args.depth) || 1)));
+                case 'grep': return await this.grepTool(root, str(call.args.pattern), str(call.args.path), str(call.args.glob), call.args.regex === true);
                 case 'run': return await this.runCommand(rootPath, str(call.args.command), call.args.background === true);
                 case 'scripts': {
                     const found = await this.processes.service.scripts(rootPath);
