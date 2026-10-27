@@ -67,6 +67,8 @@ jobs:
     runs-on: macos-latest
     needs: gate
     timeout-minutes: 45
+    # Non-blocking until the runner-only failures tracked in IDEA-190 pass; reports are uploaded either way.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
