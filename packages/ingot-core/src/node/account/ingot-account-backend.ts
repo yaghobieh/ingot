@@ -1,6 +1,4 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
-import type { BotResponse } from '../../common/bot/bot.types';
-import { isBotRequest } from '../../common/bot/bot.utils';
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { FileUri } from '@theia/core/lib/common/file-uri';
@@ -345,13 +343,6 @@ export class IngotAccountBackend implements AccountBackend {
             return { status: 400, body: { error: 'invalid_sync_path' } };
         }
         return this.authedRequest(method, path, body) as Promise<SyncResponse>;
-    }
-
-    async botRequest(method: string, path: string, body?: unknown): Promise<BotResponse> {
-        if (!isBotRequest(method, path)) {
-            return { status: 400, body: { error: 'invalid_bot_path' } };
-        }
-        return this.authedRequest(method, path, body);
     }
 
     /** One call to ingot-server with the session token; the token never leaves the backend. */
