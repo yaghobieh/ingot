@@ -1076,3 +1076,13 @@ button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true']
 .ingot-avatar-lg { width: 48px; height: 48px; font-size: 18px; flex: none; }
 .ingot-agents .ingot-chat-user.ingot-chat-has-avatar { position: relative; margin-right: 28px; }
 .ingot-chat-user-avatar { position: absolute; right: -28px; top: 2px; width: 20px; height: 20px; font-size: 9px; }
+/* IDEA-187: @ file picker and panel-wide drop target. */
+.ingot-mention-item { align-items: center; }
+.ingot-mention-item .codicon { font-size: 13px; opacity: .75; }
+.ingot-mention-name { font-weight: 500; white-space: nowrap; }
+.ingot-mention-empty { padding: 6px 10px; font-size: 12px; opacity: .7; }
+.ingot-agents.ingot-drop-active { position: relative; }
+.ingot-agents.ingot-drop-active::after { content: 'Drop to add to chat'; position: absolute; inset: 6px; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--ingot-primary, #3B6FD9); border-radius: 10px; background: color-mix(in srgb, var(--ingot-primary, #3B6FD9) 10%, transparent); color: var(--theia-foreground); font-size: 13px; font-weight: 500; pointer-events: none; z-index: 950; }
+.ingot-slash-item { align-items: center; }
+.ingot-slash-item > code, .ingot-slash-item > .ingot-badge { white-space: nowrap; flex-shrink: 0; }
+.ingot-slash-item > .ingot-slash-desc { flex: 1; min-width: 0; }

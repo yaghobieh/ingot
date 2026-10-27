@@ -205,6 +205,46 @@ export class InlineComposer {
         this.hidePreview();
     }
 
+    /** IDEA-187: the text before the caret in its text node (the `@query` being typed). */
+    textBeforeCaret(): string {
+        const selection = window.getSelection();
+        const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+        if (!range || !range.collapsed || !this.el.contains(range.startContainer) || range.startContainer.nodeType !== Node.TEXT_NODE) {
+            return '';
+        }
+        return (range.startContainer.textContent ?? '').slice(0, range.startOffset);
+    }
+
+    /** IDEA-187: replaces the `count` characters before the caret (the `@query`) with `text`. */
+    replaceBeforeCaret(count: number, text: string): void {
+        const selection = window.getSelection();
+        const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+        if (!selection || !range || range.startContainer.nodeType !== Node.TEXT_NODE || !this.el.contains(range.startContainer)) {
+            this.insertText(text);
+            return;
+        }
+        const node = range.startContainer;
+        const end = range.startOffset;
+        const select = document.createRange();
+        select.setStart(node, Math.max(0, end - count));
+        select.setEnd(node, end);
+        selection.removeAllRanges();
+        selection.addRange(select);
+        if (!document.execCommand('insertText', false, text)) {
+            select.deleteContents();
+            this.insertNode(document.createTextNode(text));
+        }
+        this.saveRange();
+        this.changed();
+    }
+
+    /** Caret after the last character (drops outside the input land at the end). */
+    moveCaretToEnd(): void {
+        this.el.focus();
+        this.caretToEnd();
+        this.saveRange();
+    }
+
     /** Puts the caret where a drop happened. */
     caretAt(x: number, y: number): void {
         const range = document.caretRangeFromPoint?.(x, y);
