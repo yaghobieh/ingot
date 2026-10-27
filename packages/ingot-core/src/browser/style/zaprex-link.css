@@ -17,3 +17,35 @@
 @keyframes ingot-trex-hop { 0%, 100% { transform: translateY(0) rotate(0deg) scale(1.06); } 40% { transform: translateY(-3px) rotate(-8deg) scale(1.1); } 70% { transform: translateY(0) rotate(5deg) scale(1.06); } }
 @keyframes ingot-trex-think { 0%, 100% { transform: rotate(-7deg) translateY(0); } 25% { transform: rotate(6deg) translateY(-2px); } 50% { transform: rotate(-4deg) translateY(0); } 75% { transform: rotate(8deg) translateY(-1px); } }
 @media (prefers-reduced-motion: reduce) { .ingot-tb-zaprex .ingot-zaprex-trex, .ingot-tb-zaprex:hover .ingot-zaprex-trex, .ingot-tb-zaprex.thinking .ingot-zaprex-trex { animation: none; } }
+
+/* IDEA-180 Harmony mode: Zaprex's offer bubble under the T-rex, and a gold dot while Zaprex works on a piece. */
+.ingot-tb-zaprex { position: relative; }
+.ingot-tb-zaprex-busy { position: absolute; right: 2px; bottom: 2px; width: 6px; height: 6px; border-radius: 50%; background: #D9A04E; box-shadow: 0 0 0 2px var(--ingot-canvas, #fff); animation: ingot-harmony-pulse 1.4s ease-in-out infinite; }
+@keyframes ingot-harmony-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.ingot-harmony-bubble {
+    position: fixed; z-index: 10000; width: 264px; box-sizing: border-box; padding: 10px 12px;
+    border-radius: 10px; border: 1px solid color-mix(in srgb, #D9A04E 45%, var(--ingot-border, rgba(27, 38, 71, .14)));
+    background: var(--ingot-canvas, #fff); color: var(--ingot-text); box-shadow: 0 8px 24px rgba(27, 38, 71, .18);
+    font-size: 12px; line-height: 1.4; text-align: left; white-space: normal; animation: ingot-harmony-in .18s ease-out;
+}
+body.ingot-dark .ingot-harmony-bubble { background: #1C202A; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); }
+.ingot-harmony-bubble::before {
+    content: ''; position: absolute; top: -6px; right: 12px; width: 10px; height: 10px; transform: rotate(45deg);
+    background: inherit; border-left: inherit; border-top: inherit;
+}
+@keyframes ingot-harmony-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.ingot-harmony-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.ingot-harmony-badge { font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #1B2647; background: #D9A04E; border-radius: 4px; padding: 1px 5px; }
+.ingot-harmony-who { font-weight: 600; }
+.ingot-harmony-text { font-weight: 500; }
+.ingot-harmony-task { margin-top: 4px; color: var(--ingot-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-harmony-scope { margin-top: 4px; font-size: 11px; color: var(--ingot-text-muted); display: flex; align-items: center; gap: 4px; }
+.ingot-harmony-scope .codicon { font-size: 11px; }
+.ingot-harmony-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+.ingot-harmony-actions button { height: 24px; padding: 0 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.ingot-harmony-dismiss { background: transparent; color: var(--ingot-text-muted); border: 1px solid var(--ingot-border, rgba(27, 38, 71, .18)); }
+.ingot-harmony-dismiss:hover { color: var(--ingot-text); }
+.ingot-harmony-accept { background: #D9A04E; color: #1B2647; border: 1px solid #D9A04E; font-weight: 600; }
+.ingot-harmony-accept:hover { filter: brightness(1.05); }
+.ingot-harmony-actions button:focus-visible { outline: 2px solid #3B6FD9; outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .ingot-harmony-bubble, .ingot-tb-zaprex-busy { animation: none; } }

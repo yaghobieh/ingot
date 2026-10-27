@@ -84,6 +84,7 @@ import { DebugToolsService } from '../common/debug/debug.types';
 import { PreferenceContribution } from '@theia/core/lib/common/preferences';
 import { layoutPreferenceSchema } from './layout/layout-preferences';
 import { reviewPreferenceSchema } from './review/review-preferences';
+import { harmonyPreferenceSchema } from './agents/harmony-preferences';
 import { approvalPreferenceSchema } from './agents/approval-preferences';
 import { agentToolsPreferenceSchema } from './agents/agent-tools-preferences';
 import { ReviewContribution } from './review/review-contribution';
@@ -166,6 +167,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: appearancePreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: layoutPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: reviewPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: harmonyPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: approvalPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: agentToolsPreferenceSchema });
     bind(ReviewComments).toSelf().inSingletonScope();
