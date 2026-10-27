@@ -31,26 +31,35 @@
 .ingot-agents .ingot-composer-bar .ingot-icon-button:active:not(:disabled) { background: var(--ingot-cb-fill-strong); }
 .ingot-agents .ingot-composer-bar .ingot-icon-button:disabled { opacity: .5; cursor: default; }
 
-/* Review toggle: muted when off, brand blue tint when on (it used to be a lone blue eye). */
-.ingot-agents .ingot-composer-bar .ingot-composer-review { opacity: 1; }
-.ingot-agents .ingot-composer-bar .ingot-composer-review.on { color: var(--ingot-primary, var(--ingot-cb-blue)); background: color-mix(in srgb, var(--ingot-primary, #3B6FD9) 13%, transparent); }
-.ingot-agents .ingot-composer-bar .ingot-composer-review.on:hover { background: color-mix(in srgb, var(--ingot-primary, #3B6FD9) 20%, transparent); color: var(--ingot-primary, var(--ingot-cb-blue)); }
+/* Review toggle (IDEA-184): a quiet checklist icon, no filled circle; a small gold dot when review is on. */
+.ingot-agents .ingot-composer-bar .ingot-composer-review { position: relative; opacity: 1; }
+.ingot-agents .ingot-composer-bar .ingot-composer-review .codicon { font-size: var(--ingot-cb-icon) !important; }
+.ingot-agents .ingot-composer-bar .ingot-composer-review.on { color: var(--theia-foreground); background: transparent; }
+.ingot-agents .ingot-composer-bar .ingot-composer-review.on:hover { background: var(--ingot-cb-fill); }
+.ingot-agents .ingot-composer-bar .ingot-composer-review-dot { position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--ingot-cb-gold); }
+
+/* Zaprex T-rex (IDEA-184): transparent, softly animated, hops on hover. */
+.ingot-agents .ingot-composer-bar .ingot-composer-zaprex .ingot-zaprex-trex { width: 16px; height: 16px; transform-origin: 50% 90%; animation: ingot-trex-idle 3.6s ease-in-out infinite; }
+.ingot-agents .ingot-composer-bar .ingot-composer-zaprex:hover .ingot-zaprex-trex,
+.ingot-agents .ingot-composer-bar .ingot-composer-zaprex:focus-visible .ingot-zaprex-trex { animation: ingot-trex-hop 0.9s ease-in-out infinite; }
+.ingot-agents .ingot-composer-bar .ingot-composer-zaprex.thinking .ingot-zaprex-trex { animation: ingot-trex-think 1.1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .ingot-agents .ingot-composer-bar .ingot-composer-zaprex .ingot-zaprex-trex { animation: none !important; } }
 
 /* Mic while listening keeps its pulse, inside the same square. */
 .ingot-agents .ingot-composer-bar .ingot-composer-mic.listening { color: #fff; background: var(--ingot-danger, #E5484D); border-radius: var(--ingot-cb-radius); }
 
 .ingot-agents .ingot-composer-bar .ingot-composer-divider { width: 1px; height: 14px; margin: 0 3px; background: var(--ingot-cb-line); flex: none; }
 
-/* Pills: mode and model share one look; the mode keeps only a colored icon. */
+/* Pills: borderless ghost buttons (IDEA-184); only a subtle background on hover / open. */
 .ingot-agents .ingot-composer-bar .ingot-pill,
 .ingot-agents .ingot-composer-bar .ingot-pill:focus {
   height: var(--ingot-cb-h); box-sizing: border-box; padding: 0 8px 0 9px; gap: 5px; border-radius: var(--ingot-cb-radius);
-  border: 1px solid var(--ingot-cb-line) !important; background: transparent; box-shadow: none !important;
+  border: 1px solid transparent !important; background: transparent; box-shadow: none !important;
   color: var(--theia-foreground); font-size: 12px; font-weight: 500; line-height: 1;
   transition: background-color .12s ease, border-color .12s ease;
 }
 .ingot-agents .ingot-composer-bar .ingot-pill:hover,
-.ingot-agents .ingot-composer-bar .ingot-pill[aria-expanded='true'] { background: var(--ingot-cb-fill); border-color: color-mix(in srgb, var(--theia-foreground) 20%, transparent) !important; }
+.ingot-agents .ingot-composer-bar .ingot-pill[aria-expanded='true'] { background: var(--ingot-cb-fill); border-color: transparent !important; }
 .ingot-agents .ingot-composer-bar .ingot-pill .codicon { font-size: 13px !important; }
 .ingot-agents .ingot-composer-bar .ingot-pill .ingot-pill-caret { font-size: 11px !important; margin-left: 1px; opacity: .6; color: var(--ingot-cb-muted); }
 .ingot-agents .ingot-composer-bar .ingot-mode-pill .codicon:first-child { color: var(--ingot-mode-color); }

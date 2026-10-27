@@ -42,6 +42,7 @@ import { InlineComposer, readImage } from './inline-composer';
 import { COMPOSER_INPUT_ID, MAX_DROPPED_FILE_CHARS } from './inline-composer.consts';
 import { AgentMarkdownRenderer } from './markdown-renderer';
 import { COPIED_LABEL, COPY_LABEL } from './markdown.consts';
+import { ZAPREX_APP_URL, ZAPREX_LINK_LABEL } from './zaprex-link.consts';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
@@ -990,6 +991,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 {this.renderModelPill()}
                 {this.renderReviewToggle()}
                 <span className='ingot-flex' />
+                {this.renderComposerZaprex()}
                 {this.renderUsageRing()}
                 {this.store.isRunning(this.store.current?.id)
                     ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}><span className='codicon codicon-debug-stop' /></button>
@@ -1010,9 +1012,22 @@ export class IngotAgentsWidget extends ReactWidget {
     /** IDEA-105 quick toggle: agent review on / off (Settings › Agent review has the rest). */
     protected renderReviewToggle(): React.ReactNode {
         const on = this.store.review.enabled;
-        return <button type='button' id='ingot-composer-review' className={`ingot-icon-button codicon ${on ? 'codicon-eye' : 'codicon-eye-closed'} ingot-composer-review${on ? ' on' : ''}`}
-            aria-pressed={on} title={on ? 'Agent review on: edits wait for Accept / Reject (click to apply edits right away)' : 'Agent review off: edits apply right away (click to review them)'}
-            onClick={() => void this.store.setReviewEnabled(!on)} />;
+        // IDEA-184: a quiet checklist icon (no filled circle); a small gold dot says review is on.
+        return <button type='button' id='ingot-composer-review' className={`ingot-icon-button ingot-composer-review${on ? ' on' : ''}`}
+            aria-pressed={on} aria-label={on ? 'Agent review on' : 'Agent review off'}
+            title={on ? 'Agent review on: edits wait for Accept / Reject (click to apply edits right away)' : 'Agent review off: edits apply right away (click to review them)'}
+            onClick={() => void this.store.setReviewEnabled(!on)}>
+            <span className='codicon codicon-checklist' aria-hidden='true' />
+            {on && <span className='ingot-composer-review-dot' aria-hidden='true' />}
+        </button>;
+    }
+
+    /** IDEA-184: the small animated Zaprex T-rex in the composer bar; opens the Zaprex app. */
+    protected renderComposerZaprex(): React.ReactNode {
+        return <button type='button' id='ingot-composer-zaprex' className='ingot-icon-button ingot-composer-zaprex' title={ZAPREX_LINK_LABEL} aria-label={ZAPREX_LINK_LABEL}
+            onClick={() => this.windows.openNewWindow(ZAPREX_APP_URL, { external: true })}>
+            <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
+        </button>;
     }
 
     protected renderModePill(): React.ReactNode {
