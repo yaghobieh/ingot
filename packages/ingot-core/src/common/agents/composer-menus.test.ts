@@ -21,3 +21,11 @@ describe('composer menus (IDEA-187)', () => {
         expect(SLASH_BUILTINS.map(c => c.name)).toEqual(expect.arrayContaining(['agent', 'ask', 'plan', 'new', 'compact', 'model']));
     });
 });
+
+describe('rankFiles depth (IDEA-251)', () => {
+    it('ranks the root file first when names tie', () => {
+        const files = ['applications/browser/package.json', 'e2e/fixtures/a/package.json', 'package-lock.json', 'package.json'];
+        expect(rankFiles(files, 'package').slice(0, 2)).toEqual(['package.json', 'applications/browser/package.json']);
+        expect(rankFiles(files, 'package.json')[0]).toBe('package.json');
+    });
+});

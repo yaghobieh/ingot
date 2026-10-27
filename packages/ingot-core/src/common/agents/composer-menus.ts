@@ -31,17 +31,19 @@ export const rankFiles = (files: readonly string[], query: string, limit = 8): s
     const score = (path: string): number => {
         const p = path.toLowerCase();
         const base = p.split('/').pop() ?? p;
+        // IDEA-251: on a tie, shallower files first (the root package.json before the nested ones).
+        const depth = p.split('/').length / 10_000;
         if (!q) {
             return 1 + 1 / (1 + p.split('/').length);
         }
         if (base === q) {
-            return 100;
+            return 100 - depth;
         }
         if (base.startsWith(q)) {
-            return 80 - base.length / 100;
+            return 80 - base.length / 100 - depth;
         }
         if (base.includes(q)) {
-            return 60 - base.length / 100;
+            return 60 - base.length / 100 - depth;
         }
         if (p.includes(q)) {
             return 40 - p.length / 1000;
