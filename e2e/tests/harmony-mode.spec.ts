@@ -100,7 +100,9 @@ test.describe('IDEA-180 Harmony mode', () => {
             await expect(status).toHaveCount(0);
             await expect(bubble).toHaveCount(0);
             const chat = page.locator('#ingot-agents');
-            await expect(chat.locator('.ingot-chat-peer')).toContainText('Taking a piece in Harmony mode: Write unit tests for the export');
+            await expect(chat.locator('.ingot-chat-subref.zaprex')).toContainText('Taking a piece in Harmony mode: Write unit tests for the export');
+            // IDEA-181: the piece shows in the Subagents strip with the T-rex.
+            await expect(page.locator('#ingot-subagents .ingot-sa-row .ingot-sa-zaprex')).toHaveCount(1);
             // The lead agent may not touch Zaprex's files; Zaprex may not touch anything else.
             await expect(chat).toContainText('Left "src/export.test.ts" to Zaprex', { timeout: 45_000 });
             // Zaprex's version of its file is the one in the editor; it never opened a file outside its piece.

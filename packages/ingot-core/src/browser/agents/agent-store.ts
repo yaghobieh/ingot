@@ -1305,6 +1305,15 @@ export class AgentStore {
         return this.harmonyOffers.get(sessionId);
     }
 
+    /** IDEA-181: a chat's subagents (Multi-agent subtasks and Zaprex pieces), oldest first. */
+    subagents(leadId: string | undefined): readonly AgentSession[] {
+        return leadId ? this.items.filter(s => s.parent === leadId).sort((a, b) => (a.openedAt ?? a.updatedAt) - (b.openedAt ?? b.updatedAt)) : [];
+    }
+
+    find(id: string): AgentSession | undefined {
+        return this.items.find(s => s.id === id);
+    }
+
     /** Zaprex pieces of a chat (running or done), newest first. */
     zaprexPieces(leadId?: string): readonly AgentSession[] {
         return this.items.filter(s => s.agent === 'zaprex' && (!leadId || s.parent === leadId));
@@ -1366,12 +1375,12 @@ export class AgentStore {
         const child: AgentSession = {
             id: newChatId(), title: `Zaprex · ${piece.label}`, status: 'thinking', updatedAt: Date.now(), mode: 'agent', model: lead.model,
             messages: [{ role: 'user', text: piece.task, expanded: `${piece.task}\n\n${harmonyPrompt(piece, goal)}` }],
-            plan: [], steps: [], changes: [], project: lead.project, open: false, parent: lead.id,
+            plan: [], steps: [], changes: [], project: lead.project, open: false, openedAt: Date.now(), parent: lead.id,
             agent: 'zaprex', scope: piece.scope, piece: piece.kind
         };
         this.items = [child, ...this.items];
         // A peer line: the lead agent sees it too, so it leaves the piece's files alone.
-        lead.messages.push({ role: 'peer', from: 'Zaprex', text: `Taking a piece in Harmony mode: ${piece.task}. I only change ${piece.scope.slice(0, 3).join(', ')}${piece.scope.length > 3 ? ', …' : ''}; leave those files to me.` });
+        lead.messages.push({ role: 'peer', from: 'Zaprex', refs: [child.id], text: `Taking a piece in Harmony mode: ${piece.task}. I only change ${piece.scope.slice(0, 3).join(', ')}${piece.scope.length > 3 ? ', …' : ''}; leave those files to me.` });
         this.changed();
         this.runModel(child).catch(() => { child.status = 'error'; }).finally(() => {
             child.updatedAt = Date.now();
@@ -1403,13 +1412,14 @@ export class AgentStore {
             const child: AgentSession = {
                 id: newChatId(), title: titleFromPrompt(task), status: 'thinking', updatedAt: Date.now(), mode: 'agent', model: lead.model,
                 messages: [{ role: 'user', text: task, expanded: `${task}\n\nThis is subtask ${i + 1} of ${subtasks.length} for: ${goal}\nOnly do this subtask.` }],
-                plan: [], steps: [], changes: [], project: lead.project, open: true, openedAt: Date.now() + i + 1, parent: lead.id
+                plan: [], steps: [], changes: [], project: lead.project, open: false, openedAt: Date.now() + i, parent: lead.id, agent: 'ingot'
             };
             return child;
         });
         this.items = [...children, ...this.items];
         lead.plan = subtasks.map(t => ({ text: t, state: 'active' }));
-        lead.messages.push({ role: 'system', text: `Started ${children.length} sub-agents in parallel: ${children.map(c => c.title).join(' · ')}` });
+        // IDEA-181: subagents run outside the main chat (Subagents strip); the chat keeps a one-line reference.
+        lead.messages.push({ role: 'system', text: `Started ${children.length} subagents: ${children.map(c => c.title).join(' · ')}`, refs: children.map(c => c.id) });
         lead.status = 'thinking';
         this.changed();
         Promise.all(children.map(async (child, i) => {
@@ -1417,8 +1427,12 @@ export class AgentStore {
             lead.plan = lead.plan.map((p, j) => j === i ? { ...p, state: 'done' } : p);
             this.changed();
         })).then(() => {
-            const lines = children.map(c => `• ${c.title}: ${c.status === 'error' ? 'needs attention' : c.changes.length ? `${c.changes.length} file(s) changed` : 'answered'}`);
-            lead.messages.push({ role: 'agent', text: `All sub-agents finished.\n${lines.join('\n')}` });
+            const changed = children.reduce((n, c) => n + c.changes.length, 0);
+            const failed = children.filter(c => c.status === 'error').length;
+            lead.messages.push({
+                role: 'system', refs: children.map(c => c.id),
+                text: `Subagents finished: ${children.length - failed} of ${children.length} done${changed ? ` · ${changed} file(s) changed` : ''}${failed ? ` · ${failed} need attention` : ''}`
+            });
             lead.status = children.some(c => c.changes.length) ? 'done' : 'idle';
             lead.updatedAt = Date.now();
             this.changed();

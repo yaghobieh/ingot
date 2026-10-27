@@ -37,6 +37,8 @@ export interface AgentMessage {
     readonly buildable?: boolean;
     /** IDEA-177: the tool call behind a `tool` message, drawn as a rich card (terminal block, profile, …). */
     readonly tool?: import('./tool-cards').ToolCallInfo;
+    /** IDEA-181: subagent chats this line refers to; shown as a one-line reference that opens the Subagents strip. */
+    readonly refs?: readonly string[];
 }
 
 /** What went into the last request of a chat (IDEA-77): shown as chips and in the usage ring. */
