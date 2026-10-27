@@ -24,7 +24,7 @@ export class AiCommitService {
     @inject(IngotAccountService) protected readonly account: IngotAccountService;
 
     /** Picker id of the model used: the server's default Ingot model, else (BYOK on) the first connected one. */
-    protected pickModel(): string | undefined {
+    pickModel(): string | undefined {
         const fallback = this.models.defaultModel;
         if (fallback && this.models.isModelConfigured(fallback)) {
             return fallback;

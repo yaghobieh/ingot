@@ -1,4 +1,5 @@
 import { execFile } from 'child_process';
+import { HOOKS_RAN_ENV } from '../common/git/hooks';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -14,6 +15,9 @@ const CLONE_TIMEOUT_MS = 10 * 60_000;
 const MAX_BUFFER = 16 * 1024 * 1024;
 
 /** Runs a fixed set of git commands with validated arguments (no shell). */
+/** IDEA-178: tells the installed git hook that Ingot already ran the agent hooks. */
+const hooksRanEnv = (ran: boolean | undefined): { env?: Record<string, string> } => ran ? { env: { [HOOKS_RAN_ENV]: '1' } } : {};
+
 @injectable()
 export class IngotGitService implements GitService {
 
@@ -44,10 +48,20 @@ export class IngotGitService implements GitService {
         switch (op.kind) {
             case 'apply':
                 return { output: await this.git(root, args, { input: op.patch }) };
-            case 'pull': case 'fetch': case 'push': case 'pushTo':
+            case 'pull': case 'fetch':
                 return { output: await this.git(root, args, remoteTimeout) };
+            case 'push': case 'pushTo':
+                return { output: await this.git(root, args, { ...remoteTimeout, ...hooksRanEnv(op.hooksRan) }) };
             case 'commit':
-                return { output: await this.git(root, args, { input: op.message, timeout: 120_000 }) };
+                return { output: await this.git(root, args, { input: op.message, timeout: 120_000, ...hooksRanEnv(op.hooksRan) }) };
+            case 'chmodHook': {
+                const hook = path.resolve(root, (await this.git(root, args)).trim());
+                if (!/[\\/]hooks[\\/](pre-commit|pre-push)$/.test(hook) || !fs.existsSync(hook)) {
+                    throw new Error('No Ingot hook to make executable.');
+                }
+                fs.chmodSync(hook, 0o755);
+                return { output: hook };
+            }
             case 'stageContent': {
                 const sha = (await this.git(root, args, { input: op.content })).trim();
                 const staged = (await this.git(root, ['ls-files', '-s', '--', op.path])).trim();

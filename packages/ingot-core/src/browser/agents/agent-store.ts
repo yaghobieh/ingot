@@ -21,6 +21,8 @@ import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { ACTIVE_STATUSES, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
 import type { AgentMessage, AgentMode, AgentSession } from '../../common/agents/agents.types';
 import type { ToolCallInfo } from '../../common/agents/tool-cards';
+import { hookCardInfo } from '../../common/git/hooks';
+import { AgentHooksService } from '../hooks/agent-hooks-service';
 import { activeAgentCount, titleFromPrompt } from '../../common/agents/agents.utils';
 import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
 import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
@@ -91,6 +93,7 @@ export class AgentStore {
     @inject(ProjectConfigService) protected readonly projectConfig: ProjectConfigService;
     @inject(IngotMcpClient) protected readonly mcp: IngotMcpClient;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
+    @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
     @inject(TerminalService) protected readonly terminals: TerminalService;
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
@@ -818,6 +821,27 @@ export class AgentStore {
                     await (action.command ? this.setAlwaysRunCommand(rootPath, action.command, true) : this.setAlwaysRun(rootPath, action.kind, true));
                 }
             }
+            // IDEA-178: an agent commit / push goes through the `.ingot/hooks.json` steps first, shown as tool cards.
+            const hookStage = isGit && rootPath ? (call.args.op === 'commit' ? 'pre-commit' : call.args.op === 'push' ? 'pre-push' : undefined) : undefined;
+            let hooksRan = false;
+            if (hookStage && rootPath && this.hooks.enabled) {
+                const run = await this.hooks.run(rootPath, hookStage);
+                for (const r of run.results.filter(x => x.state !== 'skipped')) {
+                    const card = hookCardInfo(r, hookStage);
+                    session.messages.push({ role: 'tool', from: `${BUILTIN_TOOL_SERVER}/hook`, text: card.text, tool: card.info });
+                }
+                if (!run.passed) {
+                    const failed = run.results.filter(r => r.state === 'failed').map(r => `"${r.step.name}"`);
+                    session.messages.push({
+                        role: 'tool', from: target,
+                        text: `Error: blocked by .ingot hooks (${hookStage}${failed.length ? `: ${failed.join(', ')} failed` : ''}${run.errors.length ? `; ${run.errors.join(' ')}` : ''}). Fix the problem, then try the ${call.args.op} again.`
+                    });
+                    this.changed();
+                    continue;
+                }
+                hooksRan = true;
+                this.changed();
+            }
             const workspaceTool = call.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(call.tool);
             session.steps = [...session.steps, workspaceTool ? this.workspaceStep(call) : { kind: 'run', target, done: false }];
             session.status = 'thinking';
@@ -826,7 +850,7 @@ export class AgentStore {
             const at = session.messages.push({ role: 'tool', from: target, text: '', tool }) - 1;
             this.changed();
             const result: AgentActionResult & { images?: ImageChip[] } = await (isBrowser ? this.runBrowser(session, call)
-                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(call, root) : this.mcp.callTool(call.server, call.tool, call.args))
+                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(call, root, hooksRan) : this.mcp.callTool(call.server, call.tool, call.args))
                 .catch((error: unknown) => {
                     if (session.messages[at]?.tool === tool) {
                         session.messages[at] = { role: 'tool', from: target, text: `Error: ${error instanceof Error ? error.message : String(error)}`, tool: { ...tool, state: 'error', endedAt: Date.now() } };
@@ -968,7 +992,7 @@ export class AgentStore {
     }
 
     /** Ingot's built-in agent tools (IDEA-109): git, terminal command, web search / fetch, file delete. */
-    protected async runBuiltin(call: AgentToolCall, root: URI | undefined): Promise<AgentActionResult> {
+    protected async runBuiltin(call: AgentToolCall, root: URI | undefined, hooksRan = false): Promise<AgentActionResult> {
         const rootPath = root?.path.fsPath();
         if (!root || !rootPath) {
             return { text: 'Open a project first.', isError: true };
@@ -981,7 +1005,8 @@ export class AgentStore {
                         const commits = await this.git.log(rootPath, 20);
                         return { text: commits.map(c => `${c.hash.slice(0, 8)} ${c.subject}`).join('\n') || 'No commits.', isError: false };
                     }
-                    const result = await this.git.run(rootPath, gitOperationFor(call.args));
+                    const op = gitOperationFor(call.args);
+                    const result = await this.git.run(rootPath, hooksRan && (op.kind === 'commit' || op.kind === 'push' || op.kind === 'pushTo') ? { ...op, hooksRan } : op);
                     return { text: result.output.trim() || 'Done.', isError: false };
                 }
                 case 'read_file': return await this.readFileTool(root, str(call.args.path), Number(call.args.start) || 1, Number(call.args.end) || undefined);

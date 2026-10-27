@@ -10,6 +10,7 @@ import { newFileDiff } from '../../common/git/ai-commit';
 import { GitService } from '../../common/git/git.types';
 import { badgeClasses } from '../../common/icons/file-icons.utils';
 import { AiCommitButton, AiCommitError, AiMessageController } from './ai-commit-button';
+import { AgentHooksGate } from '../hooks/hooks-contribution';
 import { AiCommitService } from './ai-commit-service';
 import { COMMIT_COMMANDS, COMMIT_WINDOW_ID, LOCAL_CHANGES_WIDGET_ID } from './commit.consts';
 import { LocalChangesModel } from './local-changes-model';
@@ -30,6 +31,7 @@ export class CommitWindow extends ReactWidget {
 
     @inject(LocalChangesModel) readonly model: LocalChangesModel;
     @inject(AiCommitService) protected readonly aiService: AiCommitService;
+    @inject(AgentHooksGate) protected readonly hooksGate: AgentHooksGate;
     @inject(GitService) protected readonly git: GitService;
     @inject(CommandRegistry) protected readonly commands: CommandRegistry;
     @inject(MessageService) protected readonly messages: MessageService;
@@ -176,7 +178,7 @@ export class CommitWindow extends ReactWidget {
         let ok = false;
         try {
             const count = this.model.included.length;
-            await this.model.commit({ message: this.message, amend: this.amend, signoff: false, runHooks: true });
+            await this.model.commit({ message: this.message, amend: this.amend, signoff: false, runHooks: true, gate: root => this.hooksGate.gate(root, 'pre-commit') });
             this.messages.info(this.amend ? 'Amended the last commit.' : `Committed ${count} file${count === 1 ? '' : 's'}.`);
             this.message = '';
             this.amend = false;

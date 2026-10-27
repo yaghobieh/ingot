@@ -1,0 +1,5 @@
+/* IDEA-178: the "blocked by .ingot hooks" dialog. */
+#ingot-hooks-dialog .dialogContent { width: min(560px, 80vw); max-height: 60vh; overflow: auto; }
+#ingot-hooks-dialog .ingot-hooks-summary { margin: 0 0 8px; color: var(--ingot-text, var(--theia-foreground)); font-size: 12.5px; line-height: 1.45; }
+#ingot-hooks-dialog .ingot-hooks-step.skipped { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; margin: 6px 0; border: 1px dashed var(--ingot-tc-line); border-radius: 8px; color: var(--ingot-text-muted, var(--theia-descriptionForeground)); font-size: 12px; }
+#ingot-hooks-dialog .ingot-hooks-step-note { margin-left: auto; opacity: .8; }
