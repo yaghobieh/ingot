@@ -45,6 +45,24 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                 actions: [{ id: 'openModels', label: 'Manage API Keys…' }]
             },
             {
+                id: 'ai-zaprex', label: 'AI & Zaprex',
+                description: 'Agent defaults, Harmony mode (Zaprex takes one scoped piece of a heavy run), how subagents show, the Zaprex button, Commit with AI and agent git hooks.',
+                preferences: [
+                    'ingot.agent.defaultMode', 'ingot.agent.defaultModel',
+                    'ingot.zaprex.harmony.enabled', 'ingot.zaprex.harmony.maxPieces', 'ingot.zaprex.harmony.askFirst',
+                    'ingot.agents.subagents.view', 'ingot.zaprex.showButton',
+                    'ingot.commit.ai.enabled',
+                    'ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'
+                ],
+                groups: [
+                    { label: 'Agent defaults', preferences: ['ingot.agent.defaultMode', 'ingot.agent.defaultModel'] },
+                    { label: 'Harmony mode', preferences: ['ingot.zaprex.harmony.enabled', 'ingot.zaprex.harmony.maxPieces', 'ingot.zaprex.harmony.askFirst'] },
+                    { label: 'Subagents & Zaprex', preferences: ['ingot.agents.subagents.view', 'ingot.zaprex.showButton'] },
+                    { label: 'Commits', preferences: ['ingot.commit.ai.enabled'] },
+                    { label: 'Agent git hooks', preferences: ['ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'] }
+                ]
+            },
+            {
                 id: 'agent-review', label: 'Agent review',
                 description: 'How agent edits are reviewed: checkpoints on big runs, the auto-continue countdown, auto-accept and inline review comments. Also editable in the Ingot settings file under ~/.ingot.',
                 preferences: ['ingot.agent.review.enabled', 'ingot.agent.reviewPauseThreshold', 'ingot.agent.reviewAutoContinueSeconds', 'ingot.agent.review.autoAccept', 'ingot.agent.review.inlineComments']

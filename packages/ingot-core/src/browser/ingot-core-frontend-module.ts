@@ -85,6 +85,7 @@ import { PreferenceContribution } from '@theia/core/lib/common/preferences';
 import { layoutPreferenceSchema } from './layout/layout-preferences';
 import { reviewPreferenceSchema } from './review/review-preferences';
 import { harmonyPreferenceSchema } from './agents/harmony-preferences';
+import { aiSettingsPreferenceSchema } from './agents/ai-settings-preferences';
 import { subagentsPreferenceSchema } from './agents/subagents-preferences';
 import { approvalPreferenceSchema } from './agents/approval-preferences';
 import { agentToolsPreferenceSchema } from './agents/agent-tools-preferences';
@@ -174,6 +175,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: layoutPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: reviewPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: harmonyPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: aiSettingsPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: subagentsPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: approvalPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: agentToolsPreferenceSchema });
