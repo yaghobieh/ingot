@@ -56,7 +56,11 @@ export interface ParsedAgentOutput {
 const INVOKE_RE = /<(?:antml:)?invoke\s+name\s*=\s*"([^"]+)"\s*>([\s\S]*?)<\/(?:antml:)?invoke>/g;
 const PARAM_RE = /<(?:antml:)?parameter\s+name\s*=\s*"([^"]+)"\s*>([\s\S]*?)<\/(?:antml:)?parameter>/g;
 const CALLS_TAG_RE = /<\/?(?:antml:)?function_calls>/g;
-const PARTIAL_CALL_RE = /<(?:antml:)?(?:function_calls|invoke)\b[\s\S]*$/;
+const PARTIAL_CALL_RE = /<(?:antml:)?(?:function_calls|invoke|tool_call)\b[\s\S]*$/;
+const TOOL_JSON_RE = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/gi;
+const FENCED_TOOL_RE = /```(?:tool|json)\s*\n([\s\S]*?)```/gi;
+const INLINE_TOOL_RE = /^[ \t]*(?:ingot\/)?(read_file|list_dir|glob|grep|run|git)\s+(\{[\s\S]*?\})\s*$/gm;
+const KNOWN_INLINE_TOOLS = new Set(['read_file', 'list_dir', 'glob', 'grep', 'run', 'git']);
 
 const paramValue = (raw: string): unknown => {
     const value = raw.trim();
@@ -70,24 +74,86 @@ const paramValue = (raw: string): unknown => {
     return value;
 };
 
-/**
- * IDEA-250: some models answer with their native XML tool-call format (`<function_calls><invoke name="ingot/read_file">
- * <parameter name="path">…</parameter></invoke>`) instead of `<<<TOOL` blocks. Turn those into TOOL blocks so they run
- * instead of being printed; a call that is still streaming is hidden. A name without a server means an `ingot/` tool.
- */
-export const normalizeToolCalls = (text: string): string => {
-    if (!/<(?:antml:)?(?:invoke|function_calls)\b/.test(text)) {
+const toolBlock = (name: string, args: Record<string, unknown>): string => {
+    const target = name.includes('/') ? name : `ingot/${name}`;
+    return `\n${TOOL_OPEN}${target}\n${JSON.stringify(args)}\n${EDIT_CLOSE}\n`;
+};
+
+const argsRecord = (value: unknown): Record<string, unknown> | undefined =>
+    value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+
+/** `{ "name": "ingot/read_file", "arguments": {…} }` or `name\n{…}`. Random JSON is left alone. */
+const toolFromJson = (raw: string): string | undefined => {
+    const trimmed = raw.trim();
+    try {
+        const json = JSON.parse(trimmed) as { name?: unknown; tool?: unknown; arguments?: unknown; args?: unknown };
+        const name = typeof json.name === 'string' ? json.name : typeof json.tool === 'string' ? json.tool : '';
+        const args = argsRecord(json.arguments ?? json.args);
+        return name && args ? toolBlock(name, args) : undefined;
+    } catch {
+        const split = trimmed.indexOf('\n');
+        if (split <= 0) {
+            return undefined;
+        }
+        const name = trimmed.slice(0, split).trim();
+        try {
+            const args = argsRecord(JSON.parse(trimmed.slice(split + 1)));
+            return name && args ? toolBlock(name, args) : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+};
+
+/** An unclosed ```tool / ```json fence at the end is still streaming; a finished fence stays. */
+const hidePartialFence = (text: string): string => {
+    const re = /```(?:tool|json)\s*\n/g;
+    let last = -1;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text))) {
+        last = match.index;
+    }
+    if (last < 0) {
         return text;
     }
-    const converted = text.replace(INVOKE_RE, (_all, name: string, body: string) => {
-        const args: Record<string, unknown> = {};
-        for (const m of body.matchAll(PARAM_RE)) {
-            args[m[1]] = paramValue(m[2]);
+    const body = text.slice(last);
+    const nl = body.indexOf('\n');
+    if (nl < 0 || body.indexOf('```', nl + 1) < 0) {
+        return text.slice(0, last);
+    }
+    return text;
+};
+
+/**
+ * Models often skip `<<<TOOL` and emit invoke XML, `<tool_call>` JSON, a ```tool / ```json fence, or
+ * `ingot/read_file {…}` on its own line. Turn those into TOOL blocks so they run. A call that is still streaming
+ * is hidden. A name without a server means an `ingot/` tool. JSON that is not a tool call is left as text.
+ */
+export const normalizeToolCalls = (text: string): string => {
+    let next = text;
+    if (/<(?:antml:)?(?:invoke|function_calls)\b/.test(next)) {
+        next = next.replace(INVOKE_RE, (_all, name: string, body: string) => {
+            const args: Record<string, unknown> = {};
+            for (const m of body.matchAll(PARAM_RE)) {
+                args[m[1]] = paramValue(m[2]);
+            }
+            return toolBlock(name, args);
+        }).replace(CALLS_TAG_RE, '');
+    }
+    next = next.replace(TOOL_JSON_RE, (all, body: string) => toolFromJson(body) ?? all);
+    next = next.replace(FENCED_TOOL_RE, (all, body: string) => toolFromJson(body) ?? all);
+    next = next.replace(INLINE_TOOL_RE, (all, name: string, json: string) => {
+        if (!KNOWN_INLINE_TOOLS.has(name)) {
+            return all;
         }
-        const target = name.includes('/') ? name : `ingot/${name}`;
-        return `\n${TOOL_OPEN}${target}\n${JSON.stringify(args)}\n${EDIT_CLOSE}\n`;
-    }).replace(CALLS_TAG_RE, '');
-    return converted.replace(PARTIAL_CALL_RE, '');
+        try {
+            const args = argsRecord(JSON.parse(json));
+            return args ? toolBlock(`ingot/${name}`, args) : all;
+        } catch {
+            return all;
+        }
+    });
+    return hidePartialFence(next.replace(PARTIAL_CALL_RE, ''));
 };
 
 /** Parses (possibly partial, streaming) agent output. */

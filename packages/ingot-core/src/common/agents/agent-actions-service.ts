@@ -5,6 +5,8 @@ export const AgentActionsService = Symbol('IngotAgentActionsService');
 export interface AgentActionResult {
     readonly text: string;
     readonly isError: boolean;
+    /** The command was still running when the wait ended. A check in this state did not pass. */
+    readonly movedToBackground?: boolean;
 }
 
 export interface AgentActionsService {

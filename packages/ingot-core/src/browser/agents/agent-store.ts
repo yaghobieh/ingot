@@ -21,7 +21,7 @@ import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-servi
 import { postConstruct } from '@theia/core/shared/inversify';
 import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
-import { ACTIVE_STATUSES, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
+import { ACTIVE_STATUSES, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE, STREAM_POKE_MS } from '../../common/agents/agents.consts';
 import type { AgentMessage, AgentMode, AgentSession } from '../../common/agents/agents.types';
 import type { ToolCallInfo } from '../../common/agents/tool-cards';
 import { hookCardInfo } from '../../common/git/hooks';
@@ -33,15 +33,15 @@ import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import {
     GREP_MAX_FILE_BYTES, GREP_MAX_FILES, GREP_MAX_MATCHES, GLOB_MAX_PATHS, compileGitignore, githubRepoFromRemote, globMatcher, grepMatcher,
     answerFromFiles, answerFromProject, asksAboutOpenProject, FILE_ANSWER_PATHS, fileQuestionGlob, globPaths, isPromptEcho, isTextCandidate, isWorkspaceTool, LIST_MAX_ENTRIES, numberLines, parseRgFiles, parseRgMatches,
-    printsShellInsteadOfRunning, PROJECT_ENTRY_FILES, SHELL_NUDGE,
+    printsShellInsteadOfRunning, PROJECT_ENTRY_FILES, SHELL_NUDGE, shellReadsAsTools, textForRead,
     SKIPPED_DIRS, withRepoDefaults, workspaceProtocol, type GitHubRepo, type WorkspaceInfo
 } from '../../common/agents/workspace-tools';
 import { MAX_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
 import {
-    CHECKS_PASSED_PREFIX, MAX_FIX_ATTEMPTS, MAX_TOOL_ROUNDS_CAP, MULTI_FILE_EDITS, REMOTE_BLOCKED, REVIEW_THEN_CHECKS, WORK_LOOP_PREFS
+    CHECKS_PASSED_PREFIX, MAX_FIX_ATTEMPTS, MAX_TOOL_ROUNDS_CAP, MULTI_FILE_EDITS, REMOTE_BLOCKED, REVIEW_THEN_CHECKS, TOOL_ROUNDS_STOP, WORK_LOOP_PREFS
 } from '../../common/agents/work-loop.consts';
 import {
-    WORK_LOOP_PROTOCOL, checkFailNudge, checksPassedNudge, commitBlockReason, detectChecks, detectE2eFramework, e2eNudge, isRemoteCodeFetch,
+    WORK_LOOP_PROTOCOL, checkFailNudge, checkPassed, checksPassedNudge, commitBlockReason, detectChecks, detectE2eFramework, e2eNudge, isRemoteCodeFetch,
     isTestPath, isUiPath, needsE2eNudge, planFromEdits, stopMessage, summaryText, userAllowsWeakerTests, userAskedForRemote, wantsCommit,
     wantsE2e, wantsWorkLoop, weakensTests, withCheckEnv
 } from '../../common/agents/work-loop';
@@ -72,6 +72,8 @@ import { BrowserController } from '../browser-tool/browser-controller';
 import { BROWSER_READ_TOOLS, browserNeedsCard, browserToolSettings } from '../../common/browser-tool/browser-settings';
 import { toTarget } from '../../common/browser-tool/browser-tool.utils';
 import { describeProcesses, isSafeScriptName, scriptCommand } from '../../common/processes/processes.utils';
+import { OUTPUT_POLL_MS } from '../../common/processes/processes.consts';
+import { truncateForEdit } from '../../common/agents/chat-thread';
 import { runToolSettings, type RunToolSettings } from '../../common/processes/run-settings';
 import { AgentActionsService, type AgentActionResult } from '../../common/agents/agent-actions-service';
 import { GitService } from '../../common/git/git.types';
@@ -114,6 +116,13 @@ export class AgentStore {
     protected readonly loops = new Map<string, LoopState>();
     /** Chats whose model loop is on the stack, so accepting a review does not start a second one. */
     protected readonly modelLoops = new Set<string>();
+    /** Nested runModel calls for one chat. The set stays until the outermost call returns. */
+    protected readonly loopDepth = new Map<string, number>();
+    /** Bumped by send and stop so a replaced or stopped turn cannot keep writing. */
+    protected readonly loopGeneration = new Map<string, number>();
+    /** Chats the user stopped. Cleared when they send again. */
+    protected readonly cancelled = new Set<string>();
+    protected pokeTimer?: ReturnType<typeof setTimeout>;
     @inject(ProjectConfigService) protected readonly projectConfig: ProjectConfigService;
     @inject(IngotMcpClient) protected readonly mcp: IngotMcpClient;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
@@ -456,13 +465,16 @@ export class AgentStore {
         }
         session.status = 'thinking';
         session.updatedAt = Date.now();
+        const generation = (this.loopGeneration.get(session.id) ?? 0) + 1;
+        this.loopGeneration.set(session.id, generation);
+        this.cancelled.delete(session.id);
         this.changed();
-        this.runModel(session).finally(() => this.browser.endAgentRun(session.id));
+        this.runModel(session, generation).finally(() => this.browser.endAgentRun(session.id));
         return session;
     }
 
     isRunning(id: string | undefined): boolean {
-        return !!id && this.running.has(id);
+        return !!id && !this.cancelled.has(id) && (this.running.has(id) || this.modelLoops.has(id));
     }
 
     /** Stops a streaming agent (Stop button / Escape). */
@@ -471,12 +483,56 @@ export class AgentStore {
         if (piece && this.handoffs.has(id)) {
             void this.zaprexDesktop.cancel(piece.id).catch(() => undefined);
         }
+        this.cancelled.add(id);
+        this.loopGeneration.set(id, (this.loopGeneration.get(id) ?? 0) + 1);
         this.running.get(id)?.();
         this.running.delete(id);
         this.releasePause(id, false);
         this.approvals.get(id)?.({ decision: 'skip', stopped: true });
+        const session = this.items.find(s => s.id === id);
+        if (session && (session.status === 'thinking' || session.status === 'editing' || session.status === 'approval')) {
+            session.status = 'idle';
+        }
         this.browser.endAgentRun(id);
         this.changed();
+    }
+
+    /** Redraws a streaming reply on a timer so each token does not rebuild the whole chat. */
+    protected poke(): void {
+        if (this.pokeTimer) {
+            return;
+        }
+        this.pokeTimer = setTimeout(() => {
+            this.pokeTimer = undefined;
+            this.changed();
+        }, STREAM_POKE_MS);
+    }
+
+    protected flushPoke(): void {
+        if (this.pokeTimer) {
+            clearTimeout(this.pokeTimer);
+            this.pokeTimer = undefined;
+        }
+        this.changed();
+    }
+
+    protected stale(sessionId: string, generation: number): boolean {
+        return this.loopGeneration.get(sessionId) !== generation;
+    }
+
+    protected enterLoop(id: string): void {
+        this.loopDepth.set(id, (this.loopDepth.get(id) ?? 0) + 1);
+        this.modelLoops.add(id);
+    }
+
+    protected leaveLoop(id: string): void {
+        const left = (this.loopDepth.get(id) ?? 1) - 1;
+        if (left <= 0) {
+            this.loopDepth.delete(id);
+            this.modelLoops.delete(id);
+        } else {
+            this.loopDepth.set(id, left);
+        }
     }
 
     /** IDEA-109: the approval card's choice (Run ⏎, Skip with an optional reason, Always Run). */
@@ -687,7 +743,12 @@ export class AgentStore {
      * Streams the conversation from the selected model with project rules, context files and MCP tools.
      * Tool calls run and feed back for up to MAX_TOOL_ROUNDS rounds; in Agent mode, edits open in the inline review.
      */
-    protected async runModel(session: AgentSession): Promise<void> {
+    protected async runModel(session: AgentSession, generation = this.loopGeneration.get(session.id) ?? 0): Promise<void> {
+        this.enterLoop(session.id);
+        try {
+        if (this.stale(session.id, generation)) {
+            return;
+        }
         const root = this.rootFor(session);
         const config = await this.projectConfig.load(root);
         this.projectCommands = config.commands;
@@ -729,20 +790,31 @@ export class AgentStore {
             ...(rules.length ? [{ kind: 'read' as const, target: `rules: ${rules.map(r => r.name).join(', ')}`, done: true }] : [])
         ];
         session.changes = [];
+        if (this.stale(session.id, generation)) {
+            return;
+        }
         this.changed();
 
         let nudged = false;
         const rounds = this.maxToolRounds();
-        this.modelLoops.add(session.id);
         try {
             for (let round = 0; ; round++) {
-                const parsed = await this.streamRound(session, system);
-                if (!parsed) {
+                if (this.gaveUp(session, generation)) {
                     return;
                 }
-                // IDEA-186: a reply that hands the user shell commands gets one nudge to run / read them itself.
-                const agentText = session.messages[session.messages.map(m => m.role).lastIndexOf('agent')]?.text ?? '';
-                // A gateway mock that only repeats the question is not an answer. Read the open folder instead.
+                const parsed = await this.streamRound(session, system);
+                if (this.stale(session.id, generation)) {
+                    return;
+                }
+                if (!parsed) {
+                    if (session.status !== 'error' && session.status !== 'idle' && session.status !== 'review') {
+                        session.status = 'idle';
+                        this.changed();
+                    }
+                    return;
+                }
+                const agentIndex = session.messages.map(m => m.role).lastIndexOf('agent');
+                const agentText = session.messages[agentIndex]?.text ?? '';
                 const asked = lastUser?.m.text ?? prompt;
                 const echoed = isPromptEcho(agentText, prompt) || isPromptEcho(agentText, asked);
                 const fileGlob = fileQuestionGlob(asked) ?? fileQuestionGlob(prompt);
@@ -758,40 +830,52 @@ export class AgentStore {
                     this.changed();
                     return;
                 }
-                if (!parsed.toolCalls.length && !nudged && round < rounds && printsShellInsteadOfRunning(session.messages[session.messages.map(m => m.role).lastIndexOf('agent')]?.text ?? '')) {
-                    nudged = true;
-                    // The printed commands are replaced by real reads, so the user never sees "run this yourself".
-                    const printed = session.messages.map(m => m.role).lastIndexOf('agent');
-                    session.messages[printed] = { ...session.messages[printed], hidden: true };
+                const recovered = !parsed.toolCalls.length && round < rounds ? shellReadsAsTools(agentText) : [];
+                if (recovered.length) {
+                    this.hidePrinted(session, agentIndex);
+                    if (info.canEdit && parsed.edits.length) {
+                        await this.applyParsedEdits(session, parsed.edits, parsed.plan, root);
+                    }
+                    if (!await this.finishTools(session, generation, recovered)) {
+                        return;
+                    }
                     session.messages.push({ role: 'user', text: SHELL_NUDGE, hidden: true });
                     continue;
                 }
+                if (!parsed.toolCalls.length && !nudged && round < rounds && printsShellInsteadOfRunning(agentText)) {
+                    nudged = true;
+                    this.hidePrinted(session, agentIndex);
+                    session.messages.push({ role: 'user', text: SHELL_NUDGE, hidden: true });
+                    continue;
+                }
+                const applied = info.canEdit && parsed.edits.length > 0;
+                if (applied) {
+                    await this.applyParsedEdits(session, parsed.edits, parsed.plan, root);
+                }
                 if (parsed.toolCalls.length && round < rounds) {
-                    if (!await this.runTools(session, parsed.toolCalls)) {
-                        session.messages.push({ role: 'system', text: 'Stopped while waiting for approval.' });
-                        session.status = 'idle';
-                        session.updatedAt = Date.now();
-                        this.changed();
+                    if (!await this.finishTools(session, generation, parsed.toolCalls)) {
                         return;
                     }
                     continue;
                 }
+                if (parsed.toolCalls.length) {
+                    session.messages.push({ role: 'system', text: TOOL_ROUNDS_STOP });
+                }
                 await this.saveMemories(session, parsed.memories, root);
-                if (info.canEdit && parsed.edits.length) {
-                    if (parsed.edits.length >= MULTI_FILE_EDITS && !parsed.plan.length && session.plan.length === 0) {
-                        session.plan = planFromEdits(parsed.edits.map(edit => edit.path)).map((text, i) => ({ text, state: i === 0 ? 'active' : 'todo' }));
+                if (this.stale(session.id, generation)) {
+                    return;
+                }
+                const pending = applied && this.tracker.pending().some(change => change.sessionId === session.id);
+                if (pending && this.loopOf(session).wants) {
+                    session.messages.push({ role: 'system', text: REVIEW_THEN_CHECKS });
+                } else if (!pending && round < rounds && await this.nudgeLoop(session, root)) {
+                    if (this.stale(session.id, generation)) {
+                        return;
                     }
-                    const editable = await this.editsAllowed(session, parsed.edits, root);
-                    await this.applyEdits(session, editable, root);
-                    const pending = this.tracker.pending().some(change => change.sessionId === session.id);
-                    if (pending && this.loopOf(session).wants) {
-                        session.messages.push({ role: 'system', text: REVIEW_THEN_CHECKS });
-                    } else if (!pending && round < rounds && await this.nudgeLoop(session, root)) {
-                        continue;
-                    }
-                } else if (session.mode === 'multi' && parsed.plan.length) {
+                    continue;
+                } else if (!applied && session.mode === 'multi' && parsed.plan.length) {
                     this.spawnSubAgents(session, parsed.plan, prompt);
-                } else {
+                } else if (!applied) {
                     if (!info.canEdit && parsed.edits.length) {
                         session.messages.push({ role: 'system', text: `${info.label} mode does not change files; switch to Agent to apply edits.` });
                     }
@@ -805,18 +889,83 @@ export class AgentStore {
                     session.status = 'idle';
                 }
                 await this.waitForPieces(session);
+                if (this.stale(session.id, generation)) {
+                    return;
+                }
                 session.activeFile = undefined;
                 session.updatedAt = Date.now();
                 this.changed();
                 return;
             }
-        } finally {
-            this.modelLoops.delete(session.id);
+        } catch (error) {
+            if (!this.stale(session.id, generation)) {
+                session.messages.push({ role: 'system', text: `The agent stopped: ${error instanceof Error ? error.message : String(error)}` });
+                session.status = 'error';
+                session.updatedAt = Date.now();
+                this.changed();
+            }
         }
+        } finally {
+            this.leaveLoop(session.id);
+            this.flushPoke();
+        }
+    }
+
+    /** Stop or a newer turn owns the chat. A stopped turn is marked idle; a replaced turn is left alone. */
+    protected gaveUp(session: AgentSession, generation: number): boolean {
+        if (this.stale(session.id, generation)) {
+            return true;
+        }
+        if (!this.cancelled.has(session.id)) {
+            return false;
+        }
+        if (session.status !== 'error' && session.status !== 'review') {
+            session.status = 'idle';
+            this.changed();
+        }
+        return true;
+    }
+
+    protected hidePrinted(session: AgentSession, index: number): void {
+        if (index >= 0 && session.messages[index]) {
+            session.messages[index] = { ...session.messages[index], hidden: true };
+        }
+    }
+
+    /** Applies a reply's edits even when that same reply also called tools. */
+    protected async applyParsedEdits(session: AgentSession, edits: readonly AgentEdit[], plan: readonly string[], root: URI | undefined): Promise<void> {
+        if (edits.length >= MULTI_FILE_EDITS && !plan.length && session.plan.length === 0) {
+            session.plan = planFromEdits(edits.map(edit => edit.path)).map((text, i) => ({ text, state: i === 0 ? 'active' : 'todo' }));
+        }
+        const editable = await this.editsAllowed(session, edits, root);
+        await this.applyEdits(session, editable, root);
+    }
+
+    /** Runs tools unless the user stopped or sent a newer message. False means the loop should return. */
+    protected async finishTools(session: AgentSession, generation: number, calls: readonly AgentToolCall[]): Promise<boolean> {
+        const ran = await this.runTools(session, calls);
+        if (this.stale(session.id, generation)) {
+            return false;
+        }
+        if (!ran || this.cancelled.has(session.id)) {
+            if (!ran) {
+                session.messages.push({ role: 'system', text: 'Stopped while waiting for approval.' });
+            }
+            session.status = 'idle';
+            session.updatedAt = Date.now();
+            this.changed();
+            return false;
+        }
+        return true;
     }
 
     /** One streamed model reply; returns the parsed output, or undefined after an error. */
     protected async streamRound(session: AgentSession, system: string, retried = false): Promise<(ReturnType<typeof parseAgentOutput> & { memories: string[] }) | undefined> {
+        const generation = this.loopGeneration.get(session.id) ?? 0;
+        const live = (): boolean => !this.stale(session.id, generation) && !this.cancelled.has(session.id);
+        if (!live()) {
+            return undefined;
+        }
         const history = this.historyFor(session);
         const index = session.messages.push({ role: 'agent', text: '' }) - 1;
         session.status = 'thinking';
@@ -824,6 +973,9 @@ export class AgentStore {
         let final = '';
         try {
             const stream = this.models.stream(this.resolveModel(session.model), [{ role: 'system', content: system }, ...history], text => {
+                if (!live() || !session.messages[index]) {
+                    return;
+                }
                 const parsed = parseAgentOutput(text);
                 this.streamEdit(session, index, parsed.editing, parsed.editingContent);
                 session.messages[index] = { role: 'agent', text: extractMemories(parsed.display).display };
@@ -834,7 +986,7 @@ export class AgentStore {
                 session.status = parsed.editing ? 'editing' : 'thinking';
                 session.activeFile = parsed.editing ?? parsed.edits[parsed.edits.length - 1]?.path;
                 session.updatedAt = Date.now();
-                this.changed();
+                this.poke();
             });
             this.running.set(session.id, stream.cancel);
             final = await stream.done;
@@ -851,11 +1003,17 @@ export class AgentStore {
             this.changed();
             return undefined;
         }
-        const stopped = !this.running.has(session.id);
+        const stopped = !this.running.has(session.id) || !live();
         this.running.delete(session.id);
         if (stopped) {
             await this.tracker.cancelStreams(session.id);
+            if (live()) {
+                session.status = 'idle';
+                this.flushPoke();
+            }
+            return undefined;
         }
+        this.flushPoke();
         const parsed = parseAgentOutput(final);
         const { display, memories } = extractMemories(parsed.display);
         // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
@@ -865,7 +1023,7 @@ export class AgentStore {
             // IDEA-186: a silent round of project reads shows only in the Explored row.
             ...(!display && !parsed.edits.length && parsed.toolCalls.length && parsed.toolCalls.every(c => c.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(c.tool)) ? { hidden: true } : {})
         };
-        return stopped ? { ...parsed, toolCalls: [], edits: [], memories: [] } : { ...parsed, memories };
+        return { ...parsed, memories };
     }
 
     /**
@@ -963,12 +1121,7 @@ export class AgentStore {
             this.changed();
             const result: AgentActionResult & { images?: ImageChip[] } = await (isBrowser ? this.runBrowser(session, call)
                 : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(this.withMadeWithTrailer(session, call), root, hooksRan) : this.mcp.callTool(call.server, call.tool, call.args))
-                .catch((error: unknown) => {
-                    if (session.messages[at]?.tool === tool) {
-                        session.messages[at] = { role: 'tool', from: target, text: `Error: ${error instanceof Error ? error.message : String(error)}`, tool: { ...tool, state: 'error', endedAt: Date.now() } };
-                    }
-                    throw error;
-                });
+                .catch((error: unknown) => ({ text: error instanceof Error ? error.message : String(error), isError: true }));
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
             const done: AgentMessage = {
                 role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}),
@@ -1081,7 +1234,10 @@ export class AgentStore {
         if (!uri || uri === root) {
             return { text: `"${path}" is not a file path inside the project.`, isError: true };
         }
-        const content = await this.files.read(uri).then(r => r.value, () => undefined);
+        const cwd = root.path.fsPath();
+        const disk = cwd ? await this.processes.service.readText(cwd, path).catch(() => undefined) : undefined;
+        const editor = await this.tracker.bufferText(uri.toString()).catch(() => undefined);
+        const content = textForRead(disk, editor) ?? await this.files.read(uri).then(r => r.value, () => undefined);
         if (content === undefined) {
             return { text: `No file "${path}". Use ingot/list_dir or ingot/grep to find it.`, isError: true };
         }
@@ -1322,7 +1478,7 @@ export class AgentStore {
     }
 
     /** IDEA-131: a command in the foreground (waits, then moves to the background after the timeout) or in the background. */
-    protected async runCommand(cwd: string, command: string, background: boolean): Promise<AgentActionResult> {
+    protected async runCommand(cwd: string, command: string, background: boolean, onOutput?: (text: string) => void): Promise<AgentActionResult> {
         if (!command.trim()) {
             return { text: 'No command given.', isError: true };
         }
@@ -1337,11 +1493,30 @@ export class AgentStore {
             const state = info.status === 'running' ? `Running in the background as ${info.id}${info.ports.length ? ` on port ${info.ports.join(', ')}` : ''}.` : `Exited with code ${info.exitCode ?? '?'}.`;
             return { text: `${state} Read more output with ingot/process_output, stop it with ingot/process_stop.\n${out?.text.trimEnd() ?? ''}`.trim(), isError: info.status === 'failed' };
         }
-        const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: settings.foregroundTimeoutSeconds * 1000, maxOutput: settings.maxOutputChars });
-        const status = result.movedToBackground
-            ? `Still running after ${settings.foregroundTimeoutSeconds}s: moved to the background as ${result.info.id}${result.info.ports.length ? ` (port ${result.info.ports.join(', ')})` : ''}. Use ingot/process_output or ingot/process_stop.`
-            : result.info.status === 'stopped' ? 'Stopped.' : `Exit code ${result.info.exitCode ?? '?'}.`;
-        return { text: `${result.output.trimEnd()}\n${status}`.trim(), isError: !result.movedToBackground && result.info.status !== 'exited' };
+        const startedAt = Date.now();
+        const poll = onOutput ? setInterval(() => {
+            void service.list().then(async list => {
+                const info = [...list].reverse().find(item => item.command === command && item.startedAt >= startedAt - OUTPUT_POLL_MS);
+                if (!info) {
+                    return;
+                }
+                const out = await service.output(info.id, settings.maxOutputChars);
+                if (out?.text) {
+                    onOutput(out.text);
+                }
+            }).catch(() => undefined);
+        }, OUTPUT_POLL_MS) : undefined;
+        try {
+            const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: settings.foregroundTimeoutSeconds * 1000, maxOutput: settings.maxOutputChars });
+            const status = result.movedToBackground
+                ? `Still running after ${settings.foregroundTimeoutSeconds}s: moved to the background as ${result.info.id}${result.info.ports.length ? ` (port ${result.info.ports.join(', ')})` : ''}. Use ingot/process_output or ingot/process_stop.`
+                : result.info.status === 'stopped' ? 'Stopped.' : `Exit code ${result.info.exitCode ?? '?'}.`;
+            return { text: `${result.output.trimEnd()}\n${status}`.trim(), isError: result.movedToBackground || result.info.status !== 'exited', movedToBackground: result.movedToBackground };
+        } finally {
+            if (poll) {
+                clearInterval(poll);
+            }
+        }
     }
 
     protected workLoopOn(): boolean {
@@ -1432,7 +1607,12 @@ export class AgentStore {
         const at = session.messages.push({ role: 'tool', from: `${BUILTIN_TOOL_SERVER}/run`, text: '', tool }) - 1;
         session.status = 'thinking';
         this.changed();
-        const result = await this.runCommand(cwd, command, false);
+        const result = await this.runCommand(cwd, command, false, text => {
+            if (session.messages[at]?.tool === tool) {
+                session.messages[at] = { ...session.messages[at], text };
+                this.poke();
+            }
+        });
         session.messages[at] = {
             role: 'tool', from: `${BUILTIN_TOOL_SERVER}/run`, text: `${result.isError ? 'Error: ' : ''}${result.text}`,
             tool: { ...tool, state: result.isError ? 'error' : 'done', endedAt: Date.now() }
@@ -1452,6 +1632,7 @@ export class AgentStore {
             return false;
         }
         if (loop.edits.length > loop.verifiedEdits) {
+            await this.flushAcceptedEdits(session, root);
             const signals = await this.projectSignals(root);
             const framework = detectE2eFramework(signals.files);
             const includeE2e = !!framework && (wantsE2e(loop.prompt) || loop.edits.some(isUiPath));
@@ -1460,7 +1641,7 @@ export class AgentStore {
             loop.verifiedEdits = loop.edits.length;
             for (const command of loop.required) {
                 const result = await this.runCheck(session, cwd, command);
-                const run: CheckRun = { command, passed: !result.isError, output: result.text };
+                const run: CheckRun = { command, passed: checkPassed(result), output: result.text };
                 loop.checks.push(run);
                 if (!run.passed) {
                     loop.fixAttempts += 1;
@@ -1496,6 +1677,32 @@ export class AgentStore {
             return true;
         }
         return false;
+    }
+
+    /** Accepted editor text is what the check must read. Pending review stays off disk. */
+    protected async flushAcceptedEdits(session: AgentSession, root: URI): Promise<void> {
+        const cwd = root.path.fsPath();
+        if (!cwd) {
+            return;
+        }
+        const pending = new Set(this.tracker.pending().filter(change => change.sessionId === session.id).map(change => change.path));
+        for (const rel of [...new Set(this.loopOf(session).edits)]) {
+            if (pending.has(rel)) {
+                continue;
+            }
+            const uri = this.safeUri(root, rel);
+            if (!uri || uri === root) {
+                continue;
+            }
+            const editor = await this.tracker.bufferText(uri.toString()).catch(() => undefined);
+            if (editor === undefined) {
+                continue;
+            }
+            const disk = await this.processes.service.readText(cwd, rel).catch(() => undefined);
+            if (disk !== editor) {
+                await this.processes.service.writeText(cwd, rel, editor).catch(() => undefined);
+            }
+        }
     }
 
     /** Review finished and the files are on disk: continue the loop if this turn asked for one. */
@@ -1618,6 +1825,37 @@ export class AgentStore {
                 listener.dispose();
             }
         });
+    }
+
+    /**
+     * Edit a sent user message in place: restore files to before that turn, drop it and everything after it,
+     * then send the new text so the agent runs again from there.
+     */
+    async editUserMessage(sessionId: string, index: number, text: string): Promise<void> {
+        const session = this.items.find(s => s.id === sessionId);
+        const message = session?.messages[index];
+        const trimmed = text.trim();
+        if (!session || message?.role !== 'user' || message.hidden || !trimmed) {
+            return;
+        }
+        this.stop(sessionId);
+        this.selected = sessionId;
+        try {
+            await this.tracker.revertTo(sessionId, index, restorePlan(this.tracker.checkpoints, sessionId, index));
+        } catch (error) {
+            session.messages.push({ role: 'system', text: `Could not restore files: ${error instanceof Error ? error.message : String(error)}` });
+            session.status = 'error';
+            this.changed();
+            return;
+        }
+        session.messages = truncateForEdit(session.messages, index);
+        session.steps = [];
+        session.plan = [];
+        session.changes = session.changes.filter(change => this.tracker.changes.some(tracked => tracked.uri === change.uri && tracked.sessionId === sessionId));
+        this.loops.delete(sessionId);
+        session.status = 'idle';
+        this.changed();
+        this.send(trimmed);
     }
 
     /** Checkpoint for "Revert to here" exists from this message on (IDEA-102). */

@@ -73,7 +73,8 @@ for (const scheme of ['light', 'dark'] as const) {
             await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0);
             await expect(page.locator('#ingot-commit-ai')).toHaveCount(0);
             await page.locator('#ingot-agents-new').click();
-            await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'plan');
+            await expect(page.locator('#ingot-composer-more')).toHaveAttribute('data-mode', 'plan');
+            await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
             await shot(page, `ai-zaprex-settings-off-${scheme}.png`);
 
             // And back on.

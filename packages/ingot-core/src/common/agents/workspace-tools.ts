@@ -4,6 +4,7 @@
  * taken from the workspace's git remote (never guessed, never empty).
  */
 import type { AgentToolCall } from './agent-protocol';
+import { BUILTIN_TOOL_SERVER } from './agent-actions';
 
 export const WORKSPACE_TOOLS = [
     { name: 'list_dir', description: 'List a folder of the open project. Arguments: {"path"?: "src", "depth"?: 1..3}. Skips .gitignore and dependency folders. Runs at once.' },
@@ -70,8 +71,80 @@ export const withRepoDefaults = (call: AgentToolCall, github: GitHubRepo | undef
     return { ...call, args: { ...call.args, owner: empty(call.args.owner) ? github.owner : call.args.owner, repo: empty(call.args.repo) ? github.repo : call.args.repo } };
 };
 
-/** True when a reply with no tool calls hands the user shell commands to run (```bash / ```sh blocks). */
-export const printsShellInsteadOfRunning = (reply: string): boolean => /```(?:bash|sh|shell|zsh|console)\s*\n\s*\$?\s*(cat|ls|head|tail|grep|rg|find|tree|wc|less|more|npm|pnpm|yarn|git|node)\b/i.test(reply);
+/** Printed shell lines turned into tool calls, so a model that says `cat package.json` still reads the file. */
+export const MAX_RECOVERED_COMMANDS = 4;
+const SHELL_FENCE_RE = /```(?:bash|sh|shell|zsh|console)\s*\n([\s\S]*?)```/gi;
+const SHELL_LINE_RE = /^\s*(?:\$\s*)?(cat|head|tail|ls|grep|rg|npm|pnpm|yarn|node|git)\b(.*)$/i;
+const SHELL_PRINT_RE = /```(?:bash|sh|shell|zsh|console)\s*\n\s*\$?\s*(cat|ls|head|tail|grep|rg|find|tree|wc|less|more|npm|pnpm|yarn|git|node)\b/i;
+
+const unquote = (token: string): string => token.replace(/^['"]|['"]$/g, '');
+
+/** A project-relative path. Absolute paths and `..` are refused. */
+const safeRel = (raw: string | undefined): string | undefined => {
+    const value = unquote((raw ?? '').trim());
+    if (!value || value.startsWith('/') || value.startsWith('\\') || /^[a-zA-Z]:/.test(value) || value.split(/[\\/]/).includes('..')) {
+        return undefined;
+    }
+    return value === '.' ? '' : value;
+};
+
+const recoverLine = (cmd: string, tokens: readonly string[], full: string): AgentToolCall | undefined => {
+    const positional = tokens.filter(token => !token.startsWith('-'));
+    if (cmd === 'cat' || cmd === 'head' || cmd === 'tail') {
+        const path = safeRel(positional[positional.length - 1]);
+        if (!path) {
+            return undefined;
+        }
+        const flag = tokens.findIndex(token => token === '-n' || token === '--lines');
+        const end = cmd === 'head' && flag >= 0 ? Number(tokens[flag + 1]) : undefined;
+        return { server: BUILTIN_TOOL_SERVER, tool: 'read_file', args: { path, ...(end && Number.isFinite(end) ? { end } : {}) } };
+    }
+    if (cmd === 'ls') {
+        const path = safeRel(positional[0] ?? '.');
+        return path === undefined ? undefined : { server: BUILTIN_TOOL_SERVER, tool: 'list_dir', args: { path } };
+    }
+    if (cmd === 'grep' || cmd === 'rg') {
+        const pattern = positional[0];
+        if (!pattern) {
+            return undefined;
+        }
+        const path = positional[1] ? safeRel(positional[1]) : '';
+        if (positional[1] && path === undefined) {
+            return undefined;
+        }
+        return { server: BUILTIN_TOOL_SERVER, tool: 'grep', args: { pattern: unquote(pattern), ...(path ? { path } : {}) } };
+    }
+    return { server: BUILTIN_TOOL_SERVER, tool: 'run', args: { command: full } };
+};
+
+/** Shell lines a model printed instead of calling a tool, capped so one reply cannot start a command storm. */
+export const shellReadsAsTools = (reply: string): AgentToolCall[] => {
+    const calls: AgentToolCall[] = [];
+    const text = reply.replace(SHELL_FENCE_RE, '\n$1\n');
+    for (const line of text.split('\n')) {
+        if (calls.length >= MAX_RECOVERED_COMMANDS) {
+            break;
+        }
+        const match = SHELL_LINE_RE.exec(line);
+        if (!match) {
+            continue;
+        }
+        const cmd = match[1].toLowerCase();
+        const rest = match[2].trim();
+        const call = recoverLine(cmd, rest.split(/\s+/).filter(Boolean), `${match[1]} ${rest}`.trim());
+        if (call) {
+            calls.push(call);
+        }
+    }
+    return calls;
+};
+
+/** True when a reply with no tool calls hands the user shell commands to run. */
+export const printsShellInsteadOfRunning = (reply: string): boolean => SHELL_PRINT_RE.test(reply) || shellReadsAsTools(reply).length > 0;
+
+/** Editor text wins over a cached disk read. Undefined editor means use the disk bytes. */
+export const textForRead = (disk: string | undefined, editor: string | undefined): string | undefined =>
+    editor !== undefined ? editor : disk;
 
 export const SHELL_NUDGE = 'You printed shell commands instead of running them. Do not ask the user to run anything: read files with ingot/read_file, list with ingot/list_dir, find files with ingot/glob, search with ingot/grep, or call ingot/run yourself, then answer.';
 

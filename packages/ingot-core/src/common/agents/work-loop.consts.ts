@@ -26,6 +26,7 @@ export const CHECK_FAIL_PREFIX = 'Check failed.';
 export const CHECKS_PASSED_PREFIX = 'Checks passed.';
 export const E2E_NUDGE_PREFIX = 'Add an end-to-end test.';
 export const STOP_PREFIX = 'Stopped after 3 failed check runs.';
+export const TOOL_ROUNDS_STOP = 'Stopped: the agent used its tool rounds. Send another message to continue.';
 export const COMMIT_BLOCKED_BRANCH = 'Commit blocked: this branch is protected.';
 export const COMMIT_BLOCKED_CHECKS = 'Commit blocked: checks have not passed.';
 export const REVIEW_THEN_CHECKS = 'Accept the edits and the checks will run.';

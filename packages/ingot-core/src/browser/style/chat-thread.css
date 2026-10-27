@@ -1,0 +1,111 @@
+/* Composer, thread and menus follow the IDE tokens in light and dark. */
+
+.ingot-agents-root > .ingot-composer-stack { flex: none; display: flex; flex-direction: column; margin: 0 10px 10px; }
+.ingot-agents-root > .ingot-agents-chat-wrap { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.ingot-agents-chat-wrap > .ingot-agents-chat { flex: 1; min-height: 0; }
+
+.ingot-agents .ingot-composer-stack .ingot-composer,
+.ingot-agents .ingot-composer-stack .ingot-composer:focus-within {
+  margin: 0;
+  background: var(--ingot-surface) !important;
+  border: 1px solid var(--ingot-border) !important;
+  color: var(--ingot-text);
+}
+.ingot-agents .ingot-composer-stack .ingot-composer:focus-within { border-color: var(--ingot-focus-ring) !important; }
+.ingot-agents .ingot-composer-input { color: var(--ingot-text); }
+.ingot-agents .ingot-composer-input::placeholder { color: var(--ingot-text-muted); }
+
+.ingot-agents .ingot-composer-bar .ingot-icon-button,
+.ingot-agents .ingot-composer-bar .ingot-composer-attach,
+.ingot-agents .ingot-composer-rex-row .ingot-icon-button {
+  color: var(--ingot-text-muted);
+}
+.ingot-agents .ingot-composer-bar .ingot-icon-button:hover:not(:disabled),
+.ingot-agents .ingot-composer-bar .ingot-composer-attach:hover,
+.ingot-agents .ingot-composer-rex-row .ingot-icon-button:hover {
+  background: var(--ingot-selection);
+  color: var(--ingot-text);
+}
+.ingot-agents .ingot-composer-bar .ingot-pill { color: var(--ingot-text); }
+.ingot-agents .ingot-composer-bar .ingot-composer-send:not(:disabled) {
+  background: var(--ingot-primary) !important;
+  color: var(--ingot-primary-text) !important;
+}
+.ingot-agents .ingot-composer-bar .ingot-composer-send:not(:disabled):hover { background: var(--ingot-primary-hover) !important; }
+.ingot-agents .ingot-composer-bar .ingot-composer-send:disabled {
+  background: var(--ingot-panel);
+  color: var(--ingot-text-muted);
+  border-color: var(--ingot-border);
+}
+
+.ingot-composer-rex-row { display: flex; justify-content: flex-start; margin: 0 2px 6px; position: relative; }
+.ingot-composer-rex-row .ingot-composer-zaprex { position: relative; width: 26px; height: 26px; }
+.ingot-composer-rex-row .ingot-zaprex-trex { width: 16px; height: 16px; transform-origin: 50% 90%; animation: ingot-trex-idle 3.6s ease-in-out infinite; }
+.ingot-composer-rex-row .ingot-composer-zaprex:hover .ingot-zaprex-trex,
+.ingot-composer-rex-row .ingot-composer-zaprex:focus-visible .ingot-zaprex-trex { animation: ingot-trex-hop 0.9s ease-in-out infinite; }
+.ingot-composer-rex-row .ingot-composer-zaprex.thinking .ingot-zaprex-trex { animation: ingot-trex-think 1.1s ease-in-out infinite; }
+.ingot-composer-rex-row .ingot-composer-zaprex-dot { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--ingot-accent); }
+.ingot-composer-rex-row .ingot-zaprex-status { top: calc(100% + 6px); bottom: auto; left: 0; right: auto; }
+@media (prefers-reduced-motion: reduce) { .ingot-composer-rex-row .ingot-zaprex-trex { animation: none !important; } }
+
+.ingot-composer-stack { position: relative; }
+.ingot-composer-menus { position: absolute; left: 8px; bottom: 46px; z-index: 30; }
+.ingot-composer-menus .ingot-popover { position: relative; bottom: auto; left: auto; }
+.ingot-composer-more-menu {
+  display: flex; flex-direction: column; min-width: 180px; padding: 4px; gap: 2px;
+  background: var(--ingot-surface); color: var(--ingot-text); border: 1px solid var(--ingot-border); border-radius: 8px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ingot-text) 18%, transparent);
+}
+.ingot-composer-more-menu .ingot-more-item {
+  display: flex; align-items: center; gap: 8px; min-height: 28px; width: 100%; box-sizing: border-box;
+  border: 0; background: transparent; color: var(--ingot-text); border-radius: 6px; cursor: pointer; text-align: left; padding: 0 8px; font: inherit; font-size: 12px;
+}
+.ingot-composer-more-menu .ingot-more-item:hover,
+.ingot-composer-more-menu .ingot-more-item[aria-expanded='true'] { background: var(--ingot-selection); }
+.ingot-agents .ingot-chip {
+  background: var(--ingot-selection);
+  border: 1px solid var(--ingot-border);
+  color: var(--ingot-text);
+}
+.ingot-agents .ingot-slash-menu,
+.ingot-agents .ingot-popover {
+  background: var(--ingot-surface);
+  color: var(--ingot-text);
+  border-color: var(--ingot-border);
+}
+.ingot-agents .ingot-slash-item.selected,
+.ingot-agents .ingot-slash-item:hover { background: var(--ingot-selection); color: var(--ingot-text); }
+
+.ingot-chat-msg.ingot-chat-latest {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--ingot-selection);
+  border: 1px solid var(--ingot-border);
+  box-shadow: inset 3px 0 0 var(--ingot-primary);
+}
+.ingot-chat-edit, .ingot-chat-revert { margin-top: 4px; }
+.ingot-chat-edit {
+  border: 0; background: transparent; color: var(--ingot-text-muted); cursor: pointer; font: inherit; font-size: 11px; padding: 0 4px;
+}
+.ingot-chat-edit:hover { color: var(--ingot-text); }
+.ingot-chat-edit-form { display: flex; flex-direction: column; gap: 6px; }
+.ingot-chat-edit-input {
+  width: 100%; min-height: 64px; box-sizing: border-box; resize: vertical; font: inherit; font-size: 12.5px;
+  color: var(--ingot-text); background: var(--ingot-surface); border: 1px solid var(--ingot-border); border-radius: 6px; padding: 6px 8px;
+}
+.ingot-chat-edit-input:focus { outline: 2px solid var(--ingot-focus-ring); outline-offset: 1px; }
+.ingot-chat-edit-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+.ingot-jump-bar { position: absolute; right: 16px; bottom: 12px; z-index: 6; display: flex; gap: 6px; }
+.ingot-jump-btn, .ingot-jump-item {
+  border: 1px solid var(--ingot-border); background: var(--ingot-surface); color: var(--ingot-text);
+  border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--ingot-text) 16%, transparent);
+}
+.ingot-jump-btn:hover, .ingot-jump-item:hover { background: var(--ingot-selection); }
+.ingot-jump-menu {
+  position: absolute; right: 0; bottom: calc(100% + 6px); display: flex; flex-direction: column; min-width: 220px; max-height: 240px; overflow: auto; padding: 4px;
+  border-radius: 8px;
+}
+.ingot-jump-item { border-radius: 6px; text-align: left; box-shadow: none; }

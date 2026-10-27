@@ -10,6 +10,15 @@ describe.skipIf(isWin)('IDEA-131 process service', () => {
     const service = new IngotProcessService();
     afterEach(() => service.dispose());
 
+    it('reads and writes a project file and refuses a path outside it', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-files-'));
+        await service.writeText(dir, 'src/total.js', 'exports.total = 1;\n');
+        expect(await service.readText(dir, 'src/total.js')).toBe('exports.total = 1;\n');
+        expect(await service.readText(dir, '../secret')).toBeUndefined();
+        await expect(service.writeText(dir, '../secret', 'nope')).rejects.toThrow(/Refusing/);
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
     it('runs a foreground command and returns its output and exit code', async () => {
         const result = await service.run({ cwd: os.tmpdir(), command: 'echo hello && exit 3' });
         expect(result.output.trim()).toBe('hello');

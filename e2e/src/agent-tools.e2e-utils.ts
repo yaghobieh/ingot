@@ -28,6 +28,16 @@ export const makeToolsProject = (prefix: string): string => {
     return dir;
 };
 
+/** Computed color of a design token (`--ingot-primary` and the rest), so tests follow the active theme. */
+export const tokenColor = (page: Page, name: string): Promise<string> => page.evaluate(token => {
+    const probe = document.createElement('span');
+    probe.style.color = `var(${token})`;
+    document.body.appendChild(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+}, name);
+
 /** Settings › Appearance (Playwright's Desktop Chrome reports Windows, so Settings is Ctrl+Alt+S). */
 export const setAppearance = async (page: Page, mode: 'light' | 'dark'): Promise<void> => {
     const dialog = page.locator('#ingot-settings');

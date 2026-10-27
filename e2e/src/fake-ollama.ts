@@ -13,7 +13,8 @@ export interface FakeOllamaOptions {
 
 export interface FakeOllama {
     readonly url: string;
-    readonly requests: { model: string; system: string; user: string }[];
+    /** `user` is the latest user turn. `users` is every user turn in that request, oldest first. */
+    readonly requests: { model: string; system: string; user: string; users: string[] }[];
     close(): Promise<void>;
 }
 
@@ -30,8 +31,9 @@ export const startFakeOllama = async (reply: (system: string, user: string) => s
         req.on('end', () => {
             const body = JSON.parse(raw || '{}') as { model?: string; stream?: boolean; messages?: { role: string; content: string }[] };
             const system = body.messages?.find(m => m.role === 'system')?.content ?? '';
-            const user = [...(body.messages ?? [])].reverse().find(m => m.role === 'user')?.content ?? '';
-            requests.push({ model: body.model ?? '', system, user });
+            const users = (body.messages ?? []).filter(m => m.role === 'user').map(m => m.content);
+            const user = users[users.length - 1] ?? '';
+            requests.push({ model: body.model ?? '', system, user, users });
             const content = reply(system, user);
             if (body.stream) {
                 // Ollama streams NDJSON: one message delta per line, then a final `done` line.

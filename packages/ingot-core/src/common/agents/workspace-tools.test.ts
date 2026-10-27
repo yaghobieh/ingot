@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { githubRepoFromRemote, globMatcher, grepMatcher, compileGitignore, isPromptEcho, answerFromProject, answerFromFiles, asksAboutOpenProject, fileQuestionGlob, globPaths, numberLines, parseRgFiles, printsShellInsteadOfRunning, PROJECT_QUESTION, rgArgs, withRepoDefaults, workspaceProtocol } from './workspace-tools';
+import { githubRepoFromRemote, globMatcher, grepMatcher, compileGitignore, isPromptEcho, answerFromProject, answerFromFiles, asksAboutOpenProject, fileQuestionGlob, globPaths, numberLines, parseRgFiles, printsShellInsteadOfRunning, PROJECT_QUESTION, rgArgs, shellReadsAsTools, textForRead, withRepoDefaults, workspaceProtocol } from './workspace-tools';
 
 describe('workspace tools (IDEA-186)', () => {
     it('reads owner/repo from the git remote', () => {
@@ -34,6 +34,22 @@ describe('workspace tools (IDEA-186)', () => {
     it('spots printed shell commands', () => {
         expect(printsShellInsteadOfRunning('Run this:\n```bash\ncat package.json\n```')).toBe(true);
         expect(printsShellInsteadOfRunning('```ts\nconst a = 1;\n```')).toBe(false);
+    });
+
+    it('turns printed reads and commands into tool calls and refuses paths that leave the project', () => {
+        const calls = shellReadsAsTools('```bash\ncat src/a.ts\nhead -n 5 README.md\nls src\nnpm test\ncat ../secret\n```');
+        expect(calls.map(call => call.tool)).toEqual(['read_file', 'read_file', 'list_dir', 'run']);
+        expect(calls[0].args).toEqual({ path: 'src/a.ts' });
+        expect(calls[1].args).toEqual({ path: 'README.md', end: 5 });
+        expect(calls[2].args).toEqual({ path: 'src' });
+        expect(calls[3].args).toEqual({ command: 'npm test' });
+        expect(shellReadsAsTools('grep useCart src')).toEqual([{ server: 'ingot', tool: 'grep', args: { pattern: 'useCart', path: 'src' } }]);
+        expect(shellReadsAsTools(['cat a.ts', 'cat b.ts', 'cat c.ts', 'cat d.ts', 'cat e.ts'].join('\n'))).toHaveLength(4);
+        expect(shellReadsAsTools('cat ../secret')).toEqual([]);
+        expect(shellReadsAsTools('cat /etc/passwd')).toEqual([]);
+        expect(textForRead('disk', undefined)).toBe('disk');
+        expect(textForRead('disk', 'editor')).toBe('editor');
+        expect(textForRead(undefined, '')).toBe('');
     });
 
     it('treats a repeated project question as an echo and answers from the files', () => {

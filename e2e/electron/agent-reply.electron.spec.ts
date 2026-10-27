@@ -197,12 +197,15 @@ test.describe('IDEA-100 agent replies (desktop)', () => {
         if (!await composer(page).isVisible()) {
             await page.locator('#ingot-rs-agents').click();
         }
+        await page.locator('#ingot-composer-more').click();
         await expect(page.locator('#ingot-composer-mic')).toBeVisible();
+        await page.locator('#ingot-composer-more').click();
         await pickModel(page, 'ollama-local');
         await composer(page).click();
         await page.keyboard.type('how do branches work here');
         await page.keyboard.press('Enter');
         await expect(page.locator('.ingot-chat-agent .ingot-md').last()).toContainText('Branching model');
+        await page.locator('#ingot-composer-more').click();
         await page.locator('#ingot-context-ring').click();
         const pop = page.locator('#ingot-context-popover');
         await expect(pop).toBeVisible();

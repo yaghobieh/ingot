@@ -62,7 +62,7 @@ for (const scheme of ['light', 'dark'] as const) {
             await page.keyboard.type('pl');
             await expect(menu.locator('.ingot-slash-item')).toHaveCount(1);
             await page.keyboard.press('Enter');
-            await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'plan');
+            await expect(page.locator('#ingot-composer-more')).toHaveAttribute('data-mode', 'plan');
             await expect(composer(page)).toHaveText('');
             await expect(menu).toHaveCount(0);
 

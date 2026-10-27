@@ -324,6 +324,12 @@ export class ChangeTracker {
         this.fire();
     }
 
+    /** Text in an open editor model, including an unsaved or pending edit. Undefined when the file is not open. */
+    async bufferText(uri: string): Promise<string | undefined> {
+        const ref = await this.refs.get(uri)?.catch(() => undefined);
+        return ref?.object.textEditorModel.getValue();
+    }
+
     stats(change: CodeChange): { added: number; removed: number } {
         return changeStats(change.hunks);
     }

@@ -11,6 +11,10 @@ import {
 } from './work-loop.consts';
 import type { CheckFailure, E2eFramework, LoopSnapshot, PlannedCheck, ProjectSignals, SummaryInput } from './work-loop.types';
 
+/** A check that timed out into the background did not pass. */
+export const checkPassed = (result: { readonly isError: boolean; readonly movedToBackground?: boolean }): boolean =>
+    !result.isError && result.movedToBackground !== true;
+
 export const wantsWorkLoop = (prompt: string): boolean => WORK_LOOP_INTENT.test(prompt);
 export const wantsCommit = (prompt: string): boolean => COMMIT_INTENT.test(prompt);
 export const wantsE2e = (prompt: string): boolean => E2E_INTENT.test(prompt);

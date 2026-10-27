@@ -67,12 +67,16 @@ import { ProcessStore } from '../processes/process-store';
 import { ProcessesPanel } from '../processes/processes-panel';
 import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
 import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
-import { PreferenceService } from '@theia/core/lib/common/preferences';
+import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import { composerBarWidthClass } from '../../common/agents/composer-bar';
+import { distanceFromBottom, latestUserIndex, showJumpToLatest, userJumpTargets } from '../../common/agents/chat-thread';
+import { ZaprexLauncher } from './zaprex-launcher';
+import { ZaprexStatus, type PieceState } from './zaprex-status';
+import { HARMONY_PREFS } from '../../common/agents/harmony';
 
-type Popover = 'mode' | 'model' | 'history' | 'context' | undefined;
+type Popover = 'mode' | 'model' | 'history' | 'context' | 'zaprex' | 'more' | 'jumps' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
 /** Right tool window: chats as tabs with History, conversation with plan and tool steps, composer with mode, model and context (IDEA-27/28, IDEA-77). */
@@ -80,6 +84,7 @@ const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 export class IngotAgentsWidget extends ReactWidget {
 
     @inject(AgentStore) protected readonly store: AgentStore;
+    @inject(ZaprexLauncher) protected readonly zaprex: ZaprexLauncher;
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
     @inject(ReviewComments) protected readonly reviewComments: ReviewComments;
     /** Code-change blocks the user collapsed (they start open). */
@@ -134,6 +139,12 @@ export class IngotAgentsWidget extends ReactWidget {
     protected mentionFiles?: { root: string; at: number; files: string[]; loading?: Promise<void> };
     /** Height set by dragging the handle (IDEA-67); persisted. */
     protected manualHeight?: number;
+    /** In-place edit of a sent user message. */
+    protected editingIndex?: number;
+    protected editDraft = '';
+    protected chatScroll?: HTMLDivElement | null;
+    protected stickToLatest = true;
+    protected showJump = false;
 
     /** `/` menu entries matching the draft: project commands and skills (IDEA-30), then built-ins (IDEA-187). */
     protected get slashItems(): { name: string; description?: string; kind: string; args?: string; action?: SlashBuiltinAction }[] {
@@ -301,7 +312,17 @@ export class IngotAgentsWidget extends ReactWidget {
         this.title.iconClass = 'ingot-icon ingot-icon-ai';
         this.addClass('ingot-agents');
         this.listenForDrops();
-        this.toDispose.push(this.store.onDidChange(() => this.update()));
+        this.toDispose.push(this.store.onDidChange(() => {
+            this.update();
+            if (this.stickToLatest) {
+                requestAnimationFrame(() => {
+                    const thread = this.chatScroll;
+                    if (thread) {
+                        thread.scrollTop = thread.scrollHeight;
+                    }
+                });
+            }
+        }));
         this.toDispose.push(this.account.onDidChange(() => this.update()));
         this.toDispose.push(this.processes.onDidChange(() => this.update()));
         this.toDispose.push(this.preferences.onPreferenceChanged(e => { if (e.preferenceName === RUN_PREFS.showProcesses) { this.update(); } }));
@@ -542,6 +563,8 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         const composed = composeParts(inline.parts);
         const prompt = composed.text.trim() || 'Explain this code.';
+        this.stickToLatest = true;
+        this.editingIndex = undefined;
         this.store.send(prompt, composed.chips, composed.expanded ? composed : undefined);
         inline.clear();
         this.draft = '';
@@ -633,11 +656,14 @@ export class IngotAgentsWidget extends ReactWidget {
             </div>}
             {this.showMemories
                 ? <div className='ingot-agents-chat ingot-agents-memories-pane'><MemoriesManager store={this.memoryStore} onClose={() => this.toggleMemories()} /></div>
-                : <div className='ingot-agents-chat'>{current && current.messages.length ? this.renderSession(current)
-                    : <div className='ingot-agents-empty-state' id='ingot-agents-empty-state'>
-                        <div className='ingot-agents-empty-title'>{PRODUCT.name}</div>
-                        <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>
-                    </div>}</div>}
+                : <div className='ingot-agents-chat-wrap'>
+                    <div className='ingot-agents-chat' ref={el => { this.chatScroll = el; }} onScroll={() => this.onChatScroll()}>{current && current.messages.length ? this.renderSession(current)
+                        : <div className='ingot-agents-empty-state' id='ingot-agents-empty-state'>
+                            <div className='ingot-agents-empty-title'>{PRODUCT.name}</div>
+                            <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>
+                        </div>}</div>
+                    {current && this.renderJumpBar(current)}
+                </div>}
             {!this.showMemories && this.renderProcesses()}
             {!this.showMemories && this.renderSubagents(current)}
             {!this.showMemories && this.renderApproval(current)}
@@ -831,7 +857,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected renderMessage(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
         // IDEA-186: hidden nudges are for the model only; project reads are summed up in the Explored row.
-        if (m.hidden || (m.role === 'tool' && m.tool?.server === 'ingot' && isWorkspaceTool(m.tool.tool) && m.tool.state !== 'error')) {
+        if (m.hidden || (m.role === 'tool' && m.tool?.server === 'ingot' && isWorkspaceTool(m.tool.tool) && m.tool.state === 'done')) {
             return undefined;
         }
         if (m.refs?.length) {
@@ -864,7 +890,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     {!m.memory.undone && <button type='button' className='ingot-btn-ghost ingot-memory-undo' onClick={() => this.store.undoMemory(session.id, i)}>Undo</button>}
                 </div>
                 : (
-                <div key={i} className={`ingot-chat-msg ingot-chat-${m.role}${m.role === 'user' && this.account.account ? ' ingot-chat-has-avatar' : ''}`}>
+                <div key={i} id={`ingot-msg-${i}`} className={`ingot-chat-msg ingot-chat-${m.role}${m.role === 'user' && i === latestUserIndex(session.messages) ? ' ingot-chat-latest' : ''}${m.role === 'user' && this.account.account ? ' ingot-chat-has-avatar' : ''}`}>
                     {m.role === 'user' && this.account.account && <AccountAvatar account={this.account.account} src={this.account.avatarSrc} className='ingot-chat-user-avatar' textless />}
                     {m.from && <div className='ingot-chat-from'>{m.from}</div>}
                     {m.parts ? this.renderParts(m.parts, m.images) : m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className={`ingot-chip ingot-chip-sent ingot-chip-${c.kind ?? 'code'}`} title={c.kind === 'memory' ? 'Memory' : c.kind === 'rule' ? `Rule ${c.path}` : c.path}>
@@ -873,7 +899,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     {m.parts ? '' : m.role === 'agent'
                         ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
                             : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
-                        : m.text}
+                        : this.editingIndex === i ? this.renderEditForm(session, i) : m.text}
                     {m.role === 'tool' && !!m.images?.length && <div className='ingot-chat-tool-images'>{m.images.filter(img => img.data).map(img =>
                         <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
                             onClick={() => { this.lightbox = img; this.update(); }} />)}</div>}
@@ -883,6 +909,8 @@ export class IngotAgentsWidget extends ReactWidget {
                         onToggle={() => { if (!this.collapsedChanges.delete(change.id)) { this.collapsedChanges.add(change.id); } this.update(); }}
                         onOpen={hunkId => this.tracker.reveal(change.id, hunkId)}
                         onDecide={(hunks, state) => this.tracker.decide(change.id, hunks, state)} />)}
+                    {m.role === 'user' && this.editingIndex !== i && <button type='button' className='ingot-chat-edit' id={`ingot-edit-msg-${i}`}
+                        title='Edit this message and run again from here' onClick={() => this.startEdit(session, i)}>Edit</button>}
                     {(m.role === 'user' || m.role === 'agent') && this.store.canRevertTo(session.id, i) && <button type='button' className='ingot-chat-revert' id={`ingot-revert-${i}`}
                         title={m.role === 'user' ? 'Restore files to before this message and drop the replies after it' : 'Restore files to right after this reply and drop what came later'}
                         onClick={() => this.store.revertTo(session.id, i)}><span className='codicon codicon-discard' /> Revert to here</button>}
@@ -1178,7 +1206,10 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected renderComposer(): React.ReactNode {
         const items = this.slashItems;
-        return <div className='ingot-composer'>
+        const info = modeInfo(this.store.mode);
+        return <div className='ingot-composer-stack'>
+            {this.store.zaprexButtonVisible && <div className='ingot-composer-rex-row'>{this.renderComposerZaprex()}</div>}
+            <div className='ingot-composer'>
             <div className='ingot-composer-resize' id='ingot-composer-resize' title='Drag to resize · double-click to reset' onMouseDown={e => this.startResize(e)} onDoubleClick={() => this.resetHeight()} />
             {this.renderSummarize()}
             {items.length > 0 && <div id='ingot-slash-menu' className='ingot-slash-menu' role='listbox'>
@@ -1250,17 +1281,162 @@ export class IngotAgentsWidget extends ReactWidget {
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.querySelector('input')?.click(); } }}>
                     <input type='file' accept='image/png,image/jpeg,image/gif,image/webp' multiple hidden onChange={e => this.attachImages(e.currentTarget)} />
                 </label>
-                {this.flags.enabled(IDE_FLAGS.micDictation) && this.renderMic()}
-                <span className='ingot-composer-divider' aria-hidden='true' />
-                {this.renderModePill()}
                 {this.renderModelPill()}
+                <button type='button' id='ingot-composer-more' className={`ingot-icon-button codicon codicon-ellipsis${this.popover === 'more' ? ' active' : ''}`}
+                    data-mode={info.id} aria-label='More' aria-haspopup='menu' aria-expanded={this.popover === 'more'}
+                    title={`More · Mode: ${info.label}`}
+                    onClick={() => { this.popover = this.popover === 'more' ? undefined : 'more'; this.update(); }} />
                 <span className='ingot-flex' />
-                {this.renderUsageRing()}
                 {this.store.isRunning(this.store.current?.id)
                     ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}><span className='codicon codicon-debug-stop' /></button>
                     : <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' title={this.composerEmpty ? 'Type a message to send' : 'Send (Enter)'} disabled={this.composerEmpty} onClick={() => this.submit()}><span className='codicon codicon-arrow-up' /></button>}
             </div>
+            </div>
+            {this.renderComposerPopovers(info)}
         </div>;
+    }
+
+    protected renderComposerPopovers(info: ReturnType<typeof modeInfo>): React.ReactNode {
+        const key = this.shortcut(AGENT_COMMANDS.cycleMode.id);
+        const usage = this.store.current?.context?.usage;
+        const current = this.store.current;
+        return <div className='ingot-composer-menus'>
+            {this.popover === 'more' && <div id='ingot-composer-more-menu' className='ingot-popover ingot-composer-more-menu' role='menu'>
+                <button type='button' id='ingot-composer-mode' className='ingot-more-item' role='menuitem' data-mode={info.id} aria-haspopup='menu'
+                    title={`Mode: ${info.label}. ${info.description}${key ? ` (${key} to switch)` : ''}`}
+                    onClick={() => { this.popover = 'mode'; this.update(); }}>
+                    <span className={`codicon codicon-${info.icon}`} style={{ color: info.color }} /><span className='ingot-pill-label'>{info.label}</span>
+                </button>
+                {this.renderReviewToggle()}
+                {usage && usageRatio(usage) > 0 && this.renderUsageRing()}
+                {this.flags.enabled(IDE_FLAGS.micDictation) && this.renderMic()}
+            </div>}
+            {this.popover === 'mode' && <ModeMenu mode={info.id} shortcut={key} onClose={() => this.closePopover()}
+                onPick={mode => { this.store.mode = mode; this.store.changed(); this.closePopover(); }} />}
+            {this.popover === 'context' && usage && current && <ContextBreakdown usage={usage} segments={contextSegments(usage, messageWeights(current.messages))}
+                busy={this.store.isRunning(current.id) || current.status === 'thinking'} onClose={() => this.closePopover()}
+                onCompact={() => { this.closePopover(); this.store.compact(current.id); }}
+                onNewWithSummary={() => { this.closePopover(); this.store.summarizeAndContinue(current.id); }} />}
+        </div>;
+    }
+
+    protected renderReviewToggle(): React.ReactNode {
+        const on = this.store.review.enabled;
+        return <button type='button' id='ingot-composer-review' className={`ingot-more-item ingot-composer-review${on ? ' on' : ''}`} role='menuitem'
+            aria-pressed={on} aria-label={on ? 'Agent review on' : 'Agent review off'}
+            title={on ? 'Agent review on: edits wait for Accept. Click to apply edits right away' : 'Agent review off: edits apply right away. Click to review them'}
+            onClick={() => void this.store.setReviewEnabled(!on)}>
+            <span className='codicon codicon-checklist' aria-hidden='true' />
+            <span>{on ? 'Review on' : 'Review off'}</span>
+        </button>;
+    }
+
+    protected renderComposerZaprex(): React.ReactNode {
+        const current = this.store.current;
+        const offer = this.store.harmonyEnabled && current ? this.store.harmonyOfferFor(current.id) : undefined;
+        const pieces = current ? this.store.zaprexPieces(current.id) : [];
+        const busy = pieces.some(session => this.pieceState(session) === 'working');
+        const label = offer ? 'Zaprex can take a piece of this run' : busy ? 'Zaprex is working on a piece' : `Zaprex · ${this.store.harmonyEnabled ? 'on' : 'off'}`;
+        return <span className='ingot-pill-anchor'>
+            <button type='button' id='ingot-composer-zaprex' className={`ingot-icon-button ingot-composer-zaprex${offer || busy ? ' thinking' : ''}`} title={label} aria-label={label}
+                aria-haspopup='dialog' aria-expanded={this.popover === 'zaprex'} onClick={() => { this.popover = this.popover === 'zaprex' ? undefined : 'zaprex'; this.update(); }}>
+                <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
+                {(offer || busy) && <span className='ingot-composer-zaprex-dot' aria-hidden='true' />}
+            </button>
+            {this.popover === 'zaprex' && this.zaprex.installed === undefined && void this.zaprex.info().then(() => this.update())}
+            {this.popover === 'zaprex' && <ZaprexStatus enabled={this.store.harmonyEnabled} offer={offer} desktop={this.zaprex.installed} onGetApp={() => this.zaprex.openWeb()}
+                pieces={pieces.map(session => ({ session, state: this.pieceState(session) }))}
+                onAccept={() => { this.closePopover(); if (current) { this.store.acceptHarmony(current.id); } }}
+                onDismiss={() => { this.closePopover(); if (current) { this.store.dismissHarmony(current.id); } }}
+                onTurnOn={() => { void this.preferences.set(HARMONY_PREFS.enabled, true, PreferenceScope.User).then(() => this.update()); }}
+                onOpenApp={() => { this.closePopover(); void this.zaprex.openApp(); }}
+                onClose={() => this.closePopover()} />}
+        </span>;
+    }
+
+    protected pieceState(session: AgentSession): PieceState {
+        if (this.store.isRunning(session.id) || session.status === 'thinking' || session.status === 'editing') {
+            return 'working';
+        }
+        return session.status === 'review' ? 'review' : 'done';
+    }
+
+    protected onChatScroll(): void {
+        const thread = this.chatScroll;
+        if (!thread) {
+            return;
+        }
+        const show = showJumpToLatest(distanceFromBottom(thread.scrollTop, thread.scrollHeight, thread.clientHeight));
+        this.stickToLatest = !show;
+        if (show !== this.showJump) {
+            this.showJump = show;
+            this.update();
+        }
+    }
+
+    protected renderJumpBar(session: AgentSession): React.ReactNode {
+        const targets = userJumpTargets(session.messages);
+        if (!this.showJump && targets.length < 2) {
+            return undefined;
+        }
+        return <div className='ingot-jump-bar' id='ingot-jump-bar'>
+            {targets.length > 1 && <button type='button' id='ingot-jump-earlier' className='ingot-jump-btn' aria-expanded={this.popover === 'jumps'}
+                onClick={() => { this.popover = this.popover === 'jumps' ? undefined : 'jumps'; this.update(); }}>Earlier</button>}
+            {this.showJump && <button type='button' id='ingot-jump-latest' className='ingot-jump-btn' onClick={() => this.jumpToLatest()}>Jump to latest</button>}
+            {this.popover === 'jumps' && <div id='ingot-jump-menu' className='ingot-popover ingot-jump-menu' role='menu'>
+                {targets.map(target => <button type='button' key={target.index} id={`ingot-jump-${target.index}`} className='ingot-jump-item' role='menuitem'
+                    onClick={() => this.jumpToMessage(target.index)}>{target.label}</button>)}
+            </div>}
+        </div>;
+    }
+
+    protected jumpToLatest(): void {
+        const thread = this.chatScroll;
+        this.stickToLatest = true;
+        this.showJump = false;
+        this.popover = this.popover === 'jumps' ? undefined : this.popover;
+        if (thread) {
+            thread.scrollTop = thread.scrollHeight;
+        }
+        this.update();
+    }
+
+    protected jumpToMessage(index: number): void {
+        this.stickToLatest = false;
+        this.popover = undefined;
+        this.update();
+        requestAnimationFrame(() => {
+            this.node.querySelector(`#ingot-msg-${index}`)?.scrollIntoView({ block: 'start' });
+            this.onChatScroll();
+        });
+    }
+
+    protected startEdit(session: AgentSession, index: number): void {
+        this.editingIndex = index;
+        this.editDraft = session.messages[index]?.text ?? '';
+        this.update();
+    }
+
+    protected renderEditForm(session: AgentSession, index: number): React.ReactNode {
+        return <form id='ingot-chat-edit' className='ingot-chat-edit-form' data-index={index} onSubmit={event => { event.preventDefault(); this.submitEdit(session); }}>
+            <textarea id='ingot-chat-edit-input' className='ingot-chat-edit-input' value={this.editDraft} aria-label='Edit message'
+                onChange={event => { this.editDraft = event.target.value; this.update(); }} />
+            <span className='ingot-chat-edit-actions'>
+                <button type='button' id='ingot-chat-edit-cancel' className='ingot-btn-ghost' onClick={() => { this.editingIndex = undefined; this.update(); }}>Cancel</button>
+                <button type='submit' id='ingot-chat-edit-submit' className='ingot-btn-primary' disabled={!this.editDraft.trim()}>Send</button>
+            </span>
+        </form>;
+    }
+
+    protected submitEdit(session: AgentSession): void {
+        const index = this.editingIndex;
+        const text = this.editDraft;
+        this.editingIndex = undefined;
+        this.stickToLatest = true;
+        this.update();
+        if (index !== undefined) {
+            void this.store.editUserMessage(session.id, index, text);
+        }
     }
 
     protected renderMentionMenu(): React.ReactNode {
@@ -1320,20 +1496,6 @@ export class IngotAgentsWidget extends ReactWidget {
         this.barObserver.observe(el);
     }
 
-    protected renderModePill(): React.ReactNode {
-        const info = modeInfo(this.store.mode);
-        const key = this.shortcut(AGENT_COMMANDS.cycleMode.id);
-        return <span className='ingot-pill-anchor'>
-            <button type='button' id='ingot-composer-mode' className='ingot-pill ingot-mode-pill' data-mode={info.id} aria-haspopup='menu' aria-expanded={this.popover === 'mode'}
-                style={{ '--ingot-mode-color': info.color } as React.CSSProperties} title={`Mode: ${info.label}. ${info.description}${key ? ` (${key} to switch)` : ''}`}
-                onClick={() => { this.popover = this.popover === 'mode' ? undefined : 'mode'; this.update(); }}>
-                <span className={`codicon codicon-${info.icon}`} /><span className='ingot-pill-label'>{info.label}</span><span className='codicon codicon-chevron-down ingot-pill-caret' />
-            </button>
-            {this.popover === 'mode' && <ModeMenu mode={info.id} shortcut={key} onClose={() => this.closePopover()}
-                onPick={mode => { this.store.mode = mode; this.store.changed(); this.closePopover(); }} />}
-        </span>;
-    }
-
     protected renderModelPill(): React.ReactNode {
         const model = this.store.model;
         const resolved = this.store.resolveModel(model);
@@ -1366,21 +1528,15 @@ export class IngotAgentsWidget extends ReactWidget {
             // Nothing sent yet: no ring (an empty ring reads as a spinner).
             return undefined;
         }
-        const current = this.store.current!;
-        return <span className='ingot-pill-anchor'>
-            <button type='button' id='ingot-context-ring' className={`ingot-context-ring${ratio >= CONTEXT_NEAR_FULL ? ' near-full' : ''}`} data-ratio={ratio.toFixed(3)}
-                title={`Context: ${formatTokens(usage.total)} of ${formatTokens(usage.window)} tokens (${Math.round(ratio * 100)}%) · click for details`} aria-label={`Context ${Math.round(ratio * 100)}% used`} aria-haspopup='dialog' aria-expanded={this.popover === 'context'}
-                onClick={() => { this.popover = this.popover === 'context' ? undefined : 'context'; this.update(); }}>
-                <svg width='18' height='18' viewBox='0 0 18 18'>
-                    <circle cx='9' cy='9' r={r} className='ingot-ring-track' />
-                    <circle cx='9' cy='9' r={r} className='ingot-ring-value' strokeDasharray={`${c * ratio} ${c}`} transform='rotate(-90 9 9)' />
-                </svg>
-            </button>
-            {this.popover === 'context' && <ContextBreakdown usage={usage} segments={contextSegments(usage, messageWeights(current.messages))}
-                busy={this.store.isRunning(current.id) || current.status === 'thinking'} onClose={() => this.closePopover()}
-                onCompact={() => { this.closePopover(); this.store.compact(current.id); }}
-                onNewWithSummary={() => { this.closePopover(); this.store.summarizeAndContinue(current.id); }} />}
-        </span>;
+        return <button type='button' id='ingot-context-ring' className={`ingot-more-item ingot-context-ring${ratio >= CONTEXT_NEAR_FULL ? ' near-full' : ''}`} data-ratio={ratio.toFixed(3)}
+            title={`Context: ${formatTokens(usage.total)} of ${formatTokens(usage.window)} tokens (${Math.round(ratio * 100)}%)`} aria-label={`Context ${Math.round(ratio * 100)}% used`} aria-haspopup='dialog' aria-expanded={this.popover === 'context'}
+            onClick={() => { this.popover = 'context'; this.update(); }}>
+            <svg width='18' height='18' viewBox='0 0 18 18' aria-hidden='true'>
+                <circle cx='9' cy='9' r={r} className='ingot-ring-track' />
+                <circle cx='9' cy='9' r={r} className='ingot-ring-value' strokeDasharray={`${c * ratio} ${c}`} transform='rotate(-90 9 9)' />
+            </svg>
+            <span>Context {Math.round(ratio * 100)}%</span>
+        </button>;
     }
 
     /** Voice dictation (IDEA-98): live transcript where the Web Speech API works, otherwise record and transcribe. */

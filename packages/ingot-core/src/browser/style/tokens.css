@@ -30,7 +30,8 @@
 
 /* Dark tokens follow the active dark theme (Theia sets body.theia-dark), not only an explicit data-theme. */
 [data-theme='dark'],
-body.theia-dark {
+body.theia-dark,
+body.ingot-dark {
   --ingot-bg: #1C1E24;
   --ingot-surface: #23262E;
   --ingot-panel: #2A2D36;

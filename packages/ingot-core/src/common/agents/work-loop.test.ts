@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { describe, expect, it } from 'vitest';
 import {
-    commitBlockReason, detectChecks, detectE2eFramework, isRemoteCodeFetch, parseCheckFailures, userAskedForRemote, wantsWorkLoop, weakensTests
+    checkPassed, commitBlockReason, detectChecks, detectE2eFramework, isRemoteCodeFetch, parseCheckFailures, userAskedForRemote, wantsWorkLoop, weakensTests
 } from './work-loop';
 import type { LoopSnapshot } from './work-loop.types';
 
@@ -39,6 +39,13 @@ describe('work loop (IDEA-248)', () => {
         expect(commitBlockReason('feature/fix-total', loop(), ['CI=1 npm run test'])).toMatch(/have not passed/);
         expect(commitBlockReason('feature/fix-total', passed, ['CI=1 npm run test'])).toBeUndefined();
         expect(commitBlockReason('bug/IDEA-248', passed, ['CI=1 npm run test'])).toBeUndefined();
+    });
+
+    it('does not treat a backgrounded check as a pass', () => {
+        expect(checkPassed({ isError: false })).toBe(true);
+        expect(checkPassed({ isError: false, movedToBackground: false })).toBe(true);
+        expect(checkPassed({ isError: true })).toBe(false);
+        expect(checkPassed({ isError: false, movedToBackground: true })).toBe(false);
     });
 
     it('starts the loop for a fix and blocks guessed code fetches', () => {

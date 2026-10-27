@@ -22,6 +22,9 @@ export const STATUS_LABELS: Record<AgentStatus, string> = {
     error: 'Needs attention'
 };
 
+/** How often a streaming reply redraws the chat. Every token would freeze the window. */
+export const STREAM_POKE_MS = 80;
+
 /** Statuses counted as "active" in the toolbar and status bar. */
 export const ACTIVE_STATUSES: readonly AgentStatus[] = ['thinking', 'editing', 'review', 'paused', 'approval'];
 

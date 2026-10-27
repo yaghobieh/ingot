@@ -84,6 +84,10 @@ export interface ProcessService extends RpcServer<ProcessClient> {
     run(options: ForegroundOptions): Promise<ForegroundResult>;
     /** The tail of a process's output (ANSI codes removed). */
     output(id: string, maxChars?: number): Promise<ProcessOutput | undefined>;
+    /** Disk bytes of a project file. No editor cache. Undefined when the file is missing or the path is unsafe. */
+    readText(cwd: string, relativePath: string): Promise<string | undefined>;
+    /** Writes a project file on disk. Refuses paths outside the project. */
+    writeText(cwd: string, relativePath: string, content: string): Promise<void>;
     stop(id: string): Promise<boolean>;
     /** Removes finished processes from the list. */
     clearFinished(): Promise<void>;

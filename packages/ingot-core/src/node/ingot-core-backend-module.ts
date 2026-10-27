@@ -1,4 +1,7 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
+import { installDisconnectedBufferGuard } from './disconnected-client-guard';
+
+installDisconnectedBufferGuard();
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
 import { DEV_FILE_KEYSTORE_ENV, DevFileKeyStoreService } from './dev-file-key-store';
 import { IngotEditorImportService } from './editor-import-backend';
