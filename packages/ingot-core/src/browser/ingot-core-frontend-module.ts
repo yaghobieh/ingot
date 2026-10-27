@@ -110,6 +110,9 @@ import { IngotCommitContribution, createDiffWidgetFactory } from './commit/commi
 import { LocalChangesModel } from './commit/local-changes-model';
 import { LocalChangesWidget } from './commit/local-changes-widget';
 import { IngotDiffWidget } from './commit/ingot-diff-widget';
+import { AiCommitService } from './commit/ai-commit-service';
+import { CommitWindow } from './commit/commit-window';
+import { CommitWindowContribution } from './commit/commit-window-contribution';
 import { DiffUndoRedoHandler } from './commit/diff-undo-redo-handler';
 import { IngotMergeWidget } from './merge/merge-tool-widget';
 import { BreadcrumbRenderer, BreadcrumbsRenderer, BreadcrumbsRendererFactory } from '@theia/core/lib/browser/breadcrumbs';
@@ -206,6 +209,12 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         return widget;
     })).inSingletonScope();
     bindViewContribution(bind, IngotCommitContribution);
+    bind(AiCommitService).toSelf().inSingletonScope();
+    bind(CommitWindow).toSelf().inSingletonScope();
+    bind(CommitWindowContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(CommitWindowContribution);
+    bind(CommandContribution).toService(CommitWindowContribution);
+    bind(KeybindingContribution).toService(CommitWindowContribution);
     bind(DiffUndoRedoHandler).toSelf().inSingletonScope();
     bind(UndoRedoHandler).toService(DiffUndoRedoHandler);
     bind(IngotMergeWidget).toSelf();

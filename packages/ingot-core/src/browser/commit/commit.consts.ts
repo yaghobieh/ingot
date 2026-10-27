@@ -19,8 +19,14 @@ export const COMMIT_COMMANDS = {
     diffUndo: c('diffUndo', 'Undo in Diff'),
     diffRedo: c('diffRedo', 'Redo in Diff'),
     ignoreChunk: c('ignoreChunk', 'Exclude Chunk from Commit'),
-    revertFile: c('revertFile', 'Revert File…')
+    revertFile: c('revertFile', 'Revert File…'),
+    /** IDEA-176: floating Commit window (⌥⇧⌘K, status bar, Local Changes toolbar). */
+    popOut: c('popOut', 'Open Commit Window'),
+    aiMessage: c('aiMessage', 'Commit with AI: Write Commit Message')
 } as const;
+
+export const COMMIT_WINDOW_ID = 'ingot-commit-window';
+export const COMMIT_WINDOW_STATUS_ID = 'ingot-status-commit-window';
 
 export const LOCAL_CHANGES_WIDGET_ID = 'ingot-local-changes';
 export const LOCAL_CHANGES_LABEL = 'Local Changes';

@@ -167,11 +167,13 @@ export class IngotModelClient {
      * Streams a completion; `onText` receives the accumulated text. Resolves with the full text,
      * rejects on provider errors. Call the returned `cancel` to stop early.
      */
-    stream(modelId: string, messages: ChatMessage[], onText: (text: string) => void): { done: Promise<string>; cancel: () => void } {
+    stream(modelId: string, messages: ChatMessage[], onText: (text: string) => void,
+        options: { feature?: string; maxTokens?: number; temperature?: number } = {}): { done: Promise<string>; cancel: () => void } {
         let cancelled = false;
         let streamId: string | undefined;
+        const { feature, ...limits } = options;
         const done = (async () => {
-            streamId = await this.service.startStream({ modelId, messages, settings: this.settings });
+            streamId = await this.service.startStream({ modelId, messages, ...limits, settings: feature ? { ...this.settings, feature } : this.settings });
             let text = '';
             let received = 0;
             for (;;) {
