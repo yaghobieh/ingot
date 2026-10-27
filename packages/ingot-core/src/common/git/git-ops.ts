@@ -25,7 +25,7 @@ export type GitOperation =
     | { kind: 'deleteBranch'; name: string; force: boolean }
     | { kind: 'pull'; rebase: boolean }
     | { kind: 'fetch' }
-    | { kind: 'push'; setUpstream: boolean }
+    | { kind: 'push'; setUpstream: boolean; hooksRan?: boolean }
     | { kind: 'reset'; ref: string; mode: ResetMode }
     | { kind: 'remotes' }
     | { kind: 'addRemote'; name: string; url: string }
@@ -51,13 +51,14 @@ export type GitOperation =
     | { kind: 'isAncestorOfHead'; commit: string }
     | { kind: 'status' }
     /** Commit dialog (IDEA-74): commit the selected paths (or the index when `paths` is omitted). Message goes via stdin. */
-    | { kind: 'commit'; message: string; paths?: string[]; amend: boolean; signoff: boolean; noVerify: boolean }
+    /** `hooksRan` (IDEA-178): Ingot already ran the agent hooks, so the installed git hook skips them. */
+    | { kind: 'commit'; message: string; paths?: string[]; amend: boolean; signoff: boolean; noVerify: boolean; hooksRan?: boolean }
     /** Puts exact content into the index for one path (partial commit of selected chunks). */
     | { kind: 'stageContent'; path: string; content: string }
     /** Unstages everything (keeps the working tree). */
     | { kind: 'resetIndex' }
     /** Push dialog (IDEA-74). */
-    | { kind: 'pushTo'; remote: string; localBranch: string; remoteBranch: string; tags: PushTags; force: boolean; setUpstream: boolean }
+    | { kind: 'pushTo'; remote: string; localBranch: string; remoteBranch: string; tags: PushTags; force: boolean; setUpstream: boolean; hooksRan?: boolean }
     /** Commits on HEAD that `remoteRef` does not have (all remotes when omitted). */
     | { kind: 'outgoing'; remoteRef?: string }
     /** Recent commit messages for the message history. */
@@ -70,7 +71,11 @@ export type GitOperation =
     | { kind: 'showStage'; stage: 1 | 2 | 3; path: string }
     | { kind: 'checkoutSide'; side: 'ours' | 'theirs'; paths: string[] }
     | { kind: 'conflicted' }
-    | { kind: 'statusPath'; path: string };
+    | { kind: 'statusPath'; path: string }
+    /** IDEA-178: make an Ingot git hook executable; only `pre-commit` / `pre-push` inside the repo's hooks dir. */
+    | { kind: 'chmodHook'; stage: 'pre-commit' | 'pre-push' }
+    /** IDEA-178: two lines, the common git dir and the hooks dir (respects core.hooksPath). */
+    | { kind: 'hookDirs' };
 
 export type GitOperationKind = GitOperation['kind'];
 
@@ -161,6 +166,8 @@ export const gitArgs = (op: GitOperation): string[] => {
         case 'checkoutSide': return ['checkout', op.side === 'theirs' ? '--theirs' : '--ours', '--', ...paths(op.paths)];
         case 'conflicted': return ['diff', '--name-only', '--diff-filter=U', '-z'];
         case 'statusPath': return ['status', '--porcelain=v1', '-z', '--', ...paths([op.path])];
+        case 'hookDirs': return ['rev-parse', '--git-common-dir', '--git-path', 'hooks'];
+        case 'chmodHook': return ['rev-parse', '--git-path', `hooks/${op.stage === 'pre-push' ? 'pre-push' : op.stage === 'pre-commit' ? 'pre-commit' : fail('Invalid hook.')}`];
         case 'logOnly': return ['log', '--max-count=200', `--format=${LOG_FORMAT}`, '--decorate=short', branch(op.branch), '--not', 'HEAD', '--'];
     }
 };

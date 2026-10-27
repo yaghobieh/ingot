@@ -15,6 +15,7 @@ import { IngotDiffWidget, type DiffWidgetOptions } from './ingot-diff-widget';
 import { LocalChangesModel } from './local-changes-model';
 import { LocalChangesWidget } from './local-changes-widget';
 import { PushDialog } from './push-dialog';
+import { AgentHooksGate } from '../hooks/hooks-contribution';
 
 const asPaths = (arg: unknown, fallback: readonly string[]): string[] =>
     typeof arg === 'string' ? [arg] : Array.isArray(arg) && arg.every(a => typeof a === 'string') && arg.length ? [...arg] : [...fallback];
@@ -24,6 +25,7 @@ const asPaths = (arg: unknown, fallback: readonly string[]): string[] =>
 export class IngotCommitContribution extends AbstractViewContribution<LocalChangesWidget> {
 
     @inject(LocalChangesModel) protected readonly model: LocalChangesModel;
+    @inject(AgentHooksGate) protected readonly hooksGate: AgentHooksGate;
     @inject(GitService) protected readonly git: GitService;
     @inject(WidgetManager) protected readonly widgets: WidgetManager;
     @inject(ApplicationShell) protected readonly appShell: ApplicationShell;
@@ -220,8 +222,13 @@ export class IngotCommitContribution extends AbstractViewContribution<LocalChang
         if (!request) {
             return;
         }
+        const gate = await this.hooksGate.gate(root, 'pre-push');
+        if (gate === 'blocked') {
+            this.messages.info('Push blocked by .ingot hooks.');
+            return;
+        }
         try {
-            await this.git.run(root, { kind: 'pushTo', ...request });
+            await this.git.run(root, { kind: 'pushTo', ...request, hooksRan: gate !== 'off' });
             this.messages.info(`Pushed ${request.localBranch} to ${request.remote}/${request.remoteBranch}.`);
         } catch (error) {
             this.messages.error(`Push failed: ${error instanceof Error ? error.message : String(error)}`);
