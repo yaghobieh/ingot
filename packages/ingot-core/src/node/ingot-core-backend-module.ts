@@ -12,6 +12,8 @@ import { IngotProcessService } from './ingot-process-service';
 import { BrowserProxyEndpoint } from './browser-proxy-endpoint';
 import { ErrorReportingEndpoint } from './error-reporting-endpoint';
 import { ParentWatchContribution } from './parent-watch-contribution';
+import { PluginHostWatchdog } from './plugin-host-watchdog';
+import { PluginHostEnvironmentVariable } from '@theia/plugin-ext/lib/common/plugin-protocol';
 import { ProcessService, type ProcessClient } from '../common/processes/processes.types';
 import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
 import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agents/agent-actions-service';
@@ -26,6 +28,8 @@ import { MCP_SERVICE_PATH } from '../common/project-config/project-config.consts
 import { McpService } from '../common/project-config/project-config.types';
 
 import { IngotGitService } from './ingot-git-service';
+import { IngotZaprexDesktopService } from './zaprex-desktop-service';
+import { ZAPREX_DESKTOP_PATH, ZaprexDesktopService } from '../common/zaprex/zaprex-desktop.types';
 import { GIT_SERVICE_PATH } from '../common/git/git.consts';
 import { GitService } from '../common/git/git.types';
 
@@ -60,6 +64,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     // IDEA-170: the desktop backend stops (with its whole process tree) when the Electron main process goes away.
     bind(ParentWatchContribution).toSelf().inSingletonScope();
     bind(BackendApplicationContribution).toService(ParentWatchContribution);
+    bind(PluginHostWatchdog).toSelf().inSingletonScope();
+    bind(PluginHostEnvironmentVariable).toService(PluginHostWatchdog);
     bind(IngotProcessService).toSelf().inSingletonScope();
     bind(ProcessService).toService(IngotProcessService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<ProcessClient>(PROCESS_SERVICE_PATH, client => {
@@ -83,6 +89,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotEditorImportService).toSelf().inSingletonScope();
     bind(EditorImportService).toService(IngotEditorImportService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(EDITOR_IMPORT_SERVICE_PATH, () => ctx.container.get<EditorImportService>(EditorImportService))).inSingletonScope();
+    bind(IngotZaprexDesktopService).toSelf().inSingletonScope();
+    bind(ZaprexDesktopService).toService(IngotZaprexDesktopService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(ZAPREX_DESKTOP_PATH, () => ctx.container.get<ZaprexDesktopService>(ZaprexDesktopService))).inSingletonScope();
     bind(IngotGitService).toSelf().inSingletonScope();
     bind(GitService).toService(IngotGitService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(GIT_SERVICE_PATH, () => ctx.container.get<GitService>(GitService))).inSingletonScope();

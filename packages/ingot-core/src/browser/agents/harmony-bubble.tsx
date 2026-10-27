@@ -6,8 +6,8 @@ import type { HarmonyPiece } from '../../common/agents/harmony';
  * IDEA-180: Zaprex's Harmony mode offer. Drawn in a portal on document.body (the title bar clips overflow) and
  * pinned under the T-rex button; follows it on resize.
  */
-export const HarmonyBubble = ({ anchorId, piece, onAccept, onDismiss }: {
-    anchorId: string; piece: HarmonyPiece; onAccept: () => void; onDismiss: () => void;
+export const HarmonyBubble = ({ anchorId, piece, desktop, onAccept, onDismiss, onGetApp }: {
+    anchorId: string; piece: HarmonyPiece; desktop?: boolean; onAccept: () => void; onDismiss: () => void; onGetApp?: () => void;
 }): React.ReactElement => {
     const [pos, setPos] = React.useState<{ top: number; right: number } | undefined>();
     React.useLayoutEffect(() => {
@@ -29,9 +29,22 @@ export const HarmonyBubble = ({ anchorId, piece, onAccept, onDismiss }: {
             <div className='ingot-harmony-text' id='ingot-harmony-text'>{piece.offer}</div>
             <div className='ingot-harmony-task' title={piece.task}>{piece.task}</div>
             <div className='ingot-harmony-scope' title={piece.scope.join(', ')}><span className='codicon codicon-lock' /> Only {piece.scope.slice(0, 2).join(', ')}{piece.scope.length > 2 ? ', …' : ''} · reviewed like the agent</div>
+            <HarmonyWhere desktop={desktop} onGetApp={onGetApp} idPrefix='ingot-harmony' />
             <div className='ingot-harmony-actions'>
                 <button type='button' id='ingot-harmony-dismiss' className='ingot-harmony-dismiss' onClick={onDismiss}>Dismiss</button>
                 <button type='button' id='ingot-harmony-accept' className='ingot-harmony-accept' onClick={onAccept}>Accept</button>
             </div>
         </div>, document.body);
 };
+
+/**
+ * IDEA-185: where the piece runs. With the Zaprex desktop app it is handed over (it can read and write this project);
+ * without it the piece runs here, since a web page cannot reach local files (no loopback access from zaprex.dev).
+ */
+export const HarmonyWhere = ({ desktop, onGetApp, idPrefix }: { desktop?: boolean; onGetApp?: () => void; idPrefix: string }): React.ReactElement | null =>
+    desktop === undefined ? null : desktop
+        ? <div className='ingot-harmony-where on' id={`${idPrefix}-where`}><span className='codicon codicon-device-desktop' /> Runs in the Zaprex desktop app</div>
+        : <div className='ingot-harmony-where' id={`${idPrefix}-where`} title='Zaprex on the web cannot open files on this computer, so pieces need the desktop app.'>
+            <span className='codicon codicon-info' /> Runs here in Ingot · needs the Zaprex desktop app to run in Zaprex
+            {onGetApp && <button type='button' id={`${idPrefix}-get`} className='ingot-harmony-get' onClick={onGetApp}>Get Zaprex</button>}
+        </div>;

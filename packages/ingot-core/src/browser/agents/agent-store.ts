@@ -1,5 +1,8 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { IngotModelClient } from '../models/model-client';
+import { ZaprexLauncher } from './zaprex-launcher';
+import { ZaprexDesktopService } from '../../common/zaprex/zaprex-desktop.types';
+import { HANDOFF_CLAIM_TTL_MS, HANDOFF_MAX_CONTEXT_CHARS, HANDOFF_POLL_MS, HANDOFF_MAX_CONTEXT_FILES, workingLine, type HandoffFile, type HandoffStatus } from '../../common/zaprex/handoff';
 import { IngotFeatureFlags } from '../config/feature-flags';
 import { UPDATE_TEXT } from '../../common/config/remote-config.consts';
 import { chatErrorText, decodeGatewayError, fallsBackToDefault, rateLimitText, refetchesModels, UPGRADE_ACTION, UPGRADE_DISMISS, upgradePromptText, type GatewayError } from '../../common/account/gateway-errors';
@@ -83,6 +86,10 @@ export class AgentStore {
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
     @inject(AgentActionsService) protected readonly actions: AgentActionsService;
     @inject(GitService) protected readonly git: GitService;
+    @inject(ZaprexLauncher) protected readonly zaprex: ZaprexLauncher;
+    @inject(ZaprexDesktopService) protected readonly zaprexDesktop: ZaprexDesktopService;
+    /** IDEA-185: pieces handed to the Zaprex desktop app, by child chat id; the lead waits on them. */
+    protected readonly handoffs = new Map<string, Promise<void>>();
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(BrowserController) protected readonly browser: BrowserController;
     /** IDEA-109: runs waiting on the approval card, per session. */
@@ -439,6 +446,10 @@ export class AgentStore {
 
     /** Stops a streaming agent (Stop button / Escape). */
     stop(id: string): void {
+        const piece = this.items.find(s => s.id === id)?.handoff;
+        if (piece && this.handoffs.has(id)) {
+            void this.zaprexDesktop.cancel(piece.id).catch(() => undefined);
+        }
         this.running.get(id)?.();
         this.running.delete(id);
         this.releasePause(id, false);
@@ -739,6 +750,7 @@ export class AgentStore {
                 }
                 session.status = 'idle';
             }
+            await this.waitForPieces(session);
             session.activeFile = undefined;
             session.updatedAt = Date.now();
             this.changed();
@@ -1403,11 +1415,134 @@ export class AgentStore {
         // A peer line: the lead agent sees it too, so it leaves the piece's files alone.
         lead.messages.push({ role: 'peer', from: 'Zaprex', refs: [child.id], text: `Taking a piece in Harmony mode: ${piece.task}. I only change ${piece.scope.slice(0, 3).join(', ')}${piece.scope.length > 3 ? ', …' : ''}; leave those files to me.` });
         this.changed();
+        // IDEA-185: with the Zaprex desktop app the piece is handed over (deep link + loopback token); else it runs here.
+        void this.zaprex.info().then(info => info.installed ? this.handOff(lead, child, piece, goal) : this.runPieceHere(child));
+        return child;
+    }
+
+    protected runPieceHere(child: AgentSession): void {
         this.runModel(child).catch(() => { child.status = 'error'; }).finally(() => {
             child.updatedAt = Date.now();
             this.changed();
         });
-        return child;
+    }
+
+    /** IDEA-185: gives the piece to the Zaprex desktop app and follows its status until it posts the result. */
+    protected async handOff(lead: AgentSession, child: AgentSession, piece: HarmonyPiece, goal: string): Promise<void> {
+        const root = this.rootFor(lead);
+        const path = root?.path.fsPath();
+        if (!root || !path) {
+            this.runPieceHere(child);
+            return;
+        }
+        let done!: () => void;
+        this.handoffs.set(child.id, new Promise<void>(resolve => { done = resolve; }));
+        try {
+            const [branch, head] = await Promise.all([
+                this.git.run(path, { kind: 'currentBranch' }).then(r => r.output.trim(), () => ''),
+                this.git.run(path, { kind: 'revParse', ref: 'HEAD' }).then(r => r.output.trim(), () => '')
+            ]);
+            const context = await this.handoffContext(lead, root);
+            const leadInfo = { title: lead.title, task: goal };
+            const { id, link } = await this.zaprexDesktop.startHandoff({
+                kind: piece.kind, label: piece.label, task: piece.task, goal, lead: leadInfo, scope: piece.scope,
+                repo: { path, ...(branch ? { branch } : {}), ...(head ? { head } : {}) }, context
+            });
+            child.handoff = { id, desktop: true, message: 'Waiting for the Zaprex app…' };
+            child.messages.push({ role: 'system', text: `Handed to the Zaprex desktop app · ${workingLine({ label: piece.label, lead: leadInfo })}` });
+            this.changed();
+            await this.zaprexDesktop.open(link);
+            await this.followHandoff(child, root);
+        } catch (error) {
+            child.status = 'error';
+            child.messages.push({ role: 'system', text: `Could not hand the piece to Zaprex: ${error instanceof Error ? error.message : String(error)}` });
+        } finally {
+            this.handoffs.delete(child.id);
+            child.updatedAt = Date.now();
+            this.changed();
+            done();
+        }
+    }
+
+    /** Files the lead is changing (capped), so Zaprex starts from the same code. */
+    protected async handoffContext(lead: AgentSession, root: URI): Promise<HandoffFile[]> {
+        const paths = [...new Set([...lead.steps.filter(st => st.kind === 'edit').map(st => st.target), ...lead.changes.map(c => c.label)])]
+            .filter(p => isSafeRelativePath(p)).slice(0, HANDOFF_MAX_CONTEXT_FILES);
+        const files: HandoffFile[] = [];
+        let budget = HANDOFF_MAX_CONTEXT_CHARS;
+        for (const p of paths) {
+            const content = await this.files.read(root.resolve(p)).then(r => r.value, () => undefined);
+            if (content === undefined || budget <= 0) {
+                continue;
+            }
+            files.push({ path: p, content: content.slice(0, budget) });
+            budget -= content.length;
+        }
+        return files;
+    }
+
+    protected async followHandoff(child: AgentSession, root: URI): Promise<void> {
+        const id = child.handoff!.id;
+        const started = Date.now();
+        const line = (st: HandoffStatus): string => st.message || (st.state === 'pending' ? 'Waiting for the Zaprex app…' : st.state === 'claimed' ? 'Zaprex picked it up' : 'Working…');
+        for (;;) {
+            await new Promise(resolve => setTimeout(resolve, HANDOFF_POLL_MS));
+            if (child.status !== 'thinking') {
+                return; // stopped
+            }
+            const status = await this.zaprexDesktop.status(id).catch(() => undefined);
+            if (!status) {
+                child.status = 'error';
+                child.messages.push({ role: 'system', text: 'The Zaprex handoff ended unexpectedly.' });
+                return;
+            }
+            if (status.state === 'pending' && Date.now() - started > HANDOFF_CLAIM_TTL_MS) {
+                await this.zaprexDesktop.cancel(id).catch(() => undefined);
+                child.status = 'error';
+                child.messages.push({ role: 'system', text: 'Zaprex did not pick up the piece. Is the Zaprex app open?' });
+                return;
+            }
+            child.handoff = { ...child.handoff!, progress: status.progress, message: line(status) };
+            this.changed();
+            if (status.state === 'done' && status.result) {
+                child.handoff = { ...child.handoff, progress: 1, message: undefined };
+                child.messages.push({ role: 'agent', from: 'Zaprex', text: status.result.summary || 'Done.' });
+                if (status.result.edits.length) {
+                    // Same review as any agent: the edits land in the review bar, locked to the piece's scope.
+                    await this.applyEdits(child, status.result.edits, root);
+                } else {
+                    child.status = 'idle';
+                }
+                return;
+            }
+            if (status.state === 'failed' || status.state === 'cancelled') {
+                child.status = status.state === 'failed' ? 'error' : 'idle';
+                child.messages.push({ role: 'system', text: status.state === 'failed' ? `Zaprex could not finish: ${status.message ?? 'no reason given'}` : 'Zaprex cancelled the piece.' });
+                return;
+            }
+        }
+    }
+
+    /** IDEA-185: the lead waits until its desktop pieces are done, then points at the review bar. */
+    protected async waitForPieces(lead: AgentSession): Promise<void> {
+        const pieces = this.zaprexPieces(lead.id).filter(p => this.handoffs.has(p.id));
+        if (!pieces.length) {
+            return;
+        }
+        const before = lead.status;
+        lead.status = 'thinking';
+        lead.messages.push({ role: 'system', refs: pieces.map(p => p.id), text: `Waiting for Zaprex: ${pieces.map(p => p.title.replace(/^Zaprex · /, '')).join(', ')}…` });
+        this.changed();
+        await Promise.all(pieces.map(p => this.handoffs.get(p.id)));
+        for (const p of pieces) {
+            const edits = p.steps.filter(st => st.kind === 'edit').length;
+            lead.messages.push({
+                role: 'peer', from: 'Zaprex', refs: [p.id],
+                text: p.status === 'error' ? `${p.title.replace(/^Zaprex · /, '')} needs attention.`
+                    : `Done: ${p.title.replace(/^Zaprex · /, '')}${edits ? ` · ${edits} file(s) to review in the review bar` : ''}.`
+            });
+        }
+        lead.status = before === 'thinking' ? 'idle' : before;
     }
 
     /** Harmony file lock: why this chat may not change `path` right now, if it may not. */

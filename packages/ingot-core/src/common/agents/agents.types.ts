@@ -86,6 +86,8 @@ export interface AgentSession {
     scope?: readonly string[];
     /** IDEA-180: which Harmony piece this is. */
     piece?: import('./harmony').HarmonyPieceKind;
+    /** IDEA-185: the piece runs in the Zaprex desktop app (handoff id), with its streamed progress (0..1) and status line. */
+    handoff?: { readonly id: string; readonly progress?: number; readonly message?: string; readonly desktop: true };
     /** IDEA-105 checkpoint: the run stopped for review after `applied` of `total` files. */
     pause?: ReviewPause;
 }

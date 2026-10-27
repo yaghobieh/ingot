@@ -49,3 +49,11 @@ body.ingot-dark .ingot-harmony-bubble { background: #1C202A; box-shadow: 0 8px 2
 .ingot-harmony-accept:hover { filter: brightness(1.05); }
 .ingot-harmony-actions button:focus-visible { outline: 2px solid #3B6FD9; outline-offset: 1px; }
 @media (prefers-reduced-motion: reduce) { .ingot-harmony-bubble, .ingot-tb-zaprex-busy { animation: none; } }
+/* IDEA-185: where a Harmony piece runs (desktop app, or here when Zaprex desktop is not installed). */
+.ingot-harmony-where { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: 11.5px; color: var(--ingot-text-muted, var(--theia-descriptionForeground)); }
+.ingot-harmony-where.on { color: var(--theia-foreground); }
+.ingot-harmony-where .codicon { font-size: 12px; }
+.ingot-harmony-get { all: unset; cursor: pointer; color: #3B6FD9; font-weight: 600; }
+body.ingot-dark .ingot-harmony-get { color: #7EA2F0; }
+.ingot-harmony-get:hover { text-decoration: underline; }
+.ingot-harmony-get:focus-visible { outline: 2px solid #3B6FD9; border-radius: 3px; }
