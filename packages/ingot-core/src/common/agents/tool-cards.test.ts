@@ -40,6 +40,7 @@ describe('tool cards (IDEA-177)', () => {
         const steps = [{ kind: 'read', target: 'a.ts, b.ts' }, { kind: 'read', target: 'rules: x' }, { kind: 'run', target: 'ingot/web_search' }, { kind: 'search', target: 'q' }];
         expect(exploredLine(steps, false)).toBe('Explored 2 files, 2 searches');
         expect(exploredLine(steps, true)).toBe('Exploring 2 files, 2 searches');
+        expect(exploredLine([{ kind: 'read', target: './' }, { kind: 'read', target: 'a.ts' }], false)).toBe('Explored 1 file, 1 folder');
         expect(exploredLine([{ kind: 'read', target: 'one.ts' }], false)).toBe('Explored 1 file');
         expect(exploredLine([], false)).toBeUndefined();
     });
