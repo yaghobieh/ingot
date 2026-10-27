@@ -49,6 +49,7 @@ import type { ProjectCommand } from '../../common/project-config/project-config.
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
+import { MADE_WITH_PREF, withMadeWith } from '../../common/git/made-with';
 import { clampPieces, HARMONY_DEFAULTS, HARMONY_PREFS, harmonyLock, harmonyPrompt, isHeavyRun, pickHarmonyPiece, type HarmonyPiece } from '../../common/agents/harmony';
 import {
     APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
@@ -883,7 +884,7 @@ export class AgentStore {
             const at = session.messages.push({ role: 'tool', from: target, text: '', tool }) - 1;
             this.changed();
             const result: AgentActionResult & { images?: ImageChip[] } = await (isBrowser ? this.runBrowser(session, call)
-                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(call, root, hooksRan) : this.mcp.callTool(call.server, call.tool, call.args))
+                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(this.withMadeWithTrailer(session, call), root, hooksRan) : this.mcp.callTool(call.server, call.tool, call.args))
                 .catch((error: unknown) => {
                     if (session.messages[at]?.tool === tool) {
                         session.messages[at] = { role: 'tool', from: target, text: `Error: ${error instanceof Error ? error.message : String(error)}`, tool: { ...tool, state: 'error', endedAt: Date.now() } };
@@ -1345,6 +1346,16 @@ export class AgentStore {
 
     find(id: string): AgentSession | undefined {
         return this.items.find(s => s.id === id);
+    }
+
+    /** IDEA-183: agent commits end with "Made with Ingot", or "Made with Zaprex" when Zaprex worked on the chat. */
+    protected withMadeWithTrailer(session: AgentSession, call: AgentToolCall): AgentToolCall {
+        if (call.tool !== 'git' || call.args.op !== 'commit' || typeof call.args.message !== 'string' || call.args.amend === true
+            || this.preferences.get<boolean>(MADE_WITH_PREF, true) === false) {
+            return call;
+        }
+        const zaprex = session.agent === 'zaprex' || this.zaprexPieces(session.id).length > 0;
+        return { ...call, args: { ...call.args, message: withMadeWith(call.args.message, zaprex ? 'zaprex' : 'ingot') } };
     }
 
     /** Zaprex pieces of a chat (running or done), newest first. */

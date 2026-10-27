@@ -134,9 +134,10 @@ export class LocalChangesWidget extends ReactWidget {
         let ok = false;
         await this.run(async () => {
             const count = this.model.included.length;
-            await this.model.commit({ message: this.message, amend: this.amend, signoff: this.signoff, runHooks: this.runHooks, gate: root => this.hooksGate.gate(root, 'pre-commit') });
+            await this.model.commit({ message: this.ai.messageToCommit(this.message), amend: this.amend, signoff: this.signoff, runHooks: this.runHooks, gate: root => this.hooksGate.gate(root, 'pre-commit') });
             this.messages.info(this.amend ? 'Amended the last commit.' : `Committed ${count} file${count === 1 ? '' : 's'}.`);
             this.message = '';
+            this.ai.reset();
             this.amend = false;
             this.history = undefined;
             ok = true;
@@ -256,7 +257,7 @@ export class LocalChangesWidget extends ReactWidget {
             <div className='ingot-lc-message'>
                 <textarea id='ingot-commit-message' ref={el => { this.messageInput = el; }} placeholder={this.amend ? 'Amend commit message' : 'Commit message'}
                     value={this.message} spellCheck readOnly={this.ai.generating} aria-busy={this.ai.generating}
-                    onChange={e => { this.message = e.currentTarget.value; this.historyIndex = -1; this.update(); }}
+                    onChange={e => { this.message = e.currentTarget.value; this.historyIndex = -1; if (!this.message.trim()) { this.ai.reset(); } this.update(); }}
                     onKeyDown={e => {
                         if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {
                             e.preventDefault();

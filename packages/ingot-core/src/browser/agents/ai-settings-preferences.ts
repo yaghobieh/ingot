@@ -1,5 +1,6 @@
 import type { PreferenceSchema } from '@theia/core/lib/common/preferences';
 import { AI_SETTINGS_PREFS, DEFAULT_AGENT_MODES } from '../../common/agents/ai-settings';
+import { MADE_WITH_PREF } from '../../common/git/made-with';
 
 /** IDEA-182: agent defaults, the Zaprex button and Commit with AI (Settings › Tools › AI & Zaprex). */
 export const aiSettingsPreferenceSchema: PreferenceSchema = {
@@ -20,6 +21,10 @@ export const aiSettingsPreferenceSchema: PreferenceSchema = {
         [AI_SETTINGS_PREFS.aiCommit]: {
             type: 'boolean', default: true,
             description: 'Show the Commit with AI button, which writes the commit message from the staged changes.'
+        },
+        [MADE_WITH_PREF]: {
+            type: 'boolean', default: true,
+            description: 'Add a "Made with Ingot" (or "Made with Zaprex") line at the end of commit messages the agent, Commit with AI or Zaprex wrote.'
         }
     }
 };
