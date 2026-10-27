@@ -45,6 +45,7 @@ import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.cons
 import type { ProjectCommand } from '../../common/project-config/project-config.types';
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
+import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
 import { clampPieces, HARMONY_DEFAULTS, HARMONY_PREFS, harmonyLock, harmonyPrompt, isHeavyRun, pickHarmonyPiece, type HarmonyPiece } from '../../common/agents/harmony';
 import {
     APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
@@ -103,10 +104,30 @@ export class AgentStore {
         this.items = parseChats(localStorage.getItem(CHATS_STORAGE_KEY));
         this.selected = this.tabs[0]?.id;
         this.preferences.onPreferenceChanged(e => {
-            if (e.preferenceName.startsWith('ingot.agent.review')) {
+            if (e.preferenceName === AI_SETTINGS_PREFS.defaultMode || e.preferenceName === AI_SETTINGS_PREFS.defaultModel) {
+                this.applyChatDefaults();
+            }
+            if (e.preferenceName.startsWith('ingot.agent.review') || e.preferenceName === AI_SETTINGS_PREFS.zaprexButton) {
                 this.onDidChangeEmitter.fire();
             }
         });
+        void this.preferences.ready.then(() => this.applyChatDefaults());
+    }
+
+    /** IDEA-182: new chats start in the mode and model from Settings › AI & Zaprex; open chats keep theirs. */
+    protected applyChatDefaults(): void {
+        this.defaultMode = defaultAgentMode(this.preferences.get(AI_SETTINGS_PREFS.defaultMode), this.defaultMode);
+        this.defaultModel = defaultAgentModel(this.preferences.get(AI_SETTINGS_PREFS.defaultModel), this.defaultModel);
+    }
+
+    /** IDEA-182: a model set in Settings › AI & Zaprex wins for new chats; otherwise the model in use (unchanged). */
+    protected newChatModel(): string {
+        return defaultAgentModel(this.preferences.get(AI_SETTINGS_PREFS.defaultModel), this.model);
+    }
+
+    /** IDEA-182: the T-rex in the title bar and the chat toolbar (Settings › AI & Zaprex). */
+    get zaprexButtonVisible(): boolean {
+        return this.preferences.get<boolean>(AI_SETTINGS_PREFS.zaprexButton, true) !== false;
     }
     protected readonly running = new Map<string, () => void>();
     /** Project /commands and skills for the composer menu (refreshed by `loadCommands`). */
@@ -307,7 +328,7 @@ export class AgentStore {
 
     create(title = NEW_AGENT_TITLE): AgentSession {
         const session: AgentSession = {
-            id: newChatId(), title, status: 'idle', updatedAt: Date.now(), mode: this.mode, model: this.model,
+            id: newChatId(), title, status: 'idle', updatedAt: Date.now(), mode: this.defaultMode, model: this.newChatModel(),
             messages: [], plan: [], steps: [], changes: [], project: this.projectScope, open: true, openedAt: Date.now()
         };
         this.items = [session, ...this.items];
@@ -341,7 +362,7 @@ export class AgentStore {
             return existing;
         }
         const session: AgentSession = {
-            id: newChatId(), title, status: 'idle', updatedAt: Date.now(), mode: this.mode, model: this.model,
+            id: newChatId(), title, status: 'idle', updatedAt: Date.now(), mode: this.defaultMode, model: this.newChatModel(),
             messages: [], plan: [], steps: [], changes: [], project, open: true, openedAt: Date.now()
         };
         this.items = [session, ...this.items];

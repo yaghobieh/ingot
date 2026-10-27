@@ -277,7 +277,7 @@ export class IngotMainToolbar extends ReactWidget {
         return <div className='ingot-tb-window-actions'>
             <IconButton id='ingot-tb-panel' codicon='layout-panel' title={TITLEBAR_TEXT.bottomPanel} pressed={this.bottomPanelOpen} onClick={() => this.toggle(TOGGLE_BOTTOM_PANEL_COMMAND)} />
             <IconButton id='ingot-tb-chat' codicon='comment' title={TITLEBAR_TEXT.chat} pressed={this.chatOpen} onClick={() => this.toggle(AGENT_COMMANDS.toggle.id)} />
-            {this.renderZaprex()}
+            {this.agents.zaprexButtonVisible && this.renderZaprex()}
             <button id='ingot-tb-agents-window' type='button' className='ingot-tb-pill' title={TITLEBAR_TEXT.agentsWindowTitle} onClick={() => this.run(TITLEBAR_COMMANDS.agentsWindow.id)}>
                 <span>{TITLEBAR_TEXT.agentsWindow}</span><span className='ingot-tb-pill-arrow' aria-hidden='true'>↗</span>
             </button>

@@ -1235,7 +1235,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 {this.renderModelPill()}
                 {this.renderReviewToggle()}
                 <span className='ingot-flex' />
-                {this.renderComposerZaprex()}
+                {this.store.zaprexButtonVisible && this.renderComposerZaprex()}
                 {this.renderUsageRing()}
                 {this.store.isRunning(this.store.current?.id)
                     ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}><span className='codicon codicon-debug-stop' /></button>

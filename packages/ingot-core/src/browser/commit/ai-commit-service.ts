@@ -1,4 +1,7 @@
-import { inject, injectable } from '@theia/core/shared/inversify';
+import { Emitter, type Event } from '@theia/core/lib/common/event';
+import { PreferenceService } from '@theia/core/lib/common/preferences';
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
+import { AI_SETTINGS_PREFS } from '../../common/agents/ai-settings';
 import { GitService } from '../../common/git/git.types';
 import { AI_COMMIT_FEATURE, AI_COMMIT_MAX_TOKENS, AI_COMMIT_TEXT, aiCommitError, cleanCommitMessage, commitMessagePrompt, newFileDiff, truncateDiff } from '../../common/git/ai-commit';
 import { IngotAccountService } from '../account/account-service';
@@ -22,6 +25,24 @@ export class AiCommitService {
     @inject(GitService) protected readonly git: GitService;
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
     @inject(IngotAccountService) protected readonly account: IngotAccountService;
+    @inject(PreferenceService) protected readonly preferences: PreferenceService;
+
+    protected readonly onDidChangeEnabledEmitter = new Emitter<void>();
+    readonly onDidChangeEnabled: Event<void> = this.onDidChangeEnabledEmitter.event;
+
+    @postConstruct()
+    protected init(): void {
+        this.preferences.onPreferenceChanged(e => {
+            if (e.preferenceName === AI_SETTINGS_PREFS.aiCommit) {
+                this.onDidChangeEnabledEmitter.fire();
+            }
+        });
+    }
+
+    /** IDEA-182: the Commit with AI button can be turned off in Settings › AI & Zaprex. */
+    get enabled(): boolean {
+        return this.preferences.get<boolean>(AI_SETTINGS_PREFS.aiCommit, true) !== false;
+    }
 
     /** Picker id of the model used: the server's default Ingot model, else (BYOK on) the first connected one. */
     pickModel(): string | undefined {
