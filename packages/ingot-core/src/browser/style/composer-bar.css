@@ -98,3 +98,32 @@
 
 /* Light theme: slightly stronger lines so the pills don't vanish on white. */
 body.theia-light .ingot-agents .ingot-composer { --ingot-cb-line: color-mix(in srgb, var(--theia-foreground) 16%, transparent); }
+
+/* IDEA-180 / IDEA-184: the composer T-rex status popover. */
+.ingot-agents .ingot-composer-bar .ingot-composer-zaprex { position: relative; }
+.ingot-agents .ingot-composer-bar .ingot-composer-zaprex-dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--ingot-cb-gold); box-shadow: 0 0 0 2px var(--ingot-composer-bg, var(--theia-editor-background)); }
+.ingot-agents .ingot-composer-bar .ingot-zaprex-status { position: absolute; bottom: calc(100% + 6px); left: auto; right: -40px; width: 290px; max-width: calc(100vw - 24px); padding: 10px 12px; z-index: 901; display: flex; flex-direction: column; gap: 8px;
+  border-radius: 10px; border: 1px solid var(--ingot-cb-line, rgba(27, 38, 71, .14)); background: var(--ingot-surface, var(--theia-menu-background)); box-shadow: 0 8px 28px rgba(0, 0, 0, .18); font-size: 12px; color: var(--theia-foreground); }
+.ingot-zaprex-status .ingot-zs-head { display: flex; align-items: center; gap: 7px; }
+.ingot-zaprex-status .ingot-zs-head .ingot-zaprex-trex { width: 18px; height: 18px; }
+.ingot-zaprex-status .ingot-zs-title { font-weight: 600; font-size: 12.5px; }
+.ingot-zaprex-status .ingot-zs-badge { margin-left: auto; padding: 1px 7px; border-radius: 999px; font-size: 11px; color: var(--ingot-cb-muted, var(--theia-descriptionForeground)); background: color-mix(in srgb, var(--theia-foreground) 8%, transparent); }
+.ingot-zaprex-status .ingot-zs-badge.on { color: #8A5A12; background: color-mix(in srgb, #D9A04E 22%, transparent); }
+body.ingot-dark .ingot-zaprex-status .ingot-zs-badge.on { color: #E7B86A; }
+.ingot-zaprex-status .ingot-zs-offer { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 8px; background: color-mix(in srgb, #D9A04E 10%, transparent); }
+.ingot-zaprex-status .ingot-zs-scope, .ingot-zaprex-status .ingot-zs-empty { color: var(--ingot-cb-muted, var(--theia-descriptionForeground)); line-height: 1.45; }
+.ingot-zaprex-status .ingot-zs-actions, .ingot-zaprex-status .ingot-zs-footer { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.ingot-zaprex-status button { all: unset; cursor: pointer; padding: 4px 9px; border-radius: 6px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.ingot-zaprex-status button:focus-visible { outline: 2px solid var(--ingot-primary, #3B6FD9); outline-offset: 1px; }
+.ingot-zaprex-status .ingot-zs-ghost:hover { background: color-mix(in srgb, var(--theia-foreground) 8%, transparent); }
+.ingot-zaprex-status .ingot-zs-primary { background: #D9A04E; color: #1B2647; font-weight: 600; }
+.ingot-zaprex-status .ingot-zs-primary:hover { background: color-mix(in srgb, #D9A04E 88%, #fff); }
+.ingot-zaprex-status .ingot-zs-pieces { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ingot-zaprex-status .ingot-zs-piece { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ingot-zaprex-status .ingot-zs-piece-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-zaprex-status .ingot-zs-piece-state { color: var(--ingot-cb-muted, var(--theia-descriptionForeground)); white-space: nowrap; }
+.ingot-zaprex-status .ingot-zs-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: #3FA36B; }
+.ingot-zaprex-status .ingot-zs-dot.working { background: #D9A04E; animation: ingot-zs-pulse 1.2s ease-in-out infinite; }
+.ingot-zaprex-status .ingot-zs-dot.review { background: #3B6FD9; }
+@keyframes ingot-zs-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .ingot-zaprex-status .ingot-zs-dot.working { animation: none; } }

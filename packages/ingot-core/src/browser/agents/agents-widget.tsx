@@ -42,7 +42,9 @@ import { InlineComposer, readImage } from './inline-composer';
 import { COMPOSER_INPUT_ID, MAX_DROPPED_FILE_CHARS } from './inline-composer.consts';
 import { AgentMarkdownRenderer } from './markdown-renderer';
 import { COPIED_LABEL, COPY_LABEL } from './markdown.consts';
-import { ZAPREX_APP_URL, ZAPREX_LINK_LABEL } from './zaprex-link.consts';
+import { ZAPREX_APP_URL } from './zaprex-link.consts';
+import { ZaprexStatus, type PieceState } from './zaprex-status';
+import { HARMONY_PREFS } from '../../common/agents/harmony';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
@@ -63,10 +65,10 @@ import { ProcessStore } from '../processes/process-store';
 import { ProcessesPanel } from '../processes/processes-panel';
 import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
 import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
-import { PreferenceService } from '@theia/core/lib/common/preferences';
+import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
 
-type Popover = 'mode' | 'model' | 'history' | 'context' | undefined;
+type Popover = 'mode' | 'model' | 'history' | 'context' | 'zaprex' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
 /** Right tool window: chats as tabs with History, conversation with plan and tool steps, composer with mode, model and context (IDEA-27/28, IDEA-77). */
@@ -1022,12 +1024,35 @@ export class IngotAgentsWidget extends ReactWidget {
         </button>;
     }
 
-    /** IDEA-184: the small animated Zaprex T-rex in the composer bar; opens the Zaprex app. */
+    /** IDEA-184 / IDEA-180: the small animated Zaprex T-rex in the composer bar; opens Zaprex and Harmony mode status. */
     protected renderComposerZaprex(): React.ReactNode {
-        return <button type='button' id='ingot-composer-zaprex' className='ingot-icon-button ingot-composer-zaprex' title={ZAPREX_LINK_LABEL} aria-label={ZAPREX_LINK_LABEL}
-            onClick={() => this.windows.openNewWindow(ZAPREX_APP_URL, { external: true })}>
-            <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
-        </button>;
+        const current = this.store.current;
+        const offer = this.store.harmonyEnabled && current ? this.store.harmonyOfferFor(current.id) : undefined;
+        const pieces = current ? this.store.zaprexPieces(current.id) : [];
+        const busy = pieces.some(s => this.pieceState(s) === 'working');
+        const label = offer ? 'Zaprex can take a piece of this run (Harmony mode)' : busy ? 'Zaprex is working on a piece (Harmony mode)'
+            : `Zaprex · Harmony mode ${this.store.harmonyEnabled ? 'on' : 'off'}`;
+        return <span className='ingot-pill-anchor'>
+            <button type='button' id='ingot-composer-zaprex' className={`ingot-icon-button ingot-composer-zaprex${offer || busy ? ' thinking' : ''}`} title={label} aria-label={label}
+                aria-haspopup='dialog' aria-expanded={this.popover === 'zaprex'} onClick={() => { this.popover = this.popover === 'zaprex' ? undefined : 'zaprex'; this.update(); }}>
+                <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
+                {(offer || busy) && <span className='ingot-composer-zaprex-dot' aria-hidden='true' />}
+            </button>
+            {this.popover === 'zaprex' && <ZaprexStatus enabled={this.store.harmonyEnabled} offer={offer}
+                pieces={pieces.map(session => ({ session, state: this.pieceState(session) }))}
+                onAccept={() => { this.closePopover(); if (current) { this.store.acceptHarmony(current.id); } }}
+                onDismiss={() => { this.closePopover(); if (current) { this.store.dismissHarmony(current.id); } }}
+                onTurnOn={() => { void this.preferences.set(HARMONY_PREFS.enabled, true, PreferenceScope.User).then(() => this.update()); }}
+                onOpenApp={() => { this.closePopover(); this.windows.openNewWindow(ZAPREX_APP_URL, { external: true }); }}
+                onClose={() => this.closePopover()} />}
+        </span>;
+    }
+
+    protected pieceState(session: AgentSession): PieceState {
+        if (this.store.isRunning(session.id) || session.status === 'thinking' || session.status === 'editing') {
+            return 'working';
+        }
+        return session.status === 'review' ? 'review' : 'done';
     }
 
     protected renderModePill(): React.ReactNode {

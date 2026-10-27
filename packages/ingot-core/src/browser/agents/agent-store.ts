@@ -1133,6 +1133,11 @@ export class AgentStore {
         return last && { sessionId: last[0], piece: last[1] };
     }
 
+    /** The open offer for one chat. */
+    harmonyOfferFor(sessionId: string): HarmonyPiece | undefined {
+        return this.harmonyOffers.get(sessionId);
+    }
+
     /** Zaprex pieces of a chat (running or done), newest first. */
     zaprexPieces(leadId?: string): readonly AgentSession[] {
         return this.items.filter(s => s.agent === 'zaprex' && (!leadId || s.parent === leadId));
