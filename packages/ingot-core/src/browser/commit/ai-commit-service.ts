@@ -2,6 +2,7 @@ import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { AI_SETTINGS_PREFS } from '../../common/agents/ai-settings';
+import { MADE_WITH_PREF, withMadeWith } from '../../common/git/made-with';
 import { GitService } from '../../common/git/git.types';
 import { AI_COMMIT_FEATURE, AI_COMMIT_MAX_TOKENS, AI_COMMIT_TEXT, aiCommitError, cleanCommitMessage, commitMessagePrompt, newFileDiff, truncateDiff } from '../../common/git/ai-commit';
 import { IngotAccountService } from '../account/account-service';
@@ -37,6 +38,11 @@ export class AiCommitService {
                 this.onDidChangeEnabledEmitter.fire();
             }
         });
+    }
+
+    /** IDEA-183: the message to commit; one Commit with AI wrote ends with "Made with Ingot" (Settings › AI & Zaprex). */
+    finalMessage(message: string, aiWritten: boolean): string {
+        return aiWritten && this.preferences.get<boolean>(MADE_WITH_PREF, true) !== false ? withMadeWith(message, 'ingot') : message;
     }
 
     /** IDEA-182: the Commit with AI button can be turned off in Settings › AI & Zaprex. */

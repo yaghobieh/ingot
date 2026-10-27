@@ -178,9 +178,10 @@ export class CommitWindow extends ReactWidget {
         let ok = false;
         try {
             const count = this.model.included.length;
-            await this.model.commit({ message: this.message, amend: this.amend, signoff: false, runHooks: true, gate: root => this.hooksGate.gate(root, 'pre-commit') });
+            await this.model.commit({ message: this.ai.messageToCommit(this.message), amend: this.amend, signoff: false, runHooks: true, gate: root => this.hooksGate.gate(root, 'pre-commit') });
             this.messages.info(this.amend ? 'Amended the last commit.' : `Committed ${count} file${count === 1 ? '' : 's'}.`);
             this.message = '';
+            this.ai.reset();
             this.amend = false;
             ok = true;
         } catch (error) {
@@ -281,7 +282,7 @@ export class CommitWindow extends ReactWidget {
                 <div className='ingot-cw-message'>
                     <textarea id='ingot-cw-message' ref={el => { this.messageInput = el; }} placeholder={this.amend ? 'Amend commit message' : 'Commit message'} value={this.message} spellCheck
                         readOnly={this.ai.generating} aria-busy={this.ai.generating}
-                        onChange={e => { this.message = e.currentTarget.value; this.update(); }}
+                        onChange={e => { this.message = e.currentTarget.value; if (!this.message.trim()) { this.ai.reset(); } this.update(); }}
                         onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canCommit) { e.preventDefault(); this.commit(false); } }} />
                     <div className='ingot-cw-message-tools'><AiCommitButton id='ingot-cw-ai' controller={this.ai} /></div>
                 </div>

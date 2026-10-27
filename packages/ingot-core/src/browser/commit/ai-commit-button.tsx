@@ -6,6 +6,8 @@ import type { AiCommitRun, AiCommitService } from './ai-commit-service';
 export class AiMessageController {
     generating = false;
     error = '';
+    /** IDEA-183: the message in the box came from Commit with AI (cleared when the box is emptied or after a commit). */
+    aiWritten = false;
     protected run: AiCommitRun | undefined;
 
     constructor(
@@ -41,6 +43,7 @@ export class AiMessageController {
         this.run.done.then(text => {
             if (text) {
                 this.setMessage(text);
+                this.aiWritten = true;
             } else if (!streamed) {
                 this.setMessage(previous);
             }
@@ -54,6 +57,17 @@ export class AiMessageController {
             this.run = undefined;
             this.update();
         });
+    }
+
+    /** The message to commit (with the "Made with" trailer when the AI wrote it); resets the AI flag. */
+    messageToCommit(message: string): string {
+        const final = this.service.finalMessage(message, this.aiWritten && !!message.trim());
+        return final;
+    }
+
+    /** Call when the user empties the box or after a commit. */
+    reset(): void {
+        this.aiWritten = false;
     }
 
     dispose(): void {
