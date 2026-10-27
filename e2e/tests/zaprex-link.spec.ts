@@ -25,7 +25,7 @@ const shotHeader = async (page: Page, name: string): Promise<void> => {
     await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 };
 
-/** IDEA-173 / IDEA-179: Zaprex is its own app. The IDE has no Zaprex panel, only one small T-rex in the title bar that opens it. */
+/** IDEA-173 / IDEA-179: Zaprex is its own app. The IDE has no Zaprex panel, one small T-rex in the title bar (plus the composer button, IDEA-184) that opens it. */
 test.describe('IDEA-173 Zaprex link', () => {
     test('the title bar shows the one Zaprex T-rex (not in the agent header), which opens the Zaprex app', async ({ page, context }) => {
         await context.route('https://zaprex.dev/**', route => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Zaprex</title>' }));
@@ -33,8 +33,10 @@ test.describe('IDEA-173 Zaprex link', () => {
         await dismissNotifications(page);
         const logo = page.locator('#ingot-tb-zaprex');
         await expect(logo).toBeVisible();
-        // Exactly one T-rex in the IDE, and it is alive (idle animation).
-        await expect(page.locator('.ingot-zaprex-link-icon')).toHaveCount(1);
+        // One T-rex in the title bar; the only other one is the composer button (IDEA-184), never the agent header.
+        await expect(logo.locator('.ingot-zaprex-link-icon')).toHaveCount(1);
+        await expect(page.locator('.ingot-zaprex-link-icon:not(#ingot-tb-zaprex *):not(#ingot-composer-zaprex *)')).toHaveCount(0);
+        await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(await page.locator('.ingot-agents .ingot-composer-bar').count());
         await expect(page.locator('#ingot-agents-zaprex')).toHaveCount(0);
         expect(await logo.locator('.ingot-zaprex-trex').evaluate(el => getComputedStyle(el).animationName)).toBe('ingot-trex-idle');
         await expect(logo).toHaveAttribute('title', 'Open Zaprex');
