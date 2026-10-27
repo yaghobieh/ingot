@@ -60,6 +60,36 @@ jobs:
             e2e/test-results
           retention-days: 7
 
+  electron-e2e:
+    # IDEA-189: the desktop (Electron) e2e suite: native clipboard, menu roles, approvals, review bar, context ring.
+    # The specs use the macOS keymap (Cmd), so they run on the macOS runner.
+    name: Desktop app e2e (macos-latest)
+    runs-on: macos-latest
+    needs: gate
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:electron
+      - run: npm run test:electron -w e2e
+        env:
+          CI: 'true'
+          INGOT_SHOTS: ${{ github.workspace }}/e2e/electron-shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-electron
+          path: |
+            e2e/playwright-report-electron
+            e2e/test-results
+            e2e/electron-shots
+          retention-days: 7
+          if-no-files-found: ignore
+
   electron:
     name: Build desktop app (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

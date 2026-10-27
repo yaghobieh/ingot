@@ -14,7 +14,16 @@ const APP = join(DIST, 'Ingot.app');
 const BUNDLE_ID = 'dev.ingot.preview';
 const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
 
-if (process.platform !== 'darwin' || (!existsSync(OLD_APP) && !existsSync(APP))) {
+if (process.platform !== 'darwin') {
+    process.exit(0);
+}
+// Electron 42+ has no install script: the binary is downloaded on first use, so after a clean `npm ci` (CI) there is no
+// bundle yet and this used to exit silently, leaving the app as Electron.app (IDEA-189). Download it here first.
+if (!existsSync(OLD_APP) && !existsSync(APP) && existsSync('node_modules/electron/install.js')) {
+    execFileSync(process.execPath, ['node_modules/electron/install.js'], { stdio: 'inherit' });
+}
+if (!existsSync(OLD_APP) && !existsSync(APP)) {
+    console.warn('brand-electron-dev: no Electron.app found; skipping');
     process.exit(0);
 }
 const isLink = (p) => { try { return lstatSync(p).isSymbolicLink(); } catch { return false; } };

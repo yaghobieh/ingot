@@ -13,6 +13,36 @@ export interface DesktopApp {
     close(): Promise<void>;
 }
 
+/** The layout the specs are written for (CSS px). */
+const MIN_VIEWPORT = { width: 1440, height: 900 } as const;
+const CLOSE_TIMEOUT_MS = 20_000;
+
+/**
+ * IDEA-189: a new window is 2/3 of the screen, and the CI macOS runner's screen is small (1024×768), so the window was
+ * about 680×510: the editor area got squeezed (no visible lines, overlapping review-bar buttons). Fill the screen's work
+ * area and, when that is still smaller than the layout the specs expect, zoom out so the page gets at least that viewport.
+ * On a normal developer screen the zoom stays at 1.
+ */
+const fitWindow = async (app: ElectronApplication, page: Page): Promise<void> => {
+    const win = await app.browserWindow(page);
+    await app.evaluate(({ screen }, { w, min }) => {
+        const { workArea } = screen.getDisplayMatching(w.getBounds());
+        w.setBounds(workArea);
+        const [width, height] = w.getContentSize();
+        w.webContents.setZoomFactor(Math.min(1, width / min.width, height / min.height));
+    }, { w: win, min: MIN_VIEWPORT });
+    await expect.poll(() => page.evaluate(() => window.innerWidth), { timeout: 10_000 }).toBeGreaterThanOrEqual(MIN_VIEWPORT.width - 2);
+};
+
+/** Closes the app, and kills it if it does not quit in time, so a hung quit cannot eat the test and worker timeouts. */
+const closeApp = async (app: ElectronApplication): Promise<void> => {
+    const closed = app.close().then(() => true, () => true);
+    const done = await Promise.race([closed, new Promise<boolean>(resolve => setTimeout(() => resolve(false), CLOSE_TIMEOUT_MS))]);
+    if (!done) {
+        app.process().kill('SIGKILL');
+    }
+};
+
 /** Launches the desktop app on `workspace` with an isolated config dir, Electron profile and keychain service. */
 export const launchDesktop = async (workspace: string, extraEnv: Record<string, string> = {}, settings: Record<string, unknown> = {}): Promise<DesktopApp> => {
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-electron-e2e-'));
@@ -54,10 +84,11 @@ export const launchDesktop = async (workspace: string, extraEnv: Record<string, 
         throw new Error('Ingot window did not open');
     }
     await expect(page!.locator('.theia-preload')).toHaveCount(0, { timeout: APP_READY_TIMEOUT_MS });
+    await fitWindow(app, page!);
     return {
         app, page,
         close: async () => {
-            await app.close().catch(() => undefined);
+            await closeApp(app);
             fs.rmSync(profile, { recursive: true, force: true });
         }
     };
