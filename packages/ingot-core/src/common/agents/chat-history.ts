@@ -69,7 +69,7 @@ export const agentSubtitle = (s: Pick<AgentSession, 'status' | 'updatedAt' | 'ac
         case 'editing': return s.activeFile ? `Editing ${baseName(s.activeFile)} · ${chatTime(s.updatedAt, now)}` : `Editing · ${chatTime(s.updatedAt, now)}`;
         case 'review': return `Ready for review · ${files} file${files === 1 ? '' : 's'}`;
         case 'approval': return s.approval ? `Waiting for approval · ${s.approval.label}` : 'Waiting for approval';
-        case 'paused': return s.pause ? `Paused for review · ${s.pause.applied} of ${s.pause.total} files` : 'Paused for review';
+        case 'paused': return s.pause ? `${s.pause.applied} of ${s.pause.total} files applied. Pause for review?` : 'Paused for review';
         case 'done': return `Done · ${ago(s.updatedAt, now)}`;
         case 'error': return `Failed · ${ago(s.updatedAt, now)}`;
         default: return s.messages.length ? `Idle · ${ago(s.updatedAt, now)}` : 'New chat';

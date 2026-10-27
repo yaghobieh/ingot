@@ -31,9 +31,21 @@ import { chipLabel, expandWithChips, type ContextChip } from '../../common/agent
 import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import {
-    GREP_MAX_FILE_BYTES, GREP_MAX_FILES, GREP_MAX_MATCHES, githubRepoFromRemote, globMatcher, grepMatcher, isTextCandidate, isWorkspaceTool, LIST_MAX_ENTRIES,
-    numberLines, printsShellInsteadOfRunning, SHELL_NUDGE, SKIPPED_DIRS, withRepoDefaults, workspaceProtocol, type GitHubRepo, type WorkspaceInfo
+    GREP_MAX_FILE_BYTES, GREP_MAX_FILES, GREP_MAX_MATCHES, GLOB_MAX_PATHS, compileGitignore, githubRepoFromRemote, globMatcher, grepMatcher,
+    answerFromFiles, answerFromProject, asksAboutOpenProject, FILE_ANSWER_PATHS, fileQuestionGlob, globPaths, isPromptEcho, isTextCandidate, isWorkspaceTool, LIST_MAX_ENTRIES, numberLines, parseRgFiles, parseRgMatches,
+    printsShellInsteadOfRunning, PROJECT_ENTRY_FILES, SHELL_NUDGE,
+    SKIPPED_DIRS, withRepoDefaults, workspaceProtocol, type GitHubRepo, type WorkspaceInfo
 } from '../../common/agents/workspace-tools';
+import { MAX_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
+import {
+    CHECKS_PASSED_PREFIX, MAX_FIX_ATTEMPTS, MAX_TOOL_ROUNDS_CAP, MULTI_FILE_EDITS, REMOTE_BLOCKED, REVIEW_THEN_CHECKS, WORK_LOOP_PREFS
+} from '../../common/agents/work-loop.consts';
+import {
+    WORK_LOOP_PROTOCOL, checkFailNudge, checksPassedNudge, commitBlockReason, detectChecks, detectE2eFramework, e2eNudge, isRemoteCodeFetch,
+    isTestPath, isUiPath, needsE2eNudge, planFromEdits, stopMessage, summaryText, userAllowsWeakerTests, userAskedForRemote, wantsCommit,
+    wantsE2e, wantsWorkLoop, weakensTests, withCheckEnv
+} from '../../common/agents/work-loop';
+import type { CheckRun, LoopState } from '../../common/agents/work-loop.types';
 import { parseRemotes } from '../../common/git/git-ops';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
@@ -44,7 +56,6 @@ import { restorePlan } from '../../common/changes/changes.utils';
 import { ProjectConfigService } from '../project-config/project-config-service';
 import { IngotMcpClient } from '../project-config/mcp-client';
 import { applicableRules, expandCommand, formatRules } from '../../common/project-config/project-config.utils';
-import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
 import type { ProjectCommand } from '../../common/project-config/project-config.types';
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
@@ -99,6 +110,10 @@ export class AgentStore {
     protected readonly pauses = new Map<string, { resolve: (go: boolean) => void; timer?: ReturnType<typeof setTimeout> }>();
     /** Live edit views started while a reply streams, keyed by chat, message and path. */
     protected readonly streamingEdits = new Map<string, Promise<string | undefined>>();
+    /** IDEA-248: work-loop state for the current user turn, not saved with the chat. */
+    protected readonly loops = new Map<string, LoopState>();
+    /** Chats whose model loop is on the stack, so accepting a review does not start a second one. */
+    protected readonly modelLoops = new Set<string>();
     @inject(ProjectConfigService) protected readonly projectConfig: ProjectConfigService;
     @inject(IngotMcpClient) protected readonly mcp: IngotMcpClient;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
@@ -406,6 +421,11 @@ export class AgentStore {
                 ? { role: 'user', text: prompt.trim(), expanded: expandWithChips(prompt.trim(), chips), chips: chips.map(c => ({ label: chipLabel(c), path: c.path })) }
                 : { role: 'user', text: prompt.trim() });
         }
+        const asked = prompt.trim();
+        this.loops.set(session.id, {
+            prompt: asked, wants: this.workLoopOn() && wantsWorkLoop(asked), edits: [], checks: [], fixAttempts: 0,
+            e2eNudged: false, commitNudged: false, commitBlocked: false, committed: false, verifiedEdits: 0, required: []
+        });
         if (this.commandHandlers.some(handle => handle(session, prompt.trim()))) {
             session.updatedAt = Date.now();
             this.changed();
@@ -638,7 +658,10 @@ export class AgentStore {
                     return { role: 'user' as const, content: `${m.from}: ${m.text}` };
                 }
                 if (m.role === 'tool') {
-                    const content = `Tool result (${m.from}):\n${m.expanded ?? m.text}`;
+                    const cap = this.maxResultChars();
+                    const raw = m.expanded ?? m.text;
+                    const body = raw.length > cap ? `${raw.slice(0, cap)}\n… (cut)` : raw;
+                    const content = `Tool result (${m.from}):\n${body}`;
                     // IDEA-130: a browser screenshot goes to the model as an image when it can read images.
                     return m.images?.length ? this.userMessage(session, { ...m, expanded: content }) : { role: 'user' as const, content };
                 }
@@ -687,7 +710,7 @@ export class AgentStore {
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
         const workspace = await this.workspaceInfo(root);
         this.github = workspace.github;
-        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
+        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
         const rulesText = formatRules(rules);
         const memoriesText = formatMemories(memories);
         const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
@@ -709,53 +732,86 @@ export class AgentStore {
         this.changed();
 
         let nudged = false;
-        for (let round = 0; ; round++) {
-            const parsed = await this.streamRound(session, system);
-            if (!parsed) {
-                return;
-            }
-            // IDEA-186: a reply that hands the user shell commands gets one nudge to run / read them itself.
-            if (!parsed.toolCalls.length && !nudged && round < MAX_TOOL_ROUNDS && printsShellInsteadOfRunning(session.messages[session.messages.map(m => m.role).lastIndexOf('agent')]?.text ?? '')) {
-                nudged = true;
-                // The printed commands are replaced by real reads, so the user never sees "run this yourself".
-                const printed = session.messages.map(m => m.role).lastIndexOf('agent');
-                session.messages[printed] = { ...session.messages[printed], hidden: true };
-                session.messages.push({ role: 'user', text: SHELL_NUDGE, hidden: true });
-                continue;
-            }
-            if (parsed.toolCalls.length && round < MAX_TOOL_ROUNDS) {
-                if (!await this.runTools(session, parsed.toolCalls)) {
-                    session.messages.push({ role: 'system', text: 'Stopped while waiting for approval.' });
-                    session.status = 'idle';
+        const rounds = this.maxToolRounds();
+        this.modelLoops.add(session.id);
+        try {
+            for (let round = 0; ; round++) {
+                const parsed = await this.streamRound(session, system);
+                if (!parsed) {
+                    return;
+                }
+                // IDEA-186: a reply that hands the user shell commands gets one nudge to run / read them itself.
+                const agentText = session.messages[session.messages.map(m => m.role).lastIndexOf('agent')]?.text ?? '';
+                // A gateway mock that only repeats the question is not an answer. Read the open folder instead.
+                const asked = lastUser?.m.text ?? prompt;
+                const echoed = isPromptEcho(agentText, prompt) || isPromptEcho(agentText, asked);
+                const fileGlob = fileQuestionGlob(asked) ?? fileQuestionGlob(prompt);
+                if (!parsed.toolCalls.length && !parsed.edits.length && root && echoed && fileGlob) {
+                    await this.replaceEchoWithFiles(session, root, fileGlob);
                     session.updatedAt = Date.now();
                     this.changed();
                     return;
                 }
-                continue;
-            }
-            await this.saveMemories(session, parsed.memories, root);
-            if (info.canEdit && parsed.edits.length) {
-                await this.applyEdits(session, parsed.edits, root);
-            } else if (session.mode === 'multi' && parsed.plan.length) {
-                this.spawnSubAgents(session, parsed.plan, prompt);
-            } else {
-                if (!info.canEdit && parsed.edits.length) {
-                    session.messages.push({ role: 'system', text: `${info.label} mode does not change files; switch to Agent to apply edits.` });
+                if (!parsed.toolCalls.length && !parsed.edits.length && root && echoed && (asksAboutOpenProject(prompt) || asksAboutOpenProject(asked))) {
+                    await this.replaceEchoWithProject(session, root);
+                    session.updatedAt = Date.now();
+                    this.changed();
+                    return;
                 }
-                session.plan = session.plan.map(p => ({ ...p, state: session.mode === 'plan' ? 'todo' : 'done' }));
-                if (session.mode === 'plan' && session.plan.length) {
-                    const last = session.messages.map(m => m.role).lastIndexOf('agent');
-                    if (last >= 0) {
-                        session.messages[last] = { ...session.messages[last], buildable: true };
+                if (!parsed.toolCalls.length && !nudged && round < rounds && printsShellInsteadOfRunning(session.messages[session.messages.map(m => m.role).lastIndexOf('agent')]?.text ?? '')) {
+                    nudged = true;
+                    // The printed commands are replaced by real reads, so the user never sees "run this yourself".
+                    const printed = session.messages.map(m => m.role).lastIndexOf('agent');
+                    session.messages[printed] = { ...session.messages[printed], hidden: true };
+                    session.messages.push({ role: 'user', text: SHELL_NUDGE, hidden: true });
+                    continue;
+                }
+                if (parsed.toolCalls.length && round < rounds) {
+                    if (!await this.runTools(session, parsed.toolCalls)) {
+                        session.messages.push({ role: 'system', text: 'Stopped while waiting for approval.' });
+                        session.status = 'idle';
+                        session.updatedAt = Date.now();
+                        this.changed();
+                        return;
                     }
+                    continue;
                 }
-                session.status = 'idle';
+                await this.saveMemories(session, parsed.memories, root);
+                if (info.canEdit && parsed.edits.length) {
+                    if (parsed.edits.length >= MULTI_FILE_EDITS && !parsed.plan.length && session.plan.length === 0) {
+                        session.plan = planFromEdits(parsed.edits.map(edit => edit.path)).map((text, i) => ({ text, state: i === 0 ? 'active' : 'todo' }));
+                    }
+                    const editable = await this.editsAllowed(session, parsed.edits, root);
+                    await this.applyEdits(session, editable, root);
+                    const pending = this.tracker.pending().some(change => change.sessionId === session.id);
+                    if (pending && this.loopOf(session).wants) {
+                        session.messages.push({ role: 'system', text: REVIEW_THEN_CHECKS });
+                    } else if (!pending && round < rounds && await this.nudgeLoop(session, root)) {
+                        continue;
+                    }
+                } else if (session.mode === 'multi' && parsed.plan.length) {
+                    this.spawnSubAgents(session, parsed.plan, prompt);
+                } else {
+                    if (!info.canEdit && parsed.edits.length) {
+                        session.messages.push({ role: 'system', text: `${info.label} mode does not change files; switch to Agent to apply edits.` });
+                    }
+                    session.plan = session.plan.map(p => ({ ...p, state: session.mode === 'plan' ? 'todo' : 'done' }));
+                    if (session.mode === 'plan' && session.plan.length) {
+                        const last = session.messages.map(m => m.role).lastIndexOf('agent');
+                        if (last >= 0) {
+                            session.messages[last] = { ...session.messages[last], buildable: true };
+                        }
+                    }
+                    session.status = 'idle';
+                }
+                await this.waitForPieces(session);
+                session.activeFile = undefined;
+                session.updatedAt = Date.now();
+                this.changed();
+                return;
             }
-            await this.waitForPieces(session);
-            session.activeFile = undefined;
-            session.updatedAt = Date.now();
-            this.changed();
-            return;
+        } finally {
+            this.modelLoops.delete(session.id);
         }
     }
 
@@ -828,6 +884,15 @@ export class AgentStore {
             }
             const call = withRepoDefaults(resolved.call, this.github);
             const target = `${call.server}/${call.tool}`;
+            const asked = [...session.messages].reverse().find(message => message.role === 'user' && !message.hidden)?.text ?? '';
+            if (isRemoteCodeFetch(call) && !userAskedForRemote(asked)) {
+                session.messages.push({
+                    role: 'tool', from: target, text: REMOTE_BLOCKED,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                });
+                this.changed();
+                continue;
+            }
             const isGit = call.server === BUILTIN_TOOL_SERVER && call.tool === 'git';
             const branch = isGit && rootPath && call.args.op === 'push' && !call.args.branch
                 ? (await this.git.run(rootPath, { kind: 'currentBranch' }).catch(() => ({ output: '' }))).output.trim() || undefined : undefined;
@@ -856,7 +921,19 @@ export class AgentStore {
                 }
             }
             // IDEA-178: an agent commit / push goes through the `.ingot/hooks.json` steps first, shown as tool cards.
+            // IDEA-248: a commit on master, main or release/*, or before green checks, is refused.
             const hookStage = isGit && rootPath ? (call.args.op === 'commit' ? 'pre-commit' : call.args.op === 'push' ? 'pre-push' : undefined) : undefined;
+            if (isGit && call.args.op === 'commit' && rootPath) {
+                const branch = (await this.git.run(rootPath, { kind: 'currentBranch' }).catch(() => ({ output: '' }))).output.trim();
+                const loop = this.loopOf(session);
+                const blocked = commitBlockReason(branch, loop, loop.required);
+                if (blocked) {
+                    loop.commitBlocked = true;
+                    session.messages.push({ role: 'tool', from: target, text: `Error: ${blocked}` });
+                    this.changed();
+                    continue;
+                }
+            }
             let hooksRan = false;
             if (hookStage && rootPath && this.hooks.enabled) {
                 const run = await this.hooks.run(rootPath, hookStage);
@@ -866,6 +943,7 @@ export class AgentStore {
                 }
                 if (!run.passed) {
                     const failed = run.results.filter(r => r.state === 'failed').map(r => `"${r.step.name}"`);
+                    this.loopOf(session).commitBlocked = true;
                     session.messages.push({
                         role: 'tool', from: target,
                         text: `Error: blocked by .ingot hooks (${hookStage}${failed.length ? `: ${failed.join(', ')} failed` : ''}${run.errors.length ? `; ${run.errors.join(' ')}` : ''}). Fix the problem, then try the ${call.args.op} again.`
@@ -901,6 +979,13 @@ export class AgentStore {
             } else {
                 session.messages.push(done);
             }
+            if (isGit && call.args.op === 'commit' && !result.isError && rootPath && this.loopOf(session).wants) {
+                const loop = this.loopOf(session);
+                loop.committed = true;
+                loop.commitBlocked = false;
+                const branch = (await this.git.run(rootPath, { kind: 'currentBranch' }).catch(() => ({ output: '' }))).output.trim();
+                this.postSummary(session, branch);
+            }
             this.changed();
         }
         return true;
@@ -919,12 +1004,12 @@ export class AgentStore {
             this.git.run(path, { kind: 'remotes' }).then(r => parseRemotes(r.output), () => [])
         ]);
         const remote = remotes.find(r => r.name === 'origin') ?? remotes[0];
-        return { name: root.path.base, ...(branch ? { branch } : {}), ...(githubRepoFromRemote(remote?.url) ? { github: githubRepoFromRemote(remote?.url) } : {}) };
+        return { name: root.path.base, path, ...(branch ? { branch } : {}), ...(githubRepoFromRemote(remote?.url) ? { github: githubRepoFromRemote(remote?.url) } : {}) };
     }
 
     protected workspaceStep(call: AgentToolCall): AgentSession['steps'][number] {
         const s = (v: unknown): string => typeof v === 'string' ? v : '';
-        return call.tool === 'grep'
+        return call.tool === 'grep' || call.tool === 'glob'
             ? { kind: 'search', target: s(call.args.pattern), done: true }
             : call.tool === 'list_dir'
                 ? { kind: 'read', target: `${(s(call.args.path) || '.').replace(/\/+$/, '')}/`, done: true }
@@ -937,6 +1022,58 @@ export class AgentStore {
             return root;
         }
         return isSafeRelativePath(clean) ? root.resolve(clean) : undefined;
+    }
+
+    /**
+     * The model repeated a project question. Read the open folder and answer from those files.
+     * The echo is replaced, and the reads show up in the Explored row.
+     */
+    protected async replaceEchoWithProject(session: AgentSession, root: URI): Promise<void> {
+        const files: { path: string; text: string }[] = [];
+        const listed = await this.listDirTool(root, '.', 1);
+        if (!listed.isError) {
+            files.push({ path: '.', text: listed.text });
+            session.steps = [...session.steps, { kind: 'read', target: './', done: true }];
+        }
+        for (const path of PROJECT_ENTRY_FILES) {
+            const uri = this.safeUri(root, path);
+            const text = uri ? await this.files.read(uri).then(file => file.value, () => undefined) : undefined;
+            if (text === undefined) {
+                continue;
+            }
+            files.push({ path, text });
+            session.steps = [...session.steps, { kind: 'read', target: path, done: true }];
+        }
+        const at = session.messages.map(message => message.role).lastIndexOf('agent');
+        const text = answerFromProject(root.path.base, files);
+        if (at >= 0) {
+            session.messages[at] = { role: 'agent', text };
+        } else {
+            session.messages.push({ role: 'agent', text });
+        }
+        session.status = 'idle';
+        session.activeFile = undefined;
+    }
+
+    /** The model repeated a question about files. Glob the open folder and answer with those paths. */
+    protected async replaceEchoWithFiles(session: AgentSession, root: URI, pattern: string): Promise<void> {
+        const found = await this.globTool(root, pattern, '.');
+        const paths = globPaths(found.text);
+        const shown = paths.slice(0, FILE_ANSWER_PATHS);
+        session.steps = [
+            ...session.steps,
+            { kind: 'search', target: pattern, done: true },
+            ...shown.map(path => ({ kind: 'read' as const, target: path, done: true }))
+        ];
+        const at = session.messages.map(message => message.role).lastIndexOf('agent');
+        const text = answerFromFiles(root.path.base, pattern, paths);
+        if (at >= 0) {
+            session.messages[at] = { role: 'agent', text };
+        } else {
+            session.messages.push({ role: 'agent', text });
+        }
+        session.status = 'idle';
+        session.activeFile = undefined;
     }
 
     protected async readFileTool(root: URI, path: string, start: number, end: number | undefined): Promise<AgentActionResult> {
@@ -957,6 +1094,7 @@ export class AgentStore {
         if (!base) {
             return { text: `"${path}" is not inside the project.`, isError: true };
         }
+        const ignored = await this.ignoreOf(root);
         const lines: string[] = [];
         const walk = async (uri: URI, level: number): Promise<void> => {
             const stat = await this.files.resolve(uri).catch(() => undefined);
@@ -966,8 +1104,11 @@ export class AgentStore {
                     return;
                 }
                 const rel = root.relative(child.resource)?.toString() ?? child.name;
+                if (rel && ignored(rel) && child.name !== '.gitignore') {
+                    continue;
+                }
                 lines.push(`${'  '.repeat(level)}${child.isDirectory ? `${child.name}/` : child.name}${child.isDirectory && SKIPPED_DIRS.has(child.name) ? ' (skipped)' : ''}`);
-                if (child.isDirectory && level + 1 < depth && !SKIPPED_DIRS.has(child.name) && rel) {
+                if (child.isDirectory && level + 1 < depth && !SKIPPED_DIRS.has(child.name) && rel && !ignored(rel)) {
                     await walk(child.resource, level + 1);
                 }
             }
@@ -980,9 +1121,54 @@ export class AgentStore {
         return { text: `${path || '.'}/\n${lines.join('\n') || '(empty)'}${lines.length >= LIST_MAX_ENTRIES ? '\n… (more)' : ''}`, isError: false };
     }
 
+    protected async globTool(root: URI, pattern: string, path: string): Promise<AgentActionResult> {
+        if (!pattern.trim()) {
+            return { text: 'No pattern given.', isError: true };
+        }
+        const found = await this.searchWithRg(root, { pattern, path, glob: pattern, files: true });
+        if (found) {
+            return found;
+        }
+        const base = this.safeUri(root, path);
+        if (!base) {
+            return { text: `"${path}" is not inside the project.`, isError: true };
+        }
+        const ignored = await this.ignoreOf(root);
+        const wanted = globMatcher(pattern);
+        const hits: string[] = [];
+        const visit = async (uri: URI): Promise<void> => {
+            const stat = await this.files.resolve(uri).catch(() => undefined);
+            if (!stat) {
+                return;
+            }
+            const entries = stat.isDirectory ? [...(stat.children ?? [])] : [stat];
+            for (const entry of entries) {
+                if (hits.length >= GLOB_MAX_PATHS) {
+                    return;
+                }
+                const rel = root.relative(entry.resource)?.toString() ?? entry.name;
+                if (entry.isDirectory) {
+                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot') && !ignored(rel)) {
+                        await visit(entry.resource);
+                    }
+                    continue;
+                }
+                if (!ignored(rel) && wanted(rel)) {
+                    hits.push(rel);
+                }
+            }
+        };
+        await visit(base);
+        return { text: hits.length ? hits.join('\n') : `No files matched "${pattern}".`, isError: false };
+    }
+
     protected async grepTool(root: URI, pattern: string, path: string, glob: string, regex: boolean): Promise<AgentActionResult> {
         if (!pattern.trim()) {
             return { text: 'No pattern given.', isError: true };
+        }
+        const found = await this.searchWithRg(root, { pattern, path, glob, regex, files: false });
+        if (found) {
+            return found;
         }
         const base = this.safeUri(root, path);
         if (!base) {
@@ -990,6 +1176,7 @@ export class AgentStore {
         }
         const match = grepMatcher(pattern, regex);
         const wanted = globMatcher(glob);
+        const ignored = await this.ignoreOf(root);
         const hits: string[] = [];
         let scanned = 0;
         const visit = async (uri: URI): Promise<void> => {
@@ -1002,13 +1189,16 @@ export class AgentStore {
                 if (hits.length >= GREP_MAX_MATCHES || scanned >= GREP_MAX_FILES) {
                     return;
                 }
+                const rel = root.relative(entry.resource)?.toString() ?? entry.name;
+                if (ignored(rel)) {
+                    continue;
+                }
                 if (entry.isDirectory) {
-                    if (!SKIPPED_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
+                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot')) {
                         await visit(entry.resource);
                     }
                     continue;
                 }
-                const rel = root.relative(entry.resource)?.toString() ?? entry.name;
                 if (!isTextCandidate(rel) || !wanted(rel) || (entry.size ?? 0) > GREP_MAX_FILE_BYTES) {
                     continue;
                 }
@@ -1045,6 +1235,7 @@ export class AgentStore {
                 }
                 case 'read_file': return await this.readFileTool(root, str(call.args.path), Number(call.args.start) || 1, Number(call.args.end) || undefined);
                 case 'list_dir': return await this.listDirTool(root, str(call.args.path), Math.min(3, Math.max(1, Number(call.args.depth) || 1)));
+                case 'glob': return await this.globTool(root, str(call.args.pattern), str(call.args.path));
                 case 'grep': return await this.grepTool(root, str(call.args.pattern), str(call.args.path), str(call.args.glob), call.args.regex === true);
                 case 'run': return await this.runCommand(rootPath, str(call.args.command), call.args.background === true);
                 case 'scripts': {
@@ -1153,6 +1344,180 @@ export class AgentStore {
         return { text: `${result.output.trimEnd()}\n${status}`.trim(), isError: !result.movedToBackground && result.info.status !== 'exited' };
     }
 
+    protected workLoopOn(): boolean {
+        return this.preferences.get<boolean>(WORK_LOOP_PREFS.enabled, true) !== false;
+    }
+
+    protected maxToolRounds(): number {
+        const raw = this.preferences.get<number>(WORK_LOOP_PREFS.maxToolRounds, MAX_TOOL_ROUNDS);
+        const value = typeof raw === 'number' && Number.isFinite(raw) ? Math.floor(raw) : MAX_TOOL_ROUNDS;
+        return Math.min(MAX_TOOL_ROUNDS_CAP, Math.max(1, value));
+    }
+
+    protected maxResultChars(): number {
+        const raw = this.preferences.get<number>(WORK_LOOP_PREFS.maxToolResultChars, MAX_TOOL_RESULT_CHARS);
+        return typeof raw === 'number' && raw >= 1_000 ? Math.floor(raw) : MAX_TOOL_RESULT_CHARS;
+    }
+
+    protected loopOf(session: AgentSession): LoopState {
+        const existing = this.loops.get(session.id);
+        if (existing) {
+            return existing;
+        }
+        const created: LoopState = {
+            prompt: '', wants: false, edits: [], checks: [], fixAttempts: 0, e2eNudged: false, commitNudged: false,
+            commitBlocked: false, committed: false, verifiedEdits: 0, required: []
+        };
+        this.loops.set(session.id, created);
+        return created;
+    }
+
+    /** Drops edits that delete or skip tests unless the user asked for that. */
+    protected async editsAllowed(session: AgentSession, edits: readonly AgentEdit[], root: URI | undefined): Promise<AgentEdit[]> {
+        const loop = this.loopOf(session);
+        if (!loop.wants || !root || userAllowsWeakerTests(loop.prompt)) {
+            return [...edits];
+        }
+        const kept: AgentEdit[] = [];
+        for (const edit of edits) {
+            if (!isTestPath(edit.path)) {
+                kept.push(edit);
+                continue;
+            }
+            const uri = this.safeUri(root, edit.path);
+            const before = uri && uri !== root ? await this.files.read(uri).then(file => file.value, () => '') : '';
+            if (weakensTests(before, edit.content)) {
+                session.messages.push({ role: 'system', text: `Skipped ${edit.path}: do not delete or weaken tests. Fix the code instead.` });
+                continue;
+            }
+            kept.push(edit);
+        }
+        return kept;
+    }
+
+    protected async ignoreOf(root: URI): Promise<(rel: string) => boolean> {
+        const text = await this.files.read(root.resolve('.gitignore')).then(file => file.value, () => '');
+        return compileGitignore(text);
+    }
+
+    /** Ripgrep when the backend has it. Undefined asks the caller to walk the tree. */
+    protected async searchWithRg(root: URI, query: { pattern?: string; path?: string; glob?: string; regex?: boolean; files: boolean }): Promise<AgentActionResult | undefined> {
+        const cwd = root.path.fsPath();
+        if (!cwd) {
+            return undefined;
+        }
+        const found = await this.processes.service.workspaceSearch({ cwd, ...query }).catch(() => undefined);
+        if (!found || found.engine !== 'ripgrep') {
+            return undefined;
+        }
+        if (query.files) {
+            const files = parseRgFiles(found.text);
+            return { text: files.length ? `${files.length} file(s):\n${files.join('\n')}` : `No files matched "${query.pattern ?? query.glob ?? ''}".`, isError: false };
+        }
+        const hits = parseRgMatches(found.text);
+        return { text: hits.length ? `${hits.length} match(es) for "${query.pattern}":\n${hits.join('\n')}` : `No matches for "${query.pattern}".`, isError: false };
+    }
+
+    protected async projectSignals(root: URI): Promise<{ scripts: Record<string, string>; files: string[]; manager?: 'npm' | 'pnpm' | 'yarn' | 'bun' }> {
+        const cwd = root.path.fsPath();
+        const found = cwd ? await this.processes.service.scripts(cwd).catch(() => undefined) : undefined;
+        const stat = await this.files.resolve(root).catch(() => undefined);
+        const files = [...(stat?.children ?? [])].filter(child => !child.isDirectory).map(child => child.name);
+        return { scripts: { ...(found?.scripts ?? {}) }, files, ...(found ? { manager: found.manager } : {}) };
+    }
+
+    /** Runs one project check and shows it as a terminal card. These checks do not wait on the approval card. */
+    protected async runCheck(session: AgentSession, cwd: string, command: string): Promise<AgentActionResult> {
+        const tool: ToolCallInfo = { server: BUILTIN_TOOL_SERVER, tool: 'run', args: { command, description: 'Project check' }, state: 'running', startedAt: Date.now() };
+        const at = session.messages.push({ role: 'tool', from: `${BUILTIN_TOOL_SERVER}/run`, text: '', tool }) - 1;
+        session.status = 'thinking';
+        this.changed();
+        const result = await this.runCommand(cwd, command, false);
+        session.messages[at] = {
+            role: 'tool', from: `${BUILTIN_TOOL_SERVER}/run`, text: `${result.isError ? 'Error: ' : ''}${result.text}`,
+            tool: { ...tool, state: result.isError ? 'error' : 'done', endedAt: Date.now() }
+        };
+        this.changed();
+        return result;
+    }
+
+    /**
+     * After edits land on disk: run the detected checks, and nudge the model to fix, add an e2e test, or commit.
+     * Returns true when the model should take another turn.
+     */
+    protected async nudgeLoop(session: AgentSession, root: URI | undefined): Promise<boolean> {
+        const loop = this.loopOf(session);
+        const cwd = root?.path.fsPath();
+        if (!loop.wants || !root || !cwd || !this.runSettings.enabled || loop.committed) {
+            return false;
+        }
+        if (loop.edits.length > loop.verifiedEdits) {
+            const signals = await this.projectSignals(root);
+            const framework = detectE2eFramework(signals.files);
+            const includeE2e = !!framework && (wantsE2e(loop.prompt) || loop.edits.some(isUiPath));
+            const planned = detectChecks(signals, includeE2e);
+            loop.required = planned.map(check => withCheckEnv(check.command));
+            loop.verifiedEdits = loop.edits.length;
+            for (const command of loop.required) {
+                const result = await this.runCheck(session, cwd, command);
+                const run: CheckRun = { command, passed: !result.isError, output: result.text };
+                loop.checks.push(run);
+                if (!run.passed) {
+                    loop.fixAttempts += 1;
+                    if (loop.fixAttempts > MAX_FIX_ATTEMPTS) {
+                        session.messages.push({ role: 'system', text: stopMessage(result.text) });
+                        session.status = 'idle';
+                        this.changed();
+                        return false;
+                    }
+                    session.messages.push({ role: 'user', text: checkFailNudge(command, result.text, loop.fixAttempts), hidden: true });
+                    this.changed();
+                    return true;
+                }
+            }
+            if (framework && needsE2eNudge(loop, framework, loop.prompt, loop.edits)) {
+                loop.e2eNudged = true;
+                session.messages.push({ role: 'user', text: e2eNudge(framework), hidden: true });
+                this.changed();
+                return true;
+            }
+        }
+        const green = loop.required.every(command => loop.checks.some(check => check.command === command && check.passed));
+        if (wantsCommit(loop.prompt) && green && !loop.committed && (!loop.commitNudged || loop.commitBlocked)) {
+            const retry = loop.commitBlocked;
+            loop.commitNudged = true;
+            loop.commitBlocked = false;
+            const branch = (await this.git.run(cwd, { kind: 'currentBranch' }).catch(() => ({ output: '' }))).output.trim();
+            const text = retry
+                ? `${CHECKS_PASSED_PREFIX} The commit was blocked. Fix the problem and commit again on a feature/ or bug/ branch.`
+                : checksPassedNudge(branch, loop.required);
+            session.messages.push({ role: 'user', text, hidden: true });
+            this.changed();
+            return true;
+        }
+        return false;
+    }
+
+    /** Review finished and the files are on disk: continue the loop if this turn asked for one. */
+    protected async resumeLoop(session: AgentSession): Promise<void> {
+        if (this.modelLoops.has(session.id) || !this.loopOf(session).wants) {
+            return;
+        }
+        if (await this.nudgeLoop(session, this.rootFor(session))) {
+            await this.runModel(session);
+        }
+    }
+
+    protected postSummary(session: AgentSession, branch: string): void {
+        const loop = this.loopOf(session);
+        const now = Date.now();
+        const text = summaryText({ files: [...new Set(loop.edits)], checks: loop.checks, branch, result: 'committed' });
+        session.messages.push({
+            role: 'tool', from: `${BUILTIN_TOOL_SERVER}/summary`, text,
+            tool: { server: BUILTIN_TOOL_SERVER, tool: 'summary', args: {}, state: 'done', startedAt: now, endedAt: now }
+        });
+    }
+
     /** Where an agent message's edits come from (its chat, itself, and the user message it answers). */
     protected originOf(session: AgentSession, messageIndex: number): ChangeOrigin {
         const userIndex = session.messages.slice(0, messageIndex + 1).map(m => m.role).lastIndexOf('user');
@@ -1204,6 +1569,7 @@ export class AgentStore {
                 // Wait for the live view of this file (if it streamed) so the final text lands on the same change.
                 await this.streamingEdits.get(`${session.id}\u0000${messageIndex}\u0000${edit.path}`);
                 const change = await this.tracker.finalize(origin, edit.path, root.resolve(edit.path), edit.content);
+                this.loopOf(session).edits.push(edit.path);
                 const stats = this.tracker.stats(change);
                 session.steps = [...session.steps, { kind: 'edit', target: edit.path, done: true, added: stats.added, removed: stats.removed }];
                 ids.push(change.id);
@@ -1233,6 +1599,9 @@ export class AgentStore {
             session.changes = [...session.changes, ...kept.map(c => ({ uri: c.uri, label: c.path, ...this.tracker.stats(c) }))];
             if (changes.length) {
                 session.messages.push({ role: 'system', text: `Review finished: ${kept.length} of ${total} change(s) kept.` });
+            }
+            if (kept.length && this.loopOf(session).wants && !this.modelLoops.has(session.id)) {
+                void this.resumeLoop(session);
             }
             if (session.status === 'review') {
                 session.status = kept.length ? 'done' : 'idle';

@@ -49,7 +49,6 @@ for (const scheme of ['light', 'dark'] as const) {
             await setAppearance(page, scheme);
             await dismissNotifications(page);
             await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
-            await expect(page.locator('#ingot-composer-zaprex')).toBeVisible();
             await actUntilVisible(() => page.keyboard.press('Control+k'), page.locator('#ingot-commit-message'));
             await expect(page.locator('#ingot-commit-ai')).toBeVisible();
 
@@ -72,7 +71,6 @@ for (const scheme of ['light', 'dark'] as const) {
             await page.locator('#ingot-settings-ok').click();
             await expect(dialog(page)).toBeHidden();
             await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0);
-            await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
             await expect(page.locator('#ingot-commit-ai')).toHaveCount(0);
             await page.locator('#ingot-agents-new').click();
             await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'plan');
@@ -85,7 +83,6 @@ for (const scheme of ['light', 'dark'] as const) {
             await setting(page, 'ingot.commit.ai.enabled').click();
             await page.locator('#ingot-settings-ok').click();
             await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
-            await expect(page.locator('#ingot-composer-zaprex')).toBeVisible();
             await expect(page.locator('#ingot-commit-ai')).toBeVisible();
         } finally {
             fs.rmSync(repo, { recursive: true, force: true });

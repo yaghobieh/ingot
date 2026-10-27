@@ -47,9 +47,6 @@ import { InlineComposer, readImage } from './inline-composer';
 import { COMPOSER_INPUT_ID, MAX_DROPPED_FILE_CHARS } from './inline-composer.consts';
 import { AgentMarkdownRenderer } from './markdown-renderer';
 import { COPIED_LABEL, COPY_LABEL } from './markdown.consts';
-import { ZaprexLauncher } from './zaprex-launcher';
-import { ZaprexStatus, type PieceState } from './zaprex-status';
-import { HARMONY_PREFS } from '../../common/agents/harmony';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
@@ -70,11 +67,12 @@ import { ProcessStore } from '../processes/process-store';
 import { ProcessesPanel } from '../processes/processes-panel';
 import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
 import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
-import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
+import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
+import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import { composerBarWidthClass } from '../../common/agents/composer-bar';
 
-type Popover = 'mode' | 'model' | 'history' | 'context' | 'zaprex' | undefined;
+type Popover = 'mode' | 'model' | 'history' | 'context' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
 /** Right tool window: chats as tabs with History, conversation with plan and tool steps, composer with mode, model and context (IDEA-27/28, IDEA-77). */
@@ -99,7 +97,6 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
     @inject(ContextMenuRenderer) protected readonly contextMenu: ContextMenuRenderer;
     @inject(WindowService) protected readonly windows: WindowService;
-    @inject(ZaprexLauncher) protected readonly zaprex: ZaprexLauncher;
     @inject(FileService) protected readonly files: FileService;
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
@@ -910,11 +907,11 @@ export class IngotAgentsWidget extends ReactWidget {
                 onClick={() => { if (open) { this.expandedSteps.delete(key); } else { this.expandedSteps.add(key); } this.update(); }}>
                 <span className='codicon codicon-check ingot-chat-read-mark' />
                 <span className='ingot-chat-read-label'>{rules ? 'Read rules' : 'Read'}</span>
-                <span className='ingot-chat-read-items'>{items.map((item, j) => <code key={j}>{item}</code>)}</span>
+                <span className='ingot-chat-read-items'>{items.map((item, j) => <code key={j} onClick={e => { e.stopPropagation(); this.openWorkspacePath(item); }}>{item}</code>)}</span>
                 <span className='ingot-flex' />
                 <span className={`codicon codicon-chevron-${open ? 'down' : 'right'}`} />
             </button>
-            {open && <ul className='ingot-chat-read-list'>{items.map((item, j) => <li key={j}><span className={`codicon codicon-${rules ? 'law' : 'file'}`} />{item}</li>)}</ul>}
+            {open && <ul className='ingot-chat-read-list'>{items.map((item, j) => <li key={j}><span className={`codicon codicon-${rules ? 'law' : 'file'}`} /><button type='button' className='ingot-chat-read-open' onClick={() => this.openWorkspacePath(item)}>{item}</button></li>)}</ul>}
         </div>;
     }
 
@@ -948,8 +945,29 @@ export class IngotAgentsWidget extends ReactWidget {
             const href = link.getAttribute('href') ?? '';
             if (/^https?:/i.test(href)) {
                 this.windows.openNewWindow(href, { external: true });
+            } else {
+                this.openWorkspacePath(href);
             }
+            return;
         }
+        const code = target.closest('code');
+        if (code && !code.closest('pre')) {
+            this.openWorkspacePath(code.textContent ?? '');
+        }
+    }
+
+    /** Open a path from the reply in the folder that is actually open. */
+    protected openWorkspacePath(path: string): void {
+        const clean = path.trim().replace(/^["'`]|["'`]$/g, '');
+        if (!isSafeRelativePath(clean) || clean === '.' || clean.endsWith('/') || !clean.includes('.')) {
+            return;
+        }
+        const current = this.store.current;
+        const root = current?.project ? new URI(current.project) : this.workspace.tryGetRoots()[0]?.resource;
+        if (!root) {
+            return;
+        }
+        void this.editors.open(root.resolve(clean), { mode: 'activate' });
     }
 
     protected renderSession(session: AgentSession): React.ReactNode {
@@ -1113,11 +1131,11 @@ export class IngotAgentsWidget extends ReactWidget {
         const left = pause.continueAt === undefined ? undefined : (pause.continueAt - Date.now()) / 1000;
         return <div className='ingot-review-pause' id='ingot-review-pause' role='status'>
             <span className='codicon codicon-debug-pause' />
-            <span className='ingot-review-pause-text'>Paused for review · {pause.applied} of {pause.total} files applied</span>
+            <span className='ingot-review-pause-text'>{pause.applied} of {pause.total} files applied. Pause for review?</span>
             {left !== undefined && <span className='ingot-review-countdown' id='ingot-review-countdown'>Continuing in {formatCountdown(left)}</span>}
             <span className='ingot-flex' />
             <button type='button' id='ingot-review-stop' className='ingot-review-link' onClick={() => this.store.stop(session.id)}>Stop</button>
-            {left !== undefined && <button type='button' id='ingot-review-wait' className='ingot-review-link' onClick={() => this.store.holdPause(session.id)}>Wait</button>}
+            {left !== undefined && <button type='button' id='ingot-review-wait' className='ingot-review-link' onClick={() => this.store.holdPause(session.id)}>Pause</button>}
             <button type='button' id='ingot-review-continue' className='ingot-review-link accept' onClick={() => this.store.continueRun(session.id)}>Continue now</button>
         </div>;
     }
@@ -1236,9 +1254,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 <span className='ingot-composer-divider' aria-hidden='true' />
                 {this.renderModePill()}
                 {this.renderModelPill()}
-                {this.renderReviewToggle()}
                 <span className='ingot-flex' />
-                {this.store.zaprexButtonVisible && this.renderComposerZaprex()}
                 {this.renderUsageRing()}
                 {this.store.isRunning(this.store.current?.id)
                     ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}><span className='codicon codicon-debug-stop' /></button>
@@ -1302,51 +1318,6 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         this.observedBar = el;
         this.barObserver.observe(el);
-    }
-
-    /** IDEA-105 quick toggle: agent review on / off (Settings › Agent review has the rest). */
-    protected renderReviewToggle(): React.ReactNode {
-        const on = this.store.review.enabled;
-        // IDEA-184: a quiet checklist icon (no filled circle); a small gold dot says review is on.
-        return <button type='button' id='ingot-composer-review' className={`ingot-icon-button ingot-composer-review${on ? ' on' : ''}`}
-            aria-pressed={on} aria-label={on ? 'Agent review on' : 'Agent review off'}
-            title={on ? 'Agent review on: edits wait for Accept / Reject (click to apply edits right away)' : 'Agent review off: edits apply right away (click to review them)'}
-            onClick={() => void this.store.setReviewEnabled(!on)}>
-            <span className='codicon codicon-checklist' aria-hidden='true' />
-            {on && <span className='ingot-composer-review-dot' aria-hidden='true' />}
-        </button>;
-    }
-
-    /** IDEA-184 / IDEA-180: the small animated Zaprex T-rex in the composer bar; opens Zaprex and Harmony mode status. */
-    protected renderComposerZaprex(): React.ReactNode {
-        const current = this.store.current;
-        const offer = this.store.harmonyEnabled && current ? this.store.harmonyOfferFor(current.id) : undefined;
-        const pieces = current ? this.store.zaprexPieces(current.id) : [];
-        const busy = pieces.some(s => this.pieceState(s) === 'working');
-        const label = offer ? 'Zaprex can take a piece of this run (Harmony mode)' : busy ? 'Zaprex is working on a piece (Harmony mode)'
-            : `Zaprex · Harmony mode ${this.store.harmonyEnabled ? 'on' : 'off'}`;
-        return <span className='ingot-pill-anchor'>
-            <button type='button' id='ingot-composer-zaprex' className={`ingot-icon-button ingot-composer-zaprex${offer || busy ? ' thinking' : ''}`} title={label} aria-label={label}
-                aria-haspopup='dialog' aria-expanded={this.popover === 'zaprex'} onClick={() => { this.popover = this.popover === 'zaprex' ? undefined : 'zaprex'; this.update(); }}>
-                <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
-                {(offer || busy) && <span className='ingot-composer-zaprex-dot' aria-hidden='true' />}
-            </button>
-            {this.popover === 'zaprex' && this.zaprex.installed === undefined && void this.zaprex.info().then(() => this.update())}
-            {this.popover === 'zaprex' && <ZaprexStatus enabled={this.store.harmonyEnabled} offer={offer} desktop={this.zaprex.installed} onGetApp={() => this.zaprex.openWeb()}
-                pieces={pieces.map(session => ({ session, state: this.pieceState(session) }))}
-                onAccept={() => { this.closePopover(); if (current) { this.store.acceptHarmony(current.id); } }}
-                onDismiss={() => { this.closePopover(); if (current) { this.store.dismissHarmony(current.id); } }}
-                onTurnOn={() => { void this.preferences.set(HARMONY_PREFS.enabled, true, PreferenceScope.User).then(() => this.update()); }}
-                onOpenApp={() => { this.closePopover(); void this.zaprex.openApp(); }}
-                onClose={() => this.closePopover()} />}
-        </span>;
-    }
-
-    protected pieceState(session: AgentSession): PieceState {
-        if (this.store.isRunning(session.id) || session.status === 'thinking' || session.status === 'editing') {
-            return 'working';
-        }
-        return session.status === 'review' ? 'review' : 'done';
     }
 
     protected renderModePill(): React.ReactNode {

@@ -115,9 +115,10 @@ export const ToolCardView = (props: ToolCardProps): React.ReactElement => {
         return <Profile profile={card.profile} title={card.title} props={props} />;
     }
     const output = card.output.trim();
-    const short = output.split('\n').length <= 3 && output.length <= 240;
-    const open = props.expanded || (short && props.info.state !== 'running');
-    return <div className={`ingot-chat-tool ingot-tc ingot-tc-generic ${props.info.state}${open ? ' open' : ''}`} data-tool={`${props.info.server}/${props.info.tool}`}>
+    const summary = props.info.tool === 'summary';
+    const short = !summary && output.split('\n').length <= 3 && output.length <= 240;
+    const open = summary || props.expanded || (short && props.info.state !== 'running');
+    return <div id={summary ? 'ingot-work-summary' : undefined} className={`ingot-chat-tool ingot-tc ingot-tc-generic ${props.info.state}${open ? ' open' : ''}`} data-tool={`${props.info.server}/${props.info.tool}`}>
         <button type='button' className='ingot-tc-head' aria-expanded={open} onClick={props.onToggle} disabled={short && props.info.state !== 'running'}>
             <span className='codicon codicon-tools ingot-tc-icon' />
             <span className='ingot-tc-title'>{card.title}</span>

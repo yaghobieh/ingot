@@ -17,7 +17,7 @@ const lastMessage = (repo: string): string => git(repo, 'log', '-1', '--format=%
 
 const makeRepo = (): string => {
     const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-madewith-')));
-    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'init', '-q', '-b', 'feature/notes');
     git(repo, 'config', 'user.email', 'e2e@ingot.dev');
     git(repo, 'config', 'user.name', 'E2E Bot');
     fs.writeFileSync(path.join(repo, 'notes.md'), '# notes\n');
@@ -98,7 +98,7 @@ test.describe('IDEA-183 Made with trailer', () => {
     test('agent commits end with Made with Ingot', async ({ page }) => {
         test.setTimeout(120_000);
         const ollama = await startFakeOllama((_system, user) => {
-            if (user.startsWith('Tool result (ingot/git)')) {
+            if (user.startsWith('Tool result (ingot/git)') || user.startsWith('Tool result (ingot/summary)')) {
                 return 'Committed.';
             }
             return `On it.\n\n<<<TOOL ingot/git\n${JSON.stringify({ op: 'commit', message: 'Add a note', paths: ['notes.md'] })}\n>>>END\n`;

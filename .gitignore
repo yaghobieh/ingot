@@ -22,6 +22,7 @@ playwright-report-electron/
 coverage/
 
 # os / editor
+.ingot-tmp/
 .DS_Store
 *.log
 .idea/

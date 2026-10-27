@@ -58,8 +58,26 @@ export interface ProcessClient {
 
 export const ProcessService = Symbol('IngotProcessService');
 
+export interface WorkspaceSearchQuery {
+    readonly cwd: string;
+    readonly pattern?: string;
+    readonly path?: string;
+    readonly glob?: string;
+    readonly regex?: boolean;
+    /** List matching files instead of matching lines. */
+    readonly files: boolean;
+}
+
+export interface WorkspaceSearchResult {
+    /** `ripgrep` when the bundled search binary ran; `none` asks the caller to walk the tree. */
+    readonly engine: 'ripgrep' | 'none';
+    readonly text: string;
+}
+
 export interface ProcessService extends RpcServer<ProcessClient> {
     list(): Promise<ProcessInfo[]>;
+    /** Read-only project search. Does not appear in the process list. */
+    workspaceSearch(query: WorkspaceSearchQuery): Promise<WorkspaceSearchResult>;
     /** Starts a process and returns at once (background). */
     start(options: ProcessStartOptions): Promise<ProcessInfo>;
     /** Starts a process and waits for it (up to `timeoutMs`). */

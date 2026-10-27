@@ -86,6 +86,8 @@ for (const scheme of ['light', 'dark'] as const) {
             // The model got the local-first protocol with the repo from the git remote, never a made-up one.
             const system = systems[systems.length - 1];
             expect(system).toContain('ingot/list_dir');
+            expect(system).toContain('source of truth');
+            expect(system).toContain(dir);
             expect(system).toContain('acme/widgets');
             expect(system).not.toContain('ingot-labs');
             // The tool results really came from disk.

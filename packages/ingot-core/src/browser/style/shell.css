@@ -943,11 +943,12 @@ body.ingot-explorer-collapsed #explorer-view-container > .lm-SplitPanel { visibi
 .ingot-chat-read-mark { color: var(--ingot-success, #2EA043); font-size: 12px; }
 .ingot-chat-read-label { flex: none; }
 .ingot-chat-read-items { display: flex; gap: 4px; min-width: 0; overflow: hidden; white-space: nowrap; }
-.ingot-chat-read-items code { font-family: var(--theia-code-font-family, monospace); font-size: 11px; color: var(--theia-foreground); }
+.ingot-chat-read-items code { font-family: var(--theia-code-font-family, monospace); font-size: 11px; color: var(--theia-foreground); cursor: pointer; }
 .ingot-chat-read-items code + code::before { content: ', '; color: var(--theia-descriptionForeground); }
 .ingot-chat-read-list { list-style: none; margin: 0; padding: 2px 10px 8px 28px; display: flex; flex-direction: column; gap: 3px; color: var(--theia-foreground); }
 .ingot-chat-read-list li { display: flex; align-items: center; gap: 6px; }
 .ingot-chat-read-list .codicon { font-size: 12px; color: var(--theia-descriptionForeground); }
+.ingot-chat-read-open { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .ingot-composer-input.drop-target { outline: 1px dashed var(--ingot-primary, var(--theia-focusBorder)); outline-offset: 2px; border-radius: 4px; }
 
 /* IDEA-98: voice dictation + context ring breakdown */

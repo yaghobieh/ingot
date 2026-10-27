@@ -15,7 +15,10 @@ const SETTING_LABELS: Record<string, string> = {
     'ingot.agent.processes.showInChat': 'Show background processes in the chat',
     'ingot.agent.browser.enabled': 'Let the agent use the browser',
     'ingot.agent.browser.requireApproval': 'Ask before browser actions',
-    'ingot.agent.browser.approveReads': 'Also ask before reading pages and screenshots'
+    'ingot.agent.browser.approveReads': 'Also ask before reading pages and screenshots',
+    'ingot.agent.workLoop': 'Run checks, fix, and commit after a task',
+    'ingot.agent.maxToolRounds': 'Most tool rounds in one turn',
+    'ingot.agent.maxToolResultChars': 'Tool result kept for the model (characters)'
 };
 
 export const settingLabel = (key: string): string => {

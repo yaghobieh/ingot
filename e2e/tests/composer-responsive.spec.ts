@@ -10,7 +10,7 @@ import { connectOllama } from '../src/models.e2e-utils';
  * whole label or shows just its icon, nothing overflows the bar, and the context ring stays clickable.
  */
 const BAR = '.ingot-agents .ingot-composer-bar';
-const CONTROLS = ['#ingot-composer-attach', '#ingot-composer-mode', '#ingot-composer-model', '#ingot-composer-review', '#ingot-composer-zaprex', '#ingot-context-ring', '#ingot-composer-send'];
+const CONTROLS = ['#ingot-composer-attach', '#ingot-composer-mode', '#ingot-composer-model', '#ingot-context-ring', '#ingot-composer-send'];
 
 const setComposerWidth = (page: Page, width?: number): Promise<void> =>
     page.locator('.ingot-agents .ingot-composer').evaluate((el, w) => {
@@ -80,6 +80,22 @@ for (const scheme of ['light', 'dark'] as const) {
                 await expect(page.locator('#ingot-mode-menu')).toBeVisible();
                 await page.mouse.click(5, 5);
                 await expect(page.locator('#ingot-mode-menu')).toBeHidden();
+            }
+            await setComposerWidth(page);
+            for (const [width, cls, label] of [[480, 'wide', true], [360, 'narrow', false], [280, 'tiny', false]] as const) {
+                await setComposerWidth(page, width);
+                await expect(page.locator(BAR)).toHaveAttribute('data-width', cls);
+                if (label) {
+                    await expect(page.locator('#ingot-composer-mode .ingot-pill-label')).toBeVisible();
+                } else {
+                    await expect(page.locator('#ingot-composer-mode .ingot-pill-label')).toBeHidden();
+                }
+                await expectNothingClipped(page);
+                await page.locator('#ingot-context-ring').click();
+                await expect(page.locator('#ingot-context-popover')).toBeVisible();
+                await page.mouse.click(5, 5);
+                await expect(page.locator('#ingot-context-popover')).toBeHidden();
+                await shot(page, `composer-${width}-${scheme}.png`);
             }
             await setComposerWidth(page);
         } finally {

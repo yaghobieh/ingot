@@ -69,6 +69,21 @@ check the app it just started, fill a form, read docs.
   build shows pages through Ingot's server without running their scripts, so use the desktop app for
   script-heavy sites and for screenshots.
 
+## Reading the open project
+
+Questions about the code in the open folder are answered from that folder. `ingot/list_dir`, `ingot/glob`,
+`ingot/grep` and `ingot/read_file` run at once and respect `.gitignore`. Search uses ripgrep when it is
+available. A GitHub or web fetch of repository code is refused unless the user asked for the remote.
+
+## Work loop
+
+On a fix, feature or commit task the agent plans the edits, runs the project's checks (`gate`, or else
+`test` / `lint` / `typecheck`, plus `e2e` when the change needs one), and retries a failure up to 3 times.
+It commits only on a `feature/` or `bug/` branch, and only after those checks and the `.ingot` pre-commit
+hooks pass. The chat then shows a summary: files, checks, branch and result. Accept the edits (or turn on
+auto-accept) so the checks run against the files on disk. Settings › Tools › Agent tools › Work loop turns
+the loop off or changes the tool-round and result limits.
+
 ## Settings
 
 **Settings › Tools › Agent tools** (also in `settings.json`):
@@ -83,5 +98,8 @@ check the app it just started, fill a form, read docs.
 | Let the agent use the browser (`ingot.agent.browser.enabled`) | on | Off hides the browser tools from the agent. |
 | Ask before browser actions (`ingot.agent.browser.requireApproval`) | on | Open, click, type, scroll and back wait on the card. |
 | Also ask before reading pages and screenshots (`ingot.agent.browser.approveReads`) | off | Reads and screenshots ask too. |
+| Work loop (`ingot.agent.workLoop`) | on | After a fix, feature or commit, run checks, retry failures, and commit only when they pass. |
+| Tool rounds (`ingot.agent.maxToolRounds`) | 12 | Model turns that may call tools. Capped at 30. |
+| Tool result characters (`ingot.agent.maxToolResultChars`) | 16000 | How much of a tool result is sent back to the model. |
 
 **Always Run** choices (per command, or per action type) are listed under Settings › Tools › Agent approvals.

@@ -649,7 +649,7 @@ export class ChangeTracker {
         const icon = (codicon: string, action: string, title: string): string =>
             `<button type="button" class="ingot-rb-icon codicon codicon-${codicon}" data-action="${action}" title="${title}" aria-label="${title}"></button>`;
         const html = `
-            ${pause ? `<span class="ingot-rb-pause" title="Paused for review · ${pause.applied} of ${pause.total} files applied"><span class="codicon codicon-debug-pause"></span>`
+            ${pause ? `<span class="ingot-rb-pause" title="${pause.applied} of ${pause.total} files applied. Pause for review?"><span class="codicon codicon-debug-pause"></span>`
                 + `${left !== undefined ? '<span class="ingot-rb-countdown"></span>' : '<span>Paused</span>'}`
                 + `<button type="button" class="ingot-rb-continue" data-action="continue">Continue</button></span><span class="ingot-rb-sep"></span>` : ''}
             <span class="ingot-rb-files">

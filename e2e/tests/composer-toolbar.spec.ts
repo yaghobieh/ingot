@@ -28,7 +28,7 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(bar).toBeVisible();
 
         // Every control in the bar has the same height and a tooltip.
-        const controls = ['#ingot-composer-attach', '#ingot-composer-mode', '#ingot-composer-model', '#ingot-composer-review', '#ingot-composer-zaprex', '#ingot-composer-send'];
+        const controls = ['#ingot-composer-attach', '#ingot-composer-mode', '#ingot-composer-model', '#ingot-composer-send'];
         for (const id of controls) {
             const box = await page.locator(id).boundingBox();
             expect(box, id).not.toBeNull();
@@ -40,22 +40,13 @@ for (const scheme of ['light', 'dark'] as const) {
             expect(Math.round((await mic.boundingBox())!.height)).toBe(26);
         }
 
-        // IDEA-184: borderless ghost pills, a review toggle with no filled circle, the animated T-rex.
+        // Borderless ghost pills.
         for (const id of ['#ingot-composer-mode', '#ingot-composer-model']) {
             expect(await style(page, id, 'border-top-color'), `${id} border`).toBe('rgba(0, 0, 0, 0)');
             expect(await style(page, id, 'background-color'), `${id} background`).toBe('rgba(0, 0, 0, 0)');
         }
-        expect(await style(page, '#ingot-composer-review', 'background-color')).toBe('rgba(0, 0, 0, 0)');
-        await expect(page.locator('#ingot-composer-review .codicon-eye, #ingot-composer-review.codicon-eye')).toHaveCount(0);
-        await expect(page.locator('#ingot-composer-review .codicon-checklist')).toBeVisible();
-        if (await page.locator('#ingot-composer-review').getAttribute('aria-pressed') === 'true') {
-            await expect(page.locator('#ingot-composer-review .ingot-composer-review-dot')).toBeVisible();
-        }
-        const trex = page.locator('#ingot-composer-zaprex .ingot-zaprex-trex');
-        await expect(trex).toBeVisible();
-        expect(await style(page, '#ingot-composer-zaprex', 'background-color')).toBe('rgba(0, 0, 0, 0)');
-        expect(await trex.evaluate(el => getComputedStyle(el).animationName)).toBe('ingot-trex-idle');
-        await expect(page.locator('#ingot-composer-zaprex')).toHaveAttribute('title', 'Zaprex · Harmony mode on');
+        await expect(page.locator('#ingot-composer-review')).toHaveCount(0);
+        await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
 
         // The model pill is never painted warning orange, ready or not.
         const modelColor = await style(page, '#ingot-composer-model', 'color');

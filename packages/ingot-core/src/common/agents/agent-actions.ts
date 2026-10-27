@@ -124,7 +124,7 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
         }
         case 'scripts': case 'processes': case 'process_output': return undefined;
         // IDEA-186: read-only project tools run at once.
-        case 'read_file': case 'list_dir': case 'grep': return undefined;
+        case 'read_file': case 'list_dir': case 'glob': case 'grep': return undefined;
         case 'process_stop': return { kind: 'terminal', label: 'Stop process', detail: str(a.id) };
         case 'web_search': return { kind: 'web', label: 'Search web', detail: str(a.query) };
         case 'web_fetch': return { kind: 'web', label: 'Fetch', detail: str(a.url) };

@@ -40,6 +40,6 @@ export const RULE_EXTENSIONS = ['.md', '.mdc'] as const;
 export const MCP_SERVICE_PATH = '/services/ingot/mcp';
 export const MCP_REQUEST_TIMEOUT_MS = 15_000;
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
-/** Most tool round trips per agent turn, so a looping model cannot run forever. */
-export const MAX_TOOL_ROUNDS = 5;
-export const MAX_TOOL_RESULT_CHARS = 8_000;
+/** Most tool round trips per agent turn, so a looping model cannot run forever. Raised so a real task can read, edit, check and fix. */
+export const MAX_TOOL_ROUNDS = 12;
+export const MAX_TOOL_RESULT_CHARS = 16_000;

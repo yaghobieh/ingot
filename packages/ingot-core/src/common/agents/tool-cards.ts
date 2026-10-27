@@ -145,7 +145,7 @@ export const parseProfile = (text: string): ProfileCard | undefined => {
 
 const TOOL_TITLES: Record<string, string> = {
     git: 'Git', web_search: 'Searched the web', web_fetch: 'Fetched', delete: 'Deleted', scripts: 'Listed scripts',
-    processes: 'Listed processes', process_output: 'Read process output', process_stop: 'Stopped process'
+    processes: 'Listed processes', process_output: 'Read process output', process_stop: 'Stopped process', summary: 'Summary'
 };
 
 /** What card a finished (or running) tool message gets. */

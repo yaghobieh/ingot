@@ -59,7 +59,7 @@ test.describe('IDEA-105 agent review (desktop)', () => {
         const page = await start({ 'ingot.agent.reviewPauseThreshold': 2, 'ingot.agent.reviewAutoContinueSeconds': 0, 'ingot.appearance': 'light' }, () => editsReply(FILES));
         await ask(page, 'Bump every constant');
         const pause = page.locator('#ingot-review-pause');
-        await expect(pause).toContainText('Paused for review · 2 of 5 files applied', { timeout: 20_000 });
+        await expect(pause).toContainText('2 of 5 files applied. Pause for review?', { timeout: 20_000 });
         await expect(page.locator('#ingot-review-countdown')).toHaveCount(0);
         const rows = page.locator('#ingot-review-files .ingot-review-file');
         await expect(rows).toHaveCount(2);
@@ -173,7 +173,6 @@ test.describe('IDEA-105 agent review (desktop)', () => {
 
     test('review off: edits apply right away, no pause or countdown, the list is information only', async () => {
         const page = await start({ 'ingot.agent.review.enabled': false, 'ingot.agent.reviewPauseThreshold': 1, 'ingot.agent.reviewAutoContinueSeconds': 1 }, () => editsReply(FILES.slice(0, 3)));
-        await expect(page.locator('#ingot-composer-review')).toHaveAttribute('aria-pressed', 'false');
         await ask(page, 'Bump three constants');
         for (const f of FILES.slice(0, 3)) {
             await expect.poll(() => read(f), { timeout: 20_000 }).toBe(edited(f));
@@ -184,9 +183,13 @@ test.describe('IDEA-105 agent review (desktop)', () => {
         await expect(rows.first().locator('.ingot-review-file-state')).toHaveText('Applied');
         await expect(page.locator('.ingot-review-file-accept')).toHaveCount(0);
         await expect(page.locator('#ingot-changes-accept-all')).toHaveCount(0);
-        // The composer quick toggle turns review back on.
-        await page.locator('#ingot-composer-review').click();
-        await expect(page.locator('#ingot-composer-review')).toHaveAttribute('aria-pressed', 'true');
+        await page.keyboard.press('Meta+,');
+        await page.locator('#ingot-settings-node-agent-review').click();
+        const review = page.locator('#ingot-setting-ingot-agent-review-enabled');
+        await expect(review).not.toBeChecked();
+        await review.click();
+        await expect(review).toBeChecked();
+        await page.locator('#ingot-settings-ok').click();
     });
 
     test('inline review comment → Finish review → the agent fixes it and the comment resolves', async () => {

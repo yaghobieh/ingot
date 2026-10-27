@@ -76,28 +76,7 @@ test.describe('IDEA-180 Harmony mode', () => {
                 await page.screenshot({ path: path.join(SHOTS, `harmony-offer-${scheme}.png`) });
                 await page.screenshot({ path: path.join(SHOTS, `harmony-offer-crop-${scheme}.png`), clip: { x: box!.x - 200, y: 0, width: box!.width + 210, height: box!.y + box!.height + 12 } });
             }
-            // IDEA-184: the composer T-rex thinks too and opens the Zaprex / Harmony status with the same offer.
-            const composerTrex = page.locator('#ingot-composer-zaprex');
-            await expect(composerTrex).toHaveClass(/thinking/);
-            await composerTrex.click();
-            const status = page.locator('#ingot-zaprex-status');
-            await expect(status).toBeVisible();
-            await expect(status.locator('#ingot-zs-mode')).toHaveText('Harmony on');
-            await expect(status.locator('#ingot-zs-offer')).toContainText('I can write the tests for this. Hand it to me?');
-            await expect(status.locator('#ingot-zs-accept')).toBeVisible();
-            if (SHOTS) {
-                const sbox = (await status.boundingBox())!;
-                await page.screenshot({ path: path.join(SHOTS, `zaprex-status-offer-${scheme}.png`), clip: { x: sbox.x - 60, y: sbox.y - 10, width: sbox.width + 80, height: sbox.height + 90 } });
-            }
-            if (scheme === 'dark') {
-                // Accept from the composer status; light accepts from the title bar bubble.
-                await status.locator('#ingot-zs-accept').click();
-            } else {
-                await page.keyboard.press('Escape');
-                await expect(status).toHaveCount(0);
-                await bubble.locator('#ingot-harmony-accept').click();
-            }
-            await expect(status).toHaveCount(0);
+            await bubble.locator('#ingot-harmony-accept').click();
             await expect(bubble).toHaveCount(0);
             const chat = page.locator('#ingot-agents');
             await expect(chat.locator('.ingot-chat-subref.zaprex')).toContainText('Taking a piece in Harmony mode: Write unit tests for the export');
@@ -112,15 +91,6 @@ test.describe('IDEA-180 Harmony mode', () => {
                 return page.locator('#theia-main-content-panel .monaco-editor .view-lines').first().textContent().catch(() => '');
             }, { timeout: 45_000 }).toContain('ZAPREX-TEST');
             await expect(chat.locator('.ingot-chat-agent').first()).not.toContainText('LEAD-TEST');
-            // The status lists Zaprex's piece once it is taken.
-            await composerTrex.click();
-            await expect(status.locator('.ingot-zs-piece')).toHaveCount(1);
-            await expect(status.locator('#ingot-zs-offer')).toHaveCount(0);
-            if (SHOTS) {
-                const sbox = (await status.boundingBox())!;
-                await page.screenshot({ path: path.join(SHOTS, `zaprex-status-piece-${scheme}.png`), clip: { x: sbox.x - 60, y: sbox.y - 10, width: sbox.width + 80, height: sbox.height + 90 } });
-            }
-            await page.keyboard.press('Escape');
         });
     }
 
@@ -136,8 +106,5 @@ test.describe('IDEA-180 Harmony mode', () => {
         // No lock without a piece: the lead agent writes the tests itself.
         await expect(page.locator('#ingot-agents .ingot-chat-agent').last()).toContainText('LEAD-TEST');
         await expect(page.locator('#ingot-agents')).not.toContainText('to Zaprex');
-        await page.locator('#ingot-composer-zaprex').click();
-        await expect(page.locator('#ingot-zaprex-status #ingot-zs-empty')).toContainText('one well-scoped piece');
-        await expect(page.locator('#ingot-zaprex-status #ingot-zs-open')).toBeVisible();
     });
 });
