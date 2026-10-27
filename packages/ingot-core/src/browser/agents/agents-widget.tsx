@@ -45,7 +45,7 @@ import { InlineComposer, readImage } from './inline-composer';
 import { COMPOSER_INPUT_ID, MAX_DROPPED_FILE_CHARS } from './inline-composer.consts';
 import { AgentMarkdownRenderer } from './markdown-renderer';
 import { COPIED_LABEL, COPY_LABEL } from './markdown.consts';
-import { ZAPREX_APP_URL } from './zaprex-link.consts';
+import { ZaprexLauncher } from './zaprex-launcher';
 import { ZaprexStatus, type PieceState } from './zaprex-status';
 import { HARMONY_PREFS } from '../../common/agents/harmony';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
@@ -96,6 +96,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
     @inject(ContextMenuRenderer) protected readonly contextMenu: ContextMenuRenderer;
     @inject(WindowService) protected readonly windows: WindowService;
+    @inject(ZaprexLauncher) protected readonly zaprex: ZaprexLauncher;
     @inject(FileService) protected readonly files: FileService;
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
@@ -1103,12 +1104,13 @@ export class IngotAgentsWidget extends ReactWidget {
                 <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
                 {(offer || busy) && <span className='ingot-composer-zaprex-dot' aria-hidden='true' />}
             </button>
-            {this.popover === 'zaprex' && <ZaprexStatus enabled={this.store.harmonyEnabled} offer={offer}
+            {this.popover === 'zaprex' && this.zaprex.installed === undefined && void this.zaprex.info().then(() => this.update())}
+            {this.popover === 'zaprex' && <ZaprexStatus enabled={this.store.harmonyEnabled} offer={offer} desktop={this.zaprex.installed} onGetApp={() => this.zaprex.openWeb()}
                 pieces={pieces.map(session => ({ session, state: this.pieceState(session) }))}
                 onAccept={() => { this.closePopover(); if (current) { this.store.acceptHarmony(current.id); } }}
                 onDismiss={() => { this.closePopover(); if (current) { this.store.dismissHarmony(current.id); } }}
                 onTurnOn={() => { void this.preferences.set(HARMONY_PREFS.enabled, true, PreferenceScope.User).then(() => this.update()); }}
-                onOpenApp={() => { this.closePopover(); this.windows.openNewWindow(ZAPREX_APP_URL, { external: true }); }}
+                onOpenApp={() => { this.closePopover(); void this.zaprex.openApp(); }}
                 onClose={() => this.closePopover()} />}
         </span>;
     }

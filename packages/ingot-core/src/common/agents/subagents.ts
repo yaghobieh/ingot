@@ -32,9 +32,9 @@ const files = (n: number): string => `${n} ${n === 1 ? 'file' : 'files'} changed
 export const subagentInfo = (s: AgentSession, running: boolean): SubagentInfo => {
     const state = subagentState(s.status, running);
     const done = s.plan.filter(p => p.state === 'done').length;
-    const progress = state === 'done' || state === 'review' ? 1 : s.plan.length ? done / s.plan.length : undefined;
+    const progress = state === 'done' || state === 'review' ? 1 : s.handoff?.progress !== undefined ? s.handoff.progress : s.plan.length ? done / s.plan.length : undefined;
     const detail = state === 'running'
-        ? (s.plan.length ? `${done} of ${s.plan.length} steps` : s.activeFile ? `Editing ${s.activeFile.split('/').pop()}` : 'Working…')
+        ? s.handoff ? (s.handoff.message || 'Working in the Zaprex app…') : (s.plan.length ? `${done} of ${s.plan.length} steps` : s.activeFile ? `Editing ${s.activeFile.split('/').pop()}` : 'Working…')
         : state === 'review' ? `Waiting for review · ${files(s.changes.length || s.steps.filter(st => st.kind === 'edit').length)}`
             : state === 'error' ? 'Needs attention'
                 : state === 'stopped' ? 'Stopped'
