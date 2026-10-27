@@ -11,6 +11,8 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { IngotBranchService } from '../vcs/ingot-branch-service';
 import { AgentStore } from '../agents/agent-store';
+import type { HarmonyPiece } from '../../common/agents/harmony';
+import { HarmonyBubble } from '../agents/harmony-bubble';
 import { AGENT_COMMANDS, AGENTS_WIDGET_ID } from '../agents/agents.consts';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import { ZAPREX_APP_URL, ZAPREX_LINK_LABEL } from '../agents/zaprex-link.consts';
@@ -251,12 +253,23 @@ export class IngotMainToolbar extends ReactWidget {
      * A transparent T-rex that idles with a slow sway; it opens the separate Zaprex app.
      */
     protected renderZaprex(): React.ReactNode {
+        const offer = this.agents.harmonyEnabled ? this.agents.harmonyOffer : undefined;
+        const busy = this.agents.zaprexBusy;
+        const label = busy ? `${ZAPREX_LINK_LABEL} · Zaprex is working on a piece (Harmony mode)` : ZAPREX_LINK_LABEL;
         return <span className='ingot-tb-zaprex-anchor'>
-            <button id='ingot-tb-zaprex' type='button' className='ingot-tb-button ingot-tb-icon ingot-tb-zaprex' title={ZAPREX_LINK_LABEL} aria-label={ZAPREX_LINK_LABEL}
+            <button id='ingot-tb-zaprex' type='button' className={`ingot-tb-button ingot-tb-icon ingot-tb-zaprex${offer || busy ? ' thinking' : ''}`} title={label} aria-label={label}
                 onClick={() => this.windows.openNewWindow(ZAPREX_APP_URL, { external: true })}>
                 <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
+                {busy && <span className='ingot-tb-zaprex-busy' aria-hidden='true' />}
             </button>
+            {offer && this.renderHarmonyBubble(offer.sessionId, offer.piece)}
         </span>;
+    }
+
+    /** IDEA-180 Harmony mode: Zaprex offers ONE scoped piece of a heavy agent run, right under the T-rex. */
+    protected renderHarmonyBubble(sessionId: string, piece: HarmonyPiece): React.ReactNode {
+        return <HarmonyBubble anchorId='ingot-tb-zaprex' piece={piece}
+            onAccept={() => this.agents.acceptHarmony(sessionId)} onDismiss={() => this.agents.dismissHarmony(sessionId)} />;
     }
 
     /** Bottom panel and chat icons, the Zaprex T-rex, then the Agents Window pill (IDEA-118, IDEA-179). */

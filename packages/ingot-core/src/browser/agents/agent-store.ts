@@ -18,7 +18,7 @@ import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-servi
 import { postConstruct } from '@theia/core/shared/inversify';
 import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
-import { DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
+import { ACTIVE_STATUSES, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
 import type { AgentMessage, AgentMode, AgentSession } from '../../common/agents/agents.types';
 import type { ToolCallInfo } from '../../common/agents/tool-cards';
 import { activeAgentCount, titleFromPrompt } from '../../common/agents/agents.utils';
@@ -38,6 +38,7 @@ import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.cons
 import type { ProjectCommand } from '../../common/project-config/project-config.types';
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
+import { clampPieces, HARMONY_DEFAULTS, HARMONY_PREFS, harmonyLock, harmonyPrompt, isHeavyRun, pickHarmonyPiece, type HarmonyPiece } from '../../common/agents/harmony';
 import {
     APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
     updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
@@ -718,6 +719,7 @@ export class AgentStore {
                 session.messages[index] = { role: 'agent', text: extractMemories(parsed.display).display };
                 if (parsed.plan.length) {
                     session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
+                    this.considerHarmony(session, parsed.edits.length);
                 }
                 session.status = parsed.editing ? 'editing' : 'thinking';
                 session.activeFile = parsed.editing ?? parsed.edits[parsed.edits.length - 1]?.path;
@@ -959,7 +961,7 @@ export class AgentStore {
     /** Live editor view while an edit block streams (IDEA-102): the file fills in as the model types. */
     protected streamEdit(session: AgentSession, messageIndex: number, path: string | undefined, content: string | undefined): void {
         const root = this.rootFor(session);
-        if (!path || content === undefined || !root || !modeInfo(session.mode).canEdit || !isSafeRelativePath(path)) {
+        if (!path || content === undefined || !root || !modeInfo(session.mode).canEdit || !isSafeRelativePath(path) || this.lockedFor(session, path)) {
             return;
         }
         const key = `${session.id}\u0000${messageIndex}\u0000${path}`;
@@ -976,6 +978,7 @@ export class AgentStore {
      * the editor and the chat, and the agent is free for the next message meanwhile.
      */
     protected async applyEdits(session: AgentSession, edits: readonly AgentEdit[], root: URI | undefined): Promise<void> {
+        this.considerHarmony(session, edits.length);
         session.plan = session.plan.map(p => ({ ...p, state: 'done' }));
         const messageIndex = session.messages.map(m => m.role).lastIndexOf('agent');
         const origin = this.originOf(session, messageIndex);
@@ -989,6 +992,12 @@ export class AgentStore {
                 applied++;
                 if (!root || !isSafeRelativePath(edit.path)) {
                     session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": agents can only change files inside the project.` });
+                    continue;
+                }
+                const locked = this.lockedFor(session, edit.path);
+                if (locked) {
+                    session.messages.push({ role: 'system', text: locked });
+                    await this.tracker.cancelStream(session.id, edit.path);
                     continue;
                 }
                 // Wait for the live view of this file (if it streamed) so the final text lands on the same change.
@@ -1106,6 +1115,118 @@ export class AgentStore {
         session.mode = 'agent';
         session.messages = session.messages.map(m => m.buildable ? { ...m, buildable: false } : m);
         this.send(BUILD_PROMPT);
+    }
+
+    /** IDEA-180 Harmony mode: Zaprex's offer per lead chat (the bubble under the title bar T-rex). */
+    protected readonly harmonyOffers = new Map<string, HarmonyPiece>();
+    /** Runs (chat id + user message index) whose offer was dismissed or taken, so it is not offered again. */
+    protected readonly harmonyAsked = new Set<string>();
+
+    get harmonyEnabled(): boolean {
+        return this.preferences.get<boolean>(HARMONY_PREFS.enabled, HARMONY_DEFAULTS.enabled) !== false;
+    }
+
+    /** The newest open offer: which chat and which piece. */
+    get harmonyOffer(): { readonly sessionId: string; readonly piece: HarmonyPiece } | undefined {
+        const entries = [...this.harmonyOffers.entries()].filter(([id]) => this.items.some(s => s.id === id));
+        const last = entries[entries.length - 1];
+        return last && { sessionId: last[0], piece: last[1] };
+    }
+
+    /** The open offer for one chat. */
+    harmonyOfferFor(sessionId: string): HarmonyPiece | undefined {
+        return this.harmonyOffers.get(sessionId);
+    }
+
+    /** Zaprex pieces of a chat (running or done), newest first. */
+    zaprexPieces(leadId?: string): readonly AgentSession[] {
+        return this.items.filter(s => s.agent === 'zaprex' && (!leadId || s.parent === leadId));
+    }
+
+    /** True while Zaprex works on a piece (the T-rex thinks). */
+    get zaprexBusy(): boolean {
+        return this.zaprexPieces().some(s => this.isRunning(s.id) || ACTIVE_STATUSES.includes(s.status));
+    }
+
+    protected harmonyRunKey(session: AgentSession): string {
+        return `${session.id}:${session.messages.map(m => m.role).lastIndexOf('user')}`;
+    }
+
+    /** Offers (or, with "ask first" off, takes) one piece once a run gets heavy: many plan steps or files. */
+    protected considerHarmony(session: AgentSession, files: number): void {
+        if (!this.harmonyEnabled || session.agent === 'zaprex' || session.parent || (session.mode !== 'agent' && session.mode !== 'multi')
+            || this.harmonyOffers.has(session.id) || this.harmonyAsked.has(this.harmonyRunKey(session))
+            || !isHeavyRun(session.plan.length, Math.max(files, session.changes.length))) {
+            return;
+        }
+        const pieces = this.zaprexPieces(session.id);
+        if (pieces.length >= clampPieces(this.preferences.get(HARMONY_PREFS.maxPieces, HARMONY_DEFAULTS.maxPieces))) {
+            return;
+        }
+        const goal = [...session.messages].reverse().find(m => m.role === 'user')?.text ?? session.title;
+        const piece = pickHarmonyPiece(session.plan.map(p => p.text), goal, pieces.map(p => p.piece).filter(k => !!k));
+        if (!piece) {
+            return;
+        }
+        this.harmonyOffers.set(session.id, piece);
+        if (this.preferences.get<boolean>(HARMONY_PREFS.askFirst, HARMONY_DEFAULTS.askFirst) === false) {
+            this.acceptHarmony(session.id);
+            return;
+        }
+        this.changed();
+    }
+
+    dismissHarmony(sessionId: string): void {
+        const session = this.items.find(s => s.id === sessionId);
+        if (session) {
+            this.harmonyAsked.add(this.harmonyRunKey(session));
+        }
+        this.harmonyOffers.delete(sessionId);
+        this.changed();
+    }
+
+    /** Accept: Zaprex runs the piece in its own chat (locked to the piece's files); the lead gets a one-line note. */
+    acceptHarmony(sessionId: string): AgentSession | undefined {
+        const lead = this.items.find(s => s.id === sessionId);
+        const piece = this.harmonyOffers.get(sessionId);
+        this.harmonyOffers.delete(sessionId);
+        if (!lead || !piece) {
+            this.changed();
+            return undefined;
+        }
+        this.harmonyAsked.add(this.harmonyRunKey(lead));
+        const goal = [...lead.messages].reverse().find(m => m.role === 'user')?.text ?? lead.title;
+        const child: AgentSession = {
+            id: newChatId(), title: `Zaprex · ${piece.label}`, status: 'thinking', updatedAt: Date.now(), mode: 'agent', model: lead.model,
+            messages: [{ role: 'user', text: piece.task, expanded: `${piece.task}\n\n${harmonyPrompt(piece, goal)}` }],
+            plan: [], steps: [], changes: [], project: lead.project, open: false, parent: lead.id,
+            agent: 'zaprex', scope: piece.scope, piece: piece.kind
+        };
+        this.items = [child, ...this.items];
+        // A peer line: the lead agent sees it too, so it leaves the piece's files alone.
+        lead.messages.push({ role: 'peer', from: 'Zaprex', text: `Taking a piece in Harmony mode: ${piece.task}. I only change ${piece.scope.slice(0, 3).join(', ')}${piece.scope.length > 3 ? ', …' : ''}; leave those files to me.` });
+        this.changed();
+        this.runModel(child).catch(() => { child.status = 'error'; }).finally(() => {
+            child.updatedAt = Date.now();
+            this.changed();
+        });
+        return child;
+    }
+
+    /** Harmony file lock: why this chat may not change `path` right now, if it may not. */
+    protected lockedFor(session: AgentSession, path: string): string | undefined {
+        if (session.agent === 'zaprex') {
+            return harmonyLock(path, 'zaprex', session.scope);
+        }
+        for (const piece of this.zaprexPieces(session.id)) {
+            if (this.isRunning(piece.id) || ACTIVE_STATUSES.includes(piece.status)) {
+                const reason = harmonyLock(path, 'agent', piece.scope);
+                if (reason) {
+                    return reason;
+                }
+            }
+        }
+        return undefined;
     }
 
     /** Multi-agent: one Agent-mode chat per subtask, run in parallel in their own tabs; the lead chat reports progress. */

@@ -55,7 +55,7 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(trex).toBeVisible();
         expect(await style(page, '#ingot-composer-zaprex', 'background-color')).toBe('rgba(0, 0, 0, 0)');
         expect(await trex.evaluate(el => getComputedStyle(el).animationName)).toBe('ingot-trex-idle');
-        await expect(page.locator('#ingot-composer-zaprex')).toHaveAttribute('title', 'Open Zaprex');
+        await expect(page.locator('#ingot-composer-zaprex')).toHaveAttribute('title', 'Zaprex · Harmony mode on');
 
         // The model pill is never painted warning orange, ready or not.
         const modelColor = await style(page, '#ingot-composer-model', 'color');

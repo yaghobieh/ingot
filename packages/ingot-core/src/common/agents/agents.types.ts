@@ -76,6 +76,12 @@ export interface AgentSession {
     context?: ChatContextInfo;
     /** Multi-agent: the chat that started this sub-agent. */
     parent?: string;
+    /** IDEA-180: `zaprex` for a Harmony mode piece Zaprex runs next to the agent. */
+    agent?: 'ingot' | 'zaprex';
+    /** IDEA-180: the files this chat may change (globs); others are locked to the lead agent. */
+    scope?: readonly string[];
+    /** IDEA-180: which Harmony piece this is. */
+    piece?: import('./harmony').HarmonyPieceKind;
     /** IDEA-105 checkpoint: the run stopped for review after `applied` of `total` files. */
     pause?: ReviewPause;
 }
