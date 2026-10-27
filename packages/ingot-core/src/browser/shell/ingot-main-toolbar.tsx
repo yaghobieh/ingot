@@ -15,7 +15,8 @@ import type { HarmonyPiece } from '../../common/agents/harmony';
 import { HarmonyBubble } from '../agents/harmony-bubble';
 import { AGENT_COMMANDS, AGENTS_WIDGET_ID } from '../agents/agents.consts';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
-import { ZAPREX_APP_URL, ZAPREX_LINK_LABEL } from '../agents/zaprex-link.consts';
+import { ZAPREX_LINK_LABEL } from '../agents/zaprex-link.consts';
+import { ZaprexLauncher } from '../agents/zaprex-launcher';
 import { TITLEBAR_COMMANDS, TITLEBAR_REFRESH_DELAYS_MS, TITLEBAR_TEXT, TOGGLE_BOTTOM_PANEL_COMMAND } from '../workbench/titlebar.consts';
 import { pickRunScript } from '../../common/vcs/vcs.utils';
 import { IngotDebugLauncher } from '../debug/ingot-debug-launcher';
@@ -81,6 +82,7 @@ export class IngotMainToolbar extends ReactWidget {
     @inject(IngotBranchService) protected readonly branches: IngotBranchService;
     @inject(AgentStore) protected readonly agents: AgentStore;
     @inject(WindowService) protected readonly windows: WindowService;
+    @inject(ZaprexLauncher) protected readonly zaprex: ZaprexLauncher;
     @inject(FileService) protected readonly files: FileService;
     @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
     @inject(ApplicationShell) protected readonly shell: ApplicationShell;
@@ -258,7 +260,7 @@ export class IngotMainToolbar extends ReactWidget {
         const label = busy ? `${ZAPREX_LINK_LABEL} · Zaprex is working on a piece (Harmony mode)` : ZAPREX_LINK_LABEL;
         return <span className='ingot-tb-zaprex-anchor'>
             <button id='ingot-tb-zaprex' type='button' className={`ingot-tb-button ingot-tb-icon ingot-tb-zaprex${offer || busy ? ' thinking' : ''}`} title={label} aria-label={label}
-                onClick={() => this.windows.openNewWindow(ZAPREX_APP_URL, { external: true })}>
+                onClick={() => void this.zaprex.openApp()}>
                 <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
                 {busy && <span className='ingot-tb-zaprex-busy' aria-hidden='true' />}
             </button>
@@ -268,7 +270,10 @@ export class IngotMainToolbar extends ReactWidget {
 
     /** IDEA-180 Harmony mode: Zaprex offers ONE scoped piece of a heavy agent run, right under the T-rex. */
     protected renderHarmonyBubble(sessionId: string, piece: HarmonyPiece): React.ReactNode {
-        return <HarmonyBubble anchorId='ingot-tb-zaprex' piece={piece}
+        if (this.zaprex.installed === undefined) {
+            void this.zaprex.info().then(() => this.update());
+        }
+        return <HarmonyBubble anchorId='ingot-tb-zaprex' piece={piece} desktop={this.zaprex.installed} onGetApp={() => this.zaprex.openWeb()}
             onAccept={() => this.agents.acceptHarmony(sessionId)} onDismiss={() => this.agents.dismissHarmony(sessionId)} />;
     }
 

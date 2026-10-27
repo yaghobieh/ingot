@@ -1,6 +1,5 @@
 /**
- * Zaprex is a separate app (IDEA-173). Ingot only links to it: the small T-rex in the title bar (IDEA-179) opens the Zaprex
- * app in the browser, signed in with the same Ingot account.
+ * Zaprex is a separate app (IDEA-173). The T-rex in the title bar (IDEA-179) and the composer (IDEA-184) open it:
+ * the desktop app by its `zaprex://` link when installed, else zaprex.dev/app?from=ingot (IDEA-185, see ZaprexLauncher).
  */
-export const ZAPREX_APP_URL = 'https://zaprex.dev/app';
 export const ZAPREX_LINK_LABEL = 'Open Zaprex';

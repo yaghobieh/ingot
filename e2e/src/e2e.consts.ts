@@ -10,6 +10,9 @@ export const CONFIG_PROJECT = path.join(FIXTURES_DIR, 'config-project');
 /** Override when several checkouts run e2e at once so their keychain entries never collide. */
 export const E2E_KEYCHAIN_SERVICE = process.env.INGOT_E2E_KEYCHAIN_SERVICE ?? 'dev.ingot.ide.e2e';
 export const E2E_CONFIG_DIR = path.resolve(__dirname, '..', '.ingot-e2e-config');
+/** IDEA-185: Zaprex desktop detection override ("installed" / "missing"; real detection when absent) and the link log (links are recorded, never opened). */
+export const ZAPREX_DETECT_FILE = path.join(E2E_CONFIG_DIR, `zaprex-detect-${process.env.INGOT_PORT ?? 3100}`);
+export const ZAPREX_LINK_LOG = path.join(E2E_CONFIG_DIR, `zaprex-links-${process.env.INGOT_PORT ?? 3100}.log`);
 /** Stands in for the home folder whose imported global config (rules, mcp.json) Ingot reads. */
 export const IMPORT_HOME = path.join(FIXTURES_DIR, 'import-home');
 export const CALC_SERVER = path.join(FIXTURES_DIR, 'mcp', 'calc-server.mjs');

@@ -5,7 +5,8 @@ import { dismissNotifications, openIngot, runCommand } from '../src/app.utils';
 
 /** Optional: where to save review screenshots (outside the repo). */
 const SHOTS = process.env.INGOT_SCREENSHOT_DIR;
-const ZAPREX_APP_URL = 'https://zaprex.dev/app';
+// IDEA-185: without the desktop app the T-rex opens the web app, which offers the download or "Stay here".
+const ZAPREX_APP_URL = 'https://zaprex.dev/app?from=ingot';
 
 const setTheme = async (page: Page, label: string): Promise<void> => {
     await runCommand(page, 'Preferences: Color Theme');

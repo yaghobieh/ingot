@@ -28,6 +28,8 @@ import { MCP_SERVICE_PATH } from '../common/project-config/project-config.consts
 import { McpService } from '../common/project-config/project-config.types';
 
 import { IngotGitService } from './ingot-git-service';
+import { IngotZaprexDesktopService } from './zaprex-desktop-service';
+import { ZAPREX_DESKTOP_PATH, ZaprexDesktopService } from '../common/zaprex/zaprex-desktop.types';
 import { GIT_SERVICE_PATH } from '../common/git/git.consts';
 import { GitService } from '../common/git/git.types';
 
@@ -87,6 +89,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotEditorImportService).toSelf().inSingletonScope();
     bind(EditorImportService).toService(IngotEditorImportService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(EDITOR_IMPORT_SERVICE_PATH, () => ctx.container.get<EditorImportService>(EditorImportService))).inSingletonScope();
+    bind(IngotZaprexDesktopService).toSelf().inSingletonScope();
+    bind(ZaprexDesktopService).toService(IngotZaprexDesktopService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(ZAPREX_DESKTOP_PATH, () => ctx.container.get<ZaprexDesktopService>(ZaprexDesktopService))).inSingletonScope();
     bind(IngotGitService).toSelf().inSingletonScope();
     bind(GitService).toService(IngotGitService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(GIT_SERVICE_PATH, () => ctx.container.get<GitService>(GitService))).inSingletonScope();
