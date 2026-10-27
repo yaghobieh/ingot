@@ -1,0 +1,77 @@
+/* IDEA-181: Subagents strip above the composer, details drawer, and the one-line reference in the chat. */
+.ingot-subagents {
+    margin: 0 10px 6px; border: 1px solid var(--ingot-border, rgba(27, 38, 71, .14)); border-radius: 8px;
+    background: var(--ingot-panel, #F4F5F8); font-size: 12px; color: var(--ingot-text); overflow: hidden;
+}
+body.ingot-dark .ingot-subagents { background: #1C202A; border-color: rgba(255, 255, 255, .09); }
+.ingot-sa-header {
+    all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 6px; width: 100%; height: 28px; padding: 0 10px; cursor: pointer;
+    color: var(--ingot-text-muted);
+}
+.ingot-sa-header:hover { color: var(--ingot-text); }
+.ingot-sa-header:focus-visible { outline: 2px solid var(--ingot-primary, #3B6FD9); outline-offset: -2px; border-radius: 8px; }
+.ingot-sa-header .ingot-flex { flex: 1; }
+.ingot-sa-header-label { color: var(--ingot-text); font-weight: 600; }
+.ingot-sa-count { min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: color-mix(in srgb, #D9A04E 22%, transparent); color: var(--ingot-text); font-size: 10px; font-weight: 700; display: inline-grid; place-items: center; }
+.ingot-sa-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ingot-sa-spinner, .ingot-sa-row.running .ingot-sa-dot {
+    width: 10px; height: 10px; border-radius: 50%; border: 2px solid color-mix(in srgb, #D9A04E 30%, transparent); border-top-color: #D9A04E;
+    box-sizing: border-box; animation: ingot-sa-spin .8s linear infinite; flex: none;
+}
+@keyframes ingot-sa-spin { to { transform: rotate(360deg); } }
+.ingot-sa-list { border-top: 1px solid var(--ingot-border, rgba(27, 38, 71, .1)); max-height: 160px; overflow: auto; padding: 2px 0; }
+body.ingot-dark .ingot-sa-list { border-color: rgba(255, 255, 255, .07); }
+.ingot-sa-row {
+    all: unset; box-sizing: border-box; display: grid; grid-template-columns: 18px minmax(60px, 1fr) auto 56px 10px; align-items: center; gap: 8px;
+    width: 100%; height: 28px; padding: 0 10px; cursor: pointer;
+}
+.ingot-sa-row:hover, .ingot-sa-row.selected { background: var(--ingot-selection, rgba(59, 111, 217, .1)); }
+.ingot-sa-row:focus-visible { outline: 2px solid var(--ingot-primary, #3B6FD9); outline-offset: -2px; }
+.ingot-sa-who { width: 16px; height: 16px; display: inline-grid; place-items: center; flex: none; }
+.ingot-sa-ingot { font-size: 8px; font-weight: 800; border-radius: 4px; background: #3B6FD9; color: #fff; letter-spacing: -.5px; }
+.ingot-sa-zaprex { background-size: contain; background-repeat: no-repeat; background-position: center; }
+.ingot-sa-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-sa-detail { color: var(--ingot-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; font-size: 11px; }
+.ingot-sa-progress { position: relative; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--ingot-text-muted) 22%, transparent); overflow: hidden; }
+.ingot-sa-progress-fill { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: #3B6FD9; transition: width .3s ease; }
+.ingot-sa-progress.done .ingot-sa-progress-fill, .ingot-sa-progress.review .ingot-sa-progress-fill { background: var(--ingot-success, #2E9E5B); }
+.ingot-sa-progress.error .ingot-sa-progress-fill { background: var(--ingot-danger, #D64545); width: 100%; }
+.ingot-sa-progress.indeterminate .ingot-sa-progress-fill { width: 40%; background: #D9A04E; animation: ingot-sa-indet 1.2s ease-in-out infinite; }
+@keyframes ingot-sa-indet { from { left: -40%; } to { left: 100%; } }
+.ingot-sa-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ingot-text-muted); }
+.ingot-sa-dot.done { background: var(--ingot-success, #2E9E5B); }
+.ingot-sa-dot.review { background: #D9A04E; }
+.ingot-sa-dot.error { background: var(--ingot-danger, #D64545); }
+.ingot-sa-row.running .ingot-sa-dot { background: transparent; }
+
+.ingot-sa-details { padding: 8px 10px; border-bottom: 1px solid var(--ingot-border, rgba(27, 38, 71, .1)); max-height: 240px; overflow: auto; }
+body.ingot-dark .ingot-sa-details { border-color: rgba(255, 255, 255, .07); }
+.ingot-sa-details-head { display: flex; align-items: center; gap: 6px; }
+.ingot-sa-details-head .ingot-flex { flex: 1; }
+.ingot-sa-state { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: color-mix(in srgb, var(--ingot-text-muted) 18%, transparent); color: var(--ingot-text-muted); }
+.ingot-sa-state.running { background: color-mix(in srgb, #D9A04E 22%, transparent); color: var(--ingot-text); }
+.ingot-sa-state.done { color: var(--ingot-success, #2E9E5B); }
+.ingot-sa-state.error { color: var(--ingot-danger, #D64545); }
+.ingot-sa-btn { all: unset; width: 22px; height: 22px; display: inline-grid; place-items: center; border-radius: 5px; cursor: pointer; color: var(--ingot-text-muted); }
+.ingot-sa-btn:hover { background: var(--theia-toolbar-hoverBackground); color: var(--ingot-text); }
+.ingot-sa-btn:focus-visible { outline: 2px solid var(--ingot-primary, #3B6FD9); }
+.ingot-sa-task { margin-top: 6px; color: var(--ingot-text); }
+.ingot-sa-scope, .ingot-sa-note { margin-top: 4px; color: var(--ingot-text-muted); font-size: 11px; }
+.ingot-sa-plan, .ingot-sa-edits { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; color: var(--ingot-text-muted); }
+.ingot-sa-plan li.done { color: var(--ingot-text); }
+.ingot-sa-edits li { display: flex; align-items: center; gap: 6px; }
+.ingot-sa-diff { margin-left: auto; font-size: 11px; }
+.ingot-sa-reply { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--ingot-border, rgba(27, 38, 71, .12)); }
+
+.ingot-chat-subref {
+    display: flex; align-items: center; gap: 6px; margin: 4px 0; padding: 4px 8px; border-radius: 6px; font-size: 12px; color: var(--ingot-text-muted);
+    background: color-mix(in srgb, var(--ingot-text-muted) 8%, transparent);
+}
+.ingot-chat-subref.zaprex { background: color-mix(in srgb, #D9A04E 10%, transparent); }
+.ingot-chat-subref-icon { width: 14px; height: 14px; flex: none; background-size: contain; background-repeat: no-repeat; }
+.ingot-chat-subref-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-chat-subref-text b { color: var(--ingot-text); }
+.ingot-chat-subref-view { all: unset; cursor: pointer; color: var(--ingot-primary, #3B6FD9); font-size: 12px; padding: 0 4px; border-radius: 4px; }
+.ingot-chat-subref-view:hover { text-decoration: underline; }
+.ingot-chat-subref-view:focus-visible { outline: 2px solid var(--ingot-primary, #3B6FD9); }
+@media (prefers-reduced-motion: reduce) { .ingot-sa-spinner, .ingot-sa-row.running .ingot-sa-dot, .ingot-sa-progress.indeterminate .ingot-sa-progress-fill { animation: none; } }

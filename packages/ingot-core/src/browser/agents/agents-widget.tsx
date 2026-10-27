@@ -3,6 +3,8 @@ import { ImageHoverService } from '../preview/image-hover-service';
 import { actionLine, activityLine } from '../../common/agents/agent-actions';
 import { exploredLine, extractThought } from '../../common/agents/tool-cards';
 import { ThoughtRow, ToolCardView } from './tool-card';
+import { SUBAGENT_PREFS, subagentsView } from '../../common/agents/subagents';
+import { SubagentsStrip } from './subagents-strip';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
@@ -483,6 +485,7 @@ export class IngotAgentsWidget extends ReactWidget {
                         <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>
                     </div>}</div>}
             {!this.showMemories && this.renderProcesses()}
+            {!this.showMemories && this.renderSubagents(current)}
             {!this.showMemories && this.renderApproval(current)}
             {!this.showMemories && this.renderChangesBar(current)}
             {this.renderComposer()}
@@ -618,7 +621,48 @@ export class IngotAgentsWidget extends ReactWidget {
         })}</div>;
     }
 
+    /** IDEA-181: subagent state per chat: which one's details are open, and whether the list is open. */
+    protected subagentSelected?: string;
+    protected subagentsOpen = new Map<string, boolean>();
+
+    protected subagentsExpanded(session: AgentSession): boolean {
+        return this.subagentsOpen.get(session.id) ?? subagentsView(this.preferences.get(SUBAGENT_PREFS.view)) === 'strip';
+    }
+
+    protected renderSubagents(session: AgentSession | undefined): React.ReactNode {
+        const subagents = this.store.subagents(session?.id);
+        if (!session || !subagents.length) {
+            return undefined;
+        }
+        return <SubagentsStrip subagents={subagents} isRunning={id => this.store.isRunning(id)}
+            view={subagentsView(this.preferences.get(SUBAGENT_PREFS.view))}
+            expanded={this.subagentsExpanded(session)} selected={this.subagentSelected}
+            onToggle={() => { this.subagentsOpen.set(session.id, !this.subagentsExpanded(session)); this.update(); }}
+            onSelect={id => { this.subagentSelected = id; this.update(); }}
+            onOpenTab={id => { this.subagentSelected = undefined; this.store.select(id); }}
+            onStop={id => this.store.stop(id)}
+            renderMarkdown={text => this.markdown.render(text)} />;
+    }
+
+    /** IDEA-181: the one-line reference a subagent leaves in the main chat; View opens it in the Subagents strip. */
+    protected renderSubagentRef(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+        const refs = m.refs ?? [];
+        const zaprex = m.from === 'Zaprex';
+        return <div key={i} className={`ingot-chat-subref${zaprex ? ' zaprex' : ''}`} data-refs={refs.join(' ')}>
+            {zaprex ? <span className='ingot-zaprex-link-icon ingot-chat-subref-icon' aria-hidden='true' /> : <span className='codicon codicon-type-hierarchy-sub ingot-chat-subref-icon' />}
+            <span className='ingot-chat-subref-text' title={m.text}>{zaprex ? <b>Zaprex </b> : undefined}{m.text}</span>
+            <button type='button' className='ingot-chat-subref-view' onClick={() => {
+                this.subagentsOpen.set(session.id, true);
+                this.subagentSelected = refs.length === 1 ? refs[0] : undefined;
+                this.update();
+            }}>View</button>
+        </div>;
+    }
+
     protected renderMessage(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+        if (m.refs?.length) {
+            return this.renderSubagentRef(session, m, i);
+        }
         if (m.role === 'tool' && m.tool) {
             const key = `${session.id}:tool:${i}`;
             return <ToolCardView key={i} info={m.tool} text={m.text} from={m.from} expanded={this.expandedSteps.has(key)}
