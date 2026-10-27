@@ -1,0 +1,92 @@
+/* IDEA-176: floating Commit window and Commit with AI. */
+.ingot-commit-window {
+  position: fixed; z-index: 2000; display: flex; flex-direction: column; box-sizing: border-box;
+  min-width: 560px; min-height: 380px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px);
+  resize: both; overflow: hidden;
+  background: var(--theia-editorWidget-background, var(--theia-editor-background));
+  color: var(--theia-foreground); font-size: 12.5px;
+  border: 1px solid var(--theia-editorWidget-border, var(--theia-panel-border)); border-radius: 10px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .32), 0 2px 8px rgba(0, 0, 0, .18);
+}
+body.theia-light .ingot-commit-window { box-shadow: 0 18px 48px rgba(27, 38, 71, .18), 0 2px 8px rgba(27, 38, 71, .10); }
+.ingot-commit-window:focus { outline: none; }
+.ingot-commit-window.dragging { user-select: none; opacity: .97; }
+.ingot-cw-root { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+.ingot-cw-header { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px 0 12px; flex: none; cursor: move;
+  border-bottom: 1px solid var(--theia-panel-border); background: color-mix(in srgb, var(--theia-foreground) 3%, transparent); }
+.ingot-cw-icon { color: var(--ingot-ingot-gold, #D9A04E); font-size: 15px !important; }
+.ingot-cw-title { font-weight: 600; font-size: 13px; }
+.ingot-cw-sub { color: var(--theia-descriptionForeground); }
+.ingot-cw-branch { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 10px; font-size: 11.5px;
+  background: color-mix(in srgb, var(--ingot-primary, #3B6FD9) 13%, transparent); color: var(--ingot-primary, #3B6FD9); }
+.ingot-cw-branch .codicon { font-size: 12px !important; }
+.ingot-cw-tool { width: 26px; height: 26px; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent;
+  color: var(--theia-descriptionForeground); cursor: pointer; font-size: 14px !important; }
+.ingot-cw-tool:hover { background: color-mix(in srgb, var(--theia-foreground) 9%, transparent); color: var(--theia-foreground); }
+
+.ingot-cw-body { display: flex; flex: 1; min-height: 0; }
+.ingot-cw-files { width: 38%; min-width: 220px; max-width: 420px; overflow: auto; border-right: 1px solid var(--theia-panel-border); padding: 4px 0; }
+.ingot-cw-section + .ingot-cw-section { margin-top: 6px; }
+.ingot-cw-section-head { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--theia-descriptionForeground); }
+.ingot-cw-count { min-width: 16px; height: 16px; padding: 0 5px; box-sizing: border-box; border-radius: 8px; display: inline-grid; place-items: center; font-size: 10.5px;
+  background: color-mix(in srgb, var(--theia-foreground) 10%, transparent); color: var(--theia-foreground); }
+.ingot-cw-link { border: 0; background: transparent; padding: 2px 4px; border-radius: 4px; color: var(--ingot-primary, #3B6FD9); font: inherit; font-size: 11.5px; font-weight: 500;
+  text-transform: none; letter-spacing: 0; cursor: pointer; }
+.ingot-cw-link:hover { background: color-mix(in srgb, var(--ingot-primary, #3B6FD9) 12%, transparent); }
+.ingot-cw-row { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 12px; cursor: pointer; white-space: nowrap; }
+.ingot-cw-row:hover { background: var(--theia-list-hoverBackground); }
+.ingot-cw-row.selected { background: var(--theia-list-activeSelectionBackground, var(--theia-list-hoverBackground)); color: var(--theia-list-activeSelectionForeground, inherit); }
+.ingot-cw-name { overflow: hidden; text-overflow: ellipsis; }
+.ingot-cw-dir { color: var(--theia-descriptionForeground); overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; min-width: 0; }
+.ingot-cw-status { width: 14px; text-align: center; font-family: var(--theia-code-font-family); font-size: 11px; font-weight: 700; flex: none; }
+.ingot-cw-status-modified, .ingot-cw-status-renamed { color: var(--ingot-primary, #3B6FD9); }
+.ingot-cw-status-added, .ingot-cw-status-untracked { color: var(--ingot-success, #2F8F5B); }
+.ingot-cw-status-deleted, .ingot-cw-status-conflicted { color: var(--ingot-danger, #C9423D); }
+.ingot-cw-stage { width: 20px; height: 20px; flex: none; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent;
+  color: var(--theia-descriptionForeground); cursor: pointer; font-size: 13px !important; opacity: 0; }
+.ingot-cw-row:hover .ingot-cw-stage, .ingot-cw-row.selected .ingot-cw-stage, .ingot-cw-stage:focus-visible { opacity: 1; }
+.ingot-cw-stage:hover { background: color-mix(in srgb, var(--theia-foreground) 12%, transparent); color: var(--theia-foreground); }
+.ingot-cw-empty { padding: 6px 12px; color: var(--theia-descriptionForeground); }
+
+.ingot-cw-diff { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--theia-editor-background); }
+.ingot-cw-diff-head { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; flex: none; border-bottom: 1px solid var(--theia-panel-border); }
+.ingot-cw-diff-path { font-family: var(--theia-code-font-family); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-cw-diff-empty { margin: auto; }
+.ingot-cw-diff-text { flex: 1; margin: 0; overflow: auto; padding: 4px 0; font-family: var(--theia-code-font-family); font-size: 12px; line-height: 18px; }
+.ingot-cw-line { padding: 0 12px; white-space: pre; min-width: max-content; }
+.ingot-cw-add { background: color-mix(in srgb, var(--ingot-success, #2F8F5B) 15%, transparent); }
+.ingot-cw-del { background: color-mix(in srgb, var(--ingot-danger, #C9423D) 14%, transparent); }
+.ingot-cw-hunk { color: var(--ingot-primary, #3B6FD9); background: color-mix(in srgb, var(--ingot-primary, #3B6FD9) 7%, transparent); margin-top: 4px; }
+
+.ingot-cw-commit { flex: none; border-top: 1px solid var(--theia-panel-border); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ingot-cw-message { position: relative; }
+.ingot-cw-message textarea { width: 100%; box-sizing: border-box; height: 74px; resize: vertical; padding: 7px 40px 7px 9px; border-radius: 7px; font: inherit; font-size: 12.5px; line-height: 18px;
+  background: var(--theia-input-background); color: var(--theia-input-foreground, var(--theia-foreground)); border: 1px solid var(--theia-input-border, var(--theia-panel-border)); outline: none; }
+.ingot-cw-message textarea:focus { border-color: var(--ingot-focus-ring, #8FB0F0); }
+.ingot-cw-message-tools { position: absolute; top: 5px; right: 5px; display: flex; gap: 2px; }
+.ingot-cw-actions { display: flex; align-items: center; gap: 8px; }
+.ingot-cw-amend { display: inline-flex; align-items: center; gap: 5px; color: var(--theia-descriptionForeground); cursor: pointer; }
+.ingot-cw-summary { color: var(--theia-descriptionForeground); font-size: 11.5px; }
+.ingot-cw-btn { height: 28px; padding: 0 12px; border-radius: 7px; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--theia-panel-border); background: transparent; color: var(--theia-foreground); }
+.ingot-cw-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--theia-foreground) 8%, transparent); }
+.ingot-cw-btn.primary { border-color: transparent; background: var(--ingot-primary, #3B6FD9); color: #fff; }
+.ingot-cw-btn.primary:hover:not(:disabled) { background: var(--ingot-primary-hover, #2F5DBF); }
+.ingot-cw-btn:disabled { opacity: .45; cursor: default; }
+.ingot-cw-btn:focus-visible, .ingot-cw-tool:focus-visible, .ingot-cw-link:focus-visible { outline: 2px solid var(--ingot-focus-ring, #8FB0F0); outline-offset: 1px; }
+
+/* Commit with AI: sparkle in the message box (docked view and window). */
+.ingot-ai-commit { width: 26px; height: 26px; display: inline-grid; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--ingot-ingot-gold, #D9A04E); }
+.ingot-ai-commit .codicon { font-size: 15px !important; }
+.ingot-ai-commit:hover { background: color-mix(in srgb, var(--ingot-ingot-gold, #D9A04E) 16%, transparent); }
+.ingot-ai-commit.busy { color: var(--theia-foreground); background: color-mix(in srgb, var(--theia-foreground) 8%, transparent); }
+.ingot-ai-commit:focus-visible { outline: 2px solid var(--ingot-focus-ring, #8FB0F0); outline-offset: 1px; }
+.ingot-ai-commit-error { display: flex; align-items: flex-start; gap: 6px; padding: 5px 8px; border-radius: 6px; font-size: 11.5px; line-height: 16px;
+  color: var(--theia-foreground); background: color-mix(in srgb, var(--ingot-warning, #B7791F) 14%, transparent); }
+.ingot-ai-commit-error .codicon { color: var(--ingot-warning, #B7791F); font-size: 13px !important; margin-top: 1px; }
+.ingot-lc-message .ingot-ai-commit { position: absolute; top: 4px; right: 30px; }
+.ingot-lc-message .ingot-ai-commit-error { margin: 4px 0 0; }
+.ingot-status-commit-window { cursor: pointer; }
+.ingot-lc-message textarea { padding-right: 60px !important; }

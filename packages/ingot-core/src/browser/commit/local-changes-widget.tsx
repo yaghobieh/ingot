@@ -11,6 +11,8 @@ import { badgeClasses } from '../../common/icons/file-icons.utils';
 import { LocalChangesModel } from './local-changes-model';
 import { COMMIT_COMMANDS, DEFAULT_CHANGELIST, LOCAL_CHANGES_CONTEXT_MENU, LOCAL_CHANGES_FOCUS, LOCAL_CHANGES_LABEL, LOCAL_CHANGES_WIDGET_ID, UNVERSIONED_GROUP, CONFLICTS_GROUP } from './commit.consts';
 import { MERGE_COMMANDS } from '../merge/merge.consts';
+import { AiCommitButton, AiCommitError, AiMessageController } from './ai-commit-button';
+import { AiCommitService } from './ai-commit-service';
 
 interface Group {
     readonly name: string;
@@ -29,6 +31,9 @@ export class LocalChangesWidget extends ReactWidget {
     @inject(ContextMenuRenderer) protected readonly contextMenu: ContextMenuRenderer;
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(ContextKeyService) protected readonly contextKeys: ContextKeyService;
+    @inject(AiCommitService) protected readonly aiService: AiCommitService;
+    /** IDEA-176 Commit with AI for this view's message box. */
+    ai: AiMessageController;
 
     message = '';
     amend = false;
@@ -59,6 +64,8 @@ export class LocalChangesWidget extends ReactWidget {
         this.node.addEventListener('focusin', () => this.focusKey.set(true));
         this.node.addEventListener('focusout', () => this.focusKey.set(false));
         this.toDispose.push(this.model.onDidChange(() => this.update()));
+        this.ai = new AiMessageController(this.aiService, () => this.message, m => { this.message = m; this.historyIndex = -1; }, () => this.update());
+        this.toDispose.push({ dispose: () => this.ai.dispose() });
         this.update();
     }
 
@@ -224,7 +231,7 @@ export class LocalChangesWidget extends ReactWidget {
     protected render(): React.ReactNode {
         const included = this.model.included.length;
         const modified = this.model.entries.filter(e => e.status !== 'untracked').length;
-        const canCommit = !this.busy && (included > 0 || this.amend) && !!this.message.trim();
+        const canCommit = !this.busy && !this.ai.generating && (included > 0 || this.amend) && !!this.message.trim();
         return <div className='ingot-lc-root'>
             <div className='ingot-lc-toolbar' role='toolbar'>
                 {this.toolbarButton('refresh', 'refresh', 'Refresh', () => this.model.refresh())}
@@ -236,6 +243,7 @@ export class LocalChangesWidget extends ReactWidget {
                 {this.toolbarButton('expand', 'expand-all', 'Expand All', () => this.expandAll(true))}
                 {this.toolbarButton('collapse', 'collapse-all', 'Collapse All', () => this.expandAll(false))}
                 <span className='ingot-flex' />
+                {this.toolbarButton('popout', 'link-external', 'Open in Window (⌥⇧⌘K)', () => this.commands.executeCommand(COMMIT_COMMANDS.popOut.id))}
                 {this.toolbarButton('hide', 'close', 'Hide', () => this.close())}
             </div>
             <div className='ingot-lc-tree' role='tree' aria-label='Local changes'>
@@ -245,7 +253,7 @@ export class LocalChangesWidget extends ReactWidget {
             </div>
             <div className='ingot-lc-message'>
                 <textarea id='ingot-commit-message' ref={el => { this.messageInput = el; }} placeholder={this.amend ? 'Amend commit message' : 'Commit message'}
-                    value={this.message} spellCheck
+                    value={this.message} spellCheck readOnly={this.ai.generating} aria-busy={this.ai.generating}
                     onChange={e => { this.message = e.currentTarget.value; this.historyIndex = -1; this.update(); }}
                     onKeyDown={e => {
                         if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.metaKey || e.ctrlKey)) {
@@ -255,6 +263,8 @@ export class LocalChangesWidget extends ReactWidget {
                     }} />
                 <button type='button' id='ingot-commit-history' className='ingot-lc-tool ingot-lc-history' title='Recent messages (⌘⌥↑ / ⌘⌥↓)' aria-label='Recent messages'
                     onClick={() => this.pickHistory()}><span className='codicon codicon-history' /></button>
+                <AiCommitButton id='ingot-commit-ai' controller={this.ai} />
+                <AiCommitError id='ingot-commit-ai-error' controller={this.ai} />
             </div>
             {this.showOptions && <div className='ingot-lc-options' id='ingot-commit-options'>
                 <label><input type='checkbox' id='ingot-commit-signoff' checked={this.signoff} onChange={e => { this.signoff = e.currentTarget.checked; this.update(); }} /> Sign-off commit</label>
