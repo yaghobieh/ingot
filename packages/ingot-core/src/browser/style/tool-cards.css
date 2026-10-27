@@ -20,7 +20,7 @@ body.ingot-dark {
     --ingot-sh-op: #9AA0AB;
 }
 
-#ingot-agents .ingot-chat-tool.ingot-tc {
+:is(#ingot-agents, #ingot-hooks-dialog) .ingot-chat-tool.ingot-tc {
     opacity: 1; border-left: 0; padding: 0; max-height: none; overflow: visible; white-space: normal;
     font-size: 12px; margin: 6px 0; color: var(--ingot-text);
 }
@@ -61,12 +61,12 @@ body.ingot-dark {
 .ingot-tc-note { padding: 4px 10px; font-size: 11px; color: #B07A2A; border-top: 1px dashed var(--ingot-tc-line); }
 .ingot-tc-more { all: unset; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 4px 10px 0; font-size: 11px; color: var(--ingot-primary, #3B6FD9); border-top: 1px dashed var(--ingot-tc-line); }
 .ingot-tc-more + .ingot-tc-output { border-top: 0; }
-#ingot-agents .ingot-sh-prompt { color: var(--ingot-sh-op); user-select: none; }
-#ingot-agents .ingot-sh-cmd { color: var(--ingot-sh-cmd); font-weight: 600; }
-#ingot-agents .ingot-sh-str { color: var(--ingot-sh-str); }
-#ingot-agents .ingot-sh-flag { color: var(--ingot-sh-flag); }
-#ingot-agents .ingot-sh-var { color: var(--ingot-sh-var); }
-#ingot-agents .ingot-sh-op, #ingot-agents .ingot-sh-comment { color: var(--ingot-sh-op); }
+:is(#ingot-agents, #ingot-hooks-dialog) .ingot-sh-prompt { color: var(--ingot-sh-op); user-select: none; }
+:is(#ingot-agents, #ingot-hooks-dialog) .ingot-sh-cmd { color: var(--ingot-sh-cmd); font-weight: 600; }
+:is(#ingot-agents, #ingot-hooks-dialog) .ingot-sh-str { color: var(--ingot-sh-str); }
+:is(#ingot-agents, #ingot-hooks-dialog) .ingot-sh-flag { color: var(--ingot-sh-flag); }
+:is(#ingot-agents, #ingot-hooks-dialog) .ingot-sh-var { color: var(--ingot-sh-var); }
+:is(#ingot-agents, #ingot-hooks-dialog) .ingot-sh-op, :is(#ingot-agents, #ingot-hooks-dialog) .ingot-sh-comment { color: var(--ingot-sh-op); }
 .ingot-sh-comment { font-style: italic; }
 
 /* Profile card */
@@ -84,12 +84,12 @@ body.ingot-dark {
 .ingot-pc-bio { margin-top: 10px; color: var(--ingot-text-muted); }
 .ingot-pc-facts { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ingot-tc-line); display: grid; gap: 7px; }
 .ingot-pc-facts > div { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#ingot-agents .ingot-pc-facts .codicon { color: var(--ingot-text-muted); }
+:is(#ingot-agents, #ingot-hooks-dialog) .ingot-pc-facts .codicon { color: var(--ingot-text-muted); }
 .ingot-pc-facts a { color: var(--ingot-primary, #3B6FD9); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
 .ingot-pc-facts a:hover { text-decoration: underline; }
 .ingot-pc-stats { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ingot-tc-line); display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
 .ingot-pc-stat b { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: var(--ingot-text); }
-#ingot-agents .ingot-pc-stat b .codicon { font-size: 13px; color: #D9A04E; }
+:is(#ingot-agents, #ingot-hooks-dialog) .ingot-pc-stat b .codicon { font-size: 13px; color: #D9A04E; }
 .ingot-pc-stat > span:last-child { display: block; font-size: 11px; color: var(--ingot-text-muted); }
 
 /* Explored + Thought rows */

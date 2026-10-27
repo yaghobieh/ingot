@@ -15,6 +15,8 @@ export interface CommitOptions {
     readonly amend: boolean;
     readonly signoff: boolean;
     readonly runHooks: boolean;
+    /** IDEA-178: runs the `.ingot/hooks.json` pre-commit steps once the commit is valid; `blocked` stops it. */
+    readonly gate?: (root: string) => Promise<'passed' | 'bypassed' | 'blocked' | 'off'>;
 }
 
 interface StoredState {
@@ -252,7 +254,16 @@ export class LocalChangesModel {
         if (!options.message.trim()) {
             throw new Error('Enter a commit message.');
         }
-        const flags = { message: options.message, amend: options.amend, signoff: options.signoff, noVerify: !options.runHooks };
+        let hooksRan = false;
+        if (options.runHooks && options.gate) {
+            const gate = await options.gate(root);
+            if (gate === 'blocked') {
+                throw new Error('blocked by .ingot hooks. Fix the failing step (or bypass it) and commit again.');
+            }
+            // The steps already ran (or were bypassed): git skips Ingot's own hook.
+            hooksRan = gate !== 'off';
+        }
+        const flags = { message: options.message, amend: options.amend, signoff: options.signoff, noVerify: !options.runHooks, hooksRan };
         const untracked = included.filter(e => e.status === 'untracked').map(e => e.path);
         const partial = included.filter(e => e.status === 'modified' && this.excludedHunks.get(e.path)?.size);
         if (!partial.length) {

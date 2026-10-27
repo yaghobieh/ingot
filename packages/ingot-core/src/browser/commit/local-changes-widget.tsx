@@ -12,6 +12,7 @@ import { LocalChangesModel } from './local-changes-model';
 import { COMMIT_COMMANDS, DEFAULT_CHANGELIST, LOCAL_CHANGES_CONTEXT_MENU, LOCAL_CHANGES_FOCUS, LOCAL_CHANGES_LABEL, LOCAL_CHANGES_WIDGET_ID, UNVERSIONED_GROUP, CONFLICTS_GROUP } from './commit.consts';
 import { MERGE_COMMANDS } from '../merge/merge.consts';
 import { AiCommitButton, AiCommitError, AiMessageController } from './ai-commit-button';
+import { AgentHooksGate } from '../hooks/hooks-contribution';
 import { AiCommitService } from './ai-commit-service';
 
 interface Group {
@@ -32,6 +33,7 @@ export class LocalChangesWidget extends ReactWidget {
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(ContextKeyService) protected readonly contextKeys: ContextKeyService;
     @inject(AiCommitService) protected readonly aiService: AiCommitService;
+    @inject(AgentHooksGate) protected readonly hooksGate: AgentHooksGate;
     /** IDEA-176 Commit with AI for this view's message box. */
     ai: AiMessageController;
 
@@ -132,7 +134,7 @@ export class LocalChangesWidget extends ReactWidget {
         let ok = false;
         await this.run(async () => {
             const count = this.model.included.length;
-            await this.model.commit({ message: this.message, amend: this.amend, signoff: this.signoff, runHooks: this.runHooks });
+            await this.model.commit({ message: this.message, amend: this.amend, signoff: this.signoff, runHooks: this.runHooks, gate: root => this.hooksGate.gate(root, 'pre-commit') });
             this.messages.info(this.amend ? 'Amended the last commit.' : `Committed ${count} file${count === 1 ? '' : 's'}.`);
             this.message = '';
             this.amend = false;
