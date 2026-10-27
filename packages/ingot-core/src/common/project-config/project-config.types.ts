@@ -24,6 +24,8 @@ export interface ProjectCommand {
     readonly body: string;
     readonly kind: 'command' | 'skill';
     readonly uri?: string;
+    /** Argument hint from frontmatter `args` (IDEA-249), shown after the name in the `/` menu. */
+    readonly args?: string;
 }
 
 export interface McpServerConfig {

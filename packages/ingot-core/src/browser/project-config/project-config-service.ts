@@ -3,7 +3,7 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import URI from '@theia/core/lib/common/uri';
 import {
-    AGENTS_FILES, COMMANDS_DIR, CONFIG_DIRS, IMPORT_HOME_ENV, MCP_FILE, RULE_EXTENSIONS, RULES_DIR, SKILL_FILE, SKILLS_DIR
+    AGENTS_FILES, COMMANDS_DIR, CONFIG_DIRS, EXTRA_COMMAND_DIRS, IMPORT_HOME_ENV, MCP_FILE, RULE_EXTENSIONS, RULES_DIR, SKILL_FILE, SKILLS_DIR
 } from '../../common/project-config/project-config.consts';
 import type { ConfigSource, McpServerConfig, ProjectCommand, ProjectConfig, ProjectRule } from '../../common/project-config/project-config.types';
 import { commandFromFile, mergeByName, parseMcpJson, ruleFromFile } from '../../common/project-config/project-config.utils';
@@ -46,21 +46,25 @@ export class ProjectConfigService {
     async load(root: URI | undefined): Promise<ProjectConfig> {
         const [globalDir, importedDir] = await Promise.all([this.globalDir(), this.importedGlobalDir()]);
         const label = (prefix: string, base: URI) => (u: URI) => `${prefix}/${base.relative(u)?.toString() ?? u.path.base}`;
-        const [importedGlobal, global, globalAgents] = await Promise.all([
+        const home = await this.importHome();
+        const [importedGlobal, global, globalAgents, globalExtra] = await Promise.all([
             this.loadDir(importedDir, 'global-imported', label('~/' + CONFIG_DIRS.external, importedDir)),
             this.loadDir(globalDir, 'global', label('~/' + CONFIG_DIRS.ingot, globalDir)),
-            this.loadAgentsFiles(globalDir, 'global', name => `~/${CONFIG_DIRS.ingot}/${name}`, ['AGENTS.md'])
+            this.loadAgentsFiles(globalDir, 'global', name => `~/${CONFIG_DIRS.ingot}/${name}`, ['AGENTS.md']),
+            this.loadExtraCommands(home, 'global-imported', u => `~/${home.relative(u)?.toString() ?? u.path.base}`)
         ]);
         const rel = (u: URI) => root?.relative(u)?.toString() ?? u.path.base;
-        const [external, legacy, ingot, agents] = root ? await Promise.all([
+        const [external, legacy, ingot, agents, projectExtra] = root ? await Promise.all([
             this.loadDir(root.resolve(CONFIG_DIRS.external), 'external', rel),
             this.loadDir(root.resolve(CONFIG_DIRS.legacy), 'legacy', rel),
             this.loadDir(root.resolve(CONFIG_DIRS.ingot), 'ingot', rel),
-            this.loadAgentsFiles(root, 'agents', name => name, AGENTS_FILES)
-        ]) : [EMPTY_DIR, EMPTY_DIR, EMPTY_DIR, []];
+            this.loadAgentsFiles(root, 'agents', name => name, AGENTS_FILES),
+            this.loadExtraCommands(root, 'external', rel)
+        ]) : [EMPTY_DIR, EMPTY_DIR, EMPTY_DIR, [], []];
         return {
             rules: [...globalAgents, ...agents, ...mergeByName(importedGlobal.rules, global.rules, external.rules, legacy.rules, ingot.rules)],
-            commands: mergeByName(importedGlobal.commands, global.commands, external.commands, legacy.commands, ingot.commands),
+            // Later wins: other editors' folders (home, then project) < imported < legacy < `.ingot` (IDEA-249).
+            commands: mergeByName(globalExtra, importedGlobal.commands, global.commands, projectExtra, external.commands, legacy.commands, ingot.commands),
             mcpServers: mergeByName(external.mcpServers, legacy.mcpServers, ingot.mcpServers)
         };
     }
@@ -117,6 +121,20 @@ export class ProjectConfigService {
             return text === undefined ? undefined : { ...commandFromFile(relative(file), text, source, 'skill'), uri: file.toString() };
         }))).filter((c): c is ProjectCommand & { uri: string } => !!c);
         return { rules, commands: [...commands, ...skills], mcpServers: mcpText ? parseMcpJson(mcpText, source) : [] };
+    }
+
+    /** IDEA-249: Markdown commands from other editors' folders under `base`; the file name is the command. */
+    protected async loadExtraCommands(base: URI, source: ConfigSource, relative: (u: URI) => string): Promise<ProjectCommand[]> {
+        const isMarkdown = (u: URI) => RULE_EXTENSIONS.some(ext => u.path.base.toLowerCase().endsWith(ext));
+        const lists = await Promise.all(EXTRA_COMMAND_DIRS.map(async dir => {
+            const files = (await this.children(base.resolve(dir))).filter(isMarkdown);
+            const commands = await Promise.all(files.map(async u => {
+                const text = await this.read(u);
+                return text === undefined ? undefined : { ...commandFromFile(relative(u), text, source), uri: u.toString() };
+            }));
+            return commands.filter((c): c is ProjectCommand & { uri: string } => !!c);
+        }));
+        return mergeByName(...lists);
     }
 
     protected async loadAgentsFiles(base: URI, source: ConfigSource, path: (name: string) => string, names: readonly string[]): Promise<ProjectRule[]> {

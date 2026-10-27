@@ -40,7 +40,7 @@ export const parseFrontmatter = (text: string): Frontmatter => {
     return { data, body: text.slice(match[0].length).trim() };
 };
 
-const baseName = (path: string): string => path.split('/').pop()!.replace(/\.(md|mdc)$/i, '');
+const baseName = (path: string): string => path.split('/').pop()!.replace(/\.(md|mdc)$/i, '').replace(/\.prompt$/i, '');
 
 const asList = (value: string | boolean | string[] | undefined): string[] =>
     Array.isArray(value) ? value : typeof value === 'string' && value ? value.split(',').map(v => v.trim()).filter(Boolean) : [];
@@ -60,7 +60,8 @@ export const commandFromFile = (path: string, text: string, source: ConfigSource
     const { data, body } = parseFrontmatter(text);
     const name = kind === 'skill' ? (typeof data.name === 'string' && data.name ? data.name : path.split('/').slice(-2)[0]) : baseName(path);
     const description = typeof data.description === 'string' && data.description ? data.description : body.split('\n').find(l => l.trim())?.replace(/^#+\s*/, '').slice(0, 80);
-    return { name: name.toLowerCase().replace(/[^a-z0-9-_]+/g, '-'), path, source, kind, body, ...(description ? { description } : {}) };
+    const args = asList(data.args ?? data['argument-hint']).join(' ');
+    return { name: name.toLowerCase().replace(/[^a-z0-9-_]+/g, '-'), path, source, kind, body, ...(description ? { description } : {}), ...(args ? { args } : {}) };
 };
 
 const toGlobRegExp = (glob: string): RegExp => {
@@ -98,6 +99,12 @@ export const applicableRules = (rules: readonly ProjectRule[], files: readonly s
 
 export const formatRules = (rules: readonly ProjectRule[]): string =>
     rules.length ? `Project rules (follow them):\n\n${rules.map(r => `## ${r.name}\n${r.body}`).join('\n\n')}` : '';
+
+/** IDEA-249: the folder a command came from, shown as its source in the `/` menu (for example `.ingot/commands`). */
+export const commandFolder = (command: Pick<ProjectCommand, 'path' | 'kind'>): string => {
+    const parts = command.path.split('/');
+    return parts.slice(0, command.kind === 'skill' ? -2 : -1).join('/') || '.';
+};
 
 /** `/name args` → the command or skill, with `$ARGUMENTS` replaced (or args appended). */
 export const expandCommand = (prompt: string, commands: readonly ProjectCommand[]): { command: ProjectCommand; text: string } | undefined => {

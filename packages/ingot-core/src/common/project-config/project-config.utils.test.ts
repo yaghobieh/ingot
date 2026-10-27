@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applicableRules, commandFromFile, expandCommand, matchGlob, mergeByName, parseFrontmatter, parseMcpJson, ruleFromFile } from './project-config.utils';
+import { applicableRules, commandFolder, commandFromFile, expandCommand, matchGlob, mergeByName, parseFrontmatter, parseMcpJson, ruleFromFile } from './project-config.utils';
 
 describe('project config', () => {
     it('parses frontmatter with lists and booleans', () => {
@@ -44,5 +44,15 @@ describe('project config', () => {
         expect(servers[0]).toMatchObject({ command: 'node', args: ['s.mjs'], env: { TOKEN: 'x' } });
         expect(parseMcpJson('nope', 'ingot')).toEqual([]);
         expect(mergeByName([{ name: 'a', v: 1 }], [{ name: 'a', v: 2 }, { name: 'b', v: 3 }])).toEqual([{ name: 'a', v: 2 }, { name: 'b', v: 3 }]);
+    });
+});
+
+describe('IDEA-249 command folders', () => {
+    it('takes the name from the file (dropping .prompt), args from frontmatter, and shows the folder', () => {
+        const notes = commandFromFile('.github/prompts/release-notes.prompt.md', '---\ndescription: Draft notes\nargs: <version>\n---\nNotes for $ARGUMENTS.', 'external');
+        expect(notes).toMatchObject({ name: 'release-notes', description: 'Draft notes', args: '<version>' });
+        expect(commandFolder(notes)).toBe('.github/prompts');
+        expect(commandFolder(commandFromFile('~/.claude/commands/standup.md', 'Standup.', 'global-imported'))).toBe('~/.claude/commands');
+        expect(commandFolder(commandFromFile('.ingot/skills/pdf/SKILL.md', '---\nname: pdf\n---\nPDF.', 'ingot', 'skill'))).toBe('.ingot/skills');
     });
 });

@@ -3,6 +3,7 @@ import { ImageHoverService } from '../preview/image-hover-service';
 import { actionLine, activityLine } from '../../common/agents/agent-actions';
 import { isWorkspaceTool, SKIPPED_DIRS } from '../../common/agents/workspace-tools';
 import { mentionQuery, rankFiles, SLASH_BUILTINS, SlashBuiltinAction } from '../../common/agents/composer-menus';
+import { commandFolder } from '../../common/project-config/project-config.utils';
 import { exploredLine, extractThought } from '../../common/agents/tool-cards';
 import { ThoughtRow, ToolCardView } from './tool-card';
 import { SUBAGENT_PREFS, subagentsView } from '../../common/agents/subagents';
@@ -138,7 +139,7 @@ export class IngotAgentsWidget extends ReactWidget {
     protected manualHeight?: number;
 
     /** `/` menu entries matching the draft: project commands and skills (IDEA-30), then built-ins (IDEA-187). */
-    protected get slashItems(): { name: string; description?: string; kind: string; action?: SlashBuiltinAction }[] {
+    protected get slashItems(): { name: string; description?: string; kind: string; args?: string; action?: SlashBuiltinAction }[] {
         const match = /^\/([\w-]*)$/.exec(this.draft);
         if (!match || this.slashDismissed) {
             return [];
@@ -146,7 +147,7 @@ export class IngotAgentsWidget extends ReactWidget {
         const prefix = match[1].toLowerCase();
         const project = this.store.projectCommands
             .filter(c => c.name.startsWith(prefix))
-            .map(c => ({ name: c.name, description: c.description, kind: c.kind === 'skill' ? 'skill' : c.source }));
+            .map(c => ({ name: c.name, description: c.description, kind: c.kind === 'skill' ? `skill · ${commandFolder(c)}` : commandFolder(c), args: c.args }));
         const taken = new Set(this.store.projectCommands.map(c => c.name));
         const builtins = SLASH_BUILTINS.filter(c => c.name.startsWith(prefix) && !taken.has(c.name))
             .map(c => ({ name: c.name, description: c.description, kind: 'built-in', action: c.action }));
@@ -1166,7 +1167,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 {items.map((item, i) => (
                     <div key={`${item.kind}:${item.name}`} id={item.action ? `ingot-slash-builtin-${item.name}` : `ingot-slash-item-${item.name}`} role='option' aria-selected={i === this.slashIndex}
                         className={`ingot-slash-item${i === this.slashIndex ? ' selected' : ''}`} onMouseDown={e => { e.preventDefault(); this.acceptSlash(item); }}>
-                        <code>/{item.name}</code><span className='ingot-badge'>{item.kind}</span><span className='ingot-slash-desc'>{item.description}</span>
+                        <code>/{item.name}</code>{item.args && <span className='ingot-slash-args'>{item.args}</span>}<span className='ingot-badge' title={item.kind}>{item.kind}</span><span className='ingot-slash-desc'>{item.description}</span>
                     </div>
                 ))}
             </div>}
