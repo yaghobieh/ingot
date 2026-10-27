@@ -3,12 +3,12 @@ import { expect, test } from '@playwright/test';
 import { dismissNotifications, openIngot } from '../src/app.utils';
 import { SHELL_SELECTOR } from '../src/e2e.consts';
 
-/** IDEA-118: title bar right — bottom panel, chat and settings icons, then the Agents Window pill. */
+/** IDEA-118: title bar right — bottom panel and chat icons, the Zaprex T-rex (IDEA-179), then the Agents Window pill. */
 test.describe('IDEA-118 title bar window actions', () => {
     test('icons sit left of the Agents Window pill and toggle their panels', async ({ page }) => {
         await openIngot(page);
         await dismissNotifications(page);
-        const ids = ['#ingot-tb-panel', '#ingot-tb-chat', '#ingot-tb-settings', '#ingot-tb-agents-window'];
+        const ids = ['#ingot-tb-panel', '#ingot-tb-chat', '#ingot-tb-zaprex', '#ingot-tb-agents-window'];
         const boxes = [];
         for (const id of ids) {
             await expect(page.locator(id)).toBeVisible();
@@ -37,12 +37,10 @@ test.describe('IDEA-118 title bar window actions', () => {
         await chat.click();
         await expect(page.locator('#ingot-agents')).toBeVisible({ visible: chatOpen });
 
-        // Settings opens the same Manage menu as the bottom-left gear, dropping down from the title bar.
-        await page.locator('#ingot-tb-settings').click();
-        const menu = page.locator('.lm-Menu').first();
-        await expect(menu.locator('.lm-Menu-itemLabel', { hasText: 'Settings…' })).toBeVisible();
-        expect((await menu.boundingBox())!.y).toBeGreaterThan(boxes[2].y + boxes[2].height - 2);
-        await page.keyboard.press('Escape');
+        // IDEA-179: one gear only (bottom of the left stripe); the title bar has no second gear.
+        await expect(page.locator('#ingot-tb-settings')).toHaveCount(0);
+        await expect(page.locator('.ingot-tb .codicon-settings-gear')).toHaveCount(0);
+        await expect(page.locator('#ingot-stripe-settings')).toBeVisible();
     });
 
     test('Agents Window opens a window with only the chat, and leaves the main layout alone', async ({ page, context }) => {
@@ -74,11 +72,11 @@ test.describe('IDEA-118 title bar window actions', () => {
             await page.locator('#ingot-rs-theme').click();
             await page.locator('.quick-input-widget .monaco-list-row', { hasText: scheme === 'dark' ? 'Dark' : 'Light' }).first().click();
             await expect(page.locator('body')).toHaveClass(new RegExp(`ingot-${scheme}`));
-            await expect(page.locator('#ingot-tb-settings')).toHaveCSS('color', muted);
+            await expect(page.locator('#ingot-tb-panel:not(.pressed), #ingot-tb-chat:not(.pressed)').first()).toHaveCSS('color', muted);
             await expect(page.locator('.ingot-tb-search-kbd')).toHaveCSS('background-color', panel);
             await expect(page.locator('#ingot-tb-agents-window')).toHaveCSS('background-color', panel);
             if (process.env.SHOTS_DIR) {
-                await page.locator('#ingot-tb-settings').hover();
+                await page.locator('#ingot-tb-chat').hover();
                 await page.locator('.ingot-tb').screenshot({ path: path.join(process.env.SHOTS_DIR, `titlebar-${scheme}.png`) });
             }
         });

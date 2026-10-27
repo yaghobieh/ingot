@@ -13,8 +13,8 @@ test.describe('IDEA-13/14 main toolbar and tool windows', () => {
         await expect(page.locator('#ingot-tb-search')).toContainText('Shift Shift');
         await expect(page.locator('#ingot-tb-run-config')).toContainText('dev');
         await expect(page.locator('#ingot-tb-project')).toContainText('sample-project');
-        // IDEA-118: the AI button became the title bar window actions (panel, chat, settings, Agents Window).
-        for (const id of ['vcs', 'run-config', 'run', 'debug', 'stop', 'search', 'panel', 'chat', 'settings', 'agents-window']) {
+        // IDEA-118: the AI button became the title bar window actions (panel, chat, the Zaprex T-rex since IDEA-179, Agents Window).
+        for (const id of ['vcs', 'run-config', 'run', 'debug', 'stop', 'search', 'panel', 'chat', 'zaprex', 'agents-window']) {
             await expect(page.locator(`#ingot-tb-${id}`)).toBeVisible();
         }
         // IDEA-92: no 'New Session' (the Agents panel's + makes a new chat).
