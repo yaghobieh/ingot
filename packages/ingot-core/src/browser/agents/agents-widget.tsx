@@ -41,7 +41,6 @@ import { COMPOSER_INPUT_ID, MAX_DROPPED_FILE_CHARS } from './inline-composer.con
 import { AgentMarkdownRenderer } from './markdown-renderer';
 import { COPIED_LABEL, COPY_LABEL } from './markdown.consts';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
-import { ZAPREX_APP_URL, ZAPREX_LINK_LABEL } from './zaprex-link.consts';
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { lineCount } from '../../common/agents/context-chips';
@@ -460,8 +459,6 @@ export class IngotAgentsWidget extends ReactWidget {
                     onClick={() => this.processes.setPinned(!this.processes.pinned)} />
                 <button type='button' id='ingot-agents-history' className={`ingot-icon-button codicon codicon-history${this.popover === 'history' ? ' active' : ''}`} aria-label='Chat history'
                     title={`Chat history${this.shortcut(AGENT_COMMANDS.history.id) ? ` (${this.shortcut(AGENT_COMMANDS.history.id)})` : ''}`} onClick={() => this.toggleHistory()} />
-                <button type='button' id='ingot-agents-zaprex' className='ingot-icon-button ingot-zaprex-link' aria-label={ZAPREX_LINK_LABEL} title={ZAPREX_LINK_LABEL}
-                    onClick={() => this.windows.openNewWindow(ZAPREX_APP_URL, { external: true })}><span className='ingot-zaprex-link-icon' aria-hidden='true' /></button>
                 {this.popover === 'history' && <ChatHistory chats={this.store.sessions} current={current?.id}
                     onOpen={id => { this.store.reopen(id); this.popover = undefined; this.update(); }}
                     onRename={(id, title) => this.store.rename(id, title)} onDelete={id => this.store.remove(id)} onPin={id => this.store.togglePin(id)}

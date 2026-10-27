@@ -12,7 +12,8 @@ import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service
 import { IngotBranchService } from '../vcs/ingot-branch-service';
 import { AgentStore } from '../agents/agent-store';
 import { AGENT_COMMANDS, AGENTS_WIDGET_ID } from '../agents/agents.consts';
-import { GEAR_COMMANDS } from '../workbench/gear-menu.consts';
+import { WindowService } from '@theia/core/lib/browser/window/window-service';
+import { ZAPREX_APP_URL, ZAPREX_LINK_LABEL } from '../agents/zaprex-link.consts';
 import { TITLEBAR_COMMANDS, TITLEBAR_REFRESH_DELAYS_MS, TITLEBAR_TEXT, TOGGLE_BOTTOM_PANEL_COMMAND } from '../workbench/titlebar.consts';
 import { pickRunScript } from '../../common/vcs/vcs.utils';
 import { IngotDebugLauncher } from '../debug/ingot-debug-launcher';
@@ -77,6 +78,7 @@ export class IngotMainToolbar extends ReactWidget {
     @inject(ContextMenuRenderer) protected readonly contextMenu: ContextMenuRenderer;
     @inject(IngotBranchService) protected readonly branches: IngotBranchService;
     @inject(AgentStore) protected readonly agents: AgentStore;
+    @inject(WindowService) protected readonly windows: WindowService;
     @inject(FileService) protected readonly files: FileService;
     @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
     @inject(ApplicationShell) protected readonly shell: ApplicationShell;
@@ -244,12 +246,25 @@ export class IngotMainToolbar extends ReactWidget {
         this.refreshSoon();
     }
 
-    /** Bottom panel, chat and settings icons, then the Agents Window pill (IDEA-118). */
+    /**
+     * IDEA-179: the one Zaprex entry point in the IDE (the Manage gear stays at the bottom of the left stripe).
+     * A transparent T-rex that idles with a slow sway; it opens the separate Zaprex app.
+     */
+    protected renderZaprex(): React.ReactNode {
+        return <span className='ingot-tb-zaprex-anchor'>
+            <button id='ingot-tb-zaprex' type='button' className='ingot-tb-button ingot-tb-icon ingot-tb-zaprex' title={ZAPREX_LINK_LABEL} aria-label={ZAPREX_LINK_LABEL}
+                onClick={() => this.windows.openNewWindow(ZAPREX_APP_URL, { external: true })}>
+                <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
+            </button>
+        </span>;
+    }
+
+    /** Bottom panel and chat icons, the Zaprex T-rex, then the Agents Window pill (IDEA-118, IDEA-179). */
     protected renderWindowActions(): React.ReactNode {
         return <div className='ingot-tb-window-actions'>
             <IconButton id='ingot-tb-panel' codicon='layout-panel' title={TITLEBAR_TEXT.bottomPanel} pressed={this.bottomPanelOpen} onClick={() => this.toggle(TOGGLE_BOTTOM_PANEL_COMMAND)} />
             <IconButton id='ingot-tb-chat' codicon='comment' title={TITLEBAR_TEXT.chat} pressed={this.chatOpen} onClick={() => this.toggle(AGENT_COMMANDS.toggle.id)} />
-            <IconButton id='ingot-tb-settings' codicon='settings-gear' title={TITLEBAR_TEXT.settings} onClick={e => this.run(GEAR_COMMANDS.open.id, e.currentTarget)} />
+            {this.renderZaprex()}
             <button id='ingot-tb-agents-window' type='button' className='ingot-tb-pill' title={TITLEBAR_TEXT.agentsWindowTitle} onClick={() => this.run(TITLEBAR_COMMANDS.agentsWindow.id)}>
                 <span>{TITLEBAR_TEXT.agentsWindow}</span><span className='ingot-tb-pill-arrow' aria-hidden='true'>↗</span>
             </button>
