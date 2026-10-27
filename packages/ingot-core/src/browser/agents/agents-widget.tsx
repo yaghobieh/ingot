@@ -1,7 +1,8 @@
 import * as React from '@theia/core/shared/react';
 import { ImageHoverService } from '../preview/image-hover-service';
 import { actionLine, activityLine } from '../../common/agents/agent-actions';
-import { isWorkspaceTool } from '../../common/agents/workspace-tools';
+import { isWorkspaceTool, SKIPPED_DIRS } from '../../common/agents/workspace-tools';
+import { mentionQuery, rankFiles, SLASH_BUILTINS, SlashBuiltinAction } from '../../common/agents/composer-menus';
 import { exploredLine, extractThought } from '../../common/agents/tool-cards';
 import { ThoughtRow, ToolCardView } from './tool-card';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
@@ -123,23 +124,130 @@ export class IngotAgentsWidget extends ReactWidget {
     protected tabOverflow = { left: false, right: false };
     protected slashIndex = 0;
     protected slashDismissed = false;
+    /** IDEA-187: `@` file picker state. */
+    protected mention?: { query: string; index: number };
+    protected mentionDismissed?: string;
+    protected mentionFiles?: { root: string; at: number; files: string[]; loading?: Promise<void> };
     /** Height set by dragging the handle (IDEA-67); persisted. */
     protected manualHeight?: number;
 
-    /** `/` menu entries matching the draft: project commands and skills (IDEA-30). */
-    protected get slashItems(): { name: string; description?: string; kind: string }[] {
+    /** `/` menu entries matching the draft: project commands and skills (IDEA-30), then built-ins (IDEA-187). */
+    protected get slashItems(): { name: string; description?: string; kind: string; action?: SlashBuiltinAction }[] {
         const match = /^\/([\w-]*)$/.exec(this.draft);
         if (!match || this.slashDismissed) {
             return [];
         }
-        return this.store.projectCommands
-            .filter(c => c.name.startsWith(match[1].toLowerCase()))
+        const prefix = match[1].toLowerCase();
+        const project = this.store.projectCommands
+            .filter(c => c.name.startsWith(prefix))
             .map(c => ({ name: c.name, description: c.description, kind: c.kind === 'skill' ? 'skill' : c.source }));
+        const taken = new Set(this.store.projectCommands.map(c => c.name));
+        const builtins = SLASH_BUILTINS.filter(c => c.name.startsWith(prefix) && !taken.has(c.name))
+            .map(c => ({ name: c.name, description: c.description, kind: 'built-in', action: c.action }));
+        return [...project, ...builtins];
     }
 
-    protected acceptSlash(name: string): void {
+    protected acceptSlash(item: { name: string; action?: SlashBuiltinAction }): void {
         this.slashIndex = 0;
-        this.inline?.setText(`/${name} `);
+        if (!item.action) {
+            this.inline?.setText(`/${item.name} `);
+            this.focusComposer();
+            return;
+        }
+        this.inline?.clear();
+        this.runSlashBuiltin(item.action);
+    }
+
+    /** Built-in `/` commands run right away (IDEA-187). */
+    protected runSlashBuiltin(action: SlashBuiltinAction): void {
+        switch (action.kind) {
+            case 'mode':
+                this.store.mode = action.mode;
+                this.store.changed();
+                break;
+            case 'new':
+                this.newChat();
+                return;
+            case 'compact':
+                if (this.store.current) {
+                    this.store.compact(this.store.current.id);
+                }
+                break;
+            case 'model':
+                this.popover = 'model';
+                break;
+            case 'history':
+                this.popover = 'history';
+                break;
+            case 'memories':
+                this.toggleMemories();
+                return;
+        }
+        this.update();
+        this.focusComposer();
+    }
+
+    /** `@` picker entries: project files ranked for the query (IDEA-187). */
+    protected get mentionItems(): string[] {
+        if (!this.mention || this.mentionDismissed === this.mention.query) {
+            return [];
+        }
+        return rankFiles(this.mentionFiles?.files ?? [], this.mention.query);
+    }
+
+    protected updateMention(): void {
+        const query = this.inline ? mentionQuery(this.inline.textBeforeCaret()) : undefined;
+        if (query === undefined) {
+            this.mention = undefined;
+            this.mentionDismissed = undefined;
+            return;
+        }
+        if (this.mention?.query !== query) {
+            this.mention = { query, index: 0 };
+        }
+        this.loadMentionFiles();
+    }
+
+    /** Walks the project once (refreshed after 30s), skipping build output and dependencies. */
+    protected loadMentionFiles(): void {
+        const root = this.workspace.tryGetRoots()[0]?.resource;
+        if (!root) {
+            return;
+        }
+        const cached = this.mentionFiles;
+        if (cached && cached.root === root.toString() && (cached.loading || Date.now() - cached.at < 30_000)) {
+            return;
+        }
+        const entry: { root: string; at: number; files: string[]; loading?: Promise<void> } = { root: root.toString(), at: Date.now(), files: cached?.root === root.toString() ? cached.files : [] };
+        const files: string[] = [];
+        const walk = async (dir: URI, depth: number): Promise<void> => {
+            if (files.length >= 5000 || depth > 12) {
+                return;
+            }
+            const stat = await this.files.resolve(dir).catch(() => undefined);
+            for (const child of stat?.children ?? []) {
+                if (child.isDirectory) {
+                    if (!SKIPPED_DIRS.has(child.name)) {
+                        await walk(child.resource, depth + 1);
+                    }
+                } else if (files.length < 5000) {
+                    files.push(root.relative(child.resource)?.toString() ?? child.name);
+                }
+            }
+        };
+        entry.loading = walk(root, 0).then(() => {
+            entry.files = files;
+            entry.at = Date.now();
+            entry.loading = undefined;
+            this.update();
+        });
+        this.mentionFiles = entry;
+    }
+
+    protected acceptMention(path: string): void {
+        const query = this.mention?.query ?? '';
+        this.mention = undefined;
+        this.inline?.replaceBeforeCaret(query.length + 1, `@${path} `);
         this.focusComposer();
     }
 
@@ -176,6 +284,7 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         this.draft = text;
         this.composerEmpty = this.inline?.empty ?? true;
+        this.updateMention();
         this.update();
     }
 
@@ -187,6 +296,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.title.closable = true;
         this.title.iconClass = 'ingot-icon ingot-icon-ai';
         this.addClass('ingot-agents');
+        this.listenForDrops();
         this.toDispose.push(this.store.onDidChange(() => this.update()));
         this.toDispose.push(this.account.onDidChange(() => this.update()));
         this.toDispose.push(this.processes.onDidChange(() => this.update()));
@@ -316,6 +426,49 @@ export class IngotAgentsWidget extends ReactWidget {
             }
         }
         this.focusComposer();
+    }
+
+    /**
+     * IDEA-187: files dropped anywhere on the chat panel (messages, header, empty space) go to the
+     * composer, not just drops on the input itself. Drops on the input keep their caret position.
+     */
+    protected listenForDrops(): void {
+        const accepts = (e: DragEvent): boolean => !!e.dataTransfer && Array.from(e.dataTransfer.types).some(t => t === 'Files' || t === 'theia-editor-dnd');
+        const onComposer = (e: DragEvent): boolean => !!this.composer && e.target instanceof Node && this.composer.contains(e.target);
+        const over = (e: DragEvent): void => {
+            if (!accepts(e)) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer!.dropEffect = 'copy';
+            this.node.classList.add('ingot-drop-active');
+        };
+        const leave = (e: DragEvent): void => {
+            if (!(e.relatedTarget instanceof Node && this.node.contains(e.relatedTarget))) {
+                this.node.classList.remove('ingot-drop-active');
+            }
+        };
+        const drop = (e: DragEvent): void => {
+            this.node.classList.remove('ingot-drop-active');
+            if (!accepts(e) || onComposer(e)) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            this.inline?.moveCaretToEnd();
+            this.onDrop(e.dataTransfer!);
+        };
+        this.node.addEventListener('dragenter', over);
+        this.node.addEventListener('dragover', over);
+        this.node.addEventListener('dragleave', leave);
+        this.node.addEventListener('drop', drop);
+        this.toDispose.push({ dispose: () => {
+            this.node.removeEventListener('dragenter', over);
+            this.node.removeEventListener('dragover', over);
+            this.node.removeEventListener('dragleave', leave);
+            this.node.removeEventListener('drop', drop);
+        } });
     }
 
     /** Drop images (thumbnails) or files from the project tree / Finder (file chips) at the drop point (IDEA-100). */
@@ -963,16 +1116,39 @@ export class IngotAgentsWidget extends ReactWidget {
             {this.renderSummarize()}
             {items.length > 0 && <div id='ingot-slash-menu' className='ingot-slash-menu' role='listbox'>
                 {items.map((item, i) => (
-                    <div key={item.name} id={`ingot-slash-item-${item.name}`} role='option' aria-selected={i === this.slashIndex}
-                        className={`ingot-slash-item${i === this.slashIndex ? ' selected' : ''}`} onMouseDown={e => { e.preventDefault(); this.acceptSlash(item.name); }}>
+                    <div key={`${item.kind}:${item.name}`} id={item.action ? `ingot-slash-builtin-${item.name}` : `ingot-slash-item-${item.name}`} role='option' aria-selected={i === this.slashIndex}
+                        className={`ingot-slash-item${i === this.slashIndex ? ' selected' : ''}`} onMouseDown={e => { e.preventDefault(); this.acceptSlash(item); }}>
                         <code>/{item.name}</code><span className='ingot-badge'>{item.kind}</span><span className='ingot-slash-desc'>{item.description}</span>
                     </div>
                 ))}
             </div>}
+            {this.renderMentionMenu()}
             <div id={COMPOSER_INPUT_ID} ref={el => this.setComposer(el)} className='ingot-composer-input' data-placeholder={COMPOSER_PLACEHOLDER}
                 aria-label='Message' suppressContentEditableWarning
                 onPaste={e => this.onPaste(e)}
+                onKeyUp={e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') { this.updateMention(); this.update(); } }}
+                onClick={() => { this.updateMention(); this.update(); }}
                 onKeyDown={e => {
+                    const mentions = this.mentionItems;
+                    if (mentions.length && this.mention) {
+                        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            this.mention.index = (this.mention.index + (e.key === 'ArrowDown' ? 1 : mentions.length - 1)) % mentions.length;
+                            this.update();
+                            return;
+                        }
+                        if (e.key === 'Enter' || e.key === 'Tab') {
+                            e.preventDefault();
+                            this.acceptMention(mentions[Math.min(this.mention.index, mentions.length - 1)]);
+                            return;
+                        }
+                        if (e.key === 'Escape') {
+                            e.preventDefault();
+                            this.mentionDismissed = this.mention.query;
+                            this.update();
+                            return;
+                        }
+                    }
                     const items = this.slashItems;
                     if (items.length) {
                         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -983,7 +1159,7 @@ export class IngotAgentsWidget extends ReactWidget {
                         }
                         if (e.key === 'Enter' || e.key === 'Tab') {
                             e.preventDefault();
-                            this.acceptSlash(items[Math.min(this.slashIndex, items.length - 1)].name);
+                            this.acceptSlash(items[Math.min(this.slashIndex, items.length - 1)]);
                             return;
                         }
                         if (e.key === 'Escape') {
@@ -1018,6 +1194,27 @@ export class IngotAgentsWidget extends ReactWidget {
                     ? <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}><span className='codicon codicon-debug-stop' /></button>
                     : <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' title={this.composerEmpty ? 'Type a message to send' : 'Send (Enter)'} disabled={this.composerEmpty} onClick={() => this.submit()}><span className='codicon codicon-arrow-up' /></button>}
             </div>
+        </div>;
+    }
+
+    protected renderMentionMenu(): React.ReactNode {
+        if (!this.mention || this.mentionDismissed === this.mention.query) {
+            return undefined;
+        }
+        const items = this.mentionItems;
+        const loading = !!this.mentionFiles?.loading && !items.length;
+        return <div id='ingot-mention-menu' className='ingot-slash-menu ingot-mention-menu' role='listbox' aria-label='Mention a file'>
+            {items.map((path, i) => {
+                const slash = path.lastIndexOf('/');
+                return <div key={path} data-path={path} role='option' aria-selected={i === this.mention!.index}
+                    className={`ingot-slash-item ingot-mention-item${i === this.mention!.index ? ' selected' : ''}`}
+                    onMouseDown={e => { e.preventDefault(); this.acceptMention(path); }}>
+                    <span className='codicon codicon-file' aria-hidden='true' />
+                    <span className='ingot-mention-name'>{path.slice(slash + 1)}</span>
+                    {slash > 0 && <span className='ingot-slash-desc'>{path.slice(0, slash)}</span>}
+                </div>;
+            })}
+            {!items.length && <div className='ingot-mention-empty'>{loading ? 'Loading files…' : 'No matching files'}</div>}
         </div>;
     }
 
