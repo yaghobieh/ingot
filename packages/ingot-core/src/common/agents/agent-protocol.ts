@@ -53,8 +53,46 @@ export interface ParsedAgentOutput {
     readonly editingContent?: string;
 }
 
+const INVOKE_RE = /<(?:antml:)?invoke\s+name\s*=\s*"([^"]+)"\s*>([\s\S]*?)<\/(?:antml:)?invoke>/g;
+const PARAM_RE = /<(?:antml:)?parameter\s+name\s*=\s*"([^"]+)"\s*>([\s\S]*?)<\/(?:antml:)?parameter>/g;
+const CALLS_TAG_RE = /<\/?(?:antml:)?function_calls>/g;
+const PARTIAL_CALL_RE = /<(?:antml:)?(?:function_calls|invoke)\b[\s\S]*$/;
+
+const paramValue = (raw: string): unknown => {
+    const value = raw.trim();
+    if (/^(?:-?\d+(?:\.\d+)?|true|false|null|\[[\s\S]*\]|\{[\s\S]*\})$/.test(value)) {
+        try {
+            return JSON.parse(value);
+        } catch {
+            return value;
+        }
+    }
+    return value;
+};
+
+/**
+ * IDEA-250: some models answer with their native XML tool-call format (`<function_calls><invoke name="ingot/read_file">
+ * <parameter name="path">…</parameter></invoke>`) instead of `<<<TOOL` blocks. Turn those into TOOL blocks so they run
+ * instead of being printed; a call that is still streaming is hidden. A name without a server means an `ingot/` tool.
+ */
+export const normalizeToolCalls = (text: string): string => {
+    if (!/<(?:antml:)?(?:invoke|function_calls)\b/.test(text)) {
+        return text;
+    }
+    const converted = text.replace(INVOKE_RE, (_all, name: string, body: string) => {
+        const args: Record<string, unknown> = {};
+        for (const m of body.matchAll(PARAM_RE)) {
+            args[m[1]] = paramValue(m[2]);
+        }
+        const target = name.includes('/') ? name : `ingot/${name}`;
+        return `\n${TOOL_OPEN}${target}\n${JSON.stringify(args)}\n${EDIT_CLOSE}\n`;
+    }).replace(CALLS_TAG_RE, '');
+    return converted.replace(PARTIAL_CALL_RE, '');
+};
+
 /** Parses (possibly partial, streaming) agent output. */
-export const parseAgentOutput = (text: string): ParsedAgentOutput => {
+export const parseAgentOutput = (raw: string): ParsedAgentOutput => {
+    const text = normalizeToolCalls(raw);
     const edits: AgentEdit[] = [];
     const toolCalls: AgentToolCall[] = [];
     let display = '';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatContextFiles, parseAgentOutput, parseMentions, toolProtocol } from './agent-protocol';
+import { formatContextFiles, normalizeToolCalls, parseAgentOutput, parseMentions, toolProtocol } from './agent-protocol';
 
 const OUTPUT = [
     'PLAN:',
@@ -48,5 +48,30 @@ describe('agent protocol', () => {
         expect(parseAgentOutput('<<<TOOL calc/add\nnot json\n>>>END').toolCalls[0].args).toEqual({});
         expect(toolProtocol([{ server: 'calc', name: 'add', description: 'Adds' }])).toContain('- calc/add: Adds');
         expect(toolProtocol([])).toBe('');
+    });
+});
+
+describe('native tool-call format (IDEA-250)', () => {
+    const reply = [
+        "I'll explore the project.",
+        '',
+        '<function_calls> <invoke name="ingot/list_dir"> <parameter name="path">.</parameter> <parameter name="depth">2</parameter> </invoke>',
+        '<invoke name="read_file"> <parameter name="path">README.md</parameter> </invoke> </function_calls>'
+    ].join('\n');
+
+    it('runs invoke blocks as tool calls instead of printing them', () => {
+        const parsed = parseAgentOutput(reply);
+        expect(parsed.toolCalls).toEqual([
+            { server: 'ingot', tool: 'list_dir', args: { path: '.', depth: 2 } },
+            { server: 'ingot', tool: 'read_file', args: { path: 'README.md' } }
+        ]);
+        expect(parsed.display).toBe("I'll explore the project.");
+    });
+
+    it('hides a call that is still streaming', () => {
+        const parsed = parseAgentOutput('Looking.\n<function_calls> <invoke name="ingot/read_file"> <parameter name="pa');
+        expect(parsed.display).toBe('Looking.');
+        expect(parsed.toolCalls).toEqual([]);
+        expect(normalizeToolCalls('No tools here.')).toBe('No tools here.');
     });
 });
