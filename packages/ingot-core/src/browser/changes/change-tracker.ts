@@ -167,6 +167,16 @@ export class ChangeTracker {
         }, STREAM_APPLY_MS);
     }
 
+    /** Write the open model's text to disk without clearing a pending review. */
+    async persist(uri: string): Promise<void> {
+        const pending = this.refs.get(uri);
+        if (!pending) {
+            return;
+        }
+        const ref = await pending;
+        await ref.object.save();
+    }
+
     /** The edit is complete: apply the final text and wait for per-hunk decisions. */
     async finalize({ sessionId, messageIndex, userIndex }: ChangeOrigin, path: string, uri: URI, newText: string): Promise<CodeChange> {
         await this.starting.get(`${sessionId}\u0000${path}`)?.catch(() => undefined);

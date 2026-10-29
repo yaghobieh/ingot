@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentSession } from './agents.types';
-import { activeAgentCount, agentSubtitle, changesSummary, relativeTime, titleFromPrompt } from './agents.utils';
+import { activeAgentCount, agentSubtitle, changesSummary, CHILD_LOOP_GENERATION, relativeTime, resolveLoopGeneration, titleFromPrompt } from './agents.utils';
 
 const session = (over: Partial<AgentSession>): AgentSession => ({
     id: '1', title: 't', status: 'idle', updatedAt: 0, mode: 'agent', model: 'm', messages: [], plan: [], steps: [], changes: [], ...over
@@ -23,6 +23,11 @@ describe('agents utils', () => {
     it('counts active agents and summarises changes', () => {
         expect(activeAgentCount([session({ status: 'editing' }), session({ status: 'done' }), session({ status: 'review' })])).toBe(2);
         expect(changesSummary(1)).toBe('1 file changed');
+    });
+
+    it('keeps a child run on a real generation', () => {
+        expect(resolveLoopGeneration(undefined)).toBe(CHILD_LOOP_GENERATION);
+        expect(resolveLoopGeneration(2)).toBe(2);
     });
 
     it('derives titles from prompts', () => {

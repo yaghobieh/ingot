@@ -4,7 +4,7 @@ import { actionLine, activityLine } from '../../common/agents/agent-actions';
 import { isWorkspaceTool, SKIPPED_DIRS } from '../../common/agents/workspace-tools';
 import { mentionQuery, rankFiles, SLASH_BUILTINS, SlashBuiltinAction } from '../../common/agents/composer-menus';
 import { commandFolder } from '../../common/project-config/project-config.utils';
-import { exploredLine, extractThought } from '../../common/agents/tool-cards';
+import { exploredItems, exploredLine, extractThought } from '../../common/agents/tool-cards';
 import { hasTurnActivity, tabRunState, turnActivity } from '../../common/agents/chat-round';
 import { REACTION_HEART, REACTION_LIKE } from '../../common/agents/chat-round.consts';
 import { ThoughtRow, ToolCardView } from './tool-card';
@@ -852,7 +852,7 @@ export class IngotAgentsWidget extends ReactWidget {
     protected renderExplored(session: AgentSession, explored: string): React.ReactNode {
         const key = `${session.id}:explored`;
         const open = this.expandedSteps.has(key);
-        const items = session.steps.filter(st => (st.kind === 'read' && !st.target.startsWith('rules:')) || st.kind === 'search');
+        const items = exploredItems(session.steps);
         return <div className={`ingot-chat-explored${open ? ' open' : ''}`} id='ingot-chat-explored'>
             <button type='button' className='ingot-chat-explored-head' aria-expanded={open} onClick={() => { if (!this.expandedSteps.delete(key)) { this.expandedSteps.add(key); } this.update(); }}>
                 <span className='ingot-chat-explored-verb'>{explored.split(' ')[0]}</span> {explored.split(' ').slice(1).join(' ')}

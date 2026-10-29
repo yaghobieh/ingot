@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commandPrograms, exploredLine, extractThought, highlightShell, parseProfile, parseRunResult, toolCard } from './tool-cards';
+import { commandPrograms, exploredItems, exploredLine, extractThought, highlightShell, parseProfile, parseRunResult, toolCard } from './tool-cards';
 
 const info = (tool: string, args: Record<string, unknown>, server = 'ingot') => ({ server, tool, args, state: 'done' as const, startedAt: 0, endedAt: 10 });
 
@@ -43,6 +43,17 @@ describe('tool cards (IDEA-177)', () => {
         expect(exploredLine([{ kind: 'read', target: './' }, { kind: 'read', target: 'a.ts' }], false)).toBe('Explored 1 file, 1 folder');
         expect(exploredLine([{ kind: 'read', target: 'one.ts' }], false)).toBe('Explored 1 file');
         expect(exploredLine([], false)).toBeUndefined();
+        expect(exploredItems([
+            { kind: 'read', target: 'package.json' },
+            { kind: 'read', target: './' },
+            { kind: 'read', target: 'rules: style' },
+            { kind: 'read', target: 'package.json' },
+            { kind: 'search', target: 'total' }
+        ])).toEqual([
+            { kind: 'read', target: './' },
+            { kind: 'read', target: 'package.json' },
+            { kind: 'search', target: 'total' }
+        ]);
     });
 
     it('pulls thought blocks out of a reply', () => {

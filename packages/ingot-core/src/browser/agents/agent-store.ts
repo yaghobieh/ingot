@@ -26,7 +26,12 @@ import type { AgentMessage, AgentMode, AgentSession } from '../../common/agents/
 import type { ToolCallInfo } from '../../common/agents/tool-cards';
 import { hookCardInfo } from '../../common/git/hooks';
 import { AgentHooksService } from '../hooks/agent-hooks-service';
-import { activeAgentCount, titleFromPrompt } from '../../common/agents/agents.utils';
+import { activeAgentCount, resolveLoopGeneration, titleFromPrompt } from '../../common/agents/agents.utils';
+import { CREATE_LIBRARY_TOOL, LIBRARY_COMMAND_TIMEOUT_SECONDS, LIBRARY_EXAMPLE_DEPTH, OPEN_WORKSPACE_DELAY_MS, OPEN_WORKSPACE_TOOL } from '../../common/agents/library-app.consts';
+import {
+    isNodeStructure, isReactStructure, libraryCommandNeedsTime, libraryFiles, libraryNudge, libraryPathError, nodeStructureFromTree, parseLibraryPrompt, reactStructureFromTree
+} from '../../common/agents/library-app';
+import type { NodeStructure, ReactStructure } from '../../common/agents/library-app.types';
 import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
 import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
@@ -127,6 +132,14 @@ export class AgentStore {
     protected readonly loopDepth = new Map<string, number>();
     /** Bumped by send and stop so a replaced or stopped turn cannot keep writing. */
     protected readonly loopGeneration = new Map<string, number>();
+    /** Absolute paths of library apps this window created, so later commands may use them as cwd. */
+    protected readonly createdApps = new Set<string>();
+    /** Chats that already created a library, so the create nudge is not repeated. */
+    protected readonly libraries = new Set<string>();
+    /** Chats that already got the one "call create_library" nudge. */
+    protected readonly libraryNudged = new Set<string>();
+    /** Failed npm test runs in a created library, capped at MAX_FIX_ATTEMPTS. */
+    protected readonly libraryFixes = new Map<string, number>();
     /** Chats the user stopped. Cleared when they send again. */
     protected readonly cancelled = new Set<string>();
     protected pokeTimer?: ReturnType<typeof setTimeout>;
@@ -826,7 +839,16 @@ export class AgentStore {
      * Streams the conversation from the selected model with project rules, context files and MCP tools.
      * Tool calls run and feed back for up to MAX_TOOL_ROUNDS rounds; in Agent mode, edits open in the inline review.
      */
-    protected async runModel(session: AgentSession, generation = this.loopGeneration.get(session.id) ?? 0): Promise<void> {
+    /** A subagent or Zaprex piece has no send() generation. Pin one so the loop is not dropped as replaced. */
+    protected generationFor(sessionId: string): number {
+        const generation = resolveLoopGeneration(this.loopGeneration.get(sessionId));
+        if (!this.loopGeneration.has(sessionId)) {
+            this.loopGeneration.set(sessionId, generation);
+        }
+        return generation;
+    }
+
+    protected async runModel(session: AgentSession, generation = this.generationFor(session.id)): Promise<void> {
         this.enterLoop(session.id);
         try {
         if (this.stale(session.id, generation)) {
@@ -961,6 +983,8 @@ export class AgentStore {
                     if (this.stale(session.id, generation)) {
                         return;
                     }
+                    continue;
+                } else if (!applied && !parsed.toolCalls.length && round < rounds && (this.nudgeLibraryFix(session) || this.nudgeLibrary(session, prompt))) {
                     continue;
                 } else if (!applied && session.mode === 'multi' && parsed.plan.length) {
                     this.spawnSubAgents(session, parsed.plan, prompt);
@@ -1233,7 +1257,7 @@ export class AgentStore {
             const at = session.messages.push({ role: 'tool', from: target, text: '', tool }) - 1;
             this.changed();
             const result: AgentActionResult & { images?: ImageChip[] } = await (isBrowser ? this.runBrowser(session, call)
-                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(this.withMadeWithTrailer(session, call), root, hooksRan) : this.mcp.callTool(call.server, call.tool, call.args))
+                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(session, this.withMadeWithTrailer(session, call), root, hooksRan) : this.mcp.callTool(call.server, call.tool, call.args))
                 .catch((error: unknown) => ({ text: error instanceof Error ? error.message : String(error), isError: true }));
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
             const done: AgentMessage = {
@@ -1485,13 +1509,19 @@ export class AgentStore {
     }
 
     /** Ingot's built-in agent tools (IDEA-109): git, terminal command, web search / fetch, file delete. */
-    protected async runBuiltin(call: AgentToolCall, root: URI | undefined, hooksRan = false): Promise<AgentActionResult> {
+    protected async runBuiltin(session: AgentSession, call: AgentToolCall, root: URI | undefined, hooksRan = false): Promise<AgentActionResult> {
         const rootPath = root?.path.fsPath();
-        if (!root || !rootPath) {
-            return { text: 'Open a project first.', isError: true };
-        }
         const str = (v: unknown): string => typeof v === 'string' ? v : '';
         try {
+            if (call.tool === CREATE_LIBRARY_TOOL) {
+                return await this.createLibrary(session, call.args, rootPath);
+            }
+            if (call.tool === OPEN_WORKSPACE_TOOL) {
+                return this.openWorkspace(str(call.args.path));
+            }
+            if (!root || !rootPath) {
+                return { text: 'Open a project first.', isError: true };
+            }
             switch (call.tool) {
                 case 'git': {
                     if (call.args.op === 'log') {
@@ -1506,7 +1536,15 @@ export class AgentStore {
                 case 'list_dir': return await this.listDirTool(root, str(call.args.path), Math.min(3, Math.max(1, Number(call.args.depth) || 1)));
                 case 'glob': return await this.globTool(root, str(call.args.pattern), str(call.args.path));
                 case 'grep': return await this.grepTool(root, str(call.args.pattern), str(call.args.path), str(call.args.glob), call.args.regex === true);
-                case 'run': return await this.runCommand(rootPath, str(call.args.command), call.args.background === true);
+                case 'run': {
+                    const command = str(call.args.command);
+                    const cwd = this.resolveRunCwd(rootPath, str(call.args.cwd));
+                    if (!cwd) {
+                        return { text: `Refusing to run "${command}" outside the open project.`, isError: true };
+                    }
+                    const timeout = this.isCreatedApp(cwd) && libraryCommandNeedsTime(command) ? LIBRARY_COMMAND_TIMEOUT_SECONDS : undefined;
+                    return await this.runCommand(cwd, command, call.args.background === true, undefined, timeout);
+                }
                 case 'scripts': {
                     const found = await this.processes.service.scripts(rootPath);
                     if (!found || !Object.keys(found.scripts).length) {
@@ -1591,7 +1629,7 @@ export class AgentStore {
     }
 
     /** IDEA-131: a command in the foreground (waits, then moves to the background after the timeout) or in the background. */
-    protected async runCommand(cwd: string, command: string, background: boolean, onOutput?: (text: string) => void): Promise<AgentActionResult> {
+    protected async runCommand(cwd: string, command: string, background: boolean, onOutput?: (text: string) => void, timeoutSecondsArg?: number): Promise<AgentActionResult> {
         if (!command.trim()) {
             return { text: 'No command given.', isError: true };
         }
@@ -1620,9 +1658,10 @@ export class AgentStore {
             }).catch(() => undefined);
         }, OUTPUT_POLL_MS) : undefined;
         try {
-            const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: settings.foregroundTimeoutSeconds * 1000, maxOutput: settings.maxOutputChars });
+            const timeoutSeconds = timeoutSecondsArg ?? settings.foregroundTimeoutSeconds;
+            const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: timeoutSeconds * 1000, maxOutput: settings.maxOutputChars });
             const status = result.movedToBackground
-                ? `Still running after ${settings.foregroundTimeoutSeconds}s: moved to the background as ${result.info.id}${result.info.ports.length ? ` (port ${result.info.ports.join(', ')})` : ''}. Use ingot/process_output or ingot/process_stop.`
+                ? `Still running after ${timeoutSeconds}s: moved to the background as ${result.info.id}${result.info.ports.length ? ` (port ${result.info.ports.join(', ')})` : ''}. Use ingot/process_output or ingot/process_stop.`
                 : result.info.status === 'stopped' ? 'Stopped.' : `Exit code ${result.info.exitCode ?? '?'}.`;
             return { text: `${result.output.trimEnd()}\n${status}`.trim(), isError: result.movedToBackground || result.info.status !== 'exited', movedToBackground: result.movedToBackground };
         } finally {
@@ -1630,6 +1669,159 @@ export class AgentStore {
                 clearInterval(poll);
             }
         }
+    }
+
+    /** One nudge when a library prompt never becomes create_library, and another when its tests fail. */
+    protected nudgeLibrary(session: AgentSession, prompt: string): boolean {
+        if (this.libraryNudged.has(session.id) || this.libraries.has(session.id)) {
+            return false;
+        }
+        const parsed = parseLibraryPrompt(prompt);
+        if (!parsed) {
+            return false;
+        }
+        this.libraryNudged.add(session.id);
+        session.messages.push({ role: 'user', text: libraryNudge(parsed), hidden: true });
+        this.changed();
+        return true;
+    }
+
+    protected nudgeLibraryFix(session: AgentSession): boolean {
+        if (!this.libraries.has(session.id)) {
+            return false;
+        }
+        const last = [...session.messages].reverse().find(message => message.role === 'tool' && message.tool?.tool === 'run');
+        const command = typeof last?.tool?.args.command === 'string' ? last.tool.args.command : '';
+        if (!last?.text.startsWith('Error:') || !libraryCommandNeedsTime(command) || !/\btest\b/.test(command)) {
+            return false;
+        }
+        const attempts = (this.libraryFixes.get(session.id) ?? 0) + 1;
+        if (attempts > MAX_FIX_ATTEMPTS) {
+            return false;
+        }
+        this.libraryFixes.set(session.id, attempts);
+        session.messages.push({
+            role: 'user',
+            text: `npm test failed (attempt ${attempts} of ${MAX_FIX_ATTEMPTS}). Fix the library project files and run npm test again with the same cwd.`,
+            hidden: true
+        });
+        this.changed();
+        return true;
+    }
+
+    protected resolveRunCwd(rootPath: string, requested: string): string | undefined {
+        const trimmed = requested.trim();
+        if (!trimmed) {
+            return rootPath;
+        }
+        const abs = this.absolutePath(trimmed, rootPath);
+        if (!abs) {
+            return undefined;
+        }
+        const inside = abs === rootPath || abs.startsWith(`${rootPath}/`) || abs.startsWith(`${rootPath}\\`);
+        return inside || this.isCreatedApp(abs) ? abs : undefined;
+    }
+
+    protected isCreatedApp(cwd: string): boolean {
+        return [...this.createdApps].some(app => cwd === app || cwd.startsWith(`${app}/`) || cwd.startsWith(`${app}\\`));
+    }
+
+    protected absolutePath(raw: string, rootPath?: string): string | undefined {
+        const trimmed = raw.trim().replace(/^["']|["']$/g, '');
+        if (!trimmed) {
+            return undefined;
+        }
+        const absolute = trimmed.startsWith('/') || /^[A-Za-z]:[\\/]/.test(trimmed);
+        if (!absolute && !rootPath) {
+            return undefined;
+        }
+        const uri = absolute || !rootPath ? URI.fromFilePath(trimmed) : URI.fromFilePath(rootPath).resolve(trimmed);
+        return uri.path.fsPath();
+    }
+
+    protected openWorkspace(raw: string): AgentActionResult {
+        const target = this.absolutePath(raw);
+        if (!target) {
+            return { text: 'Open workspace needs an absolute folder path.', isError: true };
+        }
+        const uri = URI.fromFilePath(target);
+        // Let the tool result paint before the workspace reload.
+        setTimeout(() => { void this.workspace.open(uri, { preserveWindow: true }); }, OPEN_WORKSPACE_DELAY_MS);
+        return { text: `Opening ${target}.`, isError: false };
+    }
+
+    protected async treeOf(abs: string): Promise<string[]> {
+        const paths: string[] = [];
+        const walk = async (uri: URI, prefix: string, depth: number): Promise<void> => {
+            const stat = await this.files.resolve(uri).catch(() => undefined);
+            if (!stat) {
+                return;
+            }
+            if (prefix) {
+                paths.push(stat.isDirectory ? `${prefix}/` : prefix);
+            }
+            if (!stat.isDirectory || depth <= 0) {
+                return;
+            }
+            for (const child of stat.children ?? []) {
+                const name = child.name || child.resource.path.base;
+                await walk(child.resource, prefix ? `${prefix}/${name}` : name, depth - 1);
+            }
+        };
+        await walk(URI.fromFilePath(abs), '', LIBRARY_EXAMPLE_DEPTH);
+        return paths;
+    }
+
+    protected async createLibrary(session: AgentSession, args: Record<string, unknown>, rootPath: string | undefined): Promise<AgentActionResult> {
+        const str = (value: unknown): string => typeof value === 'string' ? value : '';
+        const target = this.absolutePath(str(args.path), rootPath);
+        if (!target) {
+            return { text: 'create_library needs a folder path. Ask the user for one.', isError: true };
+        }
+        const pathError = libraryPathError(target);
+        if (pathError) {
+            return { text: pathError, isError: true };
+        }
+        let react: ReactStructure | undefined = isReactStructure(str(args.react)) ? str(args.react) as ReactStructure : undefined;
+        let node: NodeStructure | undefined = isNodeStructure(str(args.node)) ? str(args.node) as NodeStructure : undefined;
+        const reactExample = this.absolutePath(str(args.reactExample), rootPath);
+        const nodeExample = this.absolutePath(str(args.nodeExample), rootPath);
+        if (!react && reactExample) {
+            react = reactStructureFromTree(await this.treeOf(reactExample));
+        }
+        if (!node && nodeExample) {
+            node = nodeStructureFromTree(await this.treeOf(nodeExample));
+        }
+        if (!react || !node) {
+            return { text: 'The React structure must be feature-folders or atomic, and the Node structure must be layered or modular. Call ingot/ask_user if that is still unclear.', isError: true };
+        }
+        const uri = URI.fromFilePath(target);
+        const existing = await this.files.resolve(uri).catch(() => undefined);
+        if (existing?.isFile || (existing?.children?.length ?? 0) > 0) {
+            return { text: `"${target}" already has files. Pick a new empty folder.`, isError: true };
+        }
+        const files = libraryFiles({ path: target, react, node });
+        const messageIndex = Math.max(0, session.messages.map(message => message.role).lastIndexOf('agent'));
+        const origin = this.originOf(session, messageIndex);
+        for (const entry of files) {
+            const fileUri = uri.resolve(entry.path);
+            try {
+                await this.tracker.finalize(origin, entry.path, fileUri, entry.content);
+                await this.tracker.persist(fileUri.toString());
+            } catch {
+                await this.processes.service.writeText(target, entry.path, entry.content);
+            }
+            const added = entry.content.split('\n').length;
+            session.steps = [...session.steps, { kind: 'edit', target: entry.path, done: true, added, removed: 0 }];
+        }
+        this.createdApps.add(target);
+        this.libraries.add(session.id);
+        session.project = uri.toString();
+        this.changed();
+        return {
+            text: `Created ${files.length} files at ${target} (React ${react}, Node ${node}). Next: ingot/run {"command":"npm install && npm test && npm run build","cwd":${JSON.stringify(target)}}. If tests fail, fix the files and rerun, up to ${MAX_FIX_ATTEMPTS} times. Then ask about git init on branch feature/library, and last call ingot/open_workspace.`,
+            isError: false
+        };
     }
 
     protected workLoopOn(): boolean {
@@ -2287,7 +2479,10 @@ export class AgentStore {
             return harmonyLock(path, 'zaprex', session.scope);
         }
         for (const piece of this.zaprexPieces(session.id)) {
-            if (this.isRunning(piece.id) || ACTIVE_STATUSES.includes(piece.status)) {
+            // Hold the lock for the rest of the lead's turn. Zaprex often finishes before the lead's last edit,
+            // and releasing the lock then lets the lead overwrite the piece.
+            const live = this.isRunning(piece.id) || ACTIVE_STATUSES.includes(piece.status) || this.modelLoops.has(session.id);
+            if (live) {
                 const reason = harmonyLock(path, 'agent', piece.scope);
                 if (reason) {
                     return reason;

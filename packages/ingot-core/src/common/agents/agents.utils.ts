@@ -35,6 +35,15 @@ export const agentSubtitle = (session: AgentSession, now: number): string => {
 
 export const activeAgentCount = (sessions: readonly AgentSession[]): number => sessions.filter(s => ACTIVE_STATUSES.includes(s.status)).length;
 
+/** Generation used when a run starts without send() (a subagent or a Zaprex piece). */
+export const CHILD_LOOP_GENERATION = 0;
+
+/**
+ * The generation a model loop should run as. send() stores one before it starts; a child run has none yet,
+ * and treating that as "replaced" drops the loop before the first request.
+ */
+export const resolveLoopGeneration = (current: number | undefined): number => current ?? CHILD_LOOP_GENERATION;
+
 export const titleFromPrompt = (prompt: string): string => {
     const text = prompt.trim().replace(/\s+/g, ' ');
     const title = text.charAt(0).toUpperCase() + text.slice(1);
