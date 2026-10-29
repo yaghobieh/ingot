@@ -1,5 +1,8 @@
 import type { NodeStructure, ReactStructure } from './library-app.types';
 
+/** Shown when the model only repeated the prompt, so the files came from the built-in template. */
+export const TEMPLATE_NOTE = 'Template, not the agent. The model repeated the prompt and did not call any tools, so these files were written from the built-in library template.';
+
 export const CREATE_LIBRARY_TOOL = 'create_library';
 export const OPEN_WORKSPACE_TOOL = 'open_workspace';
 

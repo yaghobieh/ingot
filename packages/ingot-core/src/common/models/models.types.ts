@@ -59,6 +59,8 @@ export interface CompletionRequest {
     readonly maxTokens?: number;
     readonly temperature?: number;
     readonly stop?: readonly string[];
+    /** OpenAI-style function tools. Sent to the Ingot gateway so a real upstream can call them. */
+    readonly tools?: readonly { readonly name: string; readonly description: string }[];
     /** Non-secret per-provider settings from preferences (Ollama URL, model overrides). */
     readonly settings?: ProviderSettings;
 }

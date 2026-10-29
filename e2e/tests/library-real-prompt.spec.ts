@@ -80,6 +80,7 @@ test.describe('library prompt from real use', () => {
         await expect(page.locator('#ingot-review-files [data-path=".ingot/skills/clean-library/SKILL.md"]')).toBeVisible();
         await expect(page.locator('#ingot-review-files [data-path="client/src/features/books/Books.tsx"]')).toBeVisible();
         await expect(page.locator('#ingot-review-files [data-path="server/src/app.test.ts"]')).toBeVisible();
+        await expect(chat).toContainText('Template, not the agent');
         await expect(chat).not.toContainText('read from the open folder');
         await expect(chat).not.toContainText('This is **tools-project**');
         expect(fs.existsSync(path.join(dir, 'AGENTS.md'))).toBe(true);

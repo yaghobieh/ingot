@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStreamLine, buildCompletionMessages, buildProviderRequest, cleanCompletion, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel, groupModelsByFamily, supportsVision } from './models.utils';
+import { parseStreamEvent, parseStreamLine, toolCallsToProtocol, buildCompletionMessages, buildProviderRequest, cleanCompletion, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel, groupModelsByFamily, supportsVision } from './models.utils';
 import { MODEL_CATALOG } from './models.consts';
 import type { CompletionRequest } from './models.types';
 
@@ -85,6 +85,24 @@ describe('streaming', () => {
         expect(parseStreamLine('gemini', 'data: {"candidates":[{"content":{"parts":[{"text":"g"}]}}]}')).toBe('g');
         expect(parseStreamLine('ollama', '{"message":{"content":"o"},"done":false}')).toBe('o');
         expect(parseStreamLine('ollama', '{"done":true}')).toBeUndefined();
+        const call = 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"create_library","arguments":"{\\"path\\":\\"/tmp/x\\"}"}}]}}]}';
+        expect(parseStreamLine('ingot', call)).toBeUndefined();
+        expect(parseStreamEvent('ingot', call)?.toolDeltas?.[0]).toMatchObject({ index: 0, name: 'create_library' });
+        expect(toolCallsToProtocol([{ name: 'create_library', arguments: '{"path":"/tmp/x"}' }])).toContain('<<<TOOL ingot/create_library');
+    });
+
+    it('sends the system prompt and tool definitions to the Ingot gateway', () => {
+        const spec = buildProviderRequest('ingot', 'ingot-fast', {
+            ...request, tools: [{ name: 'create_library', description: 'Create a project' }], settings: { ingotBaseUrl: 'http://127.0.0.1:3300/v1/' }
+        }, KEY, true);
+        expect(spec.url).toBe('http://127.0.0.1:3300/v1/chat/completions');
+        expect(spec.body).toMatchObject({
+            messages: [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }],
+            tool_choice: 'auto', stream: true
+        });
+        expect(JSON.stringify(spec.body)).toContain('"name":"create_library"');
+        const plain = buildProviderRequest('ingot', 'ingot-fast', request, KEY);
+        expect(JSON.stringify(plain.body)).not.toContain('tool_choice');
     });
 
     it('asks providers to stream', () => {

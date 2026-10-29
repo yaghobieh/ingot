@@ -4,7 +4,7 @@ import { IngotAccountBackend } from './account/ingot-account-backend';
 import { SIGN_IN_FOR_MODELS } from '../common/models/models.consts';
 import { DEFAULT_KEYCHAIN_SERVICE, MAX_DICTATION_BYTES, PROVIDERS, REQUEST_TIMEOUT_MS, TRANSCRIBE_MODEL, TRANSCRIBE_PATH } from '../common/models/models.consts';
 import type { CompletionRequest, CompletionResult, ModelService, ProviderId, ProviderSettings, ProviderStatus, StreamPoll } from '../common/models/models.types';
-import { buildProviderRequest, findModel, findProvider, parseProviderError, parseProviderResponse, parseStreamLine, redactSecrets, resolveModelName } from '../common/models/models.utils';
+import { buildProviderRequest, findModel, findProvider, parseProviderError, parseProviderResponse, parseStreamEvent, redactSecrets, resolveModelName, toolCallsToProtocol } from '../common/models/models.utils';
 import type { CatalogModel, HttpRequestSpec, ProviderInfo } from '../common/models/models.types';
 import { encodeGatewayError, parseGatewayError } from '../common/account/gateway-errors';
 import { ideHeaders } from '../common/account/gateway.utils';
@@ -196,6 +196,23 @@ export class IngotModelService implements ModelService {
             }
             const decoder = new TextDecoder();
             let buffer = '';
+            const calls = new Map<number, { name: string; arguments: string }>();
+            const take = (line: string): void => {
+                const event = parseStreamEvent(info.id, line);
+                if (!event) {
+                    return;
+                }
+                if (event.content) {
+                    state.chunks.push(event.content);
+                }
+                for (const delta of event.toolDeltas ?? []) {
+                    const current = calls.get(delta.index) ?? { name: '', arguments: '' };
+                    calls.set(delta.index, {
+                        name: delta.name ?? current.name,
+                        arguments: current.arguments + (delta.arguments ?? '')
+                    });
+                }
+            };
             const reader = response.body.getReader();
             for (;;) {
                 const { value, done } = await reader.read();
@@ -206,15 +223,13 @@ export class IngotModelService implements ModelService {
                 const lines = buffer.split('\n');
                 buffer = lines.pop() ?? '';
                 for (const line of lines) {
-                    const delta = parseStreamLine(info.id, line);
-                    if (delta) {
-                        state.chunks.push(delta);
-                    }
+                    take(line);
                 }
             }
-            const last = parseStreamLine(info.id, buffer);
-            if (last) {
-                state.chunks.push(last);
+            take(buffer);
+            const protocol = toolCallsToProtocol([...calls.entries()].sort((a, b) => a[0] - b[0]).map(([, call]) => call));
+            if (protocol) {
+                state.chunks.push(protocol);
             }
         } catch (error) {
             if (!state.controller.signal.aborted) {

@@ -27,7 +27,7 @@ import type { ToolCallInfo } from '../../common/agents/tool-cards';
 import { hookCardInfo } from '../../common/git/hooks';
 import { AgentHooksService } from '../hooks/agent-hooks-service';
 import { activeAgentCount, resolveLoopGeneration, titleFromPrompt } from '../../common/agents/agents.utils';
-import { CREATE_LIBRARY_TOOL, LIBRARY_COMMAND_TIMEOUT_SECONDS, LIBRARY_EXAMPLE_DEPTH, OPEN_WORKSPACE_DELAY_MS, OPEN_WORKSPACE_TOOL } from '../../common/agents/library-app.consts';
+import { CREATE_LIBRARY_TOOL, LIBRARY_COMMAND_TIMEOUT_SECONDS, LIBRARY_EXAMPLE_DEPTH, OPEN_WORKSPACE_DELAY_MS, OPEN_WORKSPACE_TOOL, TEMPLATE_NOTE } from '../../common/agents/library-app.consts';
 import {
     isNodeStructure, isReactStructure, libraryCommandNeedsTime, libraryFiles, libraryNudge, libraryPathError, nodeStructureFromTree, parseLibraryPrompt, reactStructureFromTree, wantsProjectSkills
 } from '../../common/agents/library-app';
@@ -68,7 +68,7 @@ import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../co
 import { MADE_WITH_PREF, withMadeWith } from '../../common/git/made-with';
 import { clampPieces, HARMONY_DEFAULTS, HARMONY_PREFS, harmonyLock, harmonyPrompt, isHeavyRun, pickHarmonyPiece, type HarmonyPiece } from '../../common/agents/harmony';
 import {
-    APPROVAL_PREFS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
+    APPROVAL_PREFS, BUILTIN_TOOLS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
     updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
 } from '../../common/agents/agent-actions';
 import { ProcessStore } from '../processes/process-store';
@@ -923,10 +923,11 @@ export class AgentStore {
                 const asked = lastUser?.m.text ?? prompt;
                 const echoed = isPromptEcho(agentText, prompt) || isPromptEcho(agentText, asked);
                 const scaffold = parseLibraryPrompt(asked) ?? parseLibraryPrompt(prompt);
-                // A build request that only got the prompt repeated must create the folder, not describe the open repo.
-                if (scaffold?.path && scaffold.react && scaffold.node && !scaffold.ambiguous && !this.libraries.has(session.id)
+                // Last resort: the hosted model repeated the prompt and called nothing. Say it is a template.
+                if (echoed && scaffold?.path && scaffold.react && scaffold.node && !scaffold.ambiguous && !this.libraries.has(session.id)
                     && !parsed.toolCalls.length && !parsed.edits.length && round < rounds) {
                     this.hidePrinted(session, agentIndex);
+                    session.messages.push({ role: 'system', text: TEMPLATE_NOTE });
                     const created = await this.finishTools(session, generation, [{
                         server: 'ingot', tool: 'create_library',
                         args: { path: scaffold.path, react: scaffold.react, node: scaffold.node, rules: wantsProjectSkills(asked) }
@@ -1107,6 +1108,10 @@ export class AgentStore {
         this.changed();
         let final = '';
         try {
+            const tools = modeInfo(session.mode).canUseTools
+                ? BUILTIN_TOOLS.filter(tool => builtinToolEnabled(tool.name, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }))
+                    .map(tool => ({ name: tool.name, description: tool.description }))
+                : [];
             const stream = this.models.stream(this.resolveModel(session.model), [{ role: 'system', content: system }, ...history], text => {
                 if (!live() || !session.messages[index]) {
                     return;
@@ -1122,7 +1127,7 @@ export class AgentStore {
                 session.activeFile = parsed.editing ?? parsed.edits[parsed.edits.length - 1]?.path;
                 session.updatedAt = Date.now();
                 this.poke();
-            });
+            }, tools.length ? { tools } : {});
             this.running.set(session.id, stream.cancel);
             final = await stream.done;
         } catch (error) {

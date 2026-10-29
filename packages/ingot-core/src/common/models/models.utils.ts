@@ -96,7 +96,16 @@ export const buildProviderRequest = (provider: ProviderId, model: string, reques
             if (provider === 'ingot') {
                 headers['x-ingot-feature'] = request.settings?.feature ?? 'agent';
                 const base = (request.settings?.ingotBaseUrl ?? info.baseUrl).replace(/\/$/, '');
-                return { url: `${base}/chat/completions`, headers, body: { model, messages: request.messages.map(openAiMessage), max_tokens: maxTokens, temperature, ...(stop ? { stop } : {}), ...(stream ? { stream: true, stream_options: { include_usage: true } } : {}) } };
+                const tools = (request.tools ?? []).filter(tool => tool.name && tool.description);
+                return {
+                    url: `${base}/chat/completions`, headers,
+                    body: {
+                        model, messages: request.messages.map(openAiMessage), max_tokens: maxTokens, temperature,
+                        ...(stop ? { stop } : {}),
+                        ...(tools.length ? { tools: tools.map(gatewayTool), tool_choice: 'auto' } : {}),
+                        ...(stream ? { stream: true, stream_options: { include_usage: true } } : {})
+                    }
+                };
             }
             if (provider === 'openrouter') {
                 headers['HTTP-Referer'] = 'https://github.com/yaghobieh/ingot';
@@ -107,6 +116,33 @@ export const buildProviderRequest = (provider: ProviderId, model: string, reques
         }
     }
 };
+
+/** OpenAI function definition. Names stay `[A-Za-z0-9_-]` so the gateway can forward them. */
+const gatewayTool = (tool: { name: string; description: string }): { type: 'function'; function: { name: string; description: string; parameters: { type: 'object'; additionalProperties: boolean } } } => ({
+    type: 'function',
+    function: { name: tool.name, description: tool.description, parameters: { type: 'object', additionalProperties: true } }
+});
+
+export interface StreamToolDelta {
+    readonly index: number;
+    readonly id?: string;
+    readonly name?: string;
+    readonly arguments?: string;
+}
+
+export interface StreamEvent {
+    readonly content?: string;
+    readonly toolDeltas?: readonly StreamToolDelta[];
+    readonly finish?: string;
+}
+
+/** One finished native tool call, turned into the text protocol the agent already runs. */
+export const toolCallsToProtocol = (calls: readonly { readonly name: string; readonly arguments: string }[]): string =>
+    calls.filter(call => call.name).map(call => {
+        const name = call.name.includes('/') ? call.name : `ingot/${call.name}`;
+        const args = call.arguments.trim() || '{}';
+        return `\n<<<TOOL ${name}\n${args}\n>>>END\n`;
+    }).join('');
 
 type Json = Record<string, unknown>;
 const asObj = (v: unknown): Json => (v && typeof v === 'object' ? v as Json : {});
@@ -168,7 +204,7 @@ export const buildCompletionMessages = (prefix: string, suffix: string, language
  * Extracts the text delta from one line of a streaming response: SSE `data:` lines for Anthropic, Gemini and
  * OpenAI-compatible providers, NDJSON for Ollama. Returns undefined for keep-alives, events and `[DONE]`.
  */
-export const parseStreamLine = (provider: ProviderId, line: string): string | undefined => {
+export const parseStreamEvent = (provider: ProviderId, line: string): StreamEvent | undefined => {
     const trimmed = line.trim();
     if (!trimmed) {
         return undefined;
@@ -192,12 +228,32 @@ export const parseStreamLine = (provider: ProviderId, line: string): string | un
     const body = asObj(json);
     switch (provider) {
         case 'anthropic':
-            return body.type === 'content_block_delta' ? String(asObj(body.delta).text ?? '') || undefined : undefined;
+            return body.type === 'content_block_delta' ? { content: String(asObj(body.delta).text ?? '') || undefined } : undefined;
         case 'gemini':
-            return parseProviderResponse('gemini', json) || undefined;
+            return { content: parseProviderResponse('gemini', json) || undefined };
         case 'ollama':
-            return String(asObj(body.message).content ?? '') || undefined;
-        default:
-            return String(asObj(asObj(asArr(body.choices)[0]).delta).content ?? '') || undefined;
+            return { content: String(asObj(body.message).content ?? '') || undefined };
+        default: {
+            const choice = asObj(asArr(body.choices)[0]);
+            const delta = asObj(choice.delta);
+            const content = typeof delta.content === 'string' && delta.content ? delta.content : undefined;
+            const toolDeltas = asArr(delta.tool_calls).map(asObj).map(call => {
+                const fn = asObj(call.function);
+                const index = typeof call.index === 'number' ? call.index : 0;
+                return {
+                    index,
+                    ...(typeof call.id === 'string' ? { id: call.id } : {}),
+                    ...(typeof fn.name === 'string' ? { name: fn.name } : {}),
+                    ...(typeof fn.arguments === 'string' ? { arguments: fn.arguments } : {})
+                };
+            }).filter(call => call.name || call.arguments || call.id);
+            const finish = typeof choice.finish_reason === 'string' ? choice.finish_reason : undefined;
+            if (!content && !toolDeltas.length && !finish) {
+                return undefined;
+            }
+            return { ...(content ? { content } : {}), ...(toolDeltas.length ? { toolDeltas } : {}), ...(finish ? { finish } : {}) };
+        }
     }
 };
+
+export const parseStreamLine = (provider: ProviderId, line: string): string | undefined => parseStreamEvent(provider, line)?.content;
