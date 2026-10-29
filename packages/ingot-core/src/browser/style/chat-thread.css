@@ -77,24 +77,33 @@
 .ingot-agents .ingot-slash-item:hover { background: var(--ingot-selection); color: var(--ingot-text); }
 
 .ingot-chat-msg.ingot-chat-latest {
+  position: sticky;
+  top: 0;
+  z-index: 4;
   margin-top: 4px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--ingot-selection);
-  border: 1px solid var(--ingot-border);
-  box-shadow: inset 3px 0 0 var(--ingot-primary);
+  cursor: pointer;
+  background: var(--theia-sideBar-background);
+  color: var(--theia-foreground);
+  border: 1px solid var(--theia-widget-border, var(--theia-panel-border));
+  box-shadow: inset 3px 0 0 var(--theia-focusBorder);
 }
 .ingot-chat-edit, .ingot-chat-revert { margin-top: 4px; }
 .ingot-chat-edit {
-  border: 0; background: transparent; color: var(--ingot-text-muted); cursor: pointer; font: inherit; font-size: 11px; padding: 0 4px;
+  border: 0; background: transparent; color: var(--theia-descriptionForeground); cursor: pointer; font: inherit; font-size: 11px; padding: 0 4px;
 }
-.ingot-chat-edit:hover { color: var(--ingot-text); }
+.ingot-chat-edit:hover { color: var(--theia-foreground); }
+.ingot-chat-edit:focus-visible { outline: 1px solid var(--theia-focusBorder); outline-offset: 2px; }
 .ingot-chat-edit-form { display: flex; flex-direction: column; gap: 6px; }
 .ingot-chat-edit-input {
   width: 100%; min-height: 64px; box-sizing: border-box; resize: vertical; font: inherit; font-size: 12.5px;
-  color: var(--ingot-text); background: var(--ingot-surface); border: 1px solid var(--ingot-border); border-radius: 6px; padding: 6px 8px;
+  color: var(--theia-input-foreground, var(--theia-foreground));
+  background: var(--theia-input-background);
+  border: 1px solid var(--theia-input-border, var(--theia-panel-border));
+  border-radius: 6px; padding: 6px 8px;
 }
-.ingot-chat-edit-input:focus { outline: 2px solid var(--ingot-focus-ring); outline-offset: 1px; }
+.ingot-chat-edit-input:focus { outline: 1px solid var(--theia-focusBorder); border-color: var(--theia-focusBorder); }
 .ingot-chat-edit-actions { display: flex; justify-content: flex-end; gap: 6px; }
 
 .ingot-jump-bar { position: absolute; right: 16px; bottom: 12px; z-index: 6; display: flex; gap: 6px; }
@@ -112,29 +121,63 @@
 
 .ingot-reactions { display: inline-flex; gap: 4px; margin-top: 4px; }
 .ingot-react {
-  border: 1px solid var(--ingot-border); background: var(--ingot-surface); color: var(--ingot-text-muted);
+  border: 1px solid var(--theia-input-border, var(--theia-panel-border));
+  background: var(--theia-input-background);
+  color: var(--theia-descriptionForeground);
   border-radius: 999px; width: 26px; height: 22px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
 }
-.ingot-react.on, .ingot-react[aria-pressed='true'] { color: var(--ingot-primary); border-color: var(--ingot-primary); background: var(--ingot-selection); }
+.ingot-react:focus-visible { outline: 1px solid var(--theia-focusBorder); outline-offset: 1px; }
+.ingot-react.on, .ingot-react[aria-pressed='true'] {
+  color: var(--theia-button-foreground);
+  border-color: transparent;
+  background: var(--theia-button-background);
+}
 .ingot-ask {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 10px 8px; padding: 10px;
-  border: 1px solid var(--ingot-border); border-radius: 8px; background: var(--ingot-surface); color: var(--ingot-text);
+  border: 1px solid var(--theia-widget-border, var(--theia-panel-border));
+  border-radius: 8px;
+  background: var(--theia-sideBar-background);
+  color: var(--theia-foreground);
 }
-.ingot-ask-question { margin: 0; flex: 1 1 100%; }
+.ingot-ask-question { margin: 0; flex: 1 1 100%; color: var(--theia-foreground); }
 .ingot-ask-options { display: flex; flex-wrap: wrap; gap: 6px; }
+#ingot-ask-input {
+  flex: 1 1 140px; min-width: 0; height: 28px; box-sizing: border-box;
+  border-radius: 6px; padding: 0 8px; font: inherit; font-size: 12px;
+  background: var(--theia-input-background);
+  color: var(--theia-input-foreground, var(--theia-foreground));
+  border: 1px solid var(--theia-input-border, var(--theia-panel-border));
+}
+#ingot-ask-input::placeholder { color: var(--theia-input-placeholderForeground, var(--theia-descriptionForeground)); }
+#ingot-ask-input:focus { outline: 1px solid var(--theia-focusBorder); border-color: var(--theia-focusBorder); }
+#ingot-ask-submit {
+  border: 0; border-radius: 6px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer;
+  background: var(--theia-button-background);
+  color: var(--theia-button-foreground);
+}
+#ingot-ask-submit:hover { background: var(--theia-button-hoverBackground); }
+#ingot-ask-submit:focus-visible { outline: 1px solid var(--theia-focusBorder); outline-offset: 1px; }
 .ingot-ask-option, .ingot-turn-row, .ingot-changes-summary {
-  border: 1px solid var(--ingot-border); background: var(--ingot-surface); color: var(--ingot-text);
+  border: 1px solid var(--theia-input-border, var(--theia-panel-border));
+  background: var(--theia-input-background);
+  color: var(--theia-foreground);
   border-radius: 6px; padding: 4px 8px; cursor: pointer; font: inherit; font-size: 12px;
 }
-.ingot-ask-option:hover, .ingot-turn-row:hover, .ingot-changes-summary:hover { background: var(--ingot-selection); }
-.ingot-turn-activity { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 8px 0; }
+.ingot-ask-option:hover, .ingot-turn-row:hover, .ingot-changes-summary:hover {
+  background: var(--theia-list-hoverBackground, var(--theia-list-inactiveSelectionBackground));
+}
+.ingot-ask-option:focus-visible, .ingot-turn-row:focus-visible, .ingot-changes-summary:focus-visible {
+  outline: 1px solid var(--theia-focusBorder); outline-offset: 1px;
+}
+.ingot-turn-activity { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 8px 0; color: var(--theia-foreground); }
 .ingot-turn-row { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
 .ingot-turn-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ingot-changes-summary { border: 0; background: transparent; padding: 0; text-align: left; }
-.ingot-tab-progress { width: 28px; height: 3px; border-radius: 999px; background: var(--ingot-selection); position: relative; overflow: hidden; flex: none; align-self: center; }
-.ingot-tab-progress::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; background: var(--ingot-primary); animation: ingot-tab-slide 1s ease-in-out infinite; }
-.ingot-tab-wait { width: 8px; height: 8px; border-radius: 50%; background: var(--ingot-primary); flex: none; align-self: center; }
-.ingot-tab-done { color: var(--ingot-primary); font-size: 12px; flex: none; }
-.ingot-chat-tab[data-run='waiting'] { box-shadow: inset 0 -2px 0 var(--ingot-primary); }
+.ingot-changes-summary { border: 0; background: transparent; padding: 0; text-align: left; color: var(--theia-foreground); }
+.ingot-agents .ingot-chat-step.running .ingot-step-mark { color: var(--theia-button-background); }
+.ingot-tab-progress { width: 28px; height: 3px; border-radius: 999px; background: color-mix(in srgb, var(--theia-foreground) 16%, transparent); position: relative; overflow: hidden; flex: none; align-self: center; }
+.ingot-tab-progress::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; background: var(--theia-progressBar-background, var(--theia-button-background)); animation: ingot-tab-slide 1s ease-in-out infinite; }
+.ingot-tab-wait { width: 8px; height: 8px; border-radius: 50%; background: var(--theia-button-background); flex: none; align-self: center; }
+.ingot-tab-done { color: var(--theia-button-background); font-size: 12px; flex: none; }
+.ingot-chat-tab[data-run='waiting'] { box-shadow: inset 0 -2px 0 var(--theia-focusBorder); }
 @keyframes ingot-tab-slide { from { transform: translateX(-100%); } to { transform: translateX(280%); } }
 @media (prefers-reduced-motion: reduce) { .ingot-tab-progress::after { animation: none; } }

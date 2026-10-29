@@ -87,9 +87,9 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
         const latest = page.locator('.ingot-chat-latest');
         await expect(latest).toContainText('beta second question');
         await expect(page.locator('.ingot-chat-user', { hasText: 'alpha first question' })).not.toHaveClass(/ingot-chat-latest/);
-        const primary = await tokenColor(page, '--ingot-primary');
+        const accent = await tokenColor(page, '--theia-focusBorder');
         const shadow = await latest.evaluate(el => getComputedStyle(el).boxShadow);
-        expect(shadow).toContain(primary.replace(/^rgba?\(/, '').replace(/\).*$/, ''));
+        expect(shadow).toContain(accent.replace(/^rgba?\(/, '').replace(/\).*$/, ''));
         expect(await latest.evaluate(el => getComputedStyle(el).borderTopWidth)).toBe('1px');
         await saveShot(page, 'chat-latest-light.png');
 

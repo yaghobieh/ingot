@@ -900,7 +900,8 @@ export class IngotAgentsWidget extends ReactWidget {
                     {!m.memory.undone && <button type='button' className='ingot-btn-ghost ingot-memory-undo' onClick={() => this.store.undoMemory(session.id, i)}>Undo</button>}
                 </div>
                 : (
-                <div key={i} id={`ingot-msg-${i}`} className={`ingot-chat-msg ingot-chat-${m.role}${m.role === 'user' && i === latestUserIndex(session.messages) ? ' ingot-chat-latest' : ''}${m.role === 'user' && this.account.account ? ' ingot-chat-has-avatar' : ''}`}>
+                <div key={i} id={`ingot-msg-${i}`} className={`ingot-chat-msg ingot-chat-${m.role}${m.role === 'user' && i === latestUserIndex(session.messages) ? ' ingot-chat-latest' : ''}${m.role === 'user' && this.account.account ? ' ingot-chat-has-avatar' : ''}`}
+                    onClick={event => this.onLatestClick(session, i, event)}>
                     {m.role === 'user' && this.account.account && <AccountAvatar account={this.account.account} src={this.account.avatarSrc} className='ingot-chat-user-avatar' textless />}
                     {m.from && <div className='ingot-chat-from'>{m.from}</div>}
                     {m.parts ? this.renderParts(m.parts, m.images) : m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className={`ingot-chip ingot-chip-sent ingot-chip-${c.kind ?? 'code'}`} title={c.kind === 'memory' ? 'Memory' : c.kind === 'rule' ? `Rule ${c.path}` : c.path}>
@@ -1480,6 +1481,34 @@ export class IngotAgentsWidget extends ReactWidget {
         if (thread) {
             thread.scrollTop = thread.scrollHeight;
         }
+        this.update();
+    }
+
+    /** The pinned prompt scrolls back to its place in the thread. Buttons inside it keep their own actions. */
+    protected onLatestClick(session: AgentSession, index: number, event: React.MouseEvent): void {
+        if (index !== latestUserIndex(session.messages) || this.editingIndex === index) {
+            return;
+        }
+        const target = event.target;
+        if (target instanceof Element && target.closest('button, input, textarea, a')) {
+            return;
+        }
+        this.revealMessage(index);
+    }
+
+    /** Scrolls a message to the top of the thread using its in-flow position, not the sticky offset. */
+    protected revealMessage(index: number): void {
+        this.stickToLatest = false;
+        const thread = this.chatScroll;
+        const node = this.node.querySelector(`#ingot-msg-${index}`);
+        if (thread && node instanceof HTMLElement) {
+            const previous = node.style.position;
+            node.style.position = 'static';
+            const top = node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop;
+            node.style.position = previous;
+            thread.scrollTop = top;
+        }
+        this.onChatScroll();
         this.update();
     }
 

@@ -25,11 +25,34 @@ const useLight = async (page: Page): Promise<void> => {
     await expect(page.locator('body')).toHaveClass(/ingot-light/);
 };
 
-const captureBoth = async (page: Page, base: string, full = false): Promise<void> => {
+const themeBackground = async (page: Page, variable: string): Promise<string> => page.evaluate(name => {
+    const probe = document.createElement('input');
+    probe.style.background = `var(${name})`;
+    document.body.appendChild(probe);
+    const color = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return color;
+}, variable);
+
+/** The ask field and its Send button follow the active theme, not the browser default. */
+const expectAskMatchesTheme = async (page: Page): Promise<void> => {
+    const input = await page.locator('#ingot-ask-input').evaluate(el => getComputedStyle(el).backgroundColor);
+    const button = await page.locator('#ingot-ask-submit').evaluate(el => getComputedStyle(el).backgroundColor);
+    expect(input).toBe(await themeBackground(page, '--theia-input-background'));
+    expect(button).toBe(await themeBackground(page, '--theia-button-background'));
+};
+
+const captureBoth = async (page: Page, base: string, full = false, check?: (page: Page) => Promise<void>): Promise<void> => {
     await expect(page.locator('body')).toHaveClass(/ingot-light/);
+    if (check) {
+        await check(page);
+    }
     await saveShot(page, `${base}-light.png`, full);
     await setAppearance(page, 'dark');
     await expect(page.locator('body')).toHaveClass(/ingot-dark/);
+    if (check) {
+        await check(page);
+    }
     await saveShot(page, `${base}-dark.png`, full);
     await useLight(page);
 };
@@ -98,7 +121,7 @@ test.describe('IDEA-248 chat round', () => {
             await send(page, 'Name the banner');
             await expect(page.locator('#ingot-ask-question')).toHaveText('Which name?');
             await expect(page.locator('#ingot-chat-tabs [data-run="waiting"]')).toHaveCount(1);
-            await captureBoth(page, 'ask-user');
+            await captureBoth(page, 'ask-user', false, expectAskMatchesTheme);
             await page.locator('.ingot-ask-option', { hasText: 'Ada' }).click();
             await expect(page.locator('.ingot-chat-agent .ingot-md').last()).toContainText('Using Ada.');
             await expect(page.locator('#ingot-ask')).toHaveCount(0);
@@ -195,6 +218,57 @@ test.describe('IDEA-248 chat round', () => {
         } finally {
             await server.close();
             fs.rmSync(repo, { recursive: true, force: true });
+        }
+    });
+
+    test('pins the latest prompt at the top of the reply', async ({ page }) => {
+        test.setTimeout(180_000);
+        const server = await startFakeOllama(() => Array.from({ length: 40 }, (_unused, index) => `Reply line ${index}.`).join('\n'), { delayMs: 0, chunkSize: 8_000 });
+        try {
+            await start(page, server);
+            await send(page, 'pin this prompt');
+            await expect(page.locator('.ingot-chat-agent .ingot-md').last()).toContainText('Reply line 0');
+            await page.locator('.ingot-agents-chat-wrap').evaluate(el => {
+                const node = el as HTMLElement;
+                node.style.flex = 'none';
+                node.style.height = '180px';
+            });
+            const scrollDown = (): Promise<void> => page.locator('.ingot-agents-chat').evaluate(el => { el.scrollTop = el.scrollHeight; });
+            await scrollDown();
+            const read = (): Promise<{ sticky: string; visual: number; scroll: number; natural: number }> => page.evaluate(() => {
+                const thread = document.querySelector('.ingot-agents-chat') as HTMLElement;
+                const node = document.querySelector('.ingot-chat-latest') as HTMLElement;
+                const previous = node.style.position;
+                node.style.position = 'static';
+                const natural = node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop;
+                node.style.position = previous;
+                return {
+                    sticky: getComputedStyle(node).position,
+                    visual: node.getBoundingClientRect().top - thread.getBoundingClientRect().top,
+                    scroll: thread.scrollTop,
+                    natural
+                };
+            });
+            const stuck = await read();
+            expect(stuck.sticky).toBe('sticky');
+            expect(stuck.visual).toBeGreaterThanOrEqual(0);
+            expect(stuck.visual).toBeLessThan(24);
+            expect(stuck.scroll).toBeGreaterThan(stuck.natural + 20);
+            await saveShot(page, 'sticky-prompt-light.png');
+            await setAppearance(page, 'dark');
+            await expect(page.locator('body')).toHaveClass(/ingot-dark/);
+            await scrollDown();
+            expect((await read()).visual).toBeLessThan(24);
+            await saveShot(page, 'sticky-prompt-dark.png');
+            await useLight(page);
+            await scrollDown();
+            const before = (await read()).scroll;
+            await page.locator('.ingot-chat-latest').click({ position: { x: 12, y: 10 } });
+            expect(await page.locator('.ingot-agents-chat').evaluate(el => el.scrollTop)).toBeLessThan(before);
+            await page.locator('.ingot-chat-latest .ingot-chat-edit').click();
+            await expect(page.locator('#ingot-chat-edit-input')).toHaveValue(/pin this prompt/);
+        } finally {
+            await server.close();
         }
     });
 });
