@@ -5,6 +5,7 @@
  */
 import type { AgentToolCall } from './agent-protocol';
 import { BUILTIN_TOOL_SERVER } from './agent-actions';
+import { isLibraryPrompt } from './library-app';
 
 export const WORKSPACE_TOOLS = [
     { name: 'list_dir', description: 'List a folder of the open project. Arguments: {"path"?: "src", "depth"?: 1..3}. Skips .gitignore and dependency folders. Runs at once.' },
@@ -208,6 +209,10 @@ const isProjectToken = (raw: string): boolean => {
  * A follow-up such as "but what is the idea?" counts. A task sentence does not.
  */
 export const asksAboutOpenProject = (prompt: string): boolean => {
+    // A request to create a project somewhere else is not a question about the folder that is already open.
+    if (isLibraryPrompt(prompt)) {
+        return false;
+    }
     if (PROJECT_QUESTION.test(prompt)) {
         return true;
     }

@@ -939,7 +939,7 @@ export class IngotAgentsWidget extends ReactWidget {
                         <button type='button' id='ingot-chat-sign-in' className='ingot-btn-primary ingot-chat-action' onClick={() => this.account.signIn(false)}>{SIGN_IN_FOR_MODELS}</button>
                         {this.account.devSignInAvailable && <button type='button' id='ingot-chat-sign-in-dev' className='ingot-btn-secondary ingot-chat-action' onClick={() => this.account.signIn(true)}>Dev: test@ingot.dev</button>}
                     </div>}
-                    {m.text === NO_MODEL_MESSAGE && <div><button type='button' id='ingot-open-models' className='ingot-btn-primary ingot-chat-action' onClick={() => this.commands.executeCommand(MODELS_OPEN_COMMAND.id)}>Open Models</button></div>}
+                    {m.text === NO_MODEL_MESSAGE && <div><button type='button' id='ingot-open-models' className='ingot-btn-primary ingot-chat-action' onClick={() => this.commands.executeCommand(MODELS_OPEN_COMMAND.id)}>Choose a model</button></div>}
                 </div>);
     }
 

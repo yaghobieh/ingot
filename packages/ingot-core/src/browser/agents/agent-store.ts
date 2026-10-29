@@ -29,7 +29,7 @@ import { AgentHooksService } from '../hooks/agent-hooks-service';
 import { activeAgentCount, resolveLoopGeneration, titleFromPrompt } from '../../common/agents/agents.utils';
 import { CREATE_LIBRARY_TOOL, LIBRARY_COMMAND_TIMEOUT_SECONDS, LIBRARY_EXAMPLE_DEPTH, OPEN_WORKSPACE_DELAY_MS, OPEN_WORKSPACE_TOOL } from '../../common/agents/library-app.consts';
 import {
-    isNodeStructure, isReactStructure, libraryCommandNeedsTime, libraryFiles, libraryNudge, libraryPathError, nodeStructureFromTree, parseLibraryPrompt, reactStructureFromTree
+    isNodeStructure, isReactStructure, libraryCommandNeedsTime, libraryFiles, libraryNudge, libraryPathError, nodeStructureFromTree, parseLibraryPrompt, reactStructureFromTree, wantsProjectSkills
 } from '../../common/agents/library-app';
 import type { NodeStructure, ReactStructure } from '../../common/agents/library-app.types';
 import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
@@ -922,6 +922,25 @@ export class AgentStore {
                 const agentText = session.messages[agentIndex]?.text ?? '';
                 const asked = lastUser?.m.text ?? prompt;
                 const echoed = isPromptEcho(agentText, prompt) || isPromptEcho(agentText, asked);
+                const scaffold = parseLibraryPrompt(asked) ?? parseLibraryPrompt(prompt);
+                // A build request that only got the prompt repeated must create the folder, not describe the open repo.
+                if (scaffold?.path && scaffold.react && scaffold.node && !scaffold.ambiguous && !this.libraries.has(session.id)
+                    && !parsed.toolCalls.length && !parsed.edits.length && round < rounds) {
+                    this.hidePrinted(session, agentIndex);
+                    const created = await this.finishTools(session, generation, [{
+                        server: 'ingot', tool: 'create_library',
+                        args: { path: scaffold.path, react: scaffold.react, node: scaffold.node, rules: wantsProjectSkills(asked) }
+                    }]);
+                    if (!created) {
+                        return;
+                    }
+                    session.messages.push({
+                        role: 'user',
+                        text: `The new project is on disk at ${scaffold.path}. Run npm install && npm test && npm run build with cwd set to that folder. If tests fail, fix the files there and rerun npm test, up to 3 times. Then ask about git init on branch feature/library. Last, call ingot/open_workspace with that path. Do not describe the folder that was already open.`,
+                        hidden: true
+                    });
+                    continue;
+                }
                 const fileGlob = fileQuestionGlob(asked) ?? fileQuestionGlob(prompt);
                 if (!parsed.toolCalls.length && !parsed.edits.length && root && echoed && fileGlob) {
                     await this.replaceEchoWithFiles(session, root, fileGlob);
@@ -1800,7 +1819,8 @@ export class AgentStore {
         if (existing?.isFile || (existing?.children?.length ?? 0) > 0) {
             return { text: `"${target}" already has files. Pick a new empty folder.`, isError: true };
         }
-        const files = libraryFiles({ path: target, react, node });
+        const asked = [...session.messages].reverse().find(message => message.role === 'user' && !message.hidden)?.text ?? '';
+        const files = libraryFiles({ path: target, react, node, rules: args.rules === true || wantsProjectSkills(asked) });
         const messageIndex = Math.max(0, session.messages.map(message => message.role).lastIndexOf('agent'));
         const origin = this.originOf(session, messageIndex);
         for (const entry of files) {

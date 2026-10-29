@@ -643,8 +643,34 @@ dist
 dist-test
 `;
 
-export const librarySharedFiles = (): LibraryFile[] => [
+const AGENTS = `# Library
+
+Keep the code small and typed.
+
+- Client code lives in feature folders. Server code stays layered: controllers, services, repositories.
+- Validate every write. Return 400 for a bad body, 404 when a record is missing, 409 for a conflict.
+- Do not add a new dependency for something the standard library already does.
+`;
+
+const SKILL = `---
+name: Clean library
+description: Keep the React client and Node API small, typed, and consistent.
+---
+
+When changing this project:
+
+- Put a React screen in the feature folder it belongs to.
+- Put request handling in a controller, rules in a service, and storage in a repository.
+- Add or update a test in the same change.
+- Do not commit secrets or generated build output.
+`;
+
+export const librarySharedFiles = (rules = false): LibraryFile[] => [
     file('package.json', ROOT_PACKAGE),
     file('README.md', README),
-    file('.gitignore', GITIGNORE)
+    file('.gitignore', GITIGNORE),
+    ...(rules ? [
+        file('AGENTS.md', AGENTS),
+        file('.ingot/skills/clean-library/SKILL.md', SKILL)
+    ] : [])
 ];

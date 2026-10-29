@@ -25,4 +25,6 @@ export interface LibraryPlan {
     readonly path: string;
     readonly react: ReactStructure;
     readonly node: NodeStructure;
+    /** Write AGENTS.md and a skills folder. Set when the prompt asks for rules or skills. */
+    readonly rules?: boolean;
 }

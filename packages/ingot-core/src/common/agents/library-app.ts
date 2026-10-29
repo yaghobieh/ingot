@@ -5,8 +5,12 @@ import {
 import type { LibraryFile, LibraryPlan, LibraryPrompt, NodeStructure, ReactStructure } from './library-app.types';
 import { libraryClientFiles, libraryServerFiles, librarySharedFiles } from './library-app.files';
 
-const LIBRARY_INTENT = /\b(create|scaffold|start)\b/i;
-const PATH_MARK = /\b(?:open it at path|at path|open it at)\s+["']?([^\s"']+)["']?/i;
+const LIBRARY_INTENT = /\b(create|scaffold|start|build|make)\b/i;
+const NODE_WORD = /\bnode(?:\.?js)?\b/i;
+const PATH_MARK = /\b(?:open it at path|at path|open it at|put it here|put here|right here|here)\s+["']?([^\s"']+)["']?/i;
+const ABSOLUTE_PATH = /(?:^|\s)((?:\/(?:[\w.-]+\/){2,}[\w.-]+)|(?:[A-Za-z]:\\(?:[\w.-]+\\){1,}[\w.-]+))/g;
+/** "structure X" / "structure Y" means the user has not named a layout yet. */
+const UNNAMED_STRUCTURE = /\bstructure\s+[xy]\b/i;
 
 const isReact = (value: string): value is ReactStructure => (REACT_STRUCTURES as readonly string[]).includes(value);
 const isNode = (value: string): value is NodeStructure => (NODE_STRUCTURES as readonly string[]).includes(value);
@@ -64,9 +68,22 @@ const examplePaths = (text: string): string[] => {
     return found;
 };
 
-/** True when the user asked for a new React and Node project. */
+/** True when the user asked for a new React and Node project. "nodejs" counts; a task is not a question about the open repo. */
 export const isLibraryPrompt = (text: string): boolean =>
-    LIBRARY_INTENT.test(text) && /\breact\b/i.test(text) && /\bnode(?:\.js)?\b/i.test(text);
+    LIBRARY_INTENT.test(text) && /\breact\b/i.test(text) && NODE_WORD.test(text);
+
+/** "rules" / "skills", including the typo "skeels". */
+export const wantsProjectSkills = (text: string): boolean => /\b(rules?|skills?|skeels?|skeils?|skils?)\b/i.test(text);
+
+/** Folder the new project should be created in. Named phrases win, then the last absolute path. */
+export const destinationPath = (text: string): string | undefined => {
+    const marked = text.match(PATH_MARK)?.[1]?.replace(/[.,;:]+$/, '');
+    if (marked && (marked.startsWith('/') || /^[A-Za-z]:\\/.test(marked))) {
+        return marked;
+    }
+    const found = [...text.matchAll(ABSOLUTE_PATH)].map(match => match[1]).filter((item): item is string => !!item);
+    return found[found.length - 1];
+};
 
 /**
  * Reads a create-library prompt. Named presets win. An example folder is kept so the tool can
@@ -76,20 +93,28 @@ export const parseLibraryPrompt = (text: string): LibraryPrompt | undefined => {
     if (!isLibraryPrompt(text)) {
         return undefined;
     }
-    const examples = examplePaths(text);
+    const examples = examplePaths(text).filter(item => item !== destinationPath(text));
     const reactExample = examples.find(item => /react|client|ui|features|atoms/i.test(item));
     const nodeExample = examples.find(item => item !== reactExample && /node|server|api|controllers|modules/i.test(item))
         ?? examples.find(item => item !== reactExample);
-    const react = reactStructureFromText(text);
-    const node = nodeStructureFromText(text);
-    const path = text.match(PATH_MARK)?.[1];
+    const unnamed = UNNAMED_STRUCTURE.test(text);
+    let react = reactStructureFromText(text);
+    let node = nodeStructureFromText(text);
+    const path = destinationPath(text);
+    // A path with no named layout still gets a clean default, so the agent creates the folder instead of describing the open repo.
+    if (!unnamed && path && !react && !reactExample) {
+        react = LIBRARY_REACT_FEATURE;
+    }
+    if (!unnamed && path && !node && !nodeExample) {
+        node = LIBRARY_NODE_LAYERED;
+    }
     return {
         ...(path ? { path } : {}),
         ...(react ? { react } : {}),
         ...(node ? { node } : {}),
         ...(reactExample ? { reactExample } : {}),
         ...(nodeExample ? { nodeExample } : {}),
-        ambiguous: !react || !node || !path
+        ambiguous: unnamed || !react || !node || !path
     };
 };
 
@@ -137,7 +162,7 @@ export const libraryCommandNeedsTime = (command: string): boolean =>
     /\bnpm\b/.test(command) && /\b(install|ci|test|build)\b/.test(command);
 
 export const libraryFiles = (plan: LibraryPlan): LibraryFile[] => [
-    ...librarySharedFiles(),
+    ...librarySharedFiles(plan.rules === true),
     ...libraryServerFiles(plan.node),
     ...libraryClientFiles(plan.react)
 ];

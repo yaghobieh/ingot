@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LIBRARY_STRUCTURE_OPTIONS } from './library-app.consts';
-import { libraryFiles, libraryNudge, libraryPathError, nodeStructureFromTree, parseLibraryPrompt, reactStructureFromTree } from './library-app';
+import { isLibraryPrompt, libraryFiles, libraryNudge, libraryPathError, nodeStructureFromTree, parseLibraryPrompt, reactStructureFromTree, wantsProjectSkills } from './library-app';
+import { asksAboutOpenProject } from './workspace-tools';
 
 describe('library app prompt', () => {
     it('treats unnamed structures as something to ask about', () => {
@@ -26,6 +27,25 @@ describe('library app prompt', () => {
         expect(reactStructureFromTree(['src/atoms/Label.tsx'])).toBe('atomic');
         expect(nodeStructureFromTree(['src/controllers/library.ts'])).toBe('layered');
         expect(nodeStructureFromTree(['src/modules/books/books.ts'])).toBe('modular');
+    });
+
+    it('reads a typed path and a skills typo, and does not treat it as a question about the open repo', () => {
+        const prompt = 'can we create new new site with react and nodejs put it here /Users/user/Desktop/Projects/temp keep code clean add rules and skeels';
+        expect(isLibraryPrompt(prompt)).toBe(true);
+        expect(asksAboutOpenProject(prompt)).toBe(false);
+        expect(wantsProjectSkills(prompt)).toBe(true);
+        const parsed = parseLibraryPrompt(prompt);
+        expect(parsed).toMatchObject({
+            path: '/Users/user/Desktop/Projects/temp',
+            react: 'feature-folders',
+            node: 'layered',
+            ambiguous: false
+        });
+        const paths = libraryFiles({ path: parsed!.path!, react: parsed!.react!, node: parsed!.node!, rules: true }).map(entry => entry.path);
+        expect(paths).toContain('AGENTS.md');
+        expect(paths).toContain('.ingot/skills/clean-library/SKILL.md');
+        expect(paths).toContain('client/src/features/books/Books.tsx');
+        expect(paths).toContain('server/src/controllers/library-controller.ts');
     });
 
     it('refuses a filesystem root', () => {
