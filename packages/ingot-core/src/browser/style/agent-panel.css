@@ -128,7 +128,8 @@
 
 .ingot-review { gap: var(--ingot-space-2); margin: 0 var(--ingot-space-3) var(--ingot-space-2); }
 .ingot-review-card { border-color: var(--ingot-border); background: var(--ingot-surface); border-radius: 12px; }
-.ingot-review-files { max-height: 240px; border-top: 1px solid var(--ingot-border); }
+/* Fixed height: adding files must not push the thread. The list scrolls inside itself. */
+.ingot-review-files { height: 240px; max-height: 240px; overflow-anchor: none; border-top: 1px solid var(--ingot-border); }
 .ingot-review-file {
     position: relative;
     flex-wrap: nowrap;

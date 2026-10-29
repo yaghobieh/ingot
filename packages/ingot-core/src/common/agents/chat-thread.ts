@@ -14,6 +14,13 @@ export const distanceFromBottom = (scrollTop: number, scrollHeight: number, clie
 /** True when the user has scrolled up far enough that the latest turn may be off screen. */
 export const showJumpToLatest = (distance: number): boolean => distance > JUMP_FROM_BOTTOM_PX;
 
+/**
+ * Where the thread should sit after new text or a panel under it changes size.
+ * Follow the latest line only when the reader is already at the bottom; otherwise leave scrollTop alone.
+ */
+export const scrollTopAfterUpdate = (scrollTop: number, scrollHeight: number, clientHeight: number, follow: boolean): number =>
+    follow ? Math.max(0, scrollHeight - clientHeight) : scrollTop;
+
 /** The latest user message the person typed. Hidden nudges do not count. */
 export const latestUserIndex = (messages: readonly Pick<ThreadMessage, 'role' | 'hidden'>[]): number => {
     for (let index = messages.length - 1; index >= 0; index--) {

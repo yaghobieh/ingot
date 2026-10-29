@@ -73,7 +73,7 @@ import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import { composerBarWidthClass } from '../../common/agents/composer-bar';
-import { distanceFromBottom, latestUserIndex, showJumpToLatest, userJumpTargets } from '../../common/agents/chat-thread';
+import { distanceFromBottom, latestUserIndex, scrollTopAfterUpdate, showJumpToLatest, userJumpTargets } from '../../common/agents/chat-thread';
 type Popover = 'mode' | 'model' | 'history' | 'context' | 'more' | 'jumps' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
@@ -141,6 +141,13 @@ export class IngotAgentsWidget extends ReactWidget {
     protected editDraft = '';
     protected chatScroll?: HTMLDivElement | null;
     protected stickToLatest = true;
+    /** scrollTop to put back when the reader is not following the latest line. */
+    protected savedScroll = 0;
+    /** Follow flag captured before the next render. */
+    protected pendingFollow = true;
+    /** Ignores the scroll event caused by restoring or following. */
+    protected applyingScroll = false;
+    protected chatSize?: ResizeObserver;
     /** The review file list starts open; the summary button collapses it. */
     protected reviewListOpen = true;
     protected showJump = false;
@@ -311,17 +318,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.title.iconClass = 'ingot-icon ingot-icon-ai';
         this.addClass('ingot-agents');
         this.listenForDrops();
-        this.toDispose.push(this.store.onDidChange(() => {
-            this.update();
-            if (this.stickToLatest) {
-                requestAnimationFrame(() => {
-                    const thread = this.chatScroll;
-                    if (thread) {
-                        thread.scrollTop = thread.scrollHeight;
-                    }
-                });
-            }
-        }));
+        this.toDispose.push(this.store.onDidChange(() => this.holdScroll()));
         this.toDispose.push(this.account.onDidChange(() => this.update()));
         this.toDispose.push(this.processes.onDidChange(() => this.update()));
         this.toDispose.push(this.preferences.onPreferenceChanged(e => { if (e.preferenceName === RUN_PREFS.showProcesses) { this.update(); } }));
@@ -332,7 +329,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 this.store.holdPause(current.id);
             }
             this.reviewTouched = false;
-            this.update();
+            this.holdScroll();
         }));
         const ticker = setInterval(() => { if (this.store.current?.pause?.continueAt !== undefined) { this.update(); } }, 500);
         this.toDispose.push({ dispose: () => clearInterval(ticker) });
@@ -344,6 +341,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.node.addEventListener('focusin', () => this.focusKey?.set(true));
         this.node.addEventListener('focusout', e => { if (!this.node.contains(e.relatedTarget as Node | null)) { this.focusKey?.set(false); } });
         this.toDispose.push({ dispose: () => this.inline?.dispose() });
+        this.toDispose.push({ dispose: () => this.chatSize?.disconnect() });
         const stored = Number(localStorage.getItem(COMPOSER_HEIGHT_KEY));
         this.manualHeight = stored > 0 ? stored : undefined;
         this.update();
@@ -358,7 +356,8 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected override onUpdateRequest(msg: Message): void {
         super.onUpdateRequest(msg);
-        requestAnimationFrame(() => { this.fitComposer(); this.checkTabOverflow(); });
+        this.applyScroll(this.pendingFollow);
+        requestAnimationFrame(() => { this.fitComposer(); this.checkTabOverflow(); this.applyScroll(this.pendingFollow); });
     }
 
     /** Min ~4 lines, grows with content up to half the panel then scrolls; a dragged height wins (IDEA-67). */
@@ -656,7 +655,7 @@ export class IngotAgentsWidget extends ReactWidget {
             {this.showMemories
                 ? <div className='ingot-agents-chat ingot-agents-memories-pane'><MemoriesManager store={this.memoryStore} onClose={() => this.toggleMemories()} /></div>
                 : <div className='ingot-agents-chat-wrap'>
-                    <div className='ingot-agents-chat' ref={el => { this.chatScroll = el; }} onScroll={() => this.onChatScroll()}>{current && current.messages.length ? this.renderSession(current)
+                    <div className='ingot-agents-chat' ref={el => this.bindChat(el)}>{current && current.messages.length ? this.renderSession(current)
                         : <div className='ingot-agents-empty-state' id='ingot-agents-empty-state'>
                             <div className='ingot-agents-empty-title'>{PRODUCT.name}</div>
                             <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>
@@ -1224,7 +1223,7 @@ export class IngotAgentsWidget extends ReactWidget {
         const label = !enabled ? 'Applied' : state === 'pending' ? 'Pending' : state === 'accepted' ? 'Accepted' : state === 'rejected' ? 'Rejected' : 'Partly kept';
         return <div key={change.id} id={`ingot-review-file-${index}`} data-path={change.path} className={`ingot-review-file ${enabled ? state : 'applied'}`}
             role='button' tabIndex={0} title={change.path}
-            onClick={() => { this.touchReview(session); void this.tracker.reveal(change.id); }}>
+            onClick={() => { this.touchReview(session); void this.tracker.reveal(change.id, undefined, true); }}>
             <span className={`ingot-file-badge ingot-file-badge-${badge.tone}`} aria-hidden='true'>{badge.label}</span>
             <span className='ingot-review-file-name'>{name}</span>
             <span className='ingot-review-file-dir'>{folder}</span>
@@ -1377,13 +1376,59 @@ export class IngotAgentsWidget extends ReactWidget {
         </button>;
     }
 
-    protected onChatScroll(): void {
+    /** Remember the reading position, then render. Follow only if the reader was already at the bottom. */
+    protected holdScroll(): void {
         const thread = this.chatScroll;
-        if (!thread) {
+        if (thread && !this.applyingScroll) {
+            this.savedScroll = thread.scrollTop;
+        }
+        this.pendingFollow = this.stickToLatest;
+        this.update();
+    }
+
+    protected applyScroll(follow: boolean): void {
+        const node = this.chatScroll;
+        if (!node) {
             return;
         }
+        const next = scrollTopAfterUpdate(this.savedScroll, node.scrollHeight, node.clientHeight, follow && this.stickToLatest);
+        if (node.scrollTop === next) {
+            return;
+        }
+        this.applyingScroll = true;
+        node.scrollTop = next;
+        this.applyingScroll = false;
+    }
+
+    protected bindChat(el: HTMLDivElement | null): void {
+        if (this.chatScroll === el) {
+            return;
+        }
+        this.chatScroll?.removeEventListener('scroll', this.onChatScrollBound);
+        this.chatSize?.disconnect();
+        this.chatSize = undefined;
+        this.chatScroll = el;
+        if (!el) {
+            return;
+        }
+        // The run card and the files panel sit under the thread and change its height. Put the same place back.
+        this.chatSize = new ResizeObserver(() => this.applyScroll(this.stickToLatest));
+        this.chatSize.observe(el);
+        // Native listener: a scroll from the reader cancels follow before the next frame paints.
+        el.addEventListener('scroll', this.onChatScrollBound, { passive: true });
+    }
+
+    protected readonly onChatScrollBound = (): void => this.onChatScroll();
+
+    protected onChatScroll(): void {
+        const thread = this.chatScroll;
+        if (!thread || this.applyingScroll) {
+            return;
+        }
+        this.savedScroll = thread.scrollTop;
         const show = showJumpToLatest(distanceFromBottom(thread.scrollTop, thread.scrollHeight, thread.clientHeight));
         this.stickToLatest = !show;
+        this.pendingFollow = this.stickToLatest;
         if (show !== this.showJump) {
             this.showJump = show;
             this.update();

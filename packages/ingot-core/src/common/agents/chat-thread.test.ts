@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { distanceFromBottom, latestUserIndex, showJumpToLatest, truncateForEdit, userJumpTargets } from './chat-thread';
+import { distanceFromBottom, latestUserIndex, scrollTopAfterUpdate, showJumpToLatest, truncateForEdit, userJumpTargets } from './chat-thread';
 import { JUMP_FROM_BOTTOM_PX } from './chat-thread.consts';
 
 describe('chat thread', () => {
@@ -15,6 +15,12 @@ describe('chat thread', () => {
         expect(showJumpToLatest(JUMP_FROM_BOTTOM_PX)).toBe(false);
         expect(showJumpToLatest(JUMP_FROM_BOTTOM_PX + 1)).toBe(true);
         expect(distanceFromBottom(350, 400, 100)).toBe(0);
+    });
+
+    it('follows the bottom only when the reader is already there', () => {
+        expect(scrollTopAfterUpdate(40, 1000, 200, false)).toBe(40);
+        expect(scrollTopAfterUpdate(800, 1200, 200, true)).toBe(1000);
+        expect(scrollTopAfterUpdate(0, 50, 200, true)).toBe(0);
     });
 
     it('marks the latest visible user message and lists earlier ones', () => {

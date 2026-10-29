@@ -2,7 +2,7 @@
 
 .ingot-agents-root > .ingot-composer-stack { flex: none; display: flex; flex-direction: column; margin: 0 10px 10px; }
 .ingot-agents-root > .ingot-agents-chat-wrap { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
-.ingot-agents-chat-wrap > .ingot-agents-chat { flex: 1; min-height: 0; }
+.ingot-agents-chat-wrap > .ingot-agents-chat { flex: 1; min-height: 0; overflow-anchor: none; }
 
 .ingot-agents .ingot-composer-stack .ingot-composer,
 .ingot-agents .ingot-composer-stack .ingot-composer:focus-within {
