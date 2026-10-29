@@ -114,6 +114,11 @@ export class ChangeTracker {
         return this.items.filter(c => isPending(c) && (!sessionId || c.sessionId === sessionId));
     }
 
+    /** Sessions that already have a change for this path, including a live stream. */
+    sessionsTouching(path: string): readonly string[] {
+        return [...new Set(this.items.filter(change => change.path === path).map(change => change.sessionId))];
+    }
+
     /** Starts (or continues) the live view of an edit that is still streaming. */
     beginStream(origin: ChangeOrigin, path: string, uri: URI): Promise<string> {
         const key = `${origin.sessionId}\u0000${path}`;

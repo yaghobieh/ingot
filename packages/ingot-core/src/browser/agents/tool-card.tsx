@@ -1,4 +1,5 @@
 import * as React from '@theia/core/shared/react';
+import { thoughtLabel } from '../../common/agents/chat-round';
 import {
     durationLabel, highlightShell, toolCard, TOOL_OUTPUT_PREVIEW_LINES, type ProfileCard, type TerminalCard, type ToolCallInfo
 } from '../../common/agents/tool-cards';
@@ -132,13 +133,15 @@ export const ToolCardView = (props: ToolCardProps): React.ReactElement => {
     </div>;
 };
 
-/** "Thought" row: the model's reasoning, collapsed; shimmering while it is still thinking. */
-export const ThoughtRow = ({ thought, thinking, expanded, onToggle }: { thought: string; thinking: boolean; expanded: boolean; onToggle: () => void }): React.ReactElement =>
-    <div className={`ingot-chat-thought${thinking ? ' thinking' : ''}${expanded ? ' open' : ''}`}>
-        <button type='button' className='ingot-chat-thought-row' aria-expanded={expanded} onClick={onToggle}>
+/** "Thinking…" while the model is still reasoning, then "Thought for Ns", collapsed until opened. */
+export const ThoughtRow = ({ thought, thinking, durationMs, expanded, onToggle, id }: { thought: string; thinking: boolean; durationMs?: number; expanded: boolean; onToggle: () => void; id?: string }): React.ReactElement => {
+    const open = thinking || expanded;
+    return <div className={`ingot-chat-thought${thinking ? ' thinking' : ''}${open ? ' open' : ''}`}>
+        <button type='button' id={id} className='ingot-chat-thought-row' aria-expanded={open} onClick={onToggle}>
             <span className='codicon codicon-lightbulb-sparkle' />
-            <span className='ingot-chat-thought-label'>{thinking ? 'Thinking' : 'Thought'}</span>
-            <span className={`codicon codicon-chevron-${expanded ? 'down' : 'right'}`} />
+            <span className='ingot-chat-thought-label'>{thoughtLabel(thinking, durationMs)}</span>
+            <span className={`codicon codicon-chevron-${open ? 'down' : 'right'}`} />
         </button>
-        {expanded && thought && <div className='ingot-chat-thought-text'>{thought}</div>}
+        {open && thought && <div className='ingot-chat-thought-text'>{thought}</div>}
     </div>;
+};

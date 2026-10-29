@@ -74,6 +74,9 @@ import { toTarget } from '../../common/browser-tool/browser-tool.utils';
 import { describeProcesses, isSafeScriptName, scriptCommand } from '../../common/processes/processes.utils';
 import { OUTPUT_POLL_MS } from '../../common/processes/processes.consts';
 import { truncateForEdit } from '../../common/agents/chat-thread';
+import { ASK_STOPPED, ASK_USER_TOOL } from '../../common/agents/chat-round.consts';
+import { conflictWarning, stampThought, toggleReaction } from '../../common/agents/chat-round';
+import type { ReactionKind } from '../../common/agents/chat-round.types';
 import { runToolSettings, type RunToolSettings } from '../../common/processes/run-settings';
 import { AgentActionsService, type AgentActionResult } from '../../common/agents/agent-actions-service';
 import { GitService } from '../../common/git/git.types';
@@ -116,6 +119,10 @@ export class AgentStore {
     protected readonly loops = new Map<string, LoopState>();
     /** Chats whose model loop is on the stack, so accepting a review does not start a second one. */
     protected readonly modelLoops = new Set<string>();
+    /** Answers waiting on ingot/ask_user. Undefined means the user stopped. */
+    protected readonly answers = new Map<string, (text: string | undefined) => void>();
+    /** Messages typed while a run is in progress, delivered on the next round. */
+    protected readonly steers = new Map<string, string[]>();
     /** Nested runModel calls for one chat. The set stays until the outermost call returns. */
     protected readonly loopDepth = new Map<string, number>();
     /** Bumped by send and stop so a replaced or stopped turn cannot keep writing. */
@@ -413,6 +420,18 @@ export class AgentStore {
     /** Sends a prompt. Without a connected model the agent explains how to connect one instead of pretending. */
     send(prompt: string, chips: readonly ContextChip[] = [], composed?: ComposedMessage): AgentSession {
         const session = this.current ?? this.create();
+        const askedNow = prompt.trim();
+        if (session.ask && askedNow) {
+            this.answerQuestion(session.id, askedNow);
+            return session;
+        }
+        if (askedNow && this.isRunning(session.id)) {
+            session.messages.push({ role: 'user', text: askedNow });
+            this.steers.set(session.id, [...(this.steers.get(session.id) ?? []), askedNow]);
+            session.updatedAt = Date.now();
+            this.changed();
+            return session;
+        }
         if (session.title === NEW_AGENT_TITLE) {
             session.title = tabTitleFromText(prompt) || titleFromPrompt(prompt);
         }
@@ -489,11 +508,75 @@ export class AgentStore {
         this.running.delete(id);
         this.releasePause(id, false);
         this.approvals.get(id)?.({ decision: 'skip', stopped: true });
+        this.answers.get(id)?.(undefined);
+        this.answers.delete(id);
+        this.steers.delete(id);
         const session = this.items.find(s => s.id === id);
+        if (session) {
+            session.ask = undefined;
+        }
         if (session && (session.status === 'thinking' || session.status === 'editing' || session.status === 'approval')) {
             session.status = 'idle';
         }
         this.browser.endAgentRun(id);
+        this.changed();
+    }
+
+    /** Keeps thought timing and reactions when a streaming reply is replaced. */
+    protected writeAgentDraft(session: AgentSession, index: number, text: string, extra: Partial<AgentMessage> = {}): void {
+        const prior = session.messages[index];
+        const stamp = stampThought(prior, text, Date.now());
+        session.messages[index] = {
+            role: 'agent',
+            ...(prior?.reactions?.length ? { reactions: prior.reactions } : {}),
+            ...extra,
+            ...stamp,
+            text
+        };
+    }
+
+    /** True when the user typed during this run. The message is already in the chat; take another round. */
+    protected followSteer(session: AgentSession, generation: number): boolean {
+        if (this.stale(session.id, generation) || !(this.steers.get(session.id)?.length)) {
+            return false;
+        }
+        this.steers.delete(session.id);
+        session.status = 'thinking';
+        return true;
+    }
+
+    protected waitForAnswer(session: AgentSession, question: string, options: readonly string[]): Promise<string | undefined> {
+        session.ask = { question, ...(options.length ? { options } : {}) };
+        this.changed();
+        return new Promise(resolve => {
+            this.answers.set(session.id, resolve);
+        });
+    }
+
+    /** Continues a run that is waiting on ingot/ask_user. */
+    answerQuestion(sessionId: string, text: string): void {
+        const session = this.items.find(item => item.id === sessionId);
+        const resolve = this.answers.get(sessionId);
+        const trimmed = text.trim();
+        if (!session?.ask || !resolve || !trimmed) {
+            return;
+        }
+        this.answers.delete(sessionId);
+        session.ask = undefined;
+        session.messages.push({ role: 'user', text: trimmed });
+        session.updatedAt = Date.now();
+        this.changed();
+        resolve(trimmed);
+    }
+
+    toggleReaction(sessionId: string, index: number, kind: ReactionKind): void {
+        const session = this.items.find(item => item.id === sessionId);
+        const message = session?.messages[index];
+        if (!session || !message || (message.role !== 'user' && message.role !== 'agent')) {
+            return;
+        }
+        session.messages[index] = { ...message, reactions: toggleReaction(message.reactions, kind) };
+        session.updatedAt = Date.now();
         this.changed();
     }
 
@@ -820,12 +903,18 @@ export class AgentStore {
                 const fileGlob = fileQuestionGlob(asked) ?? fileQuestionGlob(prompt);
                 if (!parsed.toolCalls.length && !parsed.edits.length && root && echoed && fileGlob) {
                     await this.replaceEchoWithFiles(session, root, fileGlob);
+                    if (this.followSteer(session, generation)) {
+                        continue;
+                    }
                     session.updatedAt = Date.now();
                     this.changed();
                     return;
                 }
                 if (!parsed.toolCalls.length && !parsed.edits.length && root && echoed && (asksAboutOpenProject(prompt) || asksAboutOpenProject(asked))) {
                     await this.replaceEchoWithProject(session, root);
+                    if (this.followSteer(session, generation)) {
+                        continue;
+                    }
                     session.updatedAt = Date.now();
                     this.changed();
                     return;
@@ -892,6 +981,9 @@ export class AgentStore {
                 if (this.stale(session.id, generation)) {
                     return;
                 }
+                if (session.status !== 'review' && this.followSteer(session, generation)) {
+                    continue;
+                }
                 session.activeFile = undefined;
                 session.updatedAt = Date.now();
                 this.changed();
@@ -948,7 +1040,7 @@ export class AgentStore {
             return false;
         }
         if (!ran || this.cancelled.has(session.id)) {
-            if (!ran) {
+            if (!ran && session.messages[session.messages.length - 1]?.text !== ASK_STOPPED) {
                 session.messages.push({ role: 'system', text: 'Stopped while waiting for approval.' });
             }
             session.status = 'idle';
@@ -978,7 +1070,7 @@ export class AgentStore {
                 }
                 const parsed = parseAgentOutput(text);
                 this.streamEdit(session, index, parsed.editing, parsed.editingContent);
-                session.messages[index] = { role: 'agent', text: extractMemories(parsed.display).display };
+                this.writeAgentDraft(session, index, extractMemories(parsed.display).display);
                 if (parsed.plan.length) {
                     session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
                     this.considerHarmony(session, parsed.edits.length);
@@ -1017,12 +1109,11 @@ export class AgentStore {
         const parsed = parseAgentOutput(final);
         const { display, memories } = extractMemories(parsed.display);
         // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
-        session.messages[index] = {
-            role: 'agent', expanded: final,
-            text: display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)'),
+        this.writeAgentDraft(session, index, display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)'), {
+            expanded: final,
             // IDEA-186: a silent round of project reads shows only in the Explored row.
             ...(!display && !parsed.edits.length && parsed.toolCalls.length && parsed.toolCalls.every(c => c.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(c.tool)) ? { hidden: true } : {})
-        };
+        });
         return { ...parsed, memories };
     }
 
@@ -1042,6 +1133,28 @@ export class AgentStore {
             }
             const call = withRepoDefaults(resolved.call, this.github);
             const target = `${call.server}/${call.tool}`;
+            if (call.server === BUILTIN_TOOL_SERVER && call.tool === ASK_USER_TOOL) {
+                const question = typeof call.args.question === 'string' ? call.args.question.trim() : '';
+                const options = Array.isArray(call.args.options) ? call.args.options.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
+                if (!question) {
+                    session.messages.push({ role: 'tool', from: target, text: 'Error: a question is required.' });
+                    this.changed();
+                    continue;
+                }
+                const answer = await this.waitForAnswer(session, question, options);
+                if (answer === undefined || this.cancelled.has(session.id)) {
+                    session.ask = undefined;
+                    session.messages.push({ role: 'system', text: ASK_STOPPED });
+                    this.changed();
+                    return false;
+                }
+                session.messages.push({
+                    role: 'tool', from: target, text: answer,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'done', startedAt: Date.now(), endedAt: Date.now() }
+                });
+                this.changed();
+                continue;
+            }
             const asked = [...session.messages].reverse().find(message => message.role === 'user' && !message.hidden)?.text ?? '';
             if (isRemoteCodeFetch(call) && !userAskedForRemote(asked)) {
                 session.messages.push({
@@ -1772,6 +1885,11 @@ export class AgentStore {
                     session.messages.push({ role: 'system', text: locked });
                     await this.tracker.cancelStream(session.id, edit.path);
                     continue;
+                }
+                const others = this.tracker.sessionsTouching(edit.path).filter(id => id !== session.id);
+                if (others.length) {
+                    const titles = others.map(id => this.items.find(item => item.id === id)?.title).filter((title): title is string => !!title);
+                    session.messages.push({ role: 'system', text: conflictWarning(titles, edit.path) });
                 }
                 // Wait for the live view of this file (if it streamed) so the final text lands on the same change.
                 await this.streamingEdits.get(`${session.id}\u0000${messageIndex}\u0000${edit.path}`);

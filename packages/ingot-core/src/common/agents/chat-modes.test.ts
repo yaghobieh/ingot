@@ -40,6 +40,14 @@ describe('chat history', () => {
         expect(back[0].status).toBe('idle');
         expect(back[0].activeFile).toBeUndefined();
         expect(back[0].open).toBe(true);
+        const kept = parseChats(serializeChats([chat('react', {
+            ask: { question: 'Which name?' },
+            messages: [{ role: 'user', text: 'hello', reactions: ['like'] }, { role: 'agent', text: '<think>a</think>b', thoughtMs: 1000, thoughtStarted: 5 }]
+        })]));
+        expect(kept[0].ask).toBeUndefined();
+        expect(kept[0].messages[0].reactions).toEqual(['like']);
+        expect(kept[0].messages[1].thoughtMs).toBe(1000);
+        expect(kept[0].messages[1].thoughtStarted).toBeUndefined();
         expect(parseChats('not json')).toEqual([]);
         expect(parseChats(JSON.stringify([{ id: 1 }]))).toEqual([]);
         expect(CHATS_STORAGE_KEY).toMatch(/^ingot\./);

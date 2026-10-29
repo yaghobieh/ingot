@@ -18,6 +18,9 @@ export const relativeTime = (from: number, now: number): string => {
 
 /** List subtitle, e.g. "Editing useCart.ts · 2m", "Ready for review · 4 files", "Done · 18 min ago". */
 export const agentSubtitle = (session: AgentSession, now: number): string => {
+    if (session.ask) {
+        return 'Waiting for an answer';
+    }
     const label = STATUS_LABELS[session.status];
     if (session.status === 'editing' && session.activeFile) {
         return `${label} ${session.activeFile} · ${relativeTime(session.updatedAt, now)}`;

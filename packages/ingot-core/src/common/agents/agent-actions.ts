@@ -58,7 +58,8 @@ export const BUILTIN_TOOLS = [
     { name: 'browser_scroll', description: 'Scroll the page. Arguments: {"direction": "down" | "up" | "top" | "bottom"}.' },
     { name: 'browser_back', description: 'Go back one page. No arguments.' },
     { name: 'browser_screenshot', description: 'Take a screenshot of the browser panel (shown to the user; sent to you when the model reads images). No arguments.' },
-    { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' }
+    { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' },
+    { name: 'ask_user', description: 'Ask the user a clarifying question and wait for the answer before continuing. Arguments: {"question": "…", "options"?: ["a", "b"]}. The user can also type their own answer. Runs at once and pauses the run.' }
 ] as const;
 
 const str = (value: unknown): string => typeof value === 'string' ? value : '';
@@ -124,7 +125,7 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
         }
         case 'scripts': case 'processes': case 'process_output': return undefined;
         // IDEA-186: read-only project tools run at once.
-        case 'read_file': case 'list_dir': case 'glob': case 'grep': return undefined;
+        case 'read_file': case 'list_dir': case 'glob': case 'grep': case 'ask_user': return undefined;
         case 'process_stop': return { kind: 'terminal', label: 'Stop process', detail: str(a.id) };
         case 'web_search': return { kind: 'web', label: 'Search web', detail: str(a.query) };
         case 'web_fetch': return { kind: 'web', label: 'Fetch', detail: str(a.url) };

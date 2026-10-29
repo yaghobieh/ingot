@@ -109,3 +109,32 @@
   border-radius: 8px;
 }
 .ingot-jump-item { border-radius: 6px; text-align: left; box-shadow: none; }
+
+.ingot-reactions { display: inline-flex; gap: 4px; margin-top: 4px; }
+.ingot-react {
+  border: 1px solid var(--ingot-border); background: var(--ingot-surface); color: var(--ingot-text-muted);
+  border-radius: 999px; width: 26px; height: 22px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.ingot-react.on, .ingot-react[aria-pressed='true'] { color: var(--ingot-primary); border-color: var(--ingot-primary); background: var(--ingot-selection); }
+.ingot-ask {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 10px 8px; padding: 10px;
+  border: 1px solid var(--ingot-border); border-radius: 8px; background: var(--ingot-surface); color: var(--ingot-text);
+}
+.ingot-ask-question { margin: 0; flex: 1 1 100%; }
+.ingot-ask-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.ingot-ask-option, .ingot-turn-row, .ingot-changes-summary {
+  border: 1px solid var(--ingot-border); background: var(--ingot-surface); color: var(--ingot-text);
+  border-radius: 6px; padding: 4px 8px; cursor: pointer; font: inherit; font-size: 12px;
+}
+.ingot-ask-option:hover, .ingot-turn-row:hover, .ingot-changes-summary:hover { background: var(--ingot-selection); }
+.ingot-turn-activity { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 8px 0; }
+.ingot-turn-row { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+.ingot-turn-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-changes-summary { border: 0; background: transparent; padding: 0; text-align: left; }
+.ingot-tab-progress { width: 28px; height: 3px; border-radius: 999px; background: var(--ingot-selection); position: relative; overflow: hidden; flex: none; align-self: center; }
+.ingot-tab-progress::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; background: var(--ingot-primary); animation: ingot-tab-slide 1s ease-in-out infinite; }
+.ingot-tab-wait { width: 8px; height: 8px; border-radius: 50%; background: var(--ingot-primary); flex: none; align-self: center; }
+.ingot-tab-done { color: var(--ingot-primary); font-size: 12px; flex: none; }
+.ingot-chat-tab[data-run='waiting'] { box-shadow: inset 0 -2px 0 var(--ingot-primary); }
+@keyframes ingot-tab-slide { from { transform: translateX(-100%); } to { transform: translateX(280%); } }
+@media (prefers-reduced-motion: reduce) { .ingot-tab-progress::after { animation: none; } }
