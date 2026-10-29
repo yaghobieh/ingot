@@ -186,6 +186,7 @@ test.describe('IDEA-248 chat round', () => {
                 await box.click();
             }
             await page.locator('#ingot-settings-ok').click();
+            await expect(dialog).toBeHidden();
             await useLight(page);
             await page.locator('#ingot-agents-new').click();
             await pickModel(page, 'ollama-local');

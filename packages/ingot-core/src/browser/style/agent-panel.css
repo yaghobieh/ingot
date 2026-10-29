@@ -35,6 +35,8 @@
 .ingot-chat-agent-head .ingot-dim { color: var(--ingot-text-muted); font-weight: 400; }
 
 .ingot-agents .ingot-chat-user { position: relative; display: flex; flex-direction: column; align-items: stretch; }
+/* Latest prompt stays pinned. Sticky is still a containing block, so hover reactions stay on the card. */
+.ingot-agents .ingot-chat-user.ingot-chat-latest { position: sticky; z-index: 4; }
 .ingot-agents .ingot-chat-user .ingot-reactions,
 .ingot-agents .ingot-chat-user .ingot-chat-edit {
     position: absolute;
