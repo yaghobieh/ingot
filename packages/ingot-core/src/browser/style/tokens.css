@@ -1,5 +1,17 @@
 /* Ingot design tokens - generated from palette.json */
 :root {
+  --ingot-space-1: 4px;
+  --ingot-space-2: 8px;
+  --ingot-space-3: 12px;
+  --ingot-space-4: 16px;
+  --ingot-count-width: 5.5rem;
+  --ingot-badge-ts: var(--ingot-primary);
+  --ingot-badge-tsx: var(--ingot-info);
+  --ingot-badge-json: var(--ingot-warning);
+  --ingot-badge-html: var(--ingot-accent);
+  --ingot-badge-css: #7C5CBF;
+  --ingot-badge-md: var(--ingot-text-muted);
+  --ingot-badge-file: var(--ingot-text-muted);
   --ingot-ingot-gold: #D9A04E;
   --ingot-ingot-gold-deep: #B9772A;
   --ingot-ingot-gold-light: #F3D29A;

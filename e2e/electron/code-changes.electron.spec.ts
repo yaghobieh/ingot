@@ -124,7 +124,7 @@ test.describe('IDEA-102 code-change blocks (desktop)', () => {
         await expect(block.locator('.ingot-change-stats')).toHaveText('+3 −2');
         await expect(block.locator('.ingot-change-hunk-bar')).toHaveCount(2);
         await expect(block.locator('.ingot-change-row.added').first()).toBeVisible();
-        await expect(page.locator('#ingot-changes-summary')).toContainText('1 file changed · 2 changes');
+        await expect(page.locator('#ingot-changes-summary')).toContainText('Edited 1 file');
         await expect(page.locator('.ingot-hunk-accept')).toHaveCount(2);
         await expect(page.locator('.ingot-agent-edit-bar')).toContainText('cart.ts');
         await expect(page.locator('.monaco-editor .ingot-gutter-mark').first()).toBeVisible();

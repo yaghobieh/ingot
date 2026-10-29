@@ -14,7 +14,7 @@ import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
 import { PRODUCT } from '../../common/product.consts';
-import { COMPOSER_PLACEHOLDER, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE } from '../../common/agents/agents.consts';
+import { ACCEPT_ALL, AGENT_TITLE, COMPOSER_PLACEHOLDER, NO_MODEL_MESSAGE, REJECT_ALL, REVIEW_WORD, SIGN_IN_MESSAGE, WORKED_FOR } from '../../common/agents/agents.consts';
 import { modeInfo, nextMode } from '../../common/agents/agent-modes';
 import { CONTEXT_NEAR_FULL, contextSegments, formatTokens, messageWeights, usageRatio } from '../../common/agents/context-usage';
 import { fileIconClass } from '../../common/icons/file-icon-map';
@@ -36,7 +36,7 @@ import { CommandRegistry } from '@theia/core/lib/common/command';
 import { IngotModelClient } from '../models/model-client';
 import { MODELS_OPEN_COMMAND } from '../models/models.browser-consts';
 import type { AgentSession } from '../../common/agents/agents.types';
-import { changesSummary, stepVerb } from '../../common/agents/agents.utils';
+import { changesSummary, editedFilesLabel, fileBadge, fileWord, formatWorked, stepVerb } from '../../common/agents/agents.utils';
 import { AgentStore } from './agent-store';
 import { EditorManager } from '@theia/editor/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
@@ -906,7 +906,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     {m.from && <div className='ingot-chat-from'>{m.from}</div>}
                     {m.parts ? this.renderParts(m.parts, m.images) : m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className={`ingot-chip ingot-chip-sent ingot-chip-${c.kind ?? 'code'}`} title={c.kind === 'memory' ? 'Memory' : c.kind === 'rule' ? `Rule ${c.path}` : c.path}>
                         {c.kind === 'memory' && <span className='codicon codicon-lightbulb' />}{c.kind === 'rule' && <span className='codicon codicon-law' />}{c.label}</span>)}</div>}
-                    {m.role === 'agent' && <div className='ingot-chat-agent-head'><span className='ingot-chat-logo' aria-hidden='true'>&lt;/&gt;</span><b>Ingot</b><span className='ingot-dim'>· {this.replyModel(session)}</span></div>}
+                    {m.role === 'agent' && <div className='ingot-chat-agent-head'><span className='ingot-agent-mark' aria-hidden='true'>In</span><b>{AGENT_TITLE}</b><span className='ingot-dim'>· {WORKED_FOR} {this.workedFor(session)}</span></div>}
                     {m.parts ? '' : m.role === 'agent'
                         ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
                             : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
@@ -962,8 +962,11 @@ export class IngotAgentsWidget extends ReactWidget {
         </div>;
     }
 
-    protected replyModel(session: AgentSession): string {
-        return this.modelLabel(this.store.resolveModel(session.model));
+    /** How long this chat has been working, shown beside the agent name. */
+    protected workedFor(session: AgentSession): string {
+        const start = session.openedAt ?? session.updatedAt;
+        const end = this.store.isRunning(session.id) ? Date.now() : session.updatedAt;
+        return formatWorked(end - start);
     }
 
     /** Copy buttons on code blocks and links in rendered replies. */
@@ -1037,10 +1040,9 @@ export class IngotAgentsWidget extends ReactWidget {
             {explored && this.renderExplored(session, explored)}
             {this.renderTurnActivity(session)}
             {session.steps.map((step, i) => step.kind === 'read' || (hasCards && step.kind === 'search') || (hasCards && step.kind === 'run' && !step.target.startsWith('/')) ? undefined : (
-                <div key={i} className={`ingot-chat-step ${step.done ? 'done' : 'running'}`}>
+                <div key={i} className={`ingot-chat-step ${step.done ? 'done' : 'running'}`} title={`${stepVerb(step)} ${step.target}`}>
                     <span className='ingot-step-mark'>{step.done ? '✓' : '●'}</span>
                     <span className='ingot-step-text'>{stepVerb(step)} {step.target}</span>
-                    {step.added !== undefined && <span className='ingot-step-diff'><span className='ingot-plus'>+{step.added}</span> <span className='ingot-minus'>−{step.removed ?? 0}</span></span>}
                 </div>
             ))}
             {session.changes.length > 0 && !this.tracker.pending(session.id).length && <div className='ingot-chat-changes'>
@@ -1136,27 +1138,29 @@ export class IngotAgentsWidget extends ReactWidget {
         if (!pending.length && !paused && !drafts.length && !(run.length && !review.enabled && this.lastRunVisible(session))) {
             return undefined;
         }
-        const stats = pending.map(c => changeStats(c.hunks.filter(h => h.state === 'pending'))).reduce((a, b) => ({ added: a.added + b.added, removed: a.removed + b.removed }), { added: 0, removed: 0 });
-        const hunks = pending.reduce((n, c) => n + c.hunks.filter(h => h.state === 'pending').length, 0);
+        const counted = pending.length ? pending : run;
+        const stats = counted.map(c => changeStats(c.hunks)).reduce((a, b) => ({ added: a.added + b.added, removed: a.removed + b.removed }), { added: 0, removed: 0 });
+        const first = run.find(change => change.status !== 'streaming');
         return <div className='ingot-review' id='ingot-review'>
             <div className='ingot-review-card'>
                 {paused && session.pause && this.renderPause(session, session.pause)}
-                {pending.length > 0 && review.enabled
-                    ? <div className='ingot-changes-bar' id='ingot-changes-bar'>
-                        <button type='button' id='ingot-changes-summary' className='ingot-changes-summary' aria-expanded={this.reviewListOpen}
-                            onClick={() => { this.reviewListOpen = !this.reviewListOpen; this.update(); }}>
-                            {changesSummary(pending.length)} · {hunks} {hunks === 1 ? 'change' : 'changes'} <span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span>
-                        </button>
-                        <span className='ingot-flex' />
-                        <button type='button' className='ingot-icon-button codicon codicon-arrow-up ingot-changes-nav' title='Previous change (⌥↑)' aria-label='Previous change' onClick={() => this.tracker.navigate(-1)} />
-                        <button type='button' className='ingot-icon-button codicon codicon-arrow-down ingot-changes-nav' title='Next change (⌥↓)' aria-label='Next change' onClick={() => this.tracker.navigate(1)} />
-                        <button type='button' id='ingot-changes-reject-all' className='ingot-review-link' onClick={() => { this.touchReview(session); void this.tracker.decideAll('rejected', session.id); }}>Reject All</button>
-                        <button type='button' id='ingot-changes-accept-all' className='ingot-review-link accept' onClick={() => { this.touchReview(session); void this.tracker.decideAll('accepted', session.id); }}>Accept All</button>
-                    </div>
-                    : <button type='button' id='ingot-changes-summary' className='ingot-review-files-head ingot-changes-summary' aria-expanded={this.reviewListOpen}
-                        onClick={() => { this.reviewListOpen = !this.reviewListOpen; this.update(); }}>{run.length} {run.length === 1 ? 'file' : 'files'} changed{review.enabled ? '' : ' · review off'}</button>}
+                <button type='button' id='ingot-changes-summary' className='ingot-edited-head' aria-expanded={this.reviewListOpen}
+                    onClick={() => { this.reviewListOpen = !this.reviewListOpen; this.update(); }}>
+                    <span className={`codicon codicon-chevron-${this.reviewListOpen ? 'down' : 'right'}`} />
+                    <span>{editedFilesLabel(run.length)}{review.enabled ? '' : ' · review off'}</span>
+                    <span className='ingot-edited-total'><span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
+                </button>
                 {this.reviewListOpen && <div className={`ingot-review-files${review.enabled ? '' : ' info'}`} id='ingot-review-files'>
                     {run.map((change, i) => this.renderReviewFile(session, change, i, review.enabled))}
+                </div>}
+                {pending.length > 0 && review.enabled && <div className='ingot-review-footer' id='ingot-changes-bar'>
+                    <span className='ingot-review-totals'>{pending.length} {fileWord(pending.length)} · <span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
+                    <span className='ingot-flex' />
+                    <button type='button' className='ingot-icon-button codicon codicon-arrow-up ingot-changes-nav' title='Previous change (⌥↑)' aria-label='Previous change' onClick={() => this.tracker.navigate(-1)} />
+                    <button type='button' className='ingot-icon-button codicon codicon-arrow-down ingot-changes-nav' title='Next change (⌥↓)' aria-label='Next change' onClick={() => this.tracker.navigate(1)} />
+                    <button type='button' id='ingot-changes-reject-all' className='ingot-review-link' onClick={() => { this.touchReview(session); void this.tracker.decideAll('rejected', session.id); }}>{REJECT_ALL}</button>
+                    <button type='button' id='ingot-review-open' className='ingot-review-link' onClick={() => { if (first) { this.touchReview(session); void this.tracker.reveal(first.id); } }}>{REVIEW_WORD}</button>
+                    <button type='button' id='ingot-changes-accept-all' className='ingot-btn-primary ingot-review-accept' onClick={() => { this.touchReview(session); void this.tracker.decideAll('accepted', session.id); }}>{ACCEPT_ALL}</button>
                 </div>}
             </div>
             {drafts.length > 0 && <div className='ingot-review-comments-bar' id='ingot-review-comments-bar'>
@@ -1254,16 +1258,17 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected renderReviewFile(session: AgentSession, change: CodeChange, index: number, enabled: boolean): React.ReactNode {
         const name = change.path.split('/').pop() ?? change.path;
+        const badge = fileBadge(name);
+        const folder = change.path.includes('/') ? change.path.slice(0, change.path.lastIndexOf('/')) : '';
         const stats = this.tracker.stats(change);
         const state = isPending(change) ? 'pending' : reviewFileState(change.status);
         const label = !enabled ? 'Applied' : state === 'pending' ? 'Pending' : state === 'accepted' ? 'Accepted' : state === 'rejected' ? 'Rejected' : 'Partly kept';
         return <div key={change.id} id={`ingot-review-file-${index}`} data-path={change.path} className={`ingot-review-file ${enabled ? state : 'applied'}`}
             role='button' tabIndex={0} title={change.path}
             onClick={() => { this.touchReview(session); void this.tracker.reveal(change.id); }}>
-            <span className={fileIconClass(name)} />
+            <span className={`ingot-file-badge ingot-file-badge-${badge.tone}`} aria-hidden='true'>{badge.label}</span>
             <span className='ingot-review-file-name'>{name}</span>
-            <span className='ingot-review-file-dir'>{change.path.includes('/') ? change.path.slice(0, change.path.lastIndexOf('/')) : ''}</span>
-            <span className='ingot-flex' />
+            <span className='ingot-review-file-dir'>{folder}</span>
             <span className='ingot-review-file-stats'><span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
             <span className={`ingot-review-file-state ${enabled ? state : 'applied'}`}>{label}</span>
             {enabled && state === 'pending' && <>

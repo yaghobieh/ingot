@@ -1,0 +1,153 @@
+/* Proof of the agent side panel: prompt card, agent line, checklist, edited-files card, review footer. */
+
+.ingot-agents .ingot-agents-chat { gap: var(--ingot-space-3); }
+
+.ingot-agents .ingot-chat-user {
+    align-self: stretch;
+    max-width: none;
+    width: 100%;
+    box-sizing: border-box;
+    margin-right: 0;
+    padding: var(--ingot-space-3) var(--ingot-space-4);
+    border-radius: 12px;
+    background: var(--ingot-surface);
+    color: var(--ingot-text);
+    border: 1px solid var(--ingot-border);
+}
+
+.ingot-chat-msg.ingot-chat-latest {
+    top: var(--ingot-space-1);
+    margin-top: var(--ingot-space-2);
+    padding: var(--ingot-space-3) var(--ingot-space-4);
+    border-radius: 12px;
+    background: var(--ingot-surface);
+    color: var(--ingot-text);
+    border: 1px solid var(--ingot-border);
+    box-shadow: 0 0 0 1px var(--theia-focusBorder);
+}
+
+.ingot-chat-agent-head { gap: var(--ingot-space-2); margin-top: var(--ingot-space-2); }
+.ingot-agent-mark {
+    display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; flex: none;
+    background: var(--ingot-accent); color: var(--ingot-caret-ink); font-size: 9px; font-weight: 700; letter-spacing: -.4px;
+}
+.ingot-chat-agent-head b { font-weight: 650; }
+.ingot-chat-agent-head .ingot-dim { color: var(--ingot-text-muted); font-weight: 400; }
+
+.ingot-agents .ingot-chat-step {
+    gap: var(--ingot-space-2);
+    padding: var(--ingot-space-1) 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+.ingot-agents .ingot-chat-step + .ingot-chat-step { margin-top: 0; }
+.ingot-agents .ingot-chat-step.done .ingot-step-mark { color: var(--ingot-success); }
+.ingot-agents .ingot-step-mark { flex: none; }
+.ingot-agents .ingot-step-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ingot-edited-head {
+    display: flex;
+    align-items: center;
+    gap: var(--ingot-space-2);
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 36px;
+    padding: var(--ingot-space-2) var(--ingot-space-3);
+    border: 0;
+    background: transparent;
+    color: var(--ingot-text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+}
+.ingot-edited-head:focus-visible { outline: 1px solid var(--ingot-focus-ring); outline-offset: -1px; }
+.ingot-edited-total {
+    margin-left: auto;
+    flex: none;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.ingot-review { gap: var(--ingot-space-2); margin: 0 var(--ingot-space-3) var(--ingot-space-2); }
+.ingot-review-card { border-color: var(--ingot-border); background: var(--ingot-surface); border-radius: 12px; }
+.ingot-review-files { max-height: 240px; border-top: 1px solid var(--ingot-border); }
+.ingot-review-file {
+    position: relative;
+    flex-wrap: nowrap;
+    gap: var(--ingot-space-2);
+    min-height: 28px;
+    padding: var(--ingot-space-1) var(--ingot-space-3);
+    overflow: hidden;
+}
+.ingot-review-file .ingot-review-file-accept { position: absolute; right: var(--ingot-space-1); }
+.ingot-review-file .ingot-review-file-reject { position: absolute; right: calc(var(--ingot-space-4) + var(--ingot-space-3)); }
+.ingot-file-badge {
+    flex: none;
+    min-width: 34px;
+    height: 16px;
+    padding: 0 var(--ingot-space-1);
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    line-height: 16px;
+    text-align: center;
+    color: var(--ingot-primary-text);
+}
+.ingot-file-badge-ts { background: var(--ingot-badge-ts); }
+.ingot-file-badge-tsx, .ingot-file-badge-jsx { background: var(--ingot-badge-tsx); }
+.ingot-file-badge-js { background: var(--ingot-badge-ts); }
+.ingot-file-badge-json { background: var(--ingot-badge-json); color: var(--ingot-caret-ink); }
+.ingot-file-badge-html { background: var(--ingot-badge-html); color: var(--ingot-caret-ink); }
+.ingot-file-badge-css { background: var(--ingot-badge-css); }
+.ingot-file-badge-md, .ingot-file-badge-file { background: var(--ingot-badge-file); }
+.ingot-review-file-name { flex: none; white-space: nowrap; }
+.ingot-review-file-dir { flex: 1 1 auto; min-width: 4.5rem; }
+.ingot-review-file-stats {
+    flex: none;
+    width: var(--ingot-count-width);
+    display: inline-flex;
+    justify-content: flex-end;
+    gap: var(--ingot-space-1);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.ingot-review-file-state { flex: none; white-space: nowrap; }
+
+.ingot-review-footer {
+    display: flex;
+    align-items: center;
+    gap: var(--ingot-space-2);
+    flex-wrap: nowrap;
+    min-height: 44px;
+    padding: var(--ingot-space-2) var(--ingot-space-3);
+    border-top: 1px solid var(--ingot-border);
+}
+.ingot-review-totals {
+    flex: none;
+    white-space: nowrap;
+    color: var(--ingot-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+.ingot-review-footer .ingot-review-accept {
+    background: var(--ingot-primary);
+    color: var(--ingot-primary-text);
+    border-radius: 8px;
+    padding: var(--ingot-space-1) var(--ingot-space-3);
+    font-weight: 600;
+}
+.ingot-review-footer .ingot-review-accept:hover { background: var(--ingot-primary-hover); }
