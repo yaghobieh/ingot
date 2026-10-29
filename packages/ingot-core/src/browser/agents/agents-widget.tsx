@@ -1454,10 +1454,14 @@ export class IngotAgentsWidget extends ReactWidget {
     protected jumpToLatest(): void {
         const thread = this.chatScroll;
         this.stickToLatest = true;
+        this.pendingFollow = true;
         this.showJump = false;
         this.popover = this.popover === 'jumps' ? undefined : this.popover;
         if (thread) {
+            this.applyingScroll = true;
             thread.scrollTop = thread.scrollHeight;
+            this.savedScroll = thread.scrollTop;
+            this.applyingScroll = false;
         }
         this.update();
     }
@@ -1477,6 +1481,7 @@ export class IngotAgentsWidget extends ReactWidget {
     /** Scrolls a message to the top of the thread using its in-flow position, not the sticky offset. */
     protected revealMessage(index: number): void {
         this.stickToLatest = false;
+        this.pendingFollow = false;
         const thread = this.chatScroll;
         const node = this.node.querySelector(`#ingot-msg-${index}`);
         if (thread && node instanceof HTMLElement) {
@@ -1492,10 +1497,14 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected jumpToMessage(index: number): void {
         this.stickToLatest = false;
+        this.pendingFollow = false;
         this.popover = undefined;
         this.update();
         requestAnimationFrame(() => {
             this.node.querySelector(`#ingot-msg-${index}`)?.scrollIntoView({ block: 'start' });
+            if (this.chatScroll) {
+                this.savedScroll = this.chatScroll.scrollTop;
+            }
             this.onChatScroll();
         });
     }

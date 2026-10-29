@@ -86,8 +86,17 @@ test.describe('IDEA-180 Harmony mode', () => {
             await expect(chat).toContainText('Left "src/export.test.ts" to Zaprex', { timeout: 45_000 });
             // Zaprex's version of its file is the one in the editor; it never opened a file outside its piece.
             await expect(page.locator('.lm-TabBar-tab', { hasText: 'menu.ts' })).toHaveCount(0);
+            // Later edits replace the one preview tab, so open Zaprex's file from the tree when it is not the current tab.
             await expect.poll(async () => {
-                await page.locator('#theia-main-content-panel .lm-TabBar-tab', { hasText: 'export.test.ts' }).first().click().catch(() => undefined);
+                const tab = page.locator('#theia-main-content-panel .lm-TabBar-tab', { hasText: 'export.test.ts' });
+                if (await tab.count()) {
+                    await tab.first().click();
+                } else {
+                    const files = page.locator('#files');
+                    await files.getByText('src', { exact: true }).click();
+                    await page.keyboard.press('ArrowRight');
+                    await files.getByText('export.test.ts', { exact: true }).dblclick();
+                }
                 return page.locator('#theia-main-content-panel .monaco-editor .view-lines').first().textContent().catch(() => '');
             }, { timeout: 45_000 }).toContain('ZAPREX-TEST');
             await expect(chat.locator('.ingot-chat-agent').first()).not.toContainText('LEAD-TEST');
