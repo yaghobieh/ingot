@@ -97,13 +97,13 @@ test.describe('library project from the agent', () => {
         await ask.locator('.ingot-ask-option', { hasText: OPTIONS[0] }).click();
 
         await expect(page.locator('#ingot-changes-accept-all')).toBeVisible({ timeout: 60_000 });
-        await expect(page.locator('#ingot-turn-activity')).toContainText('package.json');
+        await expect(page.locator('#ingot-review-files [data-path="package.json"]')).toBeVisible();
         await expect(page.locator('#ingot-review-files [data-path="server/src/app.test.ts"]')).toBeVisible();
         await both(page, 'library-diffs');
         await approve(page);
 
         await expect(page.locator('#ingot-agents')).toContainText('exit 0', { timeout: 240_000 });
-        await expect(page.locator('#ingot-turn-command-0')).toContainText('npm test');
+        await expect(page.locator('#ingot-agents')).toContainText('npm test');
         await expect(ask).toContainText('first commit');
         await both(page, 'library-tests');
         await ask.locator('.ingot-ask-option', { hasText: 'Yes, init and commit' }).click();

@@ -32,10 +32,13 @@ test.describe('agent panel proof', () => {
         fs.mkdirSync(file, { recursive: true });
         fs.writeFileSync(path.join(file, 'Books.tsx'), 'export const Books = () => null;\n');
         server = await startFakeOllama(() => [
+            'PLAN:',
+            '- Add the books page',
+            '- Keep the component small',
+            'The page is ready.',
             '<<<EDIT client/src/features/books/Books.tsx',
             'export const Books = () => <section>Books</section>;',
-            '>>>END',
-            'The page is ready.'
+            '>>>END'
         ].join('\n'), { delayMs: 0 });
     });
 
@@ -71,8 +74,12 @@ test.describe('agent panel proof', () => {
         await expect(prompt).toContainText('Add a books page');
         await expect(page.locator('.ingot-chat-agent-head').first()).toContainText('Ingot Agent');
         await expect(page.locator('.ingot-chat-agent-head').first()).toContainText('worked for');
-        const step = page.locator('.ingot-chat-step').first();
-        await expect(step).toContainText('Edit');
+        const checklist = page.locator('#ingot-checklist');
+        await expect(checklist).toContainText('Add the books page');
+        await expect(checklist).toContainText('Keep the component small');
+        await expect(page.locator('.ingot-chat-step')).toHaveCount(0);
+        await expect(page.locator('#ingot-turn-activity')).toHaveCount(0);
+        await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
         await expect(page.locator('#ingot-changes-summary')).toContainText('Edited 1 file', { timeout: 30_000 });
         const row = page.locator('#ingot-review-files [data-path="client/src/features/books/Books.tsx"]');
         await expect(row.locator('.ingot-file-badge-tsx')).toHaveText('TSX');
@@ -91,7 +98,14 @@ test.describe('agent panel proof', () => {
         expect(stats.x + stats.width).toBeLessThanOrEqual(card.x + card.width + 1);
         expect(Math.abs(stats.y - name.y)).toBeLessThan(8);
         expect(await row.evaluate(el => getComputedStyle(el).flexWrap)).toBe('nowrap');
-        expect((await box(step)).height).toBeLessThan(36);
+        expect((await box(row.locator('.ingot-review-file-state'))).width).toBeLessThan(16);
+        const reject = await box(page.locator('#ingot-changes-reject-all'));
+        const accept = await box(page.locator('#ingot-changes-accept-all'));
+        expect(Math.abs(reject.y - accept.y)).toBeLessThan(4);
+        expect(reject.height).toBeLessThan(32);
+        expect(accept.x + accept.width).toBeLessThanOrEqual(card.x + card.width + 1);
+        expect(await page.locator('.ingot-chat-latest .ingot-reactions').evaluate(el => getComputedStyle(el).opacity)).toBe('0');
+        expect((await box(checklist.locator('.ingot-check-row').first())).height).toBeLessThan(36);
 
         await save(page, 'agent-panel-light.png');
         await setAppearance(page, 'dark');

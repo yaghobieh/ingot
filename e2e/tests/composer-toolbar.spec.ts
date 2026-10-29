@@ -54,12 +54,8 @@ for (const scheme of ['light', 'dark'] as const) {
         expect(await style(page, '#ingot-composer-more', 'background-color')).toBe('rgba(0, 0, 0, 0)');
         await expect(page.locator('.ingot-composer-bar #ingot-composer-mode')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-review')).toHaveCount(0);
-        await expect(page.locator('.ingot-composer #ingot-composer-zaprex')).toHaveCount(0);
-        const rex = await page.locator('#ingot-composer-zaprex').boundingBox();
-        const composer = await page.locator('.ingot-agents .ingot-composer').boundingBox();
-        expect(rex, 'rex button').not.toBeNull();
-        expect(composer, 'composer').not.toBeNull();
-        expect(rex!.y + rex!.height).toBeLessThanOrEqual(composer!.y + 2);
+        await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
+        await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
 
         const modelColor = await style(page, '#ingot-composer-model', 'color');
         const textColor = await style(page, '.ingot-agents .ingot-composer-input', 'color');

@@ -5,7 +5,7 @@ import { isWorkspaceTool, SKIPPED_DIRS } from '../../common/agents/workspace-too
 import { mentionQuery, rankFiles, SLASH_BUILTINS, SlashBuiltinAction } from '../../common/agents/composer-menus';
 import { commandFolder } from '../../common/project-config/project-config.utils';
 import { exploredItems, exploredLine, extractThought } from '../../common/agents/tool-cards';
-import { hasTurnActivity, tabRunState, turnActivity } from '../../common/agents/chat-round';
+import { tabRunState } from '../../common/agents/chat-round';
 import { REACTION_HEART, REACTION_LIKE } from '../../common/agents/chat-round.consts';
 import { ThoughtRow, ToolCardView } from './tool-card';
 import { SUBAGENT_PREFS, subagentsView } from '../../common/agents/subagents';
@@ -69,16 +69,12 @@ import { ProcessStore } from '../processes/process-store';
 import { ProcessesPanel } from '../processes/processes-panel';
 import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
 import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
-import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
+import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import { composerBarWidthClass } from '../../common/agents/composer-bar';
 import { distanceFromBottom, latestUserIndex, showJumpToLatest, userJumpTargets } from '../../common/agents/chat-thread';
-import { ZaprexLauncher } from './zaprex-launcher';
-import { ZaprexStatus, type PieceState } from './zaprex-status';
-import { HARMONY_PREFS } from '../../common/agents/harmony';
-
-type Popover = 'mode' | 'model' | 'history' | 'context' | 'zaprex' | 'more' | 'jumps' | undefined;
+type Popover = 'mode' | 'model' | 'history' | 'context' | 'more' | 'jumps' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
 /** Right tool window: chats as tabs with History, conversation with plan and tool steps, composer with mode, model and context (IDEA-27/28, IDEA-77). */
@@ -86,7 +82,6 @@ const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 export class IngotAgentsWidget extends ReactWidget {
 
     @inject(AgentStore) protected readonly store: AgentStore;
-    @inject(ZaprexLauncher) protected readonly zaprex: ZaprexLauncher;
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
     @inject(ReviewComments) protected readonly reviewComments: ReviewComments;
     /** Code-change blocks the user collapsed (they start open). */
@@ -907,6 +902,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     {m.parts ? this.renderParts(m.parts, m.images) : m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className={`ingot-chip ingot-chip-sent ingot-chip-${c.kind ?? 'code'}`} title={c.kind === 'memory' ? 'Memory' : c.kind === 'rule' ? `Rule ${c.path}` : c.path}>
                         {c.kind === 'memory' && <span className='codicon codicon-lightbulb' />}{c.kind === 'rule' && <span className='codicon codicon-law' />}{c.label}</span>)}</div>}
                     {m.role === 'agent' && <div className='ingot-chat-agent-head'><span className='ingot-agent-mark' aria-hidden='true'>In</span><b>{AGENT_TITLE}</b><span className='ingot-dim'>· {WORKED_FOR} {this.workedFor(session)}</span></div>}
+                    {m.role === 'agent' && i === session.messages.map(message => message.role).lastIndexOf('agent') && this.renderChecklist(session)}
                     {m.parts ? '' : m.role === 'agent'
                         ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
                             : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
@@ -1031,20 +1027,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 ? <React.Fragment key={i}>{readSteps.map(({ step, index }) => this.renderReadStep(session, step, index))}{this.renderMessage(session, m, i)}</React.Fragment>
                 : this.renderMessage(session, m, i))}
             {lastAgent < 0 && !hasCards && readSteps.map(({ step, index }) => this.renderReadStep(session, step, index))}
-            {session.plan.length > 0 && <div className='ingot-chat-plan'>
-                <div className='ingot-chat-label'>Plan</div>
-                {session.plan.map((p, i) => (
-                    <div key={i} className={`ingot-plan-item ingot-plan-${p.state}`}><span className='ingot-plan-mark'>{p.state === 'done' ? '✓' : p.state === 'active' ? '●' : '○'}</span>{p.text}</div>
-                ))}
-            </div>}
             {explored && this.renderExplored(session, explored)}
-            {this.renderTurnActivity(session)}
-            {session.steps.map((step, i) => step.kind === 'read' || (hasCards && step.kind === 'search') || (hasCards && step.kind === 'run' && !step.target.startsWith('/')) ? undefined : (
-                <div key={i} className={`ingot-chat-step ${step.done ? 'done' : 'running'}`} title={`${stepVerb(step)} ${step.target}`}>
-                    <span className='ingot-step-mark'>{step.done ? '✓' : '●'}</span>
-                    <span className='ingot-step-text'>{stepVerb(step)} {step.target}</span>
-                </div>
-            ))}
             {session.changes.length > 0 && !this.tracker.pending(session.id).length && <div className='ingot-chat-changes'>
                 <span>{changesSummary(session.changes.length)}</span>
                 <span className='ingot-flex' />
@@ -1081,43 +1064,21 @@ export class IngotAgentsWidget extends ReactWidget {
         </form>;
     }
 
-    protected openTurnMessage(session: AgentSession, index: number): void {
-        const key = `${session.id}:tool:${index}`;
-        this.expandedSteps.add(key);
-        this.jumpToMessage(index);
-    }
-
-    protected openTurnFile(session: AgentSession, path: string): void {
-        const change = [...this.tracker.lastRun(session.id), ...this.tracker.pending(session.id)].find(item => item.path === path);
-        if (change) {
-            void this.tracker.reveal(change.id);
-            return;
-        }
-        this.openWorkspacePath(path);
-    }
-
-    /** Files, commands and commits from this turn. Each row opens the diff, the output or the commit. */
-    protected renderTurnActivity(session: AgentSession): React.ReactNode {
-        const activity = turnActivity(session.messages, session.steps);
-        if (!hasTurnActivity(activity)) {
+    /** Green checks under the agent name. File edits stay in the edited-files card, not here. */
+    protected renderChecklist(session: AgentSession): React.ReactNode {
+        const work = session.steps.filter(step => step.kind !== 'edit' && step.kind !== 'read');
+        if (!session.plan.length && !work.length) {
             return undefined;
         }
-        return <div id='ingot-turn-activity' className='ingot-turn-activity'>
-            <div className='ingot-chat-label'>This turn</div>
-            {activity.files.map((file, index) => <button type='button' key={file.path} id={`ingot-turn-file-${index}`} className='ingot-turn-row' onClick={() => this.openTurnFile(session, file.path)}>
-                <span className='codicon codicon-file' />
-                <span className='ingot-turn-label'>{file.path}</span>
-                <span className='ingot-plus'>+{file.added}</span>
-                <span className='ingot-minus'>−{file.removed}</span>
-            </button>)}
-            {activity.commands.map((command, index) => <button type='button' key={`${command.messageIndex}-${command.command}`} id={`ingot-turn-command-${index}`} className='ingot-turn-row' onClick={() => this.openTurnMessage(session, command.messageIndex)}>
-                <span className='codicon codicon-terminal' />
-                <span className='ingot-turn-label'>{command.command}</span>
-            </button>)}
-            {activity.commits.map((commit, index) => <button type='button' key={`${commit.messageIndex}-${commit.subject}`} id={`ingot-turn-commit-${index}`} className='ingot-turn-row' onClick={() => this.openTurnMessage(session, commit.messageIndex)}>
-                <span className='codicon codicon-git-commit' />
-                <span className='ingot-turn-label'>{commit.subject}</span>
-            </button>)}
+        return <div id='ingot-checklist' className='ingot-chat-plan ingot-checklist'>
+            {session.plan.map((item, index) => <div key={`plan-${index}`} className={`ingot-plan-item ingot-check-row ingot-plan-${item.state}`}>
+                <span className='ingot-plan-mark'>{item.state === 'done' ? '✓' : item.state === 'active' ? '●' : '○'}</span>
+                <span className='ingot-step-text'>{item.text}</span>
+            </div>)}
+            {work.map((step, index) => <div key={`step-${index}`} className={`ingot-check-row${step.done ? ' done' : ''}`}>
+                <span className='ingot-step-mark'>{step.done ? '✓' : '●'}</span>
+                <span className='ingot-step-text'>{stepVerb(step)} {step.target}</span>
+            </div>)}
         </div>;
     }
 
@@ -1156,8 +1117,6 @@ export class IngotAgentsWidget extends ReactWidget {
                 {pending.length > 0 && review.enabled && <div className='ingot-review-footer' id='ingot-changes-bar'>
                     <span className='ingot-review-totals'>{pending.length} {fileWord(pending.length)} · <span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
                     <span className='ingot-flex' />
-                    <button type='button' className='ingot-icon-button codicon codicon-arrow-up ingot-changes-nav' title='Previous change (⌥↑)' aria-label='Previous change' onClick={() => this.tracker.navigate(-1)} />
-                    <button type='button' className='ingot-icon-button codicon codicon-arrow-down ingot-changes-nav' title='Next change (⌥↓)' aria-label='Next change' onClick={() => this.tracker.navigate(1)} />
                     <button type='button' id='ingot-changes-reject-all' className='ingot-review-link' onClick={() => { this.touchReview(session); void this.tracker.decideAll('rejected', session.id); }}>{REJECT_ALL}</button>
                     <button type='button' id='ingot-review-open' className='ingot-review-link' onClick={() => { if (first) { this.touchReview(session); void this.tracker.reveal(first.id); } }}>{REVIEW_WORD}</button>
                     <button type='button' id='ingot-changes-accept-all' className='ingot-btn-primary ingot-review-accept' onClick={() => { this.touchReview(session); void this.tracker.decideAll('accepted', session.id); }}>{ACCEPT_ALL}</button>
@@ -1297,7 +1256,6 @@ export class IngotAgentsWidget extends ReactWidget {
         const items = this.slashItems;
         const info = modeInfo(this.store.mode);
         return <div className='ingot-composer-stack'>
-            {this.store.zaprexButtonVisible && <div className='ingot-composer-rex-row'>{this.renderComposerZaprex()}</div>}
             <div className='ingot-composer'>
             <div className='ingot-composer-resize' id='ingot-composer-resize' title='Drag to resize · double-click to reset' onMouseDown={e => this.startResize(e)} onDoubleClick={() => this.resetHeight()} />
             {this.renderSummarize()}
@@ -1417,36 +1375,6 @@ export class IngotAgentsWidget extends ReactWidget {
             <span className='codicon codicon-checklist' aria-hidden='true' />
             <span>{on ? 'Review on' : 'Review off'}</span>
         </button>;
-    }
-
-    protected renderComposerZaprex(): React.ReactNode {
-        const current = this.store.current;
-        const offer = this.store.harmonyEnabled && current ? this.store.harmonyOfferFor(current.id) : undefined;
-        const pieces = current ? this.store.zaprexPieces(current.id) : [];
-        const busy = pieces.some(session => this.pieceState(session) === 'working');
-        const label = offer ? 'Zaprex can take a piece of this run' : busy ? 'Zaprex is working on a piece' : `Zaprex · ${this.store.harmonyEnabled ? 'on' : 'off'}`;
-        return <span className='ingot-pill-anchor'>
-            <button type='button' id='ingot-composer-zaprex' className={`ingot-icon-button ingot-composer-zaprex${offer || busy ? ' thinking' : ''}`} title={label} aria-label={label}
-                aria-haspopup='dialog' aria-expanded={this.popover === 'zaprex'} onClick={() => { this.popover = this.popover === 'zaprex' ? undefined : 'zaprex'; this.update(); }}>
-                <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
-                {(offer || busy) && <span className='ingot-composer-zaprex-dot' aria-hidden='true' />}
-            </button>
-            {this.popover === 'zaprex' && this.zaprex.installed === undefined && void this.zaprex.info().then(() => this.update())}
-            {this.popover === 'zaprex' && <ZaprexStatus enabled={this.store.harmonyEnabled} offer={offer} desktop={this.zaprex.installed} onGetApp={() => this.zaprex.openWeb()}
-                pieces={pieces.map(session => ({ session, state: this.pieceState(session) }))}
-                onAccept={() => { this.closePopover(); if (current) { this.store.acceptHarmony(current.id); } }}
-                onDismiss={() => { this.closePopover(); if (current) { this.store.dismissHarmony(current.id); } }}
-                onTurnOn={() => { void this.preferences.set(HARMONY_PREFS.enabled, true, PreferenceScope.User).then(() => this.update()); }}
-                onOpenApp={() => { this.closePopover(); void this.zaprex.openApp(); }}
-                onClose={() => this.closePopover()} />}
-        </span>;
-    }
-
-    protected pieceState(session: AgentSession): PieceState {
-        if (this.store.isRunning(session.id) || session.status === 'thinking' || session.status === 'editing') {
-            return 'working';
-        }
-        return session.status === 'review' ? 'review' : 'done';
     }
 
     protected onChatScroll(): void {

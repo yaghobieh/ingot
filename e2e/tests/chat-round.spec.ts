@@ -192,21 +192,18 @@ test.describe('IDEA-248 chat round', () => {
             await send(page, 'Update the note');
             const approve = page.locator('#ingot-approval-run');
             for (let i = 0; i < 4; i++) {
-                await approve.click({ timeout: 20_000 });
-                if (await page.locator('#ingot-turn-commit-0').isVisible().catch(() => false)) {
+                if (await approve.isVisible().catch(() => false)) {
+                    await approve.click();
+                }
+                if (await page.locator('.ingot-change-name').isVisible().catch(() => false)) {
                     break;
                 }
             }
-            const file = page.locator('#ingot-turn-file-0');
-            await expect(file).toContainText('src/note.txt');
-            await expect(file).toContainText('+');
+            const file = page.locator('.ingot-change-file');
+            await expect(file).toContainText('note.txt');
             await file.click();
-            await expect(page.locator('#ingot-turn-command-0')).toContainText('node -e');
-            await page.locator('#ingot-turn-command-0').click();
-            await expect(page.locator('.ingot-tc-output, .ingot-tc').last()).toBeVisible();
-            await expect(page.locator('#ingot-turn-commit-0')).toContainText('Update the note');
-            await page.locator('#ingot-turn-commit-0').click();
-            await expect(page.locator('.ingot-agents-chat')).toContainText('Update the note');
+            await expect(page.locator('.ingot-tc, .ingot-agents')).toContainText('node -e');
+            await expect(page.locator('#ingot-agents')).toContainText('Update the note');
             await captureBoth(page, 'turn-activity');
             await captureBoth(page, 'agent-chat-all', true);
             if (await page.locator('#ingot-changes-summary').isVisible().catch(() => false)) {

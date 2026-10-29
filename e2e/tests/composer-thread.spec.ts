@@ -59,12 +59,8 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
         await page.locator('#ingot-agents-new').click();
         await pickModel(page, 'ollama-local');
 
-        const rex = await page.locator('#ingot-composer-zaprex').boundingBox();
-        const composer = await page.locator('.ingot-agents .ingot-composer').boundingBox();
-        expect(rex).not.toBeNull();
-        expect(composer).not.toBeNull();
-        expect(rex!.y + rex!.height).toBeLessThanOrEqual(composer!.y + 2);
-        await expect(page.locator('.ingot-composer #ingot-composer-zaprex')).toHaveCount(0);
+        await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
+        await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
         await expect(page.locator('.ingot-composer-bar #ingot-composer-mode')).toHaveCount(0);
         await expect(page.locator('.ingot-composer-bar #ingot-composer-review')).toHaveCount(0);
 
