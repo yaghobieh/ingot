@@ -12,7 +12,7 @@ import type { PolicyLoad } from '../../common/policy/agent-policy.types';
 import { policySummary } from '../../common/policy/agent-policy.utils';
 import { AgentAuditLog } from './agent-audit-log';
 import { AgentPolicyService } from './agent-policy-service';
-import { AUDIT_REFRESH_DEBOUNCE_MS, AUDIT_TEXT, AUDIT_WIDGET_ID, AUDIT_WIDGET_LABEL, DECISION_FILTERS, POLICY_COMMANDS, type DecisionFilter } from './policy.consts';
+import { AUDIT_COLUMNS, AUDIT_REFRESH_DEBOUNCE_MS, AUDIT_TEXT, AUDIT_WIDGET_ID, AUDIT_WIDGET_LABEL, DECISION_FILTERS, POLICY_COMMANDS, type DecisionFilter } from './policy.consts';
 
 /** IDEA-263: every agent tool call (newest first) with its decision and result, the chain check and the policy in force. */
 @injectable()
@@ -118,7 +118,7 @@ export class IngotAuditLogWidget extends ReactWidget {
             {this.error && <div className='ingot-audit-error'>{this.error}</div>}
             <div className='ingot-audit-scroll'>
                 <table className='ingot-audit-table' id='ingot-audit-table'>
-                    <thead><tr><th>Time</th><th>Chat</th><th>Tool</th><th>Action</th><th>Decision</th><th>Result</th><th className='ingot-audit-num'>Duration</th></tr></thead>
+                    <thead><tr><th>Time</th><th>Tool</th><th>Action</th><th>Decision</th><th>Result</th><th className='ingot-audit-num'>Duration</th></tr></thead>
                     <tbody>{rows.map(entry => this.renderRow(entry))}</tbody>
                 </table>
                 {!rows.length && !this.error && <div className='ingot-audit-empty' id='ingot-audit-empty'>{this.entries.length ? AUDIT_TEXT.noMatch : AUDIT_TEXT.empty}</div>}
@@ -160,8 +160,7 @@ export class IngotAuditLogWidget extends ReactWidget {
         const row = <tr key={entry.seq} className={`ingot-audit-row ${open ? 'open' : ''}`} data-seq={entry.seq} data-tool={entry.tool} data-decision={entry.decision} data-outcome={entry.outcome}
             tabIndex={0} aria-expanded={open} onClick={() => this.toggle(entry.seq)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), this.toggle(entry.seq))}>
             <td className='ingot-audit-time' title={entry.at}>{formatAuditTime(entry.at, now)}</td>
-            <td className='ingot-audit-chat' title={entry.chat}>{entry.chat ?? ''}</td>
-            <td className='ingot-audit-tool'>{entry.tool}</td>
+            <td className='ingot-audit-tool' title={entry.tool}>{entry.tool}</td>
             <td className='ingot-audit-summary' title={entry.summary}>
                 {entry.summary}
                 {entry.sandboxed && <span className='ingot-audit-tag'>{AUDIT_TEXT.sandboxed}</span>}
@@ -176,9 +175,10 @@ export class IngotAuditLogWidget extends ReactWidget {
         return <React.Fragment key={entry.seq}>
             {row}
             <tr className='ingot-audit-details' data-seq={entry.seq}>
-                <td colSpan={7}>
+                <td colSpan={AUDIT_COLUMNS}>
                     <dl>
                         {entry.reason && <><dt>Reason</dt><dd className='ingot-audit-reason'>{entry.reason}</dd></>}
+                        {entry.chat && <><dt>Chat</dt><dd>{entry.chat}</dd></>}
                         {entry.project && <><dt>Project</dt><dd>{entry.project}</dd></>}
                         <dt>Arguments</dt><dd><pre>{JSON.stringify(entry.args, undefined, 2)}</pre></dd>
                         {entry.output && <><dt>Output</dt><dd><pre>{entry.output}</pre></dd></>}

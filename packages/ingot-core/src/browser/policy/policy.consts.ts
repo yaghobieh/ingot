@@ -11,6 +11,8 @@ export const POLICY_COMMANDS = {
 };
 
 export const POLICY_JSON_INDENT = 4;
+/** Time, tool, action, decision, result, duration. */
+export const AUDIT_COLUMNS = 6;
 /** Coalesces bursts of new entries (a tool round) into one reload. */
 export const AUDIT_REFRESH_DEBOUNCE_MS = 150;
 
