@@ -20,6 +20,9 @@ import { PluginHostEnvironmentVariable } from '@theia/plugin-ext/lib/common/plug
 import { ProcessService, type ProcessClient } from '../common/processes/processes.types';
 import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
 import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agents/agent-actions-service';
+import { IngotAgentAuditService } from './ingot-agent-audit-service';
+import { AGENT_AUDIT_SERVICE_PATH } from '../common/audit/agent-audit.consts';
+import { AgentAuditService } from '../common/audit/agent-audit.types';
 import { IngotModelService } from './ingot-model-service';
 import { MODEL_SERVICE_PATH } from '../common/models/models.consts';
 import { ModelService } from '../common/models/models.types';
@@ -60,6 +63,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotAgentActionsService).toSelf().inSingletonScope();
     bind(AgentActionsService).toService(IngotAgentActionsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(AGENT_ACTIONS_SERVICE_PATH, () => ctx.container.get<AgentActionsService>(AgentActionsService))).inSingletonScope();
+    bind(IngotAgentAuditService).toSelf().inSingletonScope();
+    bind(AgentAuditService).toService(IngotAgentAuditService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(AGENT_AUDIT_SERVICE_PATH, () => ctx.container.get<AgentAuditService>(AgentAuditService))).inSingletonScope();
     bind(BrowserProxyEndpoint).toSelf().inSingletonScope();
     bind(BackendApplicationContribution).toService(BrowserProxyEndpoint);
     bind(ErrorReportingEndpoint).toSelf().inSingletonScope();
