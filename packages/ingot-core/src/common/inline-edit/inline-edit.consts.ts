@@ -24,7 +24,7 @@ export const INLINE_EDIT_SYSTEM_PROMPT = [
 export const INLINE_EDIT_TEXT = {
     placeholder: 'Edit selected code… (Enter to generate, Esc to cancel)',
     generating: 'Generating edit…',
-    noSelection: 'Select some code in the editor first, then press Cmd+K to edit it.',
+    noSelection: 'Select some code in the editor first, then run Edit Selection with Agent.',
     noModel: 'No model connected. Sign in or connect a model in Models, then try again.',
     unchanged: 'The model proposed no changes.',
     failed: 'Inline edit failed'

@@ -45,7 +45,11 @@ export class InlineEditWidget implements monaco.editor.IContentWidget {
         this.status.setAttribute('role', 'status');
         this.submitButton = this.button('ingot-inline-edit-submit', 'arrow-up', 'Generate (Enter)', () => this.submit());
         const close = this.button('ingot-inline-edit-close', 'close', 'Close (Esc)', () => this.handlers.cancel());
-        this.node.append(icon, this.input, this.status, this.submitButton, close);
+        // Monaco sets `display` on the widget node itself, so the controls are laid out in a row inside it.
+        const row = document.createElement('div');
+        row.className = 'ingot-inline-edit-row';
+        row.append(icon, this.input, this.status, this.submitButton, close);
+        this.node.append(row);
 
         const onKey = (event: KeyboardEvent): void => this.onKey(event);
         window.addEventListener('keydown', onKey, true);
