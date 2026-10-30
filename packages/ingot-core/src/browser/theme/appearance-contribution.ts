@@ -129,12 +129,17 @@ export class AppearanceContribution implements FrontendApplicationContribution, 
     protected async apply(): Promise<void> {
         const mode = this.mode;
         const target = themeForAppearance(mode, this.osPrefersDark, this.slots);
-        if (target && this.themes.getCurrentTheme().id !== target) {
+        if (target) {
             this.applying = true;
             this.lastApplied = target;
             try {
-                this.themes.setCurrentTheme(target, false);
-                if (this.preferences.get(SETTINGS_PREFS.colorTheme) !== target) {
+                if (this.themes.getCurrentTheme().id !== target) {
+                    this.themes.setCurrentTheme(target, false);
+                }
+                // IDEA-281: the user settings file always names the theme on screen, even when it was already showing
+                // (boot cache, OS switch). A stale value there made Theia restore the old theme on the next start and
+                // its change event flipped Light / Dark / System to Custom.
+                if (this.preferences.inspect<string>(SETTINGS_PREFS.colorTheme)?.globalValue !== target) {
                     await this.preferences.set(SETTINGS_PREFS.colorTheme, target, PreferenceScope.User);
                 }
             } finally {

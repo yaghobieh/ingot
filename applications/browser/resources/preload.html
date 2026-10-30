@@ -1,6 +1,15 @@
+<script>
+  // IDEA-281: paint the last applied theme (cached by IngotThemeContribution) instead of guessing from the OS.
+  try {
+    var ingotBoot = JSON.parse(localStorage.getItem('ingot.appearance.boot') || 'null');
+    if (ingotBoot && (ingotBoot.kind === 'light' || ingotBoot.kind === 'dark')) { document.documentElement.setAttribute('data-ingot-boot', ingotBoot.kind); }
+  } catch (e) { /* no cache yet: follow the OS */ }
+</script>
 <style>
   html, body { background: #F7F8FA; }
   @media (prefers-color-scheme: dark) { html, body { background: #1C1E24; } }
+  html[data-ingot-boot='light'], html[data-ingot-boot='light'] body { background: #F7F8FA; }
+  html[data-ingot-boot='dark'], html[data-ingot-boot='dark'] body { background: #1C1E24; }
   .ingot-preload { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; font-family: Inter, -apple-system, 'Segoe UI', sans-serif; color: #5E6673; }
   .ingot-preload svg { width: 72px; height: 72px; animation: ingot-pulse 1.6s ease-in-out infinite; }
   @keyframes ingot-pulse { 0%, 100% { opacity: .55 } 50% { opacity: 1 } }
