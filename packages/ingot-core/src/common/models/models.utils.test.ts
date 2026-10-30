@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStreamEvent, parseStreamLine, toolCallsToProtocol, buildCompletionMessages, buildProviderRequest, cleanCompletion, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel, groupModelsByFamily, supportsVision } from './models.utils';
+import { nativeToolSuffix, parseStreamEvent, parseStreamLine, toolCallsToProtocol, buildCompletionMessages, buildProviderRequest, cleanCompletion, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel, groupModelsByFamily, supportsVision } from './models.utils';
 import { MODEL_CATALOG } from './models.consts';
 import type { CompletionRequest } from './models.types';
 
@@ -89,6 +89,12 @@ describe('streaming', () => {
         expect(parseStreamLine('ingot', call)).toBeUndefined();
         expect(parseStreamEvent('ingot', call)?.toolDeltas?.[0]).toMatchObject({ index: 0, name: 'create_library' });
         expect(toolCallsToProtocol([{ name: 'create_library', arguments: '{"path":"/tmp/x"}' }])).toContain('<<<TOOL ingot/create_library');
+    });
+
+    it('drops native tool calls the reply text already makes', () => {
+        const calls = [{ name: 'list_dir', arguments: '{}' }];
+        expect(nativeToolSuffix('Looking.\n<<<TOOL ingot/list_dir\n{}\n>>>END', calls)).toBe('');
+        expect(nativeToolSuffix('Looking.', calls)).toContain('<<<TOOL ingot/list_dir');
     });
 
     it('sends the system prompt and tool definitions to the Ingot gateway', () => {

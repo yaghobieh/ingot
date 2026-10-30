@@ -46,7 +46,7 @@ import {
     GREP_MAX_FILE_BYTES, GREP_MAX_FILES, GREP_MAX_MATCHES, GLOB_MAX_PATHS, compileGitignore, githubRepoFromRemote, globMatcher, grepMatcher,
     answerFromFiles, answerFromProject, asksAboutOpenProject, FILE_ANSWER_PATHS, fileQuestionGlob, globPaths, isPromptEcho, isTextCandidate, isWorkspaceTool, LIST_MAX_ENTRIES, numberLines, parseRgFiles, parseRgMatches,
     printsShellInsteadOfRunning, PROJECT_ENTRY_FILES, SHELL_NUDGE, shellReadsAsTools, textForRead,
-    SKIPPED_DIRS, withRepoDefaults, workspaceProtocol, type GitHubRepo, type WorkspaceInfo
+    SKIPPED_DIRS, withRepoDefaults, WORKSPACE_TOOLS, workspaceProtocol, type GitHubRepo, type WorkspaceInfo
 } from '../../common/agents/workspace-tools';
 import { MAX_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
 import {
@@ -76,7 +76,7 @@ import { MADE_WITH_PREF, withMadeWith } from '../../common/git/made-with';
 import { clampPieces, HARMONY_DEFAULTS, HARMONY_PREFS, harmonyLock, harmonyPrompt, isHeavyRun, pickHarmonyPiece, type HarmonyPiece } from '../../common/agents/harmony';
 import {
     APPROVAL_PREFS, BUILTIN_TOOLS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
-    updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
+    unknownToolResult, updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
 } from '../../common/agents/agent-actions';
 import { ProcessStore } from '../processes/process-store';
 import type { ImageChip } from '../../common/agents/composer-parts.types';
@@ -1645,7 +1645,11 @@ export class AgentStore {
                     await this.files.delete(root.resolve(path), { recursive: false, useTrash: true });
                     return { text: `Deleted ${path}.`, isError: false };
                 }
-                default: return { text: `Unknown Ingot tool "${call.tool}".`, isError: true };
+                default: return {
+                    text: unknownToolResult(call.tool, [...WORKSPACE_TOOLS, ...BUILTIN_TOOLS].map(t => t.name)
+                        .filter(name => builtinToolEnabled(name, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }))),
+                    isError: true
+                };
             }
         } catch (error) {
             return { text: error instanceof Error ? error.message : String(error), isError: true };

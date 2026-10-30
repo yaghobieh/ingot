@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
-    builtinToolEnabled, builtinToolProtocol, actionLine, activityLine, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap, updateAlwaysRun, updateAlwaysRunCommands
+    builtinToolEnabled, builtinToolProtocol, actionLine, activityLine, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap, unknownToolResult, updateAlwaysRun, updateAlwaysRunCommands
 } from './agent-actions';
+
+describe('unknownToolResult', () => {
+    it('names the real tools and the block format', () => {
+        const text = unknownToolResult('$FUNCTION_NAME', ['list_dir', 'read_file']);
+        expect(text).toContain('Unknown Ingot tool "$FUNCTION_NAME". Use one of: list_dir, read_file.');
+        expect(text).toContain('<<<TOOL ingot/<name>');
+        expect(text).toContain('>>>END');
+    });
+});
 
 const git = (args: Record<string, unknown>) => ({ server: 'ingot', tool: 'git', args });
 
