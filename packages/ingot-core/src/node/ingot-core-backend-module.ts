@@ -1,3 +1,5 @@
+import * as os from 'os';
+import * as path from 'path';
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { installDisconnectedBufferGuard } from './disconnected-client-guard';
 
@@ -57,12 +59,10 @@ import { AccountDeepLinkEndpoint } from './account/account-deeplink-endpoint';
 import { ACCOUNT_SERVICE_PATH, AccountBackend, type AccountClient } from '../common/account/account-protocol';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
-    // Dev preview only: keep secrets in a 0600 file instead of the OS keychain (no keychain prompt after each rebuild).
-    const devKeyStore = process.env[DEV_FILE_KEYSTORE_ENV];
-    if (devKeyStore) {
-        rebind(KeyStoreService).toConstantValue(new DevFileKeyStoreService(devKeyStore));
-        console.warn(`Ingot dev build: secrets are stored in a local file (${DEV_FILE_KEYSTORE_ENV}), not the OS keychain.`);
-    }
+    // John's rule: never the macOS Keychain. Every build (dev and packaged) keeps secrets in a 0600 file,
+    // ~/.ingot/keystore.json unless INGOT_DEV_FILE_KEYSTORE points elsewhere. Nothing is read from the Keychain.
+    const fileKeyStore = process.env[DEV_FILE_KEYSTORE_ENV] || path.join(os.homedir(), '.ingot', 'keystore.json');
+    rebind(KeyStoreService).toConstantValue(new DevFileKeyStoreService(fileKeyStore));
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
     rebind(WorkspaceFileService).toService(IngotWorkspaceFileService);
     bind(IngotPortsService).toSelf().inSingletonScope();

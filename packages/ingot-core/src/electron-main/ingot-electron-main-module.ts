@@ -21,6 +21,9 @@ import { PRODUCT } from '../common/product.consts';
 
 // Before app 'ready': the macOS app menu and its About/Hide/Quit role labels read the name then.
 app.setName(PRODUCT.name);
+// Never touch the macOS Keychain: Chromium cookie / safeStorage encryption uses a mock keychain and a basic password store.
+app.commandLine.appendSwitch('use-mock-keychain');
+app.commandLine.appendSwitch('password-store', 'basic');
 
 // IDEA-134: packaged apps ship the built-in language plugins in <resources>/plugins (electron-builder extraResources).
 // Set before the backend process is forked (it inherits this env); dev runs pass --plugins=local-dir:../../plugins.

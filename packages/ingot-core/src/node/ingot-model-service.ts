@@ -20,7 +20,7 @@ interface StreamState {
 const STREAM_TTL_MS = 120_000;
 
 /**
- * BYOK model gateway (IDEA-25/26). API keys live only in the OS keychain (via Theia's keytar-backed KeyStoreService)
+ * BYOK model gateway (IDEA-25/26). API keys live only in Ingot's 0600 file key store (~/.ingot/keystore.json, never the OS keychain)
  * and in memory while a request is sent. They are never written to files, logged or returned to the frontend.
  */
 @injectable()
