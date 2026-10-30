@@ -262,11 +262,16 @@ export class MemoriesManager extends React.Component<MemoriesManagerProps, Memor
         this.listener?.dispose();
     }
 
+    protected readonly textRef = React.createRef<HTMLTextAreaElement>();
+    protected readonly kindRef = React.createRef<HTMLSelectElement>();
+    protected readonly scopeRef = React.createRef<HTMLSelectElement>();
+
+    /** The form is uncontrolled: parent re-renders (editor focus, context changes) must not reset what was typed. */
     protected editor(memory: Memory | undefined, done: () => void): React.ReactNode {
-        let text = memory?.text ?? '';
-        let kind: MemoryKind = memory?.kind ?? 'fact';
-        let scope: MemoryScope | undefined = memory?.scope;
         const save = async () => {
+            const text = this.textRef.current?.value ?? memory?.text ?? '';
+            const kind = (this.kindRef.current?.value ?? memory?.kind ?? 'fact') as MemoryKind;
+            const scope = (this.scopeRef.current?.value || memory?.scope) as MemoryScope | undefined;
             if (memory) {
                 await this.props.store.update(memory, { text, scope, kind });
             } else {
@@ -275,13 +280,13 @@ export class MemoriesManager extends React.Component<MemoriesManagerProps, Memor
             done();
         };
         return <div className='ingot-memory-edit'>
-            <textarea id='ingot-memory-text' className='ingot-input' rows={3} autoFocus defaultValue={text} onChange={e => { text = e.currentTarget.value; }}
+            <textarea id='ingot-memory-text' ref={this.textRef} className='ingot-input' rows={3} autoFocus defaultValue={memory?.text ?? ''}
                 onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); } if (e.key === 'Escape') { e.stopPropagation(); done(); } }} />
             <div className='ingot-memory-edit-bar'>
-                <select id='ingot-memory-kind' className='ingot-select' defaultValue={kind} aria-label='Kind' onChange={e => { kind = e.currentTarget.value as MemoryKind; }}>
+                <select id='ingot-memory-kind' ref={this.kindRef} className='ingot-select' defaultValue={memory?.kind ?? 'fact'} aria-label='Kind'>
                     {MEMORY_KINDS.map(k => <option key={k} value={k}>{MEMORY_KIND_LABELS[k]}</option>)}
                 </select>
-                <select id='ingot-memory-scope' className='ingot-select' defaultValue={scope ?? ''} aria-label='Scope' onChange={e => { scope = (e.currentTarget.value || undefined) as MemoryScope | undefined; }}>
+                <select id='ingot-memory-scope' ref={this.scopeRef} className='ingot-select' defaultValue={memory?.scope ?? ''} aria-label='Scope'>
                     {!memory && <option value=''>Default scope</option>}
                     <option value='project'>Project</option>
                     <option value='global'>Global</option>
