@@ -1,0 +1,29 @@
+/* IDEA-262: Local History tab (versions list + diff against the current file). Tokens only. */
+.ingot-local-history { display: flex; flex-direction: column; background: var(--ingot-editor-bg); color: var(--ingot-text); font-size: 13px; outline: none; }
+.ingot-lh-header { display: flex; align-items: center; gap: var(--ingot-space-2); padding: var(--ingot-space-1) var(--ingot-space-2); min-height: 30px; border-bottom: 1px solid var(--ingot-border); background: var(--ingot-toolbar); }
+.ingot-lh-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-lh-compare { flex: 1; display: inline-flex; align-items: center; gap: var(--ingot-space-1); color: var(--ingot-text-muted); white-space: nowrap; overflow: hidden; }
+.ingot-lh-arrow { font-size: 12px; }
+.ingot-lh-icon { border: 0; background: transparent; color: var(--ingot-text-muted); width: 24px; height: 24px; border-radius: var(--ingot-radius); cursor: pointer; }
+.ingot-lh-icon:hover { background: var(--ingot-panel); color: var(--ingot-text); }
+.ingot-lh-restore { display: inline-flex; align-items: center; gap: var(--ingot-space-1); border: 0; border-radius: var(--ingot-radius); padding: 3px 10px; font: inherit; cursor: pointer; background: var(--ingot-primary); color: var(--ingot-primary-text); }
+.ingot-lh-restore:hover:not(:disabled) { background: var(--ingot-primary-hover); }
+.ingot-lh-restore:disabled { opacity: .5; cursor: default; }
+.ingot-lh-restore:focus-visible, .ingot-lh-icon:focus-visible { outline: 2px solid var(--ingot-focus-ring); outline-offset: 1px; }
+.ingot-lh-body { flex: 1; display: flex; min-height: 0; }
+.ingot-lh-list { width: 260px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid var(--ingot-border); background: var(--ingot-surface); padding: var(--ingot-space-1) 0; }
+.ingot-lh-entry { display: flex; align-items: center; gap: var(--ingot-space-2); height: 26px; padding: 0 var(--ingot-space-2) 0 var(--ingot-space-3); cursor: pointer; outline: none; }
+.ingot-lh-entry:hover { background: var(--ingot-panel); }
+.ingot-lh-entry.selected { background: var(--ingot-selection); }
+.ingot-lh-entry:focus-visible { box-shadow: inset 0 0 0 1px var(--ingot-focus-ring); }
+.ingot-lh-time { font-variant-numeric: tabular-nums; color: var(--ingot-text-muted); white-space: nowrap; }
+.ingot-lh-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-lh-source { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--ingot-text-muted); }
+.ingot-lh-entry[data-source="agent"] .ingot-lh-source { background: var(--ingot-primary); }
+.ingot-lh-entry[data-source="inline-edit"] .ingot-lh-source { background: var(--ingot-accent); }
+.ingot-lh-entry[data-source="restore"] .ingot-lh-source { background: var(--ingot-warning); }
+.ingot-lh-pane { flex: 1; position: relative; min-width: 0; }
+.ingot-lh-editor { position: absolute; inset: 0; visibility: hidden; }
+.ingot-lh-has-version .ingot-lh-editor { visibility: visible; }
+.ingot-lh-placeholder { padding: var(--ingot-space-4); color: var(--ingot-text-muted); }
+.ingot-lh-has-version .ingot-lh-placeholder { display: none; }

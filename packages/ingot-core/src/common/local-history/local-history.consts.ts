@@ -26,6 +26,7 @@ export const HISTORY_SOURCE_LABELS: Readonly<Record<HistorySource, string>> = {
 };
 
 export const HISTORY_LABELS = {
+    original: 'Original',
     beforeAgent: 'Before agent edit',
     beforeInlineEdit: 'Before inline edit'
 } as const;
