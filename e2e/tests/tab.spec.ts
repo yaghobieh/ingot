@@ -112,8 +112,8 @@ test.describe('IDEA-285 Tab next-edit prediction', () => {
         await page.keyboard.press('Tab');
         await expect(page.locator('.view-lines')).toContainText(`${TYPED}${COMPLETION}`);
 
-        // Accepting the prediction shows where the next edit is.
-        await expect(hint(page)).toHaveCount(2);
+        // Accepting the prediction shows where the next edit is (a wrapped hint renders as several spans).
+        await expect(hint(page).first()).toBeVisible();
         await expect(page.locator('.view-lines')).toContainText(`next edit at line ${NEXT_LINE_NUMBER}`);
         await expect(page.locator('.view-lines')).toContainText('Tab to jump here');
         await expect(targetLine(page)).toHaveCount(1);
@@ -133,7 +133,7 @@ test.describe('IDEA-285 Tab next-edit prediction', () => {
         await expect(ghost(page)).toBeVisible({ timeout: 15_000 });
         await shot(page, 'ghost-dark');
         await page.keyboard.press('Tab');
-        await expect(hint(page)).toHaveCount(2);
+        await expect(page.locator('.view-lines')).toContainText('Tab to jump here');
         await shot(page, 'next-edit-dark');
         await page.keyboard.press('Escape');
         await expect(hint(page)).toHaveCount(0);
