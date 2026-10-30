@@ -1393,6 +1393,10 @@ export class IngotAgentsWidget extends ReactWidget {
         if (!node) {
             return;
         }
+        // The scroll event lands a frame late; a move up made before this render must still cancel follow.
+        if (node.scrollTop < this.lastScrollTop) {
+            this.onChatScroll();
+        }
         const next = scrollTopAfterUpdate(this.savedScroll, node.scrollHeight, node.clientHeight, follow && this.stickToLatest);
         if (node.scrollTop === next) {
             return;
