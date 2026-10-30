@@ -40,6 +40,10 @@ import { IngotDebugToolsService } from './ingot-debug-tools-service';
 import { DEBUG_TOOLS_SERVICE_PATH } from '../common/debug/debug.consts';
 import { DebugToolsService } from '../common/debug/debug.types';
 
+import { IngotTestService } from './ingot-test-service';
+import { TEST_SERVICE_PATH } from '../common/testing/testing.consts';
+import { TestService } from '../common/testing/testing.types';
+
 import { BackendApplicationContribution } from '@theia/core/lib/node/backend-application';
 import { IngotAccountBackend } from './account/ingot-account-backend';
 import { AccountDeepLinkEndpoint } from './account/account-deeplink-endpoint';
@@ -105,4 +109,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotDebugToolsService).toSelf().inSingletonScope();
     bind(DebugToolsService).toService(IngotDebugToolsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(DEBUG_TOOLS_SERVICE_PATH, () => ctx.container.get<DebugToolsService>(DebugToolsService))).inSingletonScope();
+    bind(IngotTestService).toSelf().inSingletonScope();
+    bind(TestService).toService(IngotTestService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(TEST_SERVICE_PATH, () => ctx.container.get<TestService>(TestService))).inSingletonScope();
 });
