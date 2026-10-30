@@ -11,6 +11,7 @@ import { IngotStripeWidget } from '../stripe/ingot-stripe-widget';
 import { IngotRightStripeWidget } from '../tool-windows/right-stripe-widget';
 import { IngotAgentsContribution } from '../agents/agents-contribution';
 import { IngotLayoutContribution } from '../layout/layout-contribution';
+import { isAgentsWindow } from '../workbench/agents-window';
 import { WidgetManager } from '@theia/core/lib/browser/widget-manager';
 import { ViewContainer } from '@theia/core/lib/browser/view-container';
 import { IngotProjectTabsWidget } from '../groups/project-tabs-widget';
@@ -72,7 +73,11 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         this.attachStripe();
         // The right edge gets Ingot's own slim stripe instead of Theia's side tabs (IDEA-61).
         this.attachRightStripe();
-        await this.agents.openView({ activate: false, reveal: true });
+        await this.workspace.ready;
+        // IDEA-266: a window without a folder shows only the welcome screen; the agent chat comes with the folder.
+        if (this.workspace.opened || isAgentsWindow()) {
+            await this.agents.openView({ activate: false, reveal: true });
+        }
         this.rightStripe.refreshSoon();
         this.renameProjectView();
         // The reference layout keeps the bottom panel closed; the Terminal opens from the stripe or ⌥F12.
