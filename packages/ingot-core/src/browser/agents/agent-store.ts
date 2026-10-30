@@ -1004,7 +1004,7 @@ export class AgentStore {
                     continue;
                 }
                 const loopNow = this.loopOf(session);
-                if (!parsed.toolCalls.length && round < rounds && session.mode === 'agent' && promisesMoreWork(agentText, loopNow.continues ?? 0)) {
+                if (!parsed.toolCalls.length && round < rounds && session.mode === 'agent' && promisesMoreWork([agentText, ...parsed.plan].join('\n'), loopNow.continues ?? 0)) {
                     loopNow.continues = (loopNow.continues ?? 0) + 1;
                     if (!(applied && this.tracker.pending().some(change => change.sessionId === session.id))) {
                         session.messages.push({ role: 'user', text: CONTINUE_NUDGE, hidden: true });

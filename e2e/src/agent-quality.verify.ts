@@ -221,7 +221,7 @@ export const apiChecks = async (root: string, server: string | undefined): Promi
         results.push({ name: 'POST /books', ok: ok(book) && bookId !== undefined, detail: `${book.status} ${JSON.stringify(book.body).slice(0, 160)}` });
         const loan = await call(base, 'POST', '/loans', {
             bookId, borrowerName: 'Grace Hopper', borrower: 'Grace Hopper', memberName: 'Grace Hopper', member: 'Grace Hopper', borrowerEmail: 'grace@example.com',
-            loanDate: today, borrowedAt: today, borrowDate: today, dueDate: due
+            loanDate: today, borrowedAt: today, borrowDate: today, loanedAt: today, startDate: today, dueDate: due, dueAt: due, due, returnBy: due
         });
         const loanId = idOf(loan.body);
         results.push({ name: 'POST /loans', ok: ok(loan) && loanId !== undefined, detail: `${loan.status} ${JSON.stringify(loan.body).slice(0, 160)}` });
