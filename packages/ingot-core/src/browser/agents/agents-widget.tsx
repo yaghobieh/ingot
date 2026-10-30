@@ -6,7 +6,6 @@ import { mentionQuery, rankFiles, SLASH_BUILTINS, SlashBuiltinAction } from '../
 import { commandFolder } from '../../common/project-config/project-config.utils';
 import { exploredItems, exploredLine, extractThought } from '../../common/agents/tool-cards';
 import { tabRunState } from '../../common/agents/chat-round';
-import { REACTION_HEART, REACTION_LIKE } from '../../common/agents/chat-round.consts';
 import { ThoughtRow, ToolCardView } from './tool-card';
 import { SUBAGENT_PREFS, subagentsView } from '../../common/agents/subagents';
 import { SubagentsStrip } from './subagents-strip';
@@ -74,6 +73,9 @@ import { RUN_PREFS } from '../../common/processes/run-settings';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import { composerBarWidthClass } from '../../common/agents/composer-bar';
 import { distanceFromBottom, latestUserIndex, scrollTopAfterUpdate, showJumpToLatest, userJumpTargets } from '../../common/agents/chat-thread';
+import { AskCard, EditRerunForm, ModePill, QueuedChip, ReplyReactions } from './composer-usability';import { editRerunPlan, promptClickAction } from '../../common/agents/composer-usability';
+import { EDIT_PROMPT_TITLE, PROMPT_CLICK_IGNORE } from '../../common/agents/composer-usability.consts';
+import type { EditRerunChoice } from '../../common/agents/composer-usability.types';
 type Popover = 'mode' | 'model' | 'history' | 'context' | 'more' | 'jumps' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
@@ -664,7 +666,6 @@ export class IngotAgentsWidget extends ReactWidget {
                 </div>}
             {!this.showMemories && this.renderProcesses()}
             {!this.showMemories && this.renderSubagents(current)}
-            {!this.showMemories && current && this.renderAsk(current)}
             {!this.showMemories && this.renderApproval(current)}
             {!this.showMemories && this.renderChangesBar(current)}
             {this.renderComposer()}
@@ -895,7 +896,8 @@ export class IngotAgentsWidget extends ReactWidget {
                 </div>
                 : (
                 <div key={i} id={`ingot-msg-${i}`} className={`ingot-chat-msg ingot-chat-${m.role}${m.role === 'user' && i === latestUserIndex(session.messages) ? ' ingot-chat-latest' : ''}${m.role === 'user' && this.account.account ? ' ingot-chat-has-avatar' : ''}`}
-                    onClick={event => this.onLatestClick(session, i, event)}>
+                    title={m.role === 'user' && this.editingIndex !== i ? EDIT_PROMPT_TITLE : undefined}
+                    onClick={event => m.role === 'user' && this.onPromptClick(session, i, event)}>
                     {m.role === 'user' && this.account.account && <AccountAvatar account={this.account.account} src={this.account.avatarSrc} className='ingot-chat-user-avatar' textless />}
                     {m.from && <div className='ingot-chat-from'>{m.from}</div>}
                     {m.parts ? this.renderParts(m.parts, m.images) : m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className={`ingot-chip ingot-chip-sent ingot-chip-${c.kind ?? 'code'}`} title={c.kind === 'memory' ? 'Memory' : c.kind === 'rule' ? `Rule ${c.path}` : c.path}>
@@ -915,14 +917,9 @@ export class IngotAgentsWidget extends ReactWidget {
                         onToggle={() => { if (!this.collapsedChanges.delete(change.id)) { this.collapsedChanges.add(change.id); } this.update(); }}
                         onOpen={hunkId => this.tracker.reveal(change.id, hunkId)}
                         onDecide={(hunks, state) => this.tracker.decide(change.id, hunks, state)} />)}
-                    {(m.role === 'user' || m.role === 'agent') && this.editingIndex !== i && <span className='ingot-reactions'>
-                        <button type='button' id={`ingot-react-like-${i}`} className={`ingot-react${m.reactions?.includes(REACTION_LIKE) ? ' on' : ''}`}
-                            aria-pressed={!!m.reactions?.includes(REACTION_LIKE)} aria-label='Like' title='Like'
-                            onClick={() => this.store.toggleReaction(session.id, i, REACTION_LIKE)}><span className='codicon codicon-thumbsup' /></button>
-                        <button type='button' id={`ingot-react-heart-${i}`} className={`ingot-react${m.reactions?.includes(REACTION_HEART) ? ' on' : ''}`}
-                            aria-pressed={!!m.reactions?.includes(REACTION_HEART)} aria-label='Heart' title='Heart'
-                            onClick={() => this.store.toggleReaction(session.id, i, REACTION_HEART)}><span className='codicon codicon-heart' /></button>
-                    </span>}
+                    {m.role === 'agent' && !!m.text && !(this.store.isRunning(session.id) && i === session.messages.length - 1)
+                        && <ReplyReactions index={i} reactions={m.reactions} onToggle={kind => this.store.toggleReaction(session.id, i, kind)} />}
+                    {m.role === 'user' && this.store.isQueued(session.id, m) && <QueuedChip />}
                     {m.role === 'user' && this.editingIndex !== i && <button type='button' className='ingot-chat-edit' id={`ingot-edit-msg-${i}`}
                         title='Edit this message and run again from here' onClick={() => this.startEdit(session, i)}>Edit</button>}
                     {(m.role === 'user' || m.role === 'agent') && this.store.canRevertTo(session.id, i) && <button type='button' className='ingot-chat-revert' id={`ingot-revert-${i}`}
@@ -1027,6 +1024,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 : this.renderMessage(session, m, i))}
             {lastAgent < 0 && !hasCards && readSteps.map(({ step, index }) => this.renderReadStep(session, step, index))}
             {explored && this.renderExplored(session, explored)}
+            {this.renderAsk(session)}
             {session.changes.length > 0 && !this.tracker.pending(session.id).length && <div className='ingot-chat-changes'>
                 <span>{changesSummary(session.changes.length)}</span>
                 <span className='ingot-flex' />
@@ -1048,19 +1046,8 @@ export class IngotAgentsWidget extends ReactWidget {
         if (!ask) {
             return undefined;
         }
-        return <form id='ingot-ask' className='ingot-ask' onSubmit={event => {
-            event.preventDefault();
-            const input = event.currentTarget.querySelector('input');
-            const text = input instanceof HTMLInputElement ? input.value : '';
-            this.store.answerQuestion(session.id, text);
-        }}>
-            <p id='ingot-ask-question'>{ask.question}</p>
-            {!!ask.options?.length && <span className='ingot-ask-options'>
-                {ask.options.map(option => <button type='button' key={option} className='ingot-ask-option' onClick={() => this.store.answerQuestion(session.id, option)}>{option}</button>)}
-            </span>}
-            <input id='ingot-ask-input' className='ingot-input' aria-label='Your answer' placeholder='Or type an answer' />
-            <button type='submit' id='ingot-ask-submit' className='ingot-btn-primary'>Send</button>
-        </form>;
+        return <AskCard key={`${session.id}:${ask.question}`} question={ask.question} options={ask.options}
+            onAnswer={text => { this.stickToLatest = true; this.store.answerQuestion(session.id, text); }} />;
     }
 
     /** Green checks under the agent name. File edits stay in the edited-files card, not here. */
@@ -1319,7 +1306,7 @@ export class IngotAgentsWidget extends ReactWidget {
                         this.decideFromComposer(e.key === 'Enter' && this.composerEmpty ? 'run' : 'skip');
                         return;
                     }
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.submit(); }
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); this.submit(); }
                     if (e.key === 'Escape' && this.store.current && this.store.isRunning(this.store.current.id)) { e.preventDefault(); this.store.stop(this.store.current.id); }
                 }} />
             <div className='ingot-composer-bar' ref={el => this.observeBar(el)}>
@@ -1328,11 +1315,14 @@ export class IngotAgentsWidget extends ReactWidget {
                     <input type='file' accept='image/png,image/jpeg,image/gif,image/webp' multiple hidden onChange={e => this.attachImages(e.currentTarget)} />
                 </label>
                 {this.renderModelPill()}
+                <ModePill info={info} shortcut={this.shortcut(AGENT_COMMANDS.cycleMode.id)} open={this.popover === 'mode'}
+                    onToggle={() => { this.popover = this.popover === 'mode' ? undefined : 'mode'; this.update(); }} />
                 <button type='button' id='ingot-composer-more' className={`ingot-icon-button codicon codicon-ellipsis${this.popover === 'more' ? ' active' : ''}`}
                     data-mode={info.id} aria-label='More' aria-haspopup='menu' aria-expanded={this.popover === 'more'}
                     title={`More · Mode: ${info.label}`}
                     onClick={() => { this.popover = this.popover === 'more' ? undefined : 'more'; this.update(); }} />
                 <span className='ingot-flex' />
+                {this.flags.enabled(IDE_FLAGS.micDictation) && this.renderMic()}
                 {this.store.isRunning(this.store.current?.id) && <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}><span className='codicon codicon-debug-stop' /></button>}
                 {(!this.store.isRunning(this.store.current?.id) || !this.composerEmpty) && <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' title={this.composerEmpty ? 'Type a message to send' : this.store.isRunning(this.store.current?.id) ? 'Send to the running agent' : 'Send (Enter)'} disabled={this.composerEmpty} onClick={() => this.submit()}><span className='codicon codicon-arrow-up' /></button>}
             </div>
@@ -1347,14 +1337,8 @@ export class IngotAgentsWidget extends ReactWidget {
         const current = this.store.current;
         return <div className='ingot-composer-menus'>
             {this.popover === 'more' && <div id='ingot-composer-more-menu' className='ingot-popover ingot-composer-more-menu' role='menu'>
-                <button type='button' id='ingot-composer-mode' className='ingot-more-item' role='menuitem' data-mode={info.id} aria-haspopup='menu'
-                    title={`Mode: ${info.label}. ${info.description}${key ? ` (${key} to switch)` : ''}`}
-                    onClick={() => { this.popover = 'mode'; this.update(); }}>
-                    <span className={`codicon codicon-${info.icon}`} style={{ color: info.color }} /><span className='ingot-pill-label'>{info.label}</span>
-                </button>
                 {this.renderReviewToggle()}
                 {usage && usageRatio(usage) > 0 && this.renderUsageRing()}
-                {this.flags.enabled(IDE_FLAGS.micDictation) && this.renderMic()}
             </div>}
             {this.popover === 'mode' && <ModeMenu mode={info.id} shortcut={key} onClose={() => this.closePopover()}
                 onPick={mode => { this.store.mode = mode; this.store.changed(); this.closePopover(); }} />}
@@ -1466,16 +1450,35 @@ export class IngotAgentsWidget extends ReactWidget {
         this.update();
     }
 
-    /** The pinned prompt scrolls back to its place in the thread. Buttons inside it keep their own actions. */
-    protected onLatestClick(session: AgentSession, index: number, event: React.MouseEvent): void {
-        if (index !== latestUserIndex(session.messages) || this.editingIndex === index) {
-            return;
-        }
+    /** IDEA-280: a click on a sent prompt opens the inline edit; the pinned latest prompt first scrolls back to its place. */
+    protected onPromptClick(session: AgentSession, index: number, event: React.MouseEvent): void {
         const target = event.target;
-        if (target instanceof Element && target.closest('button, input, textarea, a')) {
-            return;
+        const action = promptClickAction({
+            editing: this.editingIndex === index,
+            onControl: target instanceof Element && !!target.closest(PROMPT_CLICK_IGNORE),
+            selecting: !!window.getSelection()?.toString(),
+            latest: index === latestUserIndex(session.messages),
+            pinnedOffset: this.pinnedOffset(index)
+        });
+        if (action === 'reveal') {
+            this.revealMessage(index);
+        } else if (action === 'edit') {
+            this.startEdit(session, index);
         }
-        this.revealMessage(index);
+    }
+
+    /** How far the thread is scrolled past the message's in-flow top (> 0 while a sticky prompt is pinned). */
+    protected pinnedOffset(index: number): number {
+        const thread = this.chatScroll;
+        const node = this.node.querySelector(`#ingot-msg-${index}`);
+        if (!thread || !(node instanceof HTMLElement)) {
+            return 0;
+        }
+        const previous = node.style.position;
+        node.style.position = 'static';
+        const natural = node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop;
+        node.style.position = previous;
+        return thread.scrollTop - natural;
     }
 
     /** Scrolls a message to the top of the thread using its in-flow position, not the sticky offset. */
@@ -1516,24 +1519,22 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     protected renderEditForm(session: AgentSession, index: number): React.ReactNode {
-        return <form id='ingot-chat-edit' className='ingot-chat-edit-form' data-index={index} onSubmit={event => { event.preventDefault(); this.submitEdit(session); }}>
-            <textarea id='ingot-chat-edit-input' className='ingot-chat-edit-input' value={this.editDraft} aria-label='Edit message'
-                onChange={event => { this.editDraft = event.target.value; this.update(); }} />
-            <span className='ingot-chat-edit-actions'>
-                <button type='button' id='ingot-chat-edit-cancel' className='ingot-btn-ghost' onClick={() => { this.editingIndex = undefined; this.update(); }}>Cancel</button>
-                <button type='submit' id='ingot-chat-edit-submit' className='ingot-btn-primary' disabled={!this.editDraft.trim()}>Send</button>
-            </span>
-        </form>;
+        return <EditRerunForm key={`edit-${session.id}-${index}`} index={index} initial={this.editDraft}
+            onChoose={(choice, text) => this.submitEdit(session, choice, text)}
+            onCancel={() => { this.editingIndex = undefined; this.update(); }} />;
     }
 
-    protected submitEdit(session: AgentSession): void {
+    protected submitEdit(session: AgentSession, choice: EditRerunChoice, text: string): void {
         const index = this.editingIndex;
-        const text = this.editDraft;
+        const plan = editRerunPlan(choice);
+        if (!plan.rerun) {
+            return;
+        }
         this.editingIndex = undefined;
         this.stickToLatest = true;
         this.update();
         if (index !== undefined) {
-            void this.store.editUserMessage(session.id, index, text);
+            void this.store.editUserMessage(session.id, index, text, plan.revert);
         }
     }
 
