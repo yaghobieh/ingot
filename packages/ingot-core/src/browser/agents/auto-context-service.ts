@@ -7,7 +7,7 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { ProblemManager } from '@theia/markers/lib/browser/problem/problem-manager';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { autoContextItems, fileContext, recentEdits, recordEdit, visibleAutoContext } from '../../common/agents/auto-context';
-import { AUTO_CONTEXT_DEBOUNCE_MS, DIFF_DEBOUNCE_MS, LSP_SEVERITY, LSP_SEVERITY_ERROR } from '../../common/agents/auto-context.consts';
+import { AUTO_CONTEXT_DEBOUNCE_MS, DIFF_DEBOUNCE_MS, DIFF_RETRY_MS, LSP_SEVERITY, LSP_SEVERITY_ERROR, MAX_DIFF_RETRIES } from '../../common/agents/auto-context.consts';
 import type { AutoAttach, AutoContextItem, AutoDiagnostic, AutoEdit, AutoSelection, DiagnosticSeverity } from '../../common/agents/auto-context.types';
 import { GitService } from '../../common/git/git.types';
 import { MemoryStore } from './memory-store';
@@ -35,12 +35,14 @@ export class AutoContextService {
     protected diff = '';
     protected refreshTimer?: ReturnType<typeof setTimeout>;
     protected diffTimer?: ReturnType<typeof setTimeout>;
+    protected diffRetries = 0;
 
     @postConstruct()
     protected init(): void {
         this.editors.onCurrentEditorChanged(editor => {
             this.watch(editor);
             this.schedule();
+            this.scheduleDiff();
         });
         this.editors.onCreated(widget => widget.editor.onDocumentContentChanged(e => this.onEdit(widget, e.contentChanges.map(c => c.range.start.line + 1))));
         this.problems.onDidChangeMarkers(() => this.schedule());
@@ -129,7 +131,19 @@ export class AutoContextService {
 
     protected async loadDiff(): Promise<void> {
         const root = this.root();
-        const diff = root ? (await this.git.run(root.path.fsPath(), { kind: 'diff' }).catch(() => ({ output: '' }))).output : '';
+        let diff: string;
+        try {
+            if (!root) {
+                throw new Error('No workspace root yet.');
+            }
+            diff = (await this.git.run(root.path.fsPath(), { kind: 'diff' })).output;
+            this.diffRetries = 0;
+        } catch {
+            if (this.diffRetries++ < MAX_DIFF_RETRIES) {
+                this.scheduleDiff(DIFF_RETRY_MS);
+            }
+            return;
+        }
         if (diff !== this.diff) {
             this.diff = diff;
             this.rebuild();

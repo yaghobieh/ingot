@@ -3,6 +3,9 @@ import type { AutoContextKind, DiagnosticSeverity } from './auto-context.types';
 /** Chips follow the editor after this pause; the git diff is re-read less often. */
 export const AUTO_CONTEXT_DEBOUNCE_MS = 150;
 export const DIFF_DEBOUNCE_MS = 1_000;
+/** Git is often not ready right after a folder opens; a failed diff is retried this often, this many times. */
+export const DIFF_RETRY_MS = 3_000;
+export const MAX_DIFF_RETRIES = 10;
 /** LSP DiagnosticSeverity → ours; hints are left out. */
 export const LSP_SEVERITY_ERROR = 1;
 export const LSP_SEVERITY: Record<number, DiagnosticSeverity | undefined> = { 1: 'error', 2: 'warning', 3: 'info' };
