@@ -70,4 +70,9 @@ describe('tool cards (IDEA-177)', () => {
         expect(tokens.at(-1)).toEqual({ text: '# note', kind: 'comment' });
         expect(tokens.map(t => t.text).join('')).toBe('git -C "$d" status | head -2 # note');
     });
+
+    it('IDEA-261: a run_tests card shows the pass/fail line', () => {
+        const card = toolCard(info('run_tests', {}), 'Error: Tests FAILED: 1 failed, 2 passed, 0 skipped (vitest, 0.4s). Iteration 1 of 5.\n{"status":"failed"}');
+        expect(card).toMatchObject({ kind: 'generic', title: 'Ran tests', detail: 'Tests FAILED: 1 failed, 2 passed, 0 skipped (vitest, 0.4s).' });
+    });
 });

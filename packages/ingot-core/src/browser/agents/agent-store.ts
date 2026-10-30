@@ -74,6 +74,9 @@ import {
 import { ProcessStore } from '../processes/process-store';
 import type { ImageChip } from '../../common/agents/composer-parts.types';
 import { BrowserController } from '../browser-tool/browser-controller';
+import { TestStore } from '../testing/test-store';
+import { DEFAULT_TEST_ITERATIONS, RUN_TESTS_TOOL, TEST_LOOP_PREFS, TESTS_CAPPED_TEXT } from '../../common/testing/testing.consts';
+import { clampIterations, formatForAgent, requestFromArgs, testLoopStep } from '../../common/testing/testing.utils';
 import { BROWSER_READ_TOOLS, browserNeedsCard, browserToolSettings } from '../../common/browser-tool/browser-settings';
 import { toTarget } from '../../common/browser-tool/browser-tool.utils';
 import { describeProcesses, isSafeScriptName, scriptCommand } from '../../common/processes/processes.utils';
@@ -114,6 +117,9 @@ export class AgentStore {
     protected readonly handoffs = new Map<string, Promise<void>>();
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(BrowserController) protected readonly browser: BrowserController;
+    @inject(TestStore) protected readonly tests: TestStore;
+    /** IDEA-261: red run_tests results in the current user turn, capped by the max-iterations setting. */
+    protected readonly testIterations = new Map<string, number>();
     /** IDEA-109: runs waiting on the approval card, per session. */
     protected readonly approvals = new Map<string, (choice: { decision: ApprovalDecision; reason?: string; stopped?: boolean }) => void>();
     /** IDEA-105: paused runs waiting for Continue (or the countdown), per session. */
@@ -463,6 +469,7 @@ export class AgentStore {
                 : { role: 'user', text: prompt.trim() });
         }
         const asked = prompt.trim();
+        this.testIterations.delete(session.id);
         this.loops.set(session.id, {
             prompt: asked, wants: this.workLoopOn() && wantsWorkLoop(asked), edits: [], checks: [], fixAttempts: 0,
             e2eNudged: false, commitNudged: false, commitBlocked: false, committed: false, verifiedEdits: 0, required: []
@@ -1569,6 +1576,7 @@ export class AgentStore {
                     const timeout = this.isCreatedApp(cwd) && libraryCommandNeedsTime(command) ? LIBRARY_COMMAND_TIMEOUT_SECONDS : undefined;
                     return await this.runCommand(cwd, command, call.args.background === true, undefined, timeout);
                 }
+                case RUN_TESTS_TOOL: return await this.runTestsTool(session, call.args);
                 case 'scripts': {
                     const found = await this.processes.service.scripts(rootPath);
                     if (!found || !Object.keys(found.scripts).length) {
@@ -1603,6 +1611,22 @@ export class AgentStore {
         } catch (error) {
             return { text: error instanceof Error ? error.message : String(error), isError: true };
         }
+    }
+
+    /** IDEA-261: one step of the edit -> run_tests -> fix loop. A red run counts; past the cap the tool refuses to run. */
+    protected async runTestsTool(session: AgentSession, args: Record<string, unknown>): Promise<AgentActionResult> {
+        if (!this.runSettings.enabled) {
+            return { text: 'Running commands is turned off in Settings › Tools › Agent tools.', isError: true };
+        }
+        const max = clampIterations(this.preferences.get<number>(TEST_LOOP_PREFS.maxIterations, DEFAULT_TEST_ITERATIONS));
+        const previous = this.testIterations.get(session.id) ?? 0;
+        if (previous >= max) {
+            return { text: `${TESTS_CAPPED_TEXT} (${previous} of ${max} runs used.)`, isError: true };
+        }
+        const result = await this.tests.run(requestFromArgs(args, this.tests.allResults));
+        const step = testLoopStep(previous, max, result.status);
+        this.testIterations.set(session.id, result.status === 'passed' ? 0 : step.iteration);
+        return { text: formatForAgent(result, step), isError: result.status !== 'passed' };
     }
 
     /** IDEA-130: the agent's browser tools, run in the Ingot browser panel (they wait while the user has control). */
@@ -2188,6 +2212,7 @@ export class AgentStore {
         session.plan = [];
         session.changes = session.changes.filter(change => this.tracker.changes.some(tracked => tracked.uri === change.uri && tracked.sessionId === sessionId));
         this.loops.delete(sessionId);
+        this.testIterations.delete(sessionId);
         session.status = 'idle';
         this.changed();
         this.send(trimmed);

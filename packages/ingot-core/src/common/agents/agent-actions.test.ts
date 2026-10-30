@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    builtinToolEnabled, builtinToolProtocol, actionLine, activityLine, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap, updateAlwaysRun, updateAlwaysRunCommands
+    RUN_TESTS_COMMAND, builtinToolEnabled, builtinToolProtocol, actionLine, activityLine, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap, updateAlwaysRun, updateAlwaysRunCommands
 } from './agent-actions';
 
 const git = (args: Record<string, unknown>) => ({ server: 'ingot', tool: 'git', args });
@@ -88,5 +88,13 @@ describe('IDEA-109 agent actions', () => {
         expect(describeAction({ server: 'ingot', tool: 'create_library', args: { path: '/tmp/library' } })).toBeUndefined();
         expect(describeAction({ server: 'ingot', tool: 'open_workspace', args: { path: '/tmp/library' } })).toMatchObject({ kind: 'terminal', label: 'Open folder' });
         expect(describeAction({ server: 'ingot', tool: 'run', args: { command: 'npm test', cwd: '/tmp/library' } })?.detail).toBe('npm test (/tmp/library)');
+    });
+
+    it('IDEA-261: run_tests asks once per project, follows the terminal switch and is in the protocol', () => {
+        expect(describeAction({ server: 'ingot', tool: 'run_tests', args: {} })).toEqual({ kind: 'terminal', label: 'Run tests', detail: 'all tests', command: RUN_TESTS_COMMAND });
+        expect(describeAction({ server: 'ingot', tool: 'run_tests', args: { files: ['src/a.test.ts'], grep: 'adds', failedOnly: true } })?.detail).toBe('src/a.test.ts "adds" failed only');
+        expect(builtinToolEnabled('run_tests', { terminal: false, browser: true })).toBe(false);
+        expect(builtinToolProtocol()).toContain('ingot/run_tests:');
+        expect(builtinToolProtocol({ terminal: false, browser: true })).not.toContain('ingot/run_tests:');
     });
 });

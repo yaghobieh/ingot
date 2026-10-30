@@ -7,6 +7,8 @@ import type { AgentToolCall } from './agent-protocol';
 import { describeTarget, toTarget } from '../browser-tool/browser-tool.utils';
 
 export const BUILTIN_TOOL_SERVER = 'ingot';
+/** One "Always Run" entry covers every run_tests call (files and filters change between iterations). */
+export const RUN_TESTS_COMMAND = 'ingot/run_tests';
 
 export type ApprovalKind = 'git' | 'terminal' | 'web' | 'browser' | 'mcp' | 'delete';
 export type ApprovalDecision = 'run' | 'skip' | 'always';
@@ -46,6 +48,7 @@ export const BUILTIN_TOOLS = [
     { name: 'run', description: 'Run a shell command in the project root (compilers, tests, builds, package scripts). Arguments: {"command": "npm test", "background"?: true}. Foreground (default) waits for the exit code and output; a command still running after the timeout keeps running in the background. Use "background": true for dev servers and watchers: you get a process id. Waits for the user\'s approval.' },
     { name: 'scripts', description: 'List the project\'s package.json scripts and its package manager (npm, pnpm, yarn or bun). No arguments. Runs at once.' },
     { name: 'run_script', description: 'Run a package.json script with the project\'s package manager. Arguments: {"script": "dev", "background"?: true}. Waits for the user\'s approval.' },
+    { name: 'run_tests', description: 'Run the project\'s tests with its detected runner (vitest, jest, mocha or Playwright) and get structured pass/fail: counts, then each failure with file, line, test name and message, plus one JSON line. Arguments: {"files"?: ["src/a.test.ts"], "grep"?: "test name", "failedOnly"?: true}. No arguments runs every test. Use it after each edit: edit, run_tests, fix, until green. The loop has an iteration cap; when the result says Stop, stop and explain. Waits for the user\'s approval.' },
     { name: 'processes', description: 'List running and recent processes (id, status, command, uptime, port). No arguments. Runs at once.' },
     { name: 'process_output', description: 'Read the latest output of a process. Arguments: {"id": "p3"}. Runs at once.' },
     { name: 'process_stop', description: 'Stop a running process and its children. Arguments: {"id": "p3"}. Processes the user started wait for approval.' },
@@ -125,6 +128,10 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
             const command = str(a.command).trim();
             const cwd = str(a.cwd).trim();
             return { kind: 'terminal', label: a.background === true ? 'Run in background' : 'Run command', detail: cwd ? `${command} (${cwd})` : command, command };
+        }
+        case 'run_tests': {
+            const scope = [list(a.files).join(' '), str(a.grep) ? `"${str(a.grep)}"` : '', a.failedOnly === true ? 'failed only' : ''].filter(Boolean).join(' ');
+            return { kind: 'terminal', label: 'Run tests', detail: scope || 'all tests', command: RUN_TESTS_COMMAND };
         }
         case 'scripts': case 'processes': case 'process_output': return undefined;
         // IDEA-186: read-only project tools run at once.
@@ -250,7 +257,7 @@ export interface BuiltinToolSwitches {
 }
 
 /** Tools that start commands (listing scripts and reading processes stay available). */
-export const COMMAND_TOOLS: readonly string[] = ['run', 'run_script'];
+export const COMMAND_TOOLS: readonly string[] = ['run', 'run_script', 'run_tests'];
 
 export const builtinToolEnabled = (name: string, on: BuiltinToolSwitches): boolean =>
     COMMAND_TOOLS.includes(name) ? on.terminal : name.startsWith('browser_') ? on.browser : true;

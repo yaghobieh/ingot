@@ -216,6 +216,7 @@ export const summaryText = (input: SummaryInput): string => {
 export const WORK_LOOP_PROTOCOL = [
     'Work loop, whenever you change project files:',
     '- Before changing more than one file, start with a PLAN: list (files, steps, and the tests you will run or add).',
+    '- After the edits, run the tests with ingot/run_tests when the project has a test runner (vitest, jest, mocha or Playwright): it returns each failure with file and line. Use ingot/run or ingot/run_script for lint, typecheck and other checks.',
     '- After the edits, run the project checks with ingot/run or ingot/run_script (package scripts named gate, test, lint, typecheck or e2e; otherwise pytest, make test, go test, cargo test, Maven or Gradle).',
     '- If a check fails, read the file and line, fix the code, and run it again. Stop after 3 failures and explain. Never delete a test, skip a test, or weaken an assertion to make it pass.',
     '- For a feature or UI change, add or update an end-to-end test (Playwright, or Cypress if that is what the repo uses) and run it before you commit. For a bug, add a test that fails before the fix and passes after.',
