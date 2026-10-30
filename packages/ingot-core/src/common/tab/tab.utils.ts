@@ -1,10 +1,15 @@
 import type { ChatMessage } from '../models/models.types';
-import { TAB_CURSOR, TAB_MIN_NEXT_SNIPPET, TAB_NEXT_MARKER, TAB_RECENT_EDIT_MAX_CHARS, TAB_SYSTEM_PROMPT } from './tab.consts';
+import {
+    TAB_CURSOR, TAB_MAX_OVERLAP, TAB_MIN_NEXT_SNIPPET, TAB_MIN_WORD_OVERLAP, TAB_NEXT_MARKER, TAB_RECENT_EDIT_MAX_CHARS, TAB_SYSTEM_PROMPT
+} from './tab.consts';
 import type { TabContext, TabPrediction, TabRecentEdit } from './tab.types';
 
 const FENCE_START = /^```[\w-]*\n?/;
 const FENCE_END = /\n?```\s*$/;
 const TRAILING_NEWLINES = /\n+$/;
+const OPENERS = /^[([{'"`]+$/;
+const WORD = /^\w+$/;
+const WORD_CHAR = /\w/;
 
 /** Fill-in-the-middle prompt: file, recent edits, then the code around the cursor with a cursor marker. */
 export const buildTabMessages = (context: TabContext): ChatMessage[] => {
@@ -17,9 +22,40 @@ export const buildTabMessages = (context: TabContext): ChatMessage[] => {
     ];
 };
 
+/** True when every character of `needle` appears in `text` in order. */
+export const isSubsequence = (needle: string, text: string): boolean => {
+    let at = 0;
+    for (const c of text) {
+        if (at < needle.length && c === needle[at]) {
+            at++;
+        }
+    }
+    return at === needle.length;
+};
+
 /**
- * Turns a model reply into ghost text plus an optional next-edit snippet. Drops fences and cursor markers,
- * the current line's text when the model repeats it, and the rest of the line when the model repeats that.
+ * Drops the start of a reply that repeats the end of the line before the cursor: opening brackets or quotes
+ * (often auto-closed already) or a whole identifier the user is typing (`sub` + `subtract` → `tract`).
+ */
+export const trimPrefixOverlap = (text: string, linePrefix: string): string => {
+    for (let k = Math.min(text.length, linePrefix.length, TAB_MAX_OVERLAP); k > 0; k--) {
+        const head = text.slice(0, k);
+        if (!linePrefix.endsWith(head)) {
+            continue;
+        }
+        const before = linePrefix.charAt(linePrefix.length - k - 1);
+        const wholeWord = k >= TAB_MIN_WORD_OVERLAP && WORD.test(head) && !WORD_CHAR.test(before);
+        if (wholeWord || OPENERS.test(head)) {
+            return text.slice(k);
+        }
+    }
+    return text;
+};
+
+/**
+ * Turns a model reply into ghost text plus an optional next-edit snippet. Drops fences, cursor markers and text the
+ * line already has before the cursor. When the cursor sits before text (an auto-closed `)`), the prediction replaces
+ * the rest of the line and keeps that text, so Monaco shows the ghost text around it instead of leaving it dangling.
  */
 export const parseTabReply = (reply: string, linePrefix: string, lineSuffix: string): TabPrediction => {
     const lines = reply.replace(FENCE_START, '').replace(FENCE_END, '').split('\n');
@@ -29,15 +65,15 @@ export const parseTabReply = (reply: string, linePrefix: string, lineSuffix: str
     if (markerAt >= 0) {
         insertText = insertText.replace(TRAILING_NEWLINES, '');
     }
-    if (linePrefix.trim() && insertText.startsWith(linePrefix)) {
-        insertText = insertText.slice(linePrefix.length);
-    }
-    const tail = lineSuffix.trim();
-    if (tail && insertText.trimEnd().endsWith(tail)) {
-        insertText = insertText.trimEnd().slice(0, -tail.length);
+    const typed = linePrefix.trimStart();
+    insertText = typed && insertText.startsWith(typed) ? insertText.slice(typed.length) : trimPrefixOverlap(insertText, linePrefix);
+    const replacesSuffix = !!insertText.trim() && !!lineSuffix.trim();
+    if (replacesSuffix && !isSubsequence(lineSuffix, insertText)) {
+        insertText += lineSuffix;
     }
     return {
         insertText: insertText.trim() ? insertText : '',
+        replacesSuffix,
         ...(nextSnippet.length >= TAB_MIN_NEXT_SNIPPET ? { nextSnippet } : {})
     };
 };

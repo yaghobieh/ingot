@@ -30,6 +30,9 @@ export const TAB_RECENT_EDIT_MAX_CHARS = 160;
 export const TAB_CHARS_PER_TOKEN = 4;
 /** A next-edit snippet shorter than this matches too many lines to be useful. */
 export const TAB_MIN_NEXT_SNIPPET = 3;
+/** A reply that repeats a whole identifier of at least this length before the cursor has it dropped. */
+export const TAB_MIN_WORD_OVERLAP = 3;
+export const TAB_MAX_OVERLAP = 40;
 
 export const TAB_CURSOR = '<CURSOR>';
 export const TAB_NEXT_MARKER = '<<NEXT>>';

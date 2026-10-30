@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TAB_CURSOR, TAB_NEXT_MARKER, TAB_RECENT_EDIT_MAX_CHARS } from './tab.consts';
-import { buildTabMessages, findNextEditLine, parseTabReply, recordRecentEdit } from './tab.utils';
+import { buildTabMessages, findNextEditLine, isSubsequence, parseTabReply, recordRecentEdit, trimPrefixOverlap } from './tab.utils';
 
 describe('Tab prompt (IDEA-285)', () => {
     it('sends prefix and suffix around a cursor marker plus the recent edits', () => {
@@ -24,28 +24,50 @@ describe('Tab prompt (IDEA-285)', () => {
 
 describe('parseTabReply', () => {
     it('returns plain ghost text', () => {
-        expect(parseTabReply('tract(a: number, b: number) {', 'export function sub', '')).toEqual({ insertText: 'tract(a: number, b: number) {' });
+        expect(parseTabReply('tract(a: number, b: number) {', 'export function sub', '')).toEqual({ insertText: 'tract(a: number, b: number) {', replacesSuffix: false });
     });
 
-    it('strips fences, cursor markers and a repeated line prefix', () => {
+    it('strips fences, cursor markers and a repeated line, with or without its indentation', () => {
         expect(parseTabReply('```ts\nconst x = 1;<CURSOR>\n```', 'const x', '').insertText).toBe(' = 1;');
+        expect(parseTabReply('return a - b;', '    return ', '').insertText).toBe('a - b;');
     });
 
-    it('drops the rest of the line when the model repeats it', () => {
-        expect(parseTabReply('a, b);', 'sum(', ');').insertText).toBe('a, b');
+    it('drops an opening bracket or identifier the line already ends with', () => {
+        expect(parseTabReply('(a: number): number {', 'function sub(', ')').insertText).toBe('a: number): number {');
+        expect(parseTabReply('subtract(a, b)', 'export function sub', '').insertText).toBe('tract(a, b)');
+    });
+
+    it('replaces the rest of the line, keeping an auto-closed bracket the reply already has', () => {
+        expect(parseTabReply('a, b);', 'sum(', ');')).toEqual({ insertText: 'a, b);', replacesSuffix: true });
+        expect(parseTabReply('a, b', 'sum(', ')')).toEqual({ insertText: 'a, b)', replacesSuffix: true });
     });
 
     it('splits off the next-edit line', () => {
         const reply = `tract(a, b) {\n${TAB_NEXT_MARKER} export const total = add(1, 2);`;
-        expect(parseTabReply(reply, 'function sub', '')).toEqual({ insertText: 'tract(a, b) {', nextSnippet: 'export const total = add(1, 2);' });
+        expect(parseTabReply(reply, 'function sub', '')).toEqual({ insertText: 'tract(a, b) {', replacesSuffix: false, nextSnippet: 'export const total = add(1, 2);' });
     });
 
     it('allows a next edit without ghost text', () => {
-        expect(parseTabReply(`${TAB_NEXT_MARKER} return a + b;`, '', '')).toEqual({ insertText: '', nextSnippet: 'return a + b;' });
+        expect(parseTabReply(`${TAB_NEXT_MARKER} return a + b;`, '', ')')).toEqual({ insertText: '', replacesSuffix: false, nextSnippet: 'return a + b;' });
     });
 
     it('ignores a too-short or empty next-edit line and whitespace-only text', () => {
-        expect(parseTabReply(`  \n${TAB_NEXT_MARKER} }`, '', '')).toEqual({ insertText: '' });
+        expect(parseTabReply(`  \n${TAB_NEXT_MARKER} }`, '', '')).toEqual({ insertText: '', replacesSuffix: false });
+    });
+});
+
+describe('trimPrefixOverlap and isSubsequence', () => {
+    it('only trims whole identifiers and opening brackets', () => {
+        expect(trimPrefixOverlap('total2', 'const subtotal')).toBe('total2');
+        expect(trimPrefixOverlap('1 + 2', 'x = 1 + ')).toBe('1 + 2');
+        expect(trimPrefixOverlap('["a"]', 'const list = [')).toBe('"a"]');
+        expect(trimPrefixOverlap('ab', 'ab')).toBe('ab');
+    });
+
+    it('matches characters in order', () => {
+        expect(isSubsequence(');', 'a, b);')).toBe(true);
+        expect(isSubsequence(')]', 'a])')).toBe(false);
+        expect(isSubsequence('', 'x')).toBe(true);
     });
 });
 

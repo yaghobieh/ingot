@@ -20,11 +20,17 @@ const SHOTS_DIR = process.env.INGOT_SHOTS_DIR;
 /** An empty editor area, so no tooltip covers the code in screenshots. */
 const SHOT_MOUSE = { x: 600, y: 520 };
 const QUIET_MS = 2_000;
+/** Monaco auto-closes the bracket and a real model repeats the opening one, as Codestral did in a live run. */
+const MID_LINE_TYPED = 'export function sum(';
+const MID_LINE_REPLY = '(a: number, b: number): number {';
 
 /** The fake model plays Tab: ghost text plus a next edit after `export function sub`, nothing elsewhere. */
 const reply = (system: string, user: string): string => {
     if (!system.includes('Ingot Tab')) {
         return '';
+    }
+    if (user.includes(`${MID_LINE_TYPED}<CURSOR>)`)) {
+        return MID_LINE_REPLY;
     }
     return user.includes(`${TYPED}<CURSOR>`) ? `${COMPLETION}\n<<NEXT>> ${NEXT_LINE} = 'hello ingot';` : '';
 };
@@ -132,6 +138,17 @@ test.describe('IDEA-285 Tab next-edit prediction', () => {
         await page.keyboard.press('Escape');
         await expect(hint(page)).toHaveCount(0);
         await setTheme(page, 'light');
+    });
+
+    test('fills in around an auto-closed bracket without doubling it', async ({ page }) => {
+        await connectTab(page, server);
+        await openFile(page, 'math.ts');
+        await typeOnNewLastLine(page, MID_LINE_TYPED);
+        await expect(ghost(page)).toBeVisible({ timeout: 15_000 });
+        await page.keyboard.press('Tab');
+        await expect(page.locator('.view-lines')).toContainText('export function sum(a: number, b: number): number {');
+        await expect(page.locator('.view-lines')).not.toContainText('sum((');
+        await expect(page.locator('.view-lines')).not.toContainText('{)');
     });
 
     test('never sends a file matched by .ingotignore, and the setting turns Tab off', async ({ page }) => {

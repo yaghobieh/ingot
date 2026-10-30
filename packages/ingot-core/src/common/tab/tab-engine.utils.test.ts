@@ -23,7 +23,7 @@ describe('runTabPrediction (IDEA-285, mocked model)', () => {
         const outcome = await runTabPrediction(d, 'export function sub', '');
         expect(outcome).toEqual({
             kind: 'prediction',
-            prediction: { insertText: 'tract(a: number, b: number): number {', nextSnippet: 'export const GREETING = \'hello\';' }
+            prediction: { insertText: 'tract(a: number, b: number): number {', replacesSuffix: false, nextSnippet: 'export const GREETING = \'hello\';' }
         });
         const [messages] = vi.mocked(d.complete).mock.calls[0];
         expect(messages[0].content).toBe(TAB_SYSTEM_PROMPT);

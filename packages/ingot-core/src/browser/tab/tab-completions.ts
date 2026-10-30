@@ -94,17 +94,18 @@ export class IngotTabCompletions implements monaco.languages.InlineCompletionsPr
         if (outcome.kind !== 'prediction') {
             return NO_ITEMS;
         }
-        const { insertText, nextSnippet } = outcome.prediction;
+        const { insertText, replacesSuffix, nextSnippet } = outcome.prediction;
         if (!insertText) {
             if (nextSnippet) {
                 this.nextEdit.show(model.uri.toString(), nextSnippet);
             }
             return NO_ITEMS;
         }
+        const end = replacesSuffix ? model.getLineMaxColumn(position.lineNumber) : position.column;
         return {
             items: [{
                 insertText,
-                range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, end),
                 ...(nextSnippet ? { command: { id: TAB_COMMANDS.showNextEdit.id, title: TAB_COMMANDS.jumpToNextEdit.label, arguments: [model.uri.toString(), nextSnippet] } } : {})
             }]
         };

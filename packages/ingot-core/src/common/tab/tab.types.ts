@@ -18,6 +18,8 @@ export interface TabContext {
 /** A parsed model reply: ghost text to insert and, optionally, the text of the line to edit next. */
 export interface TabPrediction {
     readonly insertText: string;
+    /** The ghost text replaces the rest of the line (which it still contains) instead of going in front of it. */
+    readonly replacesSuffix: boolean;
     readonly nextSnippet?: string;
 }
 
