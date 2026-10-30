@@ -6,13 +6,11 @@ import { makeToolsProject, setAppearance } from '../src/agent-tools.e2e-utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
+import { saveArtifact } from '../src/artifacts.e2e-utils';
 
 /** Light and dark shots of the agent panel proof: prompt card, agent line, checklist, edited files. */
-const ARTIFACTS = '/opt/cursor/artifacts/screenshots';
-
 const save = async (page: Page, name: string): Promise<void> => {
-    fs.mkdirSync(ARTIFACTS, { recursive: true });
-    await page.locator('.ingot-agents').screenshot({ path: path.join(ARTIFACTS, name), animations: 'disabled' });
+    await saveArtifact(page.locator('.ingot-agents'), name);
 };
 
 const box = async (locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> => {

@@ -8,14 +8,11 @@ import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
+import { saveArtifact } from '../src/artifacts.e2e-utils';
 
 /** IDEA-248: thinking, reactions, a clickable turn summary, questions, steering, and two agents at once. */
-const ARTIFACTS = '/opt/cursor/artifacts/screenshots';
-
 const saveShot = async (page: Page, name: string, full = false): Promise<void> => {
-    fs.mkdirSync(ARTIFACTS, { recursive: true });
-    const target = full ? page : page.locator('.ingot-agents');
-    await target.screenshot({ path: path.join(ARTIFACTS, name), animations: 'disabled' });
+    await saveArtifact(full ? page : page.locator('.ingot-agents'), name);
     await shot(page, name);
 };
 

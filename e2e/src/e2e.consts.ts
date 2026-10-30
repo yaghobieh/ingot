@@ -20,6 +20,8 @@ export const ZAPREX_LINK_LOG = path.join(E2E_CONFIG_DIR, `zaprex-links-${process
 /** Stands in for the home folder whose imported global config (rules, mcp.json) Ingot reads. */
 export const IMPORT_HOME = path.join(FIXTURES_DIR, 'import-home');
 export const CALC_SERVER = path.join(FIXTURES_DIR, 'mcp', 'calc-server.mjs');
+/** Screenshot folder of cloud runners; it does not exist (and cannot be created) on developer machines. */
+export const CLOUD_ARTIFACTS_DIR = '/opt/cursor/artifacts/screenshots';
 export const APP_READY_TIMEOUT_MS = 120_000;
 export const SHELL_SELECTOR = '#theia-app-shell';
 /**
