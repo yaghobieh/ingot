@@ -40,6 +40,10 @@ import { IngotDebugToolsService } from './ingot-debug-tools-service';
 import { DEBUG_TOOLS_SERVICE_PATH } from '../common/debug/debug.consts';
 import { DebugToolsService } from '../common/debug/debug.types';
 
+import { IngotCodebaseIndexService } from './codebase-index/ingot-codebase-index-service';
+import { CODEBASE_INDEX_SERVICE_PATH } from '../common/codebase-index/codebase-index.consts';
+import { CodebaseIndexService, type CodebaseIndexClient } from '../common/codebase-index/codebase-index.types';
+
 import { BackendApplicationContribution } from '@theia/core/lib/node/backend-application';
 import { IngotAccountBackend } from './account/ingot-account-backend';
 import { AccountDeepLinkEndpoint } from './account/account-deeplink-endpoint';
@@ -105,4 +109,12 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotDebugToolsService).toSelf().inSingletonScope();
     bind(DebugToolsService).toService(IngotDebugToolsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(DEBUG_TOOLS_SERVICE_PATH, () => ctx.container.get<DebugToolsService>(DebugToolsService))).inSingletonScope();
+    bind(IngotCodebaseIndexService).toSelf().inSingletonScope();
+    bind(CodebaseIndexService).toService(IngotCodebaseIndexService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<CodebaseIndexClient>(CODEBASE_INDEX_SERVICE_PATH, client => {
+        const service = ctx.container.get(IngotCodebaseIndexService);
+        service.setClient(client);
+        client.onDidCloseConnection(() => service.removeClient(client));
+        return service;
+    })).inSingletonScope();
 });
