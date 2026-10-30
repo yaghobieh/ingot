@@ -56,9 +56,9 @@ export class IngotTabNextEdit {
         const end = (n: number): monaco.Range => new monaco.Range(n, model.getLineMaxColumn(n), n, model.getLineMaxColumn(n));
         this.decorations = editor.createDecorationsCollection([
             { range: new monaco.Range(line, 1, line, 1), options: { isWholeLine: true, className: TAB_TARGET_LINE_CLASS } },
-            { range: end(line), options: { after: { content: TAB_TARGET_HINT, inlineClassName: TAB_HINT_CLASS } } },
+            { range: end(line), options: { showIfCollapsed: true, after: { content: TAB_TARGET_HINT, inlineClassName: TAB_HINT_CLASS } } },
             ...(cursor.lineNumber === line ? [] : [{
-                range: end(cursor.lineNumber), options: { after: { content: tabCursorHint(line), inlineClassName: TAB_HINT_CLASS } }
+                range: end(cursor.lineNumber), options: { showIfCollapsed: true, after: { content: tabCursorHint(line), inlineClassName: TAB_HINT_CLASS } }
             }])
         ]);
         this.listeners.push(editor.onDidChangeModelContent(() => this.dismiss()), editor.onDidChangeModel(() => this.dismiss()));
