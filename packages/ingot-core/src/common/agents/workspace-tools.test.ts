@@ -105,6 +105,7 @@ describe('workspace tools (IDEA-186)', () => {
         expect(args).toContain('--fixed-strings');
         expect(args).toContain('--hidden');
         expect(args).not.toContain('--no-ignore');
+        expect(args).toContain('!.ingot/index/**');
         expect(parseRgFiles('src/a.js\nsecret.txt\n')).toEqual(['src/a.js', 'secret.txt']);
     });
 });

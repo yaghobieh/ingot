@@ -6,6 +6,7 @@
 import type { AgentToolCall } from './agent-protocol';
 import { BUILTIN_TOOL_SERVER } from './agent-actions';
 import { isLibraryPrompt } from './library-app';
+import { INDEX_DIR } from '../codebase-index/codebase-index.consts';
 
 export const WORKSPACE_TOOLS = [
     { name: 'list_dir', description: 'List a folder of the open project. Arguments: {"path"?: "src", "depth"?: 1..3}. Skips .gitignore and dependency folders. Runs at once.' },
@@ -339,7 +340,7 @@ export interface RgQuery {
 
 /** Arguments for ripgrep. Gitignore is on by default; hidden files are included so `.ingot` is visible, `.git` is not. */
 export const rgArgs = (query: RgQuery): string[] => {
-    const args = ['--color', 'never', '--hidden', '--glob', '!.git/**', '--glob', '!**/node_modules/**', '--max-filesize', '512K'];
+    const args = ['--color', 'never', '--hidden', '--glob', '!.git/**', '--glob', '!**/node_modules/**', '--glob', `!${INDEX_DIR}/**`, '--max-filesize', '512K'];
     if (query.files) {
         args.push('--files', '--glob', query.glob?.trim() || '*', '--glob', '!.git/**');
         if (query.path?.trim()) {

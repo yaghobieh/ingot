@@ -87,7 +87,7 @@ import { AgentActionsService, type AgentActionResult } from '../../common/agents
 import { GitService } from '../../common/git/git.types';
 import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
 import { CodebaseIndexStore } from '../codebase-index/codebase-index-store';
-import { CODEBASE_SEARCH_TOOL } from '../../common/codebase-index/codebase-index.consts';
+import { CODEBASE_SEARCH_TOOL, INDEX_DIR } from '../../common/codebase-index/codebase-index.consts';
 import { formatSearchResult } from '../../common/codebase-index/codebase-index.utils';
 
 let nextId = 1;
@@ -1471,7 +1471,7 @@ export class AgentStore {
                 }
                 const rel = root.relative(entry.resource)?.toString() ?? entry.name;
                 if (entry.isDirectory) {
-                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot') && !ignored(rel)) {
+                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot') && rel !== INDEX_DIR && !ignored(rel)) {
                         await visit(entry.resource);
                     }
                     continue;
@@ -1517,7 +1517,7 @@ export class AgentStore {
                     continue;
                 }
                 if (entry.isDirectory) {
-                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot')) {
+                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot') && rel !== INDEX_DIR) {
                         await visit(entry.resource);
                     }
                     continue;
