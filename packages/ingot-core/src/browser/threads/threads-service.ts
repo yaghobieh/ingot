@@ -13,7 +13,7 @@ import { PRODUCT } from '../../common/product.consts';
 import type { AgentSession } from '../../common/agents/agents.types';
 import type { ThreadGroup } from '../../common/threads/threads.types';
 import { finishedThreads, finishMessage, groupThreads, threadState, worktreeName } from '../../common/threads/threads.utils';
-import { THREADS_TEXT } from './threads.consts';
+import { THREADS_TEXT, THREADS_TOAST_MS } from './threads.consts';
 
 const userTurns = (session: AgentSession): number => session.messages.filter(m => m.role === 'user').length;
 
@@ -77,11 +77,12 @@ export class ThreadsService {
         }
         const state = threadState(session.status, false, userTurns(session));
         const pending = this.tracker.pending(id).filter(c => c.status !== 'streaming').length;
-        if (id !== this.store.current?.id || !document.hasFocus()) {
-            this.unseen.add(id);
+        if (id === this.store.current?.id && document.hasFocus()) {
+            return;
         }
+        this.unseen.add(id);
         const text = finishMessage(session.title, state, pending);
-        const shown = state === 'error' ? this.messages.error(text, THREADS_TEXT.open) : this.messages.info(text, THREADS_TEXT.open);
+        const shown = state === 'error' ? this.messages.error(text, THREADS_TEXT.open) : this.messages.info(text, { timeout: THREADS_TOAST_MS }, THREADS_TEXT.open);
         void shown.then(action => {
             if (action === THREADS_TEXT.open) {
                 this.open(id);
@@ -149,7 +150,7 @@ export class ThreadsService {
         try {
             const made = await this.git.addWorktree(root, worktreeName('', session.id));
             this.store.update(session.id, { worktree: { path: URI.fromFilePath(made.folder).toString(), branch: made.branch } });
-            this.messages.info(`${THREADS_TEXT.worktreeMade}: ${made.folder} (${made.branch}).`);
+            this.messages.info(`${THREADS_TEXT.worktreeMade}: ${made.folder} (${made.branch}).`, { timeout: THREADS_TOAST_MS });
             await this.open(session.id);
             return session;
         } catch (error) {

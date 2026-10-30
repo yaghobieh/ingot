@@ -129,10 +129,15 @@ export class AgentReviewWidget extends BaseWidget {
                 this.sections.delete(id);
             }
         }
+        // Moving a section that is already in place would blur its editor while the user types.
+        let previous: Element = this.empty;
         for (const change of files) {
             const section = this.sections.get(change.id) ?? this.createSection(change);
             this.sections.set(change.id, section);
-            this.list.append(section.node);
+            if (previous.nextElementSibling !== section.node) {
+                previous.after(section.node);
+            }
+            previous = section.node;
             this.updateSection(section, change);
         }
         this.empty.hidden = files.length > 0;

@@ -28,5 +28,8 @@ export const THREAD_STATE_ICONS = {
     idle: 'codicon-circle-outline'
 } as const;
 
+/** "Thread finished" and "worktree created" toasts hide after this; errors stay until dismissed. */
+export const THREADS_TOAST_MS = 8_000;
+
 /** How often relative times in the list refresh. */
 export const THREADS_CLOCK_MS = 30_000;

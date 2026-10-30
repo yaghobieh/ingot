@@ -3,6 +3,7 @@ import type { FrontendApplicationContribution } from '@theia/core/lib/browser/fr
 import type { CommandContribution, CommandRegistry } from '@theia/core/lib/common/command';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import URI from '@theia/core/lib/common/uri';
+import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { FileChangeType } from '@theia/filesystem/lib/common/files';
 import type { MonacoEditorModel } from '@theia/monaco/lib/browser/monaco-editor-model';
@@ -22,6 +23,7 @@ export class DiskSyncContribution implements FrontendApplicationContribution, Co
     @inject(MonacoTextModelService) protected readonly textModels: MonacoTextModelService;
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
+    @inject(EditorManager) protected readonly editors: EditorManager;
     /** Files whose "changed on disk" question is on screen. */
     protected readonly asking = new Set<string>();
     /** Text each file had when Ingot last saved it, so our own saves are not taken for outside changes. */
@@ -59,8 +61,13 @@ export class DiskSyncContribution implements FrontendApplicationContribution, Co
         return this.tracker.pending().some(change => change.uri === model.uri);
     }
 
+    /** Only files the user has open; background models (settings, the agent's own buffers) are Theia's to sync. */
+    protected inEditor(model: MonacoEditorModel): boolean {
+        return this.editors.all.some(widget => widget.editor.uri.toString() === model.uri);
+    }
+
     protected async reload(model: MonacoEditorModel, askDirty: boolean): Promise<void> {
-        if (model.readOnly || this.reviewing(model)) {
+        if (model.readOnly || !this.inEditor(model) || this.reviewing(model)) {
             return;
         }
         if (!model.dirty) {
@@ -70,20 +77,16 @@ export class DiskSyncContribution implements FrontendApplicationContribution, Co
         if (!askDirty || this.asking.has(model.uri)) {
             return;
         }
-        const disk = await this.files.read(new URI(model.uri)).then(content => content.value, () => undefined);
-        if (disk === undefined || disk === this.saved.get(model.uri)) {
-            return;
-        }
-        if (disk === model.textEditorModel.getValue()) {
-            await model.revert({ soft: true });
-            return;
-        }
-        await this.ask(model);
-    }
-
-    protected async ask(model: MonacoEditorModel): Promise<void> {
         this.asking.add(model.uri);
         try {
+            const disk = await this.files.read(new URI(model.uri)).then(content => content.value, () => undefined);
+            if (disk === undefined || disk === this.saved.get(model.uri)) {
+                return;
+            }
+            if (disk === model.textEditorModel.getValue()) {
+                await model.revert({ soft: true });
+                return;
+            }
             const choice = await this.messages.warn(DISK_SYNC_TEXT.changed(new URI(model.uri).path.base), DISK_SYNC_TEXT.reload, DISK_SYNC_TEXT.keep);
             if (choice === DISK_SYNC_TEXT.reload) {
                 await model.revert();
