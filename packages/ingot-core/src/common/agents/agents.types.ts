@@ -97,6 +97,10 @@ export interface AgentSession {
     pause?: ReviewPause;
     /** A question the agent is waiting on. Cleared when the user answers or stops. */
     ask?: { readonly question: string; readonly options?: readonly string[] };
+    /** IDEA-291: a task subagent that runs in its own git worktree. */
+    worktree?: { readonly path: string; readonly branch: string };
+    /** IDEA-290: the `.ingot/artifacts/<runId>` folder of the latest run, once something was written. */
+    artifactsRun?: string;
 }
 
 export interface ReviewPause {

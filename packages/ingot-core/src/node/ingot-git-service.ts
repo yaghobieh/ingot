@@ -13,6 +13,8 @@ import { isRepoRelativePath, isValidBranchName, isValidRef, parseBlame, parseBra
 const GIT_TIMEOUT_MS = 15_000;
 const CLONE_TIMEOUT_MS = 10 * 60_000;
 const MAX_BUFFER = 16 * 1024 * 1024;
+/** IDEA-291: subagent worktrees live under the OS temp folder, never inside the project. */
+const WORKTREES_DIR = 'ingot-worktrees';
 
 /** Runs a fixed set of git commands with validated arguments (no shell). */
 /** IDEA-178: tells the installed git hook that Ingot already ran the agent hooks. */
@@ -76,6 +78,13 @@ export class IngotGitService implements GitService {
                 return { output: (await this.git(root, args).catch(() => '')).trim() };
             case 'isAncestorOfHead':
                 return { output: await this.git(root, args).then(() => 'yes', () => 'no') };
+            case 'worktreeAdd': {
+                const parent = path.join(fs.realpathSync(os.tmpdir()), WORKTREES_DIR);
+                fs.mkdirSync(parent, { recursive: true });
+                const folder = path.join(parent, `${path.basename(root).replace(/[^\w.-]+/g, '-')}-${args[args.length - 1]}`);
+                await this.git(root, [...args.slice(0, -1), folder, 'HEAD'], { timeout: 120_000 });
+                return { output: folder };
+            }
             case 'reword': {
                 const head = (await this.git(root, ['rev-parse', 'HEAD'])).trim();
                 const target = (await this.git(root, ['rev-parse', op.commit])).trim();
