@@ -105,7 +105,7 @@ test.describe('IDEA-270 Slack as a built-in MCP connection', () => {
             { tool: 'slack_search_public', args: { query: 'deploy' } },
             { tool: 'slack_send_message', args: { channel_id: 'C123', message: 'Deploy is done' } }
         ]);
-        expect(model.requests[0].system).toContain('slack/slack_send_message');
+        expect(model.requests.find(r => r.user.includes('deploy thread'))?.system).toContain('slack/slack_send_message');
 
         await setAppearance(page, 'dark');
         await openMcpPage(page);
