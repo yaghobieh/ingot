@@ -1,3 +1,5 @@
+import type { ChatMessage } from '../models/models.types';
+
 /** One edit the user made recently; the line's current text gives the model the intent. */
 export interface TabRecentEdit {
     readonly line: number;
@@ -32,6 +34,23 @@ export interface TabUsage {
 }
 
 export type TabBudgetBlock = 'requests' | 'tokens';
+
+/** What one Tab request needs from the editor, the budget and the model; mocked in unit tests. */
+export interface TabEngineDeps {
+    isIgnored(): Promise<boolean>;
+    buildContext(): TabContext;
+    checkBudget(estimatedTokens: number): Promise<TabBudgetBlock | undefined>;
+    recordRequest(tokens: number): Promise<void>;
+    recordReply(tokens: number): Promise<void>;
+    complete(messages: readonly ChatMessage[]): Promise<string>;
+    isCancelled(): boolean;
+}
+
+export type TabSkipReason = 'ignored' | 'cancelled' | 'error' | TabBudgetBlock;
+
+export type TabOutcome =
+    | { readonly kind: 'prediction'; readonly prediction: TabPrediction }
+    | { readonly kind: 'skipped'; readonly reason: TabSkipReason; readonly error?: string };
 
 export interface TabIgnoreRule {
     readonly regex: RegExp;

@@ -7,6 +7,7 @@ import { BYOK_PROVIDERS, MODEL_CATALOG, MODEL_PREFERENCES, PROVIDERS, SIGN_IN_FO
 import { IngotAccountService } from '../account/account-service';
 import { tokensLeftLabel } from '../../common/account/gateway.utils';
 import { getGatewayModels } from '../../common/models/models.utils';
+import { TAB_PREFERENCES } from '../../common/tab/tab.consts';
 import type { ProviderId, ProviderInfo } from '../../common/models/models.types';
 import { MODELS_WIDGET_ID, MODELS_WIDGET_LABEL } from './models.browser-consts';
 
@@ -95,14 +96,14 @@ export class IngotModelsWidget extends ReactWidget {
                     {PROVIDERS.filter(p => BYOK_PROVIDERS.includes(p.id)).map(p => this.renderProvider(p, overrides[p.id] ?? ''))}
                 </div>
             </>}
-            <h2>Inline completion</h2>
+            <h2>Tab</h2>
             <label className='ingot-models-row'>
-                <input id='ingot-autocomplete-enabled' type='checkbox' checked={this.preferences.get<boolean>(MODEL_PREFERENCES.autocompleteEnabled, true)}
-                    onChange={e => this.setPreference(MODEL_PREFERENCES.autocompleteEnabled, e.currentTarget.checked)} />
-                Show ghost-text completions while typing (Tab accepts, Ctrl/⌘+→ accepts the next word, Esc dismisses)
+                <input id='ingot-tab-enabled' type='checkbox' checked={this.preferences.get<boolean>(TAB_PREFERENCES.enabled, true)}
+                    onChange={e => this.setPreference(TAB_PREFERENCES.enabled, e.currentTarget.checked)} />
+                Predict the next edit while typing (Tab accepts, Ctrl/⌘+→ accepts the next word, Esc dismisses, Tab again jumps to the next edit)
             </label>
             <label className='ingot-models-row'>
-                <span className='ingot-models-label'>Completion model</span>
+                <span className='ingot-models-label'>Tab model</span>
                 <select id='ingot-autocomplete-model' className='ingot-select' value={this.preferences.get<string>(MODEL_PREFERENCES.autocompleteModel, '')}
                     onChange={e => this.setPreference(MODEL_PREFERENCES.autocompleteModel, e.currentTarget.value)}>
                     <option value=''>Automatic (first connected)</option>

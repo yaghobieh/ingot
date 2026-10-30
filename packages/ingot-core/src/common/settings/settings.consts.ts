@@ -41,7 +41,11 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
     {
         id: 'tools', label: 'Tools', icon: 'tools', children: [
             {
-                id: 'ai', label: 'AI Models', preferences: ['ingot.autocomplete.enabled', 'ingot.autocomplete.model', 'ingot.autocomplete.debounceMs', 'ingot.models.ollamaUrl'],
+                id: 'ai', label: 'AI Models',
+                preferences: [
+                    'ingot.tab.enabled', 'ingot.autocomplete.model', 'ingot.tab.debounceMs', 'ingot.tab.maxRequestsPerDay', 'ingot.tab.maxTokensPerDay',
+                    'ingot.tab.devOpenRouter.enabled', 'ingot.tab.devOpenRouter.model', 'ingot.models.ollamaUrl'
+                ],
                 actions: [{ id: 'openModels', label: 'Manage API Keys…' }]
             },
             {

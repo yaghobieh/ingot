@@ -159,8 +159,18 @@ export class IngotModelClient {
         return this.service.transcribe(audioBase64, mimeType);
     }
 
-    complete(modelId: string, messages: ChatMessage[], options: { maxTokens?: number; temperature?: number; stop?: string[] } = {}): Promise<CompletionResult> {
-        return this.service.complete({ modelId, messages, ...options, settings: this.settings });
+    /** `feature` tags gateway usage; `modelOverrides` swap a provider's model for this request only. */
+    complete(modelId: string, messages: ChatMessage[], options: {
+        maxTokens?: number; temperature?: number; stop?: string[]; feature?: string; modelOverrides?: Partial<Record<ProviderId, string>>
+    } = {}): Promise<CompletionResult> {
+        const { feature, modelOverrides, ...limits } = options;
+        const base = this.settings;
+        const settings: ProviderSettings = {
+            ...base,
+            ...(feature ? { feature } : {}),
+            ...(modelOverrides ? { modelOverrides: { ...base.modelOverrides, ...modelOverrides } } : {})
+        };
+        return this.service.complete({ modelId, messages, ...limits, settings });
     }
 
     /**

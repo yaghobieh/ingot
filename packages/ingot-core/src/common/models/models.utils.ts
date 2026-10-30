@@ -185,21 +185,6 @@ export const redactSecrets = (text: string, secrets: readonly (string | undefine
     return out.replace(/(Bearer\s+)[\w.-]{8,}/gi, '$1[redacted]').replace(/\b(sk-[\w-]{6})[\w-]{6,}/g, '$1…[redacted]');
 };
 
-/** Strips markdown fences and a repeated prefix from a completion. */
-export const cleanCompletion = (text: string, linePrefix = ''): string => {
-    let out = text.replace(/^```[\w-]*\n?/, '').replace(/\n?```\s*$/, '');
-    if (linePrefix.trim() && out.startsWith(linePrefix)) {
-        out = out.slice(linePrefix.length);
-    }
-    return out.replace(/<CURSOR>/g, '');
-};
-
-/** Prompt for inline completion: the code around the cursor with a <CURSOR> marker. */
-export const buildCompletionMessages = (prefix: string, suffix: string, language: string, systemPrompt: string): ChatMessage[] => [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: `Language: ${language}\n\n${prefix}<CURSOR>${suffix}` }
-];
-
 /**
  * Extracts the text delta from one line of a streaming response: SSE `data:` lines for Anthropic, Gemini and
  * OpenAI-compatible providers, NDJSON for Ollama. Returns undefined for keep-alives, events and `[DONE]`.
