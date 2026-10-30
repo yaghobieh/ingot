@@ -39,6 +39,7 @@ describe('IDEA-270 Slack connection', () => {
         expect(slackConnectionView(config, true, { name: 'slack', state: 'connected', tools })).toEqual({ state: 'connected', summary: 'Connected · 2 tools', tools: 2 });
         expect(slackConnectionView(config, true, { name: 'slack', state: 'error', tools: [], error: 'HTTP 401' })).toMatchObject({ state: 'error', summary: SLACK_TEXT.rejected });
         expect(slackConnectionView(config, true, { name: 'slack', state: 'error', tools: [], error: 'fetch failed' }).summary).toBe('fetch failed');
+        expect(slackConnectionView(config, true, { name: 'slack', state: 'error', tools: [] }).summary).toBe(SLACK_TEXT.unreachable);
     });
 
     it('treats Slack write tools as posts and read tools as reads', () => {

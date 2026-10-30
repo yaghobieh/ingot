@@ -41,7 +41,7 @@ export const slackConnectionView = (config: McpServerConfig | undefined, enabled
             return { state: 'connected', summary: `Connected · ${tools} tool${tools === 1 ? '' : 's'}`, tools };
         }
         case 'needs-auth': return { state: 'needs-token', summary: SLACK_TEXT.needsToken, tools: 0 };
-        case 'error': return { state: 'error', summary: SLACK_AUTH_ERROR_PATTERN.test(status.error ?? '') ? SLACK_TEXT.rejected : status.error || SLACK_TEXT.rejected, tools: 0 };
+        case 'error': return { state: 'error', summary: SLACK_AUTH_ERROR_PATTERN.test(status.error ?? '') ? SLACK_TEXT.rejected : status.error || SLACK_TEXT.unreachable, tools: 0 };
         default: return { state: 'connecting', summary: SLACK_TEXT.connecting, tools: 0 };
     }
 };

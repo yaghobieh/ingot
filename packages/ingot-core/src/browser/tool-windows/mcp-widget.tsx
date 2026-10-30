@@ -6,6 +6,7 @@ import { CommandService } from '@theia/core/lib/common/command';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { OpenerService, open } from '@theia/core/lib/browser/opener-service';
+import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import URI from '@theia/core/lib/common/uri';
 import type { ConfigSource, McpServerConfig, ProjectConfig } from '../../common/project-config/project-config.types';
 import { CONFIG_DIRS, HOOKS_DIR, SUBAGENTS_DIR } from '../../common/project-config/project-config.consts';
@@ -20,7 +21,6 @@ import { IngotFeatureFlags } from '../config/feature-flags';
 import { IDE_FLAGS } from '../../common/config/remote-config.consts';
 import { ProjectConfigService } from '../project-config/project-config-service';
 import { MCP_WIDGET_ID } from './tool-windows.consts';
-import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import { SlackConnectionCard, SlackConnectionService } from '../slack';
 import { SLACK_APPS_URL, SLACK_SERVER_NAME, SLACK_TEXT } from '../../common/slack';
 

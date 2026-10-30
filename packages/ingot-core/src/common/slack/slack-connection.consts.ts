@@ -45,6 +45,7 @@ export const SLACK_TEXT = {
     turnedOff: 'Turned off in MCP servers',
     needsToken: 'Token missing. Connect again.',
     rejected: 'Slack rejected the token. Check it and connect again.',
+    unreachable: 'Could not connect to Slack.',
     connect: 'Connect',
     reconnect: 'Reconnect',
     turnOn: 'Turn on',
