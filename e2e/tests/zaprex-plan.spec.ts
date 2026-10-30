@@ -41,6 +41,7 @@ test.describe('Zaprex entry by plan', () => {
         await shot(page, 'zaprex-pro-plus-titlebar.png');
 
         await runCommand(page, 'Account: Sign Out');
+        await expect(page.locator('#status-bar-ingot-account-status')).toContainText('Sign in');
         await expect(trex).toHaveCount(0);
     });
 });

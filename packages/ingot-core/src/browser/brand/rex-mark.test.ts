@@ -1,8 +1,10 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import * as React from '@theia/core/shared/react';
 import { renderToStaticMarkup } from '@theia/core/shared/react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { RexMark } from './rex-mark';
-import { REX_MARK_DEFAULT_SIZE, REX_MARK_LEFT, REX_MARK_RIGHT } from './rex-mark.consts';
+import { REX_MARK_DEFAULT_SIZE, REX_MARK_LEFT, REX_MARK_RIGHT, REX_MARK_SLASH } from './rex-mark.consts';
 
 const render = (props: Parameters<typeof RexMark>[0] = {}): string => renderToStaticMarkup(React.createElement(RexMark, props));
 
@@ -38,6 +40,16 @@ describe('Rex mark', () => {
         const big = render({ size: 18, className: 'ingot-agent-mark' });
         expect(big).toContain('width="18"');
         expect(big).toContain('class="ingot-rex-mark ingot-agent-mark"');
+    });
+
+    it('the 16px mask icon (tab icons) is the same glyph, scaled down', () => {
+        const scale = 16 / 1024;
+        const numbers = (d: string) => (d.match(/\d+(\.\d+)?/g) ?? []).map(Number);
+        const icon = fs.readFileSync(path.resolve(__dirname, '../../../../../assets/icons/rex.svg'), 'utf8');
+        const drawn = numbers(icon.match(/ d="([^"]+)"/)![1]);
+        const start = numbers(REX_MARK_LEFT).slice(0, 2);
+        const slash = [REX_MARK_SLASH.x1, REX_MARK_SLASH.y1, REX_MARK_SLASH.x2, REX_MARK_SLASH.y2];
+        expect([...drawn.slice(0, 2), ...drawn.slice(-4)]).toEqual([...start, ...slash].map(v => expect.closeTo(v * scale, 2)));
     });
 
     it('keeps gradient and glow ids unique per instance', () => {

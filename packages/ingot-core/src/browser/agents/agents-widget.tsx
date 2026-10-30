@@ -323,7 +323,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.title.label = AGENTS_WIDGET_LABEL;
         this.title.caption = AGENTS_WIDGET_LABEL;
         this.title.closable = true;
-        this.title.iconClass = 'ingot-icon ingot-icon-ai';
+        this.title.iconClass = 'ingot-icon ingot-icon-rex';
         this.addClass('ingot-agents');
         this.listenForDrops();
         this.toDispose.push(this.store.onDidChange(() => this.holdScroll()));

@@ -11,7 +11,8 @@ import { applyOrder, reorderIds, workspaceKey } from '../../common/workbench/lay
 import { RIGHT_STRIPE_ORDER_KEY } from '../workbench/layout-custom.consts';
 import { AGENTS_WIDGET_ID } from '../agents/agents.consts';
 import { LAYOUT_CONTEXT_MENU } from '../layout/layout.browser-consts';
-import { RIGHT_STRIPE_BOTTOM, RIGHT_STRIPE_ID, RIGHT_STRIPE_TOP, type RightStripeItem } from './tool-windows.consts';
+import { REX_STRIPE_MARK, RIGHT_STRIPE_BOTTOM, RIGHT_STRIPE_ID, RIGHT_STRIPE_MARK_SIZE, RIGHT_STRIPE_TOP, type RightStripeItem } from './tool-windows.consts';
+import { RexMark } from '../brand/rex-mark';
 
 /** Slim icon stripe on the right edge: Settings, Notifications, Agents, Database, MCP, Services, History (IDEA-61). */
 @injectable()
@@ -164,7 +165,9 @@ export class IngotRightStripeWidget extends ReactWidget {
             onDragStart={top ? e => { this.dragging = item.id; e.dataTransfer.setData('text/plain', item.id); e.dataTransfer.effectAllowed = 'move'; } : undefined}
             onDragEnd={() => { this.dragging = undefined; }}
             onClick={() => this.click(item)} onContextMenu={e => this.openContextMenu(item, e)}>
-            <span className={`codicon codicon-${item.icon}`} />
+            {item.kind === 'panel' && item.mark === REX_STRIPE_MARK
+                ? <RexMark className='ingot-rs-rex' size={RIGHT_STRIPE_MARK_SIZE} />
+                : <span className={`codicon codicon-${item.icon}`} />}
             {badge !== undefined && <span className='ingot-rs-badge'>{badge > 9 ? '9+' : badge}</span>}
         </button>;
     }

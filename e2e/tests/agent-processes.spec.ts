@@ -59,6 +59,7 @@ test.describe('IDEA-132 background processes in the chat', () => {
         await expect(row).toHaveAttribute('data-status', 'running');
         await expect(row.locator('.ingot-process-port')).toHaveText(':4567');
         await expect(row.locator('.ingot-process-origin')).toHaveAttribute('title', 'Started by the agent');
+        await expect(row.locator('.ingot-process-origin svg.ingot-rex-mark')).toBeVisible();
         await expect(page.locator('#ingot-processes-count')).toHaveText('1 running');
         // Uptime ticks live.
         const first = await row.locator('.ingot-process-uptime').innerText();
