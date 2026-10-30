@@ -34,3 +34,5 @@
 @import './composer-usability.css';
 @import './agent-context.css';
 @import './test-explorer.css';
+@import './local-history.css';
+@import './inline-edit.css';

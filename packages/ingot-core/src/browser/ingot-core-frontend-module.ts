@@ -37,6 +37,10 @@ import { MemoryStore } from './agents/memory-store';
 import { AutoContextService } from './agents/auto-context-service';
 import { ChangeTracker } from './changes/change-tracker';
 import { ChangeKeybindingsContribution } from './changes/change-keybindings';
+import { LocalHistoryService } from './local-history/local-history-service';
+import { LocalHistoryWidget } from './local-history/local-history-widget';
+import { LocalHistoryContribution, createLocalHistoryWidgetFactory } from './local-history/local-history-contribution';
+import { InlineEditContribution } from './inline-edit/inline-edit-contribution';
 import { IngotAgentsWidget } from './agents/agents-widget';
 import { EditorCopyTracker } from './agents/editor-copy-tracker';
 import { IngotAgentsContribution } from './agents/agents-contribution';
@@ -357,6 +361,19 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(ChangeTracker).toSelf().inSingletonScope();
     bind(ChangeKeybindingsContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(ChangeKeybindingsContribution);
+    // IDEA-262: Local History (.ingot/history) and inline edit (Cmd+K on a selection)
+    bind(LocalHistoryService).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(LocalHistoryService);
+    bind(LocalHistoryWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => createLocalHistoryWidgetFactory(options => {
+        const widget = ctx.container.get(LocalHistoryWidget);
+        widget.init(options);
+        return widget;
+    })).inSingletonScope();
+    bind(LocalHistoryContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(LocalHistoryContribution);
+    bind(InlineEditContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(InlineEditContribution);
     bind(EditorCopyTracker).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(EditorCopyTracker);
     bind(IngotAgentsWidget).toSelf();

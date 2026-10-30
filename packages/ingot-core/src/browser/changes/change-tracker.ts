@@ -12,7 +12,7 @@ import type { MonacoEditorModel } from '@theia/monaco/lib/browser/monaco-editor-
 import { MonacoTextModelService } from '@theia/monaco/lib/browser/monaco-text-model-service';
 import * as monaco from '@theia/monaco-editor-core';
 import { CHANGES_PENDING_KEY, REBASE_DEBOUNCE_MS, STREAM_APPLY_MS } from '../../common/changes/changes.consts';
-import type { ChangeHunk, Checkpoint, CodeChange, HunkState } from '../../common/changes/changes.types';
+import type { AgentEditEvent, ChangeHunk, Checkpoint, CodeChange, HunkState } from '../../common/changes/changes.types';
 import { buildHunks, changeStats, composeText, decide, hunkLines, isPending, rebaseChange, streamingPreview } from '../../common/changes/changes.utils';
 import { ACCEPT_EDIT_KEY_LABEL, REJECT_EDIT_KEY_LABEL } from './changes.browser-consts';
 import { formatCountdown } from '../../common/review/review';
@@ -66,6 +66,9 @@ export class ChangeTracker {
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
+    protected readonly onDidEditEmitter = new Emitter<AgentEditEvent>();
+    /** IDEA-262: file text before an agent edit and after its review (Local History). */
+    readonly onDidEdit: Event<AgentEditEvent> = this.onDidEditEmitter.event;
 
     protected items: CodeChange[] = [];
     protected checkpointList: Checkpoint[] = [];
@@ -202,6 +205,9 @@ export class ChangeTracker {
             clearTimeout(state.timer);
         }
         this.streams.delete(change.id);
+        if (!change.created) {
+            this.onDidEditEmitter.fire({ uri: change.uri, sessionId, phase: 'before', text: change.oldText });
+        }
         const hunks = buildHunks(change.oldText, newText, `${change.id}-h`);
         const final: CodeChange = { ...change, messageIndex, newText, hunks, status: hunks.length ? 'applied' : 'accepted' };
         await this.applyText(final, newText, true);
@@ -542,7 +548,9 @@ export class ChangeTracker {
             await this.files.delete(new URI(change.uri)).catch(() => undefined);
         } else {
             const ref = await this.refFor(change.uri);
-            await this.applyText(change, composeText(change.oldText, change.hunks), true);
+            const text = composeText(change.oldText, change.hunks);
+            await this.applyText(change, text, true);
+            this.onDidEditEmitter.fire({ uri: change.uri, sessionId: change.sessionId, phase: 'after', text });
             await ref.object.save();
             await this.release(change.id);
         }
