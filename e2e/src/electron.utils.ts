@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
-import { APP_READY_TIMEOUT_MS, E2E_KEYCHAIN_SERVICE, E2E_USER_SETTINGS, FAKE_INGOT_URL, IMPORT_HOME, MOCK_KEYCHAIN_ARG, SHELL_SELECTOR } from './e2e.consts';
+import { APP_CLOSE_TIMEOUT_MS, APP_READY_TIMEOUT_MS, E2E_KEYCHAIN_SERVICE, E2E_USER_SETTINGS, FAKE_INGOT_URL, IMPORT_HOME, MOCK_KEYCHAIN_ARG, SHELL_SELECTOR } from './e2e.consts';
 
 const ROOT = path.resolve(__dirname, '..', '..');
 export const ELECTRON_APP_DIR = path.join(ROOT, 'applications', 'electron');
@@ -75,7 +75,12 @@ export const launchDesktop = async (workspace: string, extraEnv: Record<string, 
     return {
         app, page,
         close: async () => {
-            await app.close().catch(() => undefined);
+            // A failed test can leave a prompt (unsaved changes) that blocks quitting: kill the app after a while.
+            const closed = app.close().catch(() => undefined);
+            const timedOut = new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), APP_CLOSE_TIMEOUT_MS));
+            if (await Promise.race([closed, timedOut]) === 'timeout') {
+                app.process().kill('SIGKILL');
+            }
             if (!shared) {
                 fs.rmSync(profile, { recursive: true, force: true });
             }

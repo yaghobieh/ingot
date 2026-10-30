@@ -7,6 +7,8 @@ import type { AgentToolCall } from './agent-protocol';
 import { EDIT_CLOSE, TOOL_OPEN } from './agent-protocol';
 import { describeTarget, toTarget } from '../browser-tool/browser-tool.utils';
 import { CREATE_LIBRARY_TOOL } from './library-app.consts';
+import { CODE_TOOLS, CODE_TOOLS_HINT } from './code-tools.consts';
+import { isCodeTool } from './code-tools';
 
 export const BUILTIN_TOOL_SERVER = 'ingot';
 
@@ -61,6 +63,7 @@ export const BUILTIN_TOOLS = [
     { name: 'browser_back', description: 'Go back one page. No arguments.' },
     { name: 'browser_screenshot', description: 'Take a screenshot of the browser panel (shown to the user; sent to you when the model reads images). No arguments.' },
     { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' },
+    ...CODE_TOOLS,
     { name: 'ask_user', description: 'Ask the user a clarifying question and wait for the answer before continuing. Arguments: {"question": "…", "options"?: ["a", "b"]}. The user can also type their own answer. Runs at once and pauses the run.' },
     { name: 'create_library', description: 'Create a new React + Vite client and Node + Express server for a library (books, authors, members, loans, borrow and return) in a new empty folder. Arguments: {"path": "/absolute/or/relative", "react": "feature-folders" | "atomic", "node": "layered" | "modular", "reactExample"?: "/path/to/example", "nodeExample"?: "/path/to/example"}. Named presets or an example folder. If the layout is unclear, call ask_user first. Runs at once; each file shows up for Accept or Reject.' },
     { name: 'open_workspace', description: 'Open a folder as the Ingot workspace. Arguments: {"path": "/absolute/path"}. Waits for the user\'s approval. Call it last, after install, tests and git.' }
@@ -105,6 +108,10 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
     if (call.server !== BUILTIN_TOOL_SERVER) {
         const args = Object.values(call.args).filter(v => typeof v === 'string' || typeof v === 'number').join(' ');
         return { kind: 'mcp', label: `${call.server}: ${call.tool}`, detail: args };
+    }
+    // IDEA-259: language-server reads run at once; rename and organize imports land as reviewable edits.
+    if (isCodeTool(call.tool)) {
+        return undefined;
     }
     const a = call.args;
     switch (call.tool) {
@@ -289,5 +296,6 @@ export const builtinToolProtocol = (on: BuiltinToolSwitches = { terminal: true, 
     'Ingot tools (same block format, server "ingot"):',
     ...BUILTIN_TOOLS.filter(t => builtinToolEnabled(t.name, on)).map(t => `- ${BUILTIN_TOOL_SERVER}/${t.name}: ${t.description}`),
     'If the user skips an action you get its reason as the tool result; adapt instead of retrying.',
+    CODE_TOOLS_HINT,
     ...(on.template === false ? NEW_PROJECT_STEPS : LIBRARY_TEMPLATE_STEPS)
 ].join('\n');

@@ -14,6 +14,8 @@ export interface AgentStep {
     readonly done: boolean;
     readonly added?: number;
     readonly removed?: number;
+    /** IDEA-259: the checklist text when "<verb> <target>" would read as a raw tool id. */
+    readonly label?: string;
 }
 
 export interface AgentMessage {

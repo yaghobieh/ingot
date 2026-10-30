@@ -3,6 +3,8 @@
  * a terminal block (title, highlighted command, exit status, output), a profile card (GitHub-style user results),
  * or a compact generic card. Also the "Explored N files, M searches" and "Thought" rows.
  */
+import { codeToolDetail, isCodeTool } from './code-tools';
+import { CODE_TOOL_ICONS, CODE_TOOL_TITLES } from './code-tools.consts';
 
 export type ToolRunState = 'running' | 'done' | 'error';
 
@@ -45,7 +47,7 @@ export interface TerminalCard {
 export type ToolCard =
     | TerminalCard
     | { readonly kind: 'profile'; readonly title: string; readonly profile: ProfileCard }
-    | { readonly kind: 'generic'; readonly title: string; readonly detail: string; readonly output: string };
+    | { readonly kind: 'generic'; readonly title: string; readonly detail: string; readonly output: string; readonly icon?: string };
 
 export const TOOL_OUTPUT_PREVIEW_LINES = 12;
 const MAX_TITLE = 64;
@@ -159,6 +161,12 @@ export const toolCard = (info: ToolCallInfo, text: string, builtinServer = 'ingo
         return {
             kind: 'terminal', command, programs, ...parsed,
             title: shorten(description || command.split('\n')[0] || 'Run command')
+        };
+    }
+    if (builtin && isCodeTool(info.tool)) {
+        return {
+            kind: 'generic', title: CODE_TOOL_TITLES[info.tool], detail: shorten(codeToolDetail(info.tool, info.args), MAX_TITLE),
+            output: text.replace(/^Error: /, ''), icon: CODE_TOOL_ICONS[info.tool]
         };
     }
     const profile = info.state === 'running' ? undefined : parseProfile(text);
