@@ -27,6 +27,16 @@ export const VIM_VISUAL_SUBMODES: Readonly<Record<string, VimModeLabel>> = {
     blockwise: 'VISUAL BLOCK'
 };
 
+/** Status bar text color per mode (design tokens; Theia sets entry colors inline). */
+export const VIM_MODE_COLORS: Readonly<Record<VimModeLabel, string>> = {
+    'NORMAL': 'var(--ingot-primary)',
+    'INSERT': 'var(--ingot-success)',
+    'VISUAL': 'var(--ingot-accent)',
+    'VISUAL LINE': 'var(--ingot-accent)',
+    'VISUAL BLOCK': 'var(--ingot-accent)',
+    'REPLACE': 'var(--ingot-danger)'
+};
+
 /** Ex commands mapped to Ingot save / close. `prefix` is the shortest form Vim accepts. */
 export const VIM_EX_COMMANDS: readonly VimExCommand[] = [
     { name: 'write', prefix: 'w' },

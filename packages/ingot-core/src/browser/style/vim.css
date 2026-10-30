@@ -19,7 +19,3 @@
 .ingot-vim-cmdline .vim-notification { color: var(--ingot-warning); }
 
 #theia-statusBar .ingot-vim-status { font-weight: 600; letter-spacing: .04em; padding: 0 8px; }
-#theia-statusBar .ingot-vim-status-normal { color: var(--ingot-primary); }
-#theia-statusBar .ingot-vim-status-insert { color: var(--ingot-success); }
-#theia-statusBar .ingot-vim-status-visual { color: var(--ingot-accent); }
-#theia-statusBar .ingot-vim-status-replace { color: var(--ingot-danger); }

@@ -7,7 +7,7 @@ import type { EditorWidget } from '@theia/editor/lib/browser/editor-widget';
 import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
 import { initVimMode, VimMode } from 'monaco-vim';
 import {
-    VIM_ACTIVE_ATTR, VIM_CMDLINE_CLASS, VIM_COMMANDS, VIM_EX_COMMANDS, VIM_LABELS, VIM_MODE_PREF, VIM_STATUS_CLASS, VIM_STATUS_ID, VIM_STATUS_PRIORITY
+    VIM_ACTIVE_ATTR, VIM_CMDLINE_CLASS, VIM_COMMANDS, VIM_EX_COMMANDS, VIM_LABELS, VIM_MODE_COLORS, VIM_MODE_PREF, VIM_STATUS_CLASS, VIM_STATUS_ID, VIM_STATUS_PRIORITY
 } from '../../common/editor/vim-mode.consts';
 import type { VimModeChange, VimModeLabel } from '../../common/editor/vim-mode.types';
 import { vimEnabled, vimExAction, vimModeLabel } from '../../common/editor/vim-mode.utils';
@@ -20,7 +20,12 @@ interface VimAdapter {
 /** `VimMode.Vim` exists at runtime but is missing from the monaco-vim typings. */
 interface VimApi {
     defineEx(name: string, prefix: string, run: (cm: unknown, params?: { argString?: string }) => void): void;
+    handleKey(cm: unknown, key: string, origin?: string): unknown;
 }
+
+const vimApi = (): VimApi => (VimMode as unknown as { Vim: VimApi }).Vim;
+const ESCAPE_KEY = 'Escape';
+const VIM_ESCAPE = '<Esc>';
 
 interface Attached {
     readonly adapter: VimAdapter;
@@ -60,6 +65,27 @@ export class VimModeContribution implements FrontendApplicationContribution, Com
             }
         });
         this.editors.onCurrentEditorChanged(() => this.updateStatus());
+        window.addEventListener('keydown', event => this.onEscape(event), true);
+    }
+
+    /**
+     * Escape that closes a suggest or find widget is taken by its keybinding before monaco-vim sees it.
+     * Vim users expect it to leave Insert or Visual too, so finish that once the widget has closed.
+     */
+    protected onEscape(event: KeyboardEvent): void {
+        if (event.key !== ESCAPE_KEY || !this.attached.size) {
+            return;
+        }
+        for (const [widget, entry] of this.attached) {
+            if (entry.mode !== VIM_LABELS.normal && widget.editor instanceof MonacoEditor && widget.editor.getControl().hasTextFocus()) {
+                setTimeout(() => {
+                    if (entry.mode !== VIM_LABELS.normal && this.attached.get(widget) === entry) {
+                        vimApi().handleKey(entry.adapter, VIM_ESCAPE, 'user');
+                    }
+                });
+                return;
+            }
+        }
     }
 
     registerCommands(registry: CommandRegistry): void {
@@ -123,7 +149,7 @@ export class VimModeContribution implements FrontendApplicationContribution, Com
             return;
         }
         this.exDefined = true;
-        const vim = (VimMode as unknown as { Vim: VimApi }).Vim;
+        const vim = vimApi();
         for (const command of VIM_EX_COMMANDS) {
             vim.defineEx(command.name, command.prefix, (cm, params) => {
                 void this.runEx(cm, command.name, params?.argString);
@@ -173,7 +199,8 @@ export class VimModeContribution implements FrontendApplicationContribution, Com
             text: entry.mode,
             alignment: StatusBarAlignment.LEFT,
             priority: VIM_STATUS_PRIORITY,
-            className: `${VIM_STATUS_CLASS} ${VIM_STATUS_CLASS}-${entry.mode.split(' ')[0].toLowerCase()}`,
+            className: VIM_STATUS_CLASS,
+            color: VIM_MODE_COLORS[entry.mode],
             tooltip: 'Vim mode. Click to turn Vim keys off.',
             command: VIM_COMMANDS.toggle.id
         });
