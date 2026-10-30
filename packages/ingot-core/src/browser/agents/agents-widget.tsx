@@ -7,6 +7,8 @@ import { commandFolder, findRule, ruleMentionItems } from '../../common/project-
 import { RULE_MENTION_PREFIX } from '../../common/project-config/project-config.consts';
 import type { ProjectRule } from '../../common/project-config/project-config.types';
 import { RuleMentionItem } from './rule-mention-item';
+import { HabitCards } from '../habits/habit-cards';
+import { HabitStore } from '../habits/habit-store';
 import { exploredItems, exploredLine, extractThought } from '../../common/agents/tool-cards';
 import { tabRunState } from '../../common/agents/chat-round';
 import { REACTION_HEART, REACTION_LIKE } from '../../common/agents/chat-round.consts';
@@ -97,6 +99,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
+    @inject(HabitStore) protected readonly habits: HabitStore;
     @inject(ContextKeyService) protected readonly contextKeys: ContextKeyService;
     @inject(KeybindingRegistry) protected readonly keybindings: KeybindingRegistry;
     @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
@@ -684,6 +687,7 @@ export class IngotAgentsWidget extends ReactWidget {
             {!this.showMemories && current && this.renderAsk(current)}
             {!this.showMemories && this.renderApproval(current)}
             {!this.showMemories && this.renderChangesBar(current)}
+            {!this.showMemories && <HabitCards store={this.habits} />}
             {this.renderComposer()}
             {empty && <div className='ingot-agents-disclaimer'>AI can make mistakes. Review generated code before you keep it.</div>}
         </div>;

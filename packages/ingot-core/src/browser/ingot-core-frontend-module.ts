@@ -121,6 +121,9 @@ import { AgentHooksService } from './hooks/agent-hooks-service';
 import { AgentEventHooks } from './hooks/agent-event-hooks';
 import { InitAgentsContribution } from './project-config/init-agents-contribution';
 import { UserRulesService } from './project-config/user-rules-service';
+import { HabitStore } from './habits/habit-store';
+import { HabitsContribution } from './habits/habits-contribution';
+import { habitsPreferenceSchema } from './habits/habits-preferences';
 import { AgentHooksGate } from './hooks/hooks-contribution';
 import { hooksPreferenceSchema } from './hooks/hooks-preferences';
 import { CommitWindow } from './commit/commit-window';
@@ -182,6 +185,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: aiSettingsPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: subagentsPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: approvalPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: habitsPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: agentToolsPreferenceSchema });
     bind(ReviewComments).toSelf().inSingletonScope();
     bind(ReviewContribution).toSelf().inSingletonScope();
@@ -235,6 +239,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(AgentEventHooks).toSelf().inSingletonScope();
     bind(InitAgentsContribution).toSelf().inSingletonScope();
     bind(UserRulesService).toSelf().inSingletonScope();
+    bind(HabitStore).toSelf().inSingletonScope();
+    bind(HabitsContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(HabitsContribution);
+    bind(CommandContribution).toService(HabitsContribution);
     bind(FrontendApplicationContribution).toService(InitAgentsContribution);
     bind(AgentHooksGate).toSelf().inSingletonScope();
     bind(CommandContribution).toService(AgentHooksGate);

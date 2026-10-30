@@ -95,6 +95,10 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                 description: 'Rules agents follow. Always rules apply to every request; auto rules when matching files are in context; agent-requested rules are listed by description and read on demand; manual rules only when you @-mention them in the composer.'
             },
             {
+                id: 'habits', label: 'Habits', custom: 'habits', preferences: ['ingot.habits.threshold'],
+                description: 'Ingot notices what you repeat (the same instruction in prompts, the same terminal command, agent edits you keep rejecting) and offers to save it as a rule, command or hook. Off by default; kept in .ingot/habits.json on this machine.'
+            },
+            {
                 id: 'memories', label: 'Memories', custom: 'memories',
                 description: 'Facts and preferences agents remember between chats. Project memories stay on this machine (git-ignored); global ones apply to every project.'
             },

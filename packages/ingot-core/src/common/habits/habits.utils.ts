@@ -127,3 +127,46 @@ export const parseHabits = (text: string | undefined): Habit[] => {
 };
 
 export const serializeHabits = (habits: readonly Habit[]): string => `${JSON.stringify({ version: HABITS_FILE_VERSION, habits }, undefined, 2)}\n`;
+
+/** Index of the last character of the escape sequence starting at `start` (CSI `ESC [ … final`, SS3 `ESC O x`, or `ESC x`). */
+const escapeEnd = (data: string, start: number): number => {
+    const kind = data[start + 1];
+    if (kind === '[') {
+        let i = start + 2;
+        while (i < data.length && !(data[i] >= '@' && data[i] <= '~')) {
+            i++;
+        }
+        return Math.min(i, data.length - 1);
+    }
+    return Math.min(start + (kind === 'O' ? 2 : 1), data.length - 1);
+};
+
+/**
+ * Feeds terminal keystrokes (xterm `onData`) into a line buffer and returns the lines entered with Enter.
+ * Escape sequences (arrows, history recall) make the line unknown (`undefined` buffer) until the next Enter.
+ */
+export const terminalInput = (buffer: string | undefined, data: string): { buffer: string | undefined; lines: string[] } => {
+    let line = buffer;
+    const lines: string[] = [];
+    for (let i = 0; i < data.length; i++) {
+        const ch = data[i];
+        if (ch === '\r' || ch === '\n') {
+            if (line?.trim()) {
+                lines.push(line.trim());
+            }
+            line = '';
+        } else if (ch === '\x7f' || ch === '\b') {
+            line = line?.slice(0, -1);
+        } else if (ch === '\x03' || ch === '\x15') {
+            line = '';
+        } else if (ch === '\x1b' || ch === '\t') {
+            line = undefined;
+            if (ch === '\x1b') {
+                i = escapeEnd(data, i);
+            }
+        } else if (ch >= ' ' && line !== undefined) {
+            line += ch;
+        }
+    }
+    return { buffer: line, lines };
+};

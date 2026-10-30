@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-    addStopHook, commandEvidence, habitFile, habitTargets, habitTitle, instructionEvidence, parseHabits, recordEvidence, rejectionEvidence, serializeHabits
-} from './habits.utils';
+import { addStopHook, commandEvidence, habitFile, habitTargets, habitTitle, instructionEvidence, parseHabits, recordEvidence, rejectionEvidence, serializeHabits, terminalInput } from './habits.utils';
 import type { Habit } from './habits.types';
 
 describe('IDEA-296 habits', () => {
@@ -50,5 +48,17 @@ describe('IDEA-296 habits', () => {
         expect(hooks).toEqual({ version: 1, 'pre-commit': ['lint'], hooks: { stop: [{ command: 'a' }, { command: 'npm test' }] } });
         expect(JSON.parse(addStopHook(undefined, 'npm test')).hooks.stop).toEqual([{ command: 'npm test' }]);
         expect(JSON.parse(addStopHook(JSON.stringify(hooks), 'npm test')).hooks.stop.length).toBe(2);
+    });
+});
+
+describe('IDEA-296 terminal input', () => {
+    it('collects typed lines, with backspace, and drops history recalls', () => {
+        let state = terminalInput('', 'npm tesx\x7ft');
+        expect(state.lines).toEqual([]);
+        state = terminalInput(state.buffer, '\r');
+        expect(state.lines).toEqual(['npm test']);
+        expect(terminalInput('', '\x1b[A\r').lines).toEqual([]);
+        expect(terminalInput('', 'git pu\tsh\r').lines).toEqual([]);
+        expect(terminalInput('', 'a\x03npm run lint\rnpm run build\r').lines).toEqual(['npm run lint', 'npm run build']);
     });
 });
