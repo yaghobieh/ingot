@@ -10,6 +10,9 @@ import { IngotAgentsWidget } from './agents-widget';
 import { AGENT_COMMANDS, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL, CHAT_MODEL_STATUS_ID, DEMO_MARKER } from './agents.consts';
 import { AUTO_MODEL_ID, AUTO_MODEL_LABEL } from '../../common/models/models.consts';
 import { findModel } from '../../common/models/models.utils';
+import { AGENT_TRACE_GLOBAL } from '../../common/agents/agents.consts';
+import { agentTrace } from '../../common/agents/agent-trace';
+import type { AgentTrace } from '../../common/agents/agent-trace.types';
 
 /** Demo transformation: annotate the first function-like line so the review UI can be tried without a model. */
 const demoEdit = (text: string): string => {
@@ -38,6 +41,10 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
     protected initStatus(): void {
         this.store.onDidChange(() => this.updateChatModelStatus());
         this.updateChatModelStatus();
+        (window as unknown as Record<string, unknown>)[AGENT_TRACE_GLOBAL] = (): AgentTrace | undefined => {
+            const session = this.store.current;
+            return session && agentTrace(session, this.store.isRunning(session.id));
+        };
     }
 
     /** IDEA-104: the status bar names the active chat's model, and follows every chat switch or model pick. */

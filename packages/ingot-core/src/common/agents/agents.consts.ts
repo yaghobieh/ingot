@@ -43,3 +43,8 @@ export const FILE_BADGE_LABELS = {
     ts: 'TS', tsx: 'TSX', js: 'JS', jsx: 'JSX', json: 'JSON', html: 'HTML', css: 'CSS', md: 'MD', file: 'FILE'
 } as const;
 export const MAX_TITLE_LENGTH = 48;
+
+/** IDEA-282: output budget of one agent reply. Whole-file edit blocks need far more than a chat answer. */
+export const AGENT_MAX_TOKENS = 16_000;
+/** The window function a headless run calls to read the active chat. */
+export const AGENT_TRACE_GLOBAL = 'ingotAgentTrace';
