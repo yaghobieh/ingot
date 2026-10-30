@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import { describe, expect, it } from 'vitest';
 import { AUDIT_GENESIS, REDACTED } from './agent-audit.consts';
 import type { AuditEntryInput } from './agent-audit.types';
-import { canonicalJson, matchesQuery, nextEntry, redact, sanitizeArgs, verifyChain } from './agent-audit.utils';
+import { canonicalJson, formatAuditTime, formatDuration, matchesQuery, nextEntry, redact, sanitizeArgs, verifyChain } from './agent-audit.utils';
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
 const AT = '2026-10-30T09:00:00.000Z';
@@ -56,6 +56,17 @@ describe('hash chain', () => {
 
     it('hashes key order independently', () => {
         expect(canonicalJson({ b: 1, a: { d: [1, 2], c: undefined } })).toBe('{"a":{"d":[1,2]},"b":1}');
+    });
+});
+
+describe('formatting', () => {
+    it('shows the time today and the date before, and short durations', () => {
+        const now = new Date(2026, 9, 30, 15, 0, 0);
+        expect(formatAuditTime(new Date(2026, 9, 30, 9, 5, 7).toISOString(), now)).toBe('09:05:07');
+        expect(formatAuditTime(new Date(2026, 9, 29, 23, 59, 0).toISOString(), now)).toBe('2026-10-29 23:59');
+        expect(formatDuration(420)).toBe('420 ms');
+        expect(formatDuration(2500)).toBe('2.5 s');
+        expect(formatDuration(undefined)).toBe('');
     });
 });
 

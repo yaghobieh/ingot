@@ -2,6 +2,9 @@ import type { AuditDecision, AuditOutcome } from './agent-audit.types';
 
 export const AGENT_AUDIT_SERVICE_PATH = '/services/ingot-agent-audit';
 
+/** Opens the audit log viewer (in the Ingot keymap). */
+export const AUDIT_LOG_COMMAND_ID = 'ingot.audit.open';
+
 /** Under the Ingot config folder, outside every project, so the agent's tools cannot reach it. */
 export const AUDIT_DIR = 'audit';
 export const AUDIT_FILE = 'agent-audit.jsonl';

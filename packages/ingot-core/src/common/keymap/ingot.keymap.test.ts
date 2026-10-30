@@ -17,6 +17,8 @@ describe('Ingot keymap', () => {
         expect(key('Run', true)).toBe('ctrl+r');
         expect(key('Run', false)).toBe('shift+f10');
         expect(key('Duplicate Line or Selection', false)).toBe('ctrl+d');
+        expect(key('Agent Audit Log', true)).toBe('ctrlcmd+alt+shift+a');
+        expect(key('Agent Audit Log', false)).toBe('ctrl+alt+shift+a');
     });
 
     it('has no conflicts with itself or the tool window keymap', () => {

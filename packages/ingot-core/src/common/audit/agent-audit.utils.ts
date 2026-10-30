@@ -1,5 +1,17 @@
+import { actionLine, describeAction } from '../agents/agent-actions';
+import type { AgentToolCall } from '../agents/agent-protocol';
 import { AUDIT_ARG_CHARS, AUDIT_GENESIS, AUDIT_OUTPUT_CHARS, REDACTED, SECRET_ARG_NAMES, SECRET_PATTERNS } from './agent-audit.consts';
 import type { AuditEntry, AuditEntryInput, AuditVerifyResult } from './agent-audit.types';
+
+/** One line for the log: the approval card text when the tool has one, else the tool and its first argument. */
+export const toolSummary = (call: AgentToolCall): string => {
+    const action = describeAction(call);
+    if (action) {
+        return actionLine(action, AUDIT_ARG_CHARS);
+    }
+    const first = Object.values(call.args).find((value): value is string => typeof value === 'string' && !!value.trim());
+    return first ? `${call.tool}: ${first}` : call.tool;
+};
 
 export const cap = (text: string, max: number): string => text.length > max ? `${text.slice(0, max)}… (+${text.length - max})` : text;
 
@@ -95,6 +107,20 @@ export const matchesQuery = (entry: AuditEntry, query: string): boolean => {
     const q = query.trim().toLowerCase();
     return !q || [entry.tool, entry.summary, entry.chat, entry.project, entry.reason, entry.output, entry.decision, entry.outcome]
         .some(field => field?.toLowerCase().includes(q));
+};
+
+const pad = (n: number): string => String(n).padStart(2, '0');
+
+/** `14:03:27` for today, `2026-10-29 14:03` before (local time). */
+export const formatAuditTime = (iso: string, now: Date): string => {
+    const at = new Date(iso);
+    if (Number.isNaN(at.getTime())) {
+        return iso;
+    }
+    const time = `${pad(at.getHours())}:${pad(at.getMinutes())}`;
+    return at.toDateString() === now.toDateString()
+        ? `${time}:${pad(at.getSeconds())}`
+        : `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${time}`;
 };
 
 export const formatDuration = (ms: number | undefined): string => {
