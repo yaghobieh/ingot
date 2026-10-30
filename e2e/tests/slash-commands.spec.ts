@@ -75,8 +75,10 @@ for (const scheme of ['light', 'dark'] as const) {
             await page.keyboard.type('the cart');
             await page.keyboard.press('Enter');
             await expect.poll(() => server.requests.at(-1)?.user ?? '').toContain('Review the cart. INGOT-REVIEW-MARKER');
+            await expect(page.locator('#ingot-agents .ingot-chat-agent').last()).toContainText('Done.');
+            await expect(page.locator('#ingot-composer-stop')).toHaveCount(0);
 
-            // A home-folder command expands too.
+            // A home-folder command expands too, after the first turn has finished.
             await composer(page).focus();
             await page.keyboard.type('/standup');
             await page.keyboard.press('Enter');

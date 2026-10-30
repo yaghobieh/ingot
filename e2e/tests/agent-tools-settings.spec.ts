@@ -53,11 +53,12 @@ test.describe('IDEA-133 agent tools settings', () => {
         await setAppearance(page, 'light');
         await openToolsPage(page);
         const body = page.locator('#ingot-settings-page-agent-tools');
-        await expect(body.locator('.ingot-settings-card-title')).toHaveText(['Terminal & scripts', 'Background processes', 'Browser']);
+        await expect(body.locator('.ingot-settings-card-title')).toHaveText(['Terminal & scripts', 'Background processes', 'Browser', 'Work loop']);
         await expect(body.locator('.ingot-setting-label')).toHaveText([
             'Let the agent run commands', 'Ask before running commands', 'Foreground timeout (seconds)', 'Output sent to the agent (characters)',
             'Show background processes in the chat',
-            'Let the agent use the browser', 'Ask before browser actions', 'Also ask before reading pages and screenshots'
+            'Let the agent use the browser', 'Ask before browser actions', 'Also ask before reading pages and screenshots',
+            'Run checks, fix, and commit after a task', 'Most tool rounds in one turn', 'Tool result kept for the model (characters)'
         ]);
         // Defaults (a failed earlier run may have left them off: preferences persist in the e2e config).
         await page.locator(TERMINAL_ON).setChecked(true);

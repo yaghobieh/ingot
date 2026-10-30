@@ -58,7 +58,7 @@ test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => 
         await expect(page.locator('#ingot-composer-input .ingot-chip')).toHaveCount(0);
         const read = page.locator('#ingot-agents .ingot-chat-read').last();
         await expect(read).toContainText('Read rules');
-        await read.locator('.ingot-chat-read-row').click();
+        await read.locator('.ingot-chat-read-label').click();
         await expect(read.locator('.ingot-chat-read-list li').first()).toBeVisible();
         const request = server.requests.at(-1)!;
         expect(request.user).toContain('Explain the total function in two sentences. EXPLAIN-MARKER');

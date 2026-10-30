@@ -30,6 +30,7 @@ export const launchDesktop = async (workspace: string, extraEnv: Record<string, 
             ...process.env,
             THEIA_CONFIG_DIR: path.join(profile, 'config'),
             INGOT_KEYCHAIN_SERVICE: E2E_KEYCHAIN_SERVICE,
+            INGOT_DEV_FILE_KEYSTORE: path.join(profile, 'config', 'keystore.json'),
             INGOT_IMPORT_HOME: IMPORT_HOME,
             INGOT_WORKSPACE: workspace,
             // Never the developer's local ingot-server: account specs start the fake one on this URL.

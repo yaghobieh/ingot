@@ -29,7 +29,7 @@ test.describe('IDEA-109 approval card (desktop)', () => {
 
     const start = async (settings: Record<string, unknown>, reply: (system: string, user: string) => string): Promise<Page> => {
         dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-approval-')));
-        git('init', '-q', '-b', 'main');
+        git('init', '-q', '-b', 'feature/notes');
         git('config', 'user.name', 'Ingot E2E');
         git('config', 'user.email', 'e2e@ingot.dev');
         fs.writeFileSync(path.join(dir, 'notes.md'), '# Notes\n');
@@ -52,7 +52,7 @@ test.describe('IDEA-109 approval card (desktop)', () => {
     };
     /** Each prompt "commit <n>" stages notes and commits "Note <n>"; a tool result ends the turn. */
     const committer = (_system: string, user: string): string => {
-        if (user.startsWith('Tool result (ingot/git)')) {
+        if (user.startsWith('Tool result (ingot/git)') || user.startsWith('Tool result (ingot/summary)')) {
             return user.includes('skipped') ? 'Okay, not committing.' : 'Committed.';
         }
         const n = /commit (\d+)/.exec(user)?.[1] ?? '0';

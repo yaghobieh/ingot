@@ -96,15 +96,15 @@ body.ingot-dark {
 .ingot-chat-explored { font-size: 12px; color: var(--ingot-text-muted); opacity: .8; margin: 6px 0 2px; }
 .ingot-chat-explored-verb { color: var(--ingot-text); opacity: .75; }
 .ingot-chat-thought { margin: 4px 0; }
-.ingot-chat-thought-row { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ingot-text-muted); }
-.ingot-chat-thought-row:hover { color: var(--ingot-text); }
-.ingot-chat-thought-row:focus-visible { outline: 2px solid var(--ingot-primary, #3B6FD9); outline-offset: 2px; border-radius: 4px; }
+.ingot-chat-thought-row { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--theia-descriptionForeground); }
+.ingot-chat-thought-row:hover { color: var(--theia-foreground); }
+.ingot-chat-thought-row:focus-visible { outline: 1px solid var(--theia-focusBorder); outline-offset: 2px; border-radius: 4px; }
 .ingot-chat-thought.thinking .ingot-chat-thought-label {
-    background: linear-gradient(90deg, var(--ingot-text-muted) 0%, #D9A04E 50%, var(--ingot-text-muted) 100%); background-size: 200% 100%;
+    background: linear-gradient(90deg, var(--theia-descriptionForeground) 0%, var(--theia-foreground) 50%, var(--theia-descriptionForeground) 100%); background-size: 200% 100%;
     -webkit-background-clip: text; background-clip: text; color: transparent; animation: ingot-thought-shimmer 1.6s linear infinite;
 }
 @keyframes ingot-thought-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-.ingot-chat-thought-text { margin: 4px 0 6px 18px; padding-left: 10px; border-left: 2px solid var(--ingot-tc-line); color: var(--ingot-text-muted); font-size: 12px; white-space: pre-wrap; }
+.ingot-chat-thought-text { margin: 4px 0 6px 18px; padding-left: 10px; border-left: 2px solid var(--theia-widget-border, var(--theia-panel-border)); color: var(--theia-descriptionForeground); font-size: 12px; white-space: pre-wrap; }
 @media (prefers-reduced-motion: reduce) { .ingot-tc-spinner, .ingot-chat-thought.thinking .ingot-chat-thought-label { animation: none; } }
 /* IDEA-186: the Explored row opens the list of files read and searches made. */
 .ingot-chat-explored-head { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; padding: 1px 4px; margin-left: -4px; }

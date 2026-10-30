@@ -34,7 +34,9 @@ test.describe('IDEA-125 remote config, flags and updates', () => {
         expect(server.configCalls[0]).toEqual({ version: '0.1.0', signedIn: false });
         await page.locator('#ingot-agents-new').click();
         await expect(page.locator('#ingot-composer-input')).toBeVisible();
+        await page.locator('#ingot-composer-more').click();
         await expect(page.locator('#ingot-composer-mic')).toHaveCount(0);
+        await page.locator('#ingot-composer-more').click();
         await page.locator('#ingot-rs-mcp').click();
         await expect(page.locator('#ingot-mcp-search')).toBeVisible();
         await expect(page.locator('#ingot-mcp-browse')).toHaveCount(0);
@@ -43,11 +45,20 @@ test.describe('IDEA-125 remote config, flags and updates', () => {
         server.flags = {};
         const popup = page.waitForEvent('popup');
         await runCommand(page, 'Account: Sign in to Ingot…');
-        (await popup).close();
-        await expect(page.locator('#status-bar-ingot-account-status')).toContainText('left');
+        const browser = await popup;
+        const status = page.locator('#status-bar-ingot-account-status');
+        try {
+            await expect(status).toContainText('left', { timeout: 8_000 });
+        } catch {
+            // Headless Chromium sometimes never finishes the loopback redirect. The callback URL is enough to complete it.
+            await fetch(browser.url()).catch(() => undefined);
+            await expect(status).toContainText('left');
+        } finally {
+            await browser.close().catch(() => undefined);
+        }
         await expect.poll(() => server.configCalls.some(c => c.signedIn)).toBe(true);
         await expect(page.locator('#ingot-mcp-browse')).toBeVisible();
-        // The chat panel sits behind the MCP window now; the mic is back in its composer.
+        await page.locator('#ingot-composer-more').click();
         await expect(page.locator('#ingot-composer-mic')).toHaveCount(1);
     });
 

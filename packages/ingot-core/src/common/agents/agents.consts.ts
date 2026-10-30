@@ -22,12 +22,24 @@ export const STATUS_LABELS: Record<AgentStatus, string> = {
     error: 'Needs attention'
 };
 
+/** How often a streaming reply redraws the chat. Every token would freeze the window. */
+export const STREAM_POKE_MS = 80;
+
 /** Statuses counted as "active" in the toolbar and status bar. */
 export const ACTIVE_STATUSES: readonly AgentStatus[] = ['thinking', 'editing', 'review', 'paused', 'approval'];
 
 /** Signed out with no own keys (IDEA-101): Ingot models need an account, not API keys. */
 export const SIGN_IN_MESSAGE = 'Sign in to use Ingot models — no API keys needed. Or turn on “Use my own API key (BYOK)” in Settings › Models.';
-export const NO_MODEL_MESSAGE = 'This model is not connected yet. Open Settings › Models (gear ▸ Models, or “Ingot: Models”) to add its API key — keys are stored in your OS keychain — or pick a connected model below.';
+export const NO_MODEL_MESSAGE = 'No model is connected yet, so this request was not sent. Choose a model, or sign in for Ingot models. API keys stay in your OS keychain.';
 export const NEW_AGENT_TITLE = 'New chat';
 export const COMPOSER_PLACEHOLDER = 'Ask anything, @ to mention, / for actions';
+export const AGENT_TITLE = 'Ingot Agent';
+export const WORKED_FOR = 'worked for';
+export const EDITED_WORD = 'Edited';
+export const REVIEW_WORD = 'Review';
+export const REJECT_ALL = 'Reject all';
+export const ACCEPT_ALL = 'Accept all';
+export const FILE_BADGE_LABELS = {
+    ts: 'TS', tsx: 'TSX', js: 'JS', jsx: 'JSX', json: 'JSON', html: 'HTML', css: 'CSS', md: 'MD', file: 'FILE'
+} as const;
 export const MAX_TITLE_LENGTH = 48;

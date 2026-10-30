@@ -82,5 +82,11 @@ describe('IDEA-109 agent actions', () => {
         expect(off).toContain('ingot/processes:');
         expect(builtinToolEnabled('browser_read', { terminal: true, browser: false })).toBe(false);
         expect(builtinToolEnabled('process_stop', { terminal: false, browser: true })).toBe(true);
+        expect(all).toContain('ingot/ask_user:');
+        expect(all).toContain('ingot/create_library:');
+        expect(describeAction({ server: 'ingot', tool: 'ask_user', args: { question: 'Which name?' } })).toBeUndefined();
+        expect(describeAction({ server: 'ingot', tool: 'create_library', args: { path: '/tmp/library' } })).toBeUndefined();
+        expect(describeAction({ server: 'ingot', tool: 'open_workspace', args: { path: '/tmp/library' } })).toMatchObject({ kind: 'terminal', label: 'Open folder' });
+        expect(describeAction({ server: 'ingot', tool: 'run', args: { command: 'npm test', cwd: '/tmp/library' } })?.detail).toBe('npm test (/tmp/library)');
     });
 });

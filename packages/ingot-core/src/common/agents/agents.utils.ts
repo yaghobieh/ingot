@@ -1,8 +1,10 @@
-import { ACTIVE_STATUSES, MAX_TITLE_LENGTH, STATUS_LABELS } from './agents.consts';
+import { ACTIVE_STATUSES, FILE_BADGE_LABELS, MAX_TITLE_LENGTH, STATUS_LABELS } from './agents.consts';
 import type { AgentSession, AgentStep } from './agents.types';
 
+const SECOND_MS = 1_000;
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
+const MINUTE_SECONDS = MINUTE / SECOND_MS;
 
 export const relativeTime = (from: number, now: number): string => {
     const delta = Math.max(0, now - from);
@@ -18,6 +20,9 @@ export const relativeTime = (from: number, now: number): string => {
 
 /** List subtitle, e.g. "Editing useCart.ts · 2m", "Ready for review · 4 files", "Done · 18 min ago". */
 export const agentSubtitle = (session: AgentSession, now: number): string => {
+    if (session.ask) {
+        return 'Waiting for an answer';
+    }
     const label = STATUS_LABELS[session.status];
     if (session.status === 'editing' && session.activeFile) {
         return `${label} ${session.activeFile} · ${relativeTime(session.updatedAt, now)}`;
@@ -32,6 +37,15 @@ export const agentSubtitle = (session: AgentSession, now: number): string => {
 
 export const activeAgentCount = (sessions: readonly AgentSession[]): number => sessions.filter(s => ACTIVE_STATUSES.includes(s.status)).length;
 
+/** Generation used when a run starts without send() (a subagent or a Zaprex piece). */
+export const CHILD_LOOP_GENERATION = 0;
+
+/**
+ * The generation a model loop should run as. send() stores one before it starts; a child run has none yet,
+ * and treating that as "replaced" drops the loop before the first request.
+ */
+export const resolveLoopGeneration = (current: number | undefined): number => current ?? CHILD_LOOP_GENERATION;
+
 export const titleFromPrompt = (prompt: string): string => {
     const text = prompt.trim().replace(/\s+/g, ' ');
     const title = text.charAt(0).toUpperCase() + text.slice(1);
@@ -41,3 +55,29 @@ export const titleFromPrompt = (prompt: string): string => {
 export const stepVerb = (step: AgentStep): string => ({ read: 'Read', edit: 'Edit', run: 'Run', search: 'Search' })[step.kind];
 
 export const changesSummary = (count: number): string => `${count} ${count === 1 ? 'file' : 'files'} changed`;
+
+export const fileWord = (count: number): string => count === 1 ? 'file' : 'files';
+
+/** "Edited 16 files" on the collapsible card. */
+export const editedFilesLabel = (count: number): string => `Edited ${count} ${fileWord(count)}`;
+
+/** Elapsed time under the agent name, such as "2m 14s". */
+export const formatWorked = (elapsedMs: number): string => {
+    const total = Math.max(0, Math.floor(elapsedMs / SECOND_MS));
+    const minutes = Math.floor(total / MINUTE_SECONDS);
+    const seconds = total % MINUTE_SECONDS;
+    return minutes < 1 ? `${seconds}s` : `${minutes}m ${seconds}s`;
+};
+
+export type FileBadgeTone = keyof typeof FILE_BADGE_LABELS;
+
+const BADGE_BY_EXT: Readonly<Record<string, FileBadgeTone>> = {
+    ts: 'ts', tsx: 'tsx', js: 'js', jsx: 'jsx', json: 'json', html: 'html', htm: 'html', css: 'css', scss: 'css', md: 'md'
+};
+
+/** Colored file-type badge for an edited-file row. */
+export const fileBadge = (name: string): { readonly label: string; readonly tone: FileBadgeTone } => {
+    const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
+    const tone = BADGE_BY_EXT[ext] ?? 'file';
+    return { label: FILE_BADGE_LABELS[tone], tone };
+};

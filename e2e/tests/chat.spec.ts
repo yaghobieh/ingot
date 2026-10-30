@@ -111,12 +111,13 @@ test.describe('IDEA-77 chat redesign', () => {
         await page.locator('#ingot-agents-new').click();
         await pickModel(page, 'ollama-local');
 
+        await page.locator('#ingot-composer-more').click();
         await page.locator('#ingot-composer-mode').click();
         await expect(page.locator('#ingot-mode-menu .ingot-mode-item')).toHaveCount(5);
         await expect(page.locator('#ingot-mode-menu')).toContainText('Multi-agent');
         await expect(page.locator('#ingot-mode-debug')).toContainText('terminal output');
         await page.locator('#ingot-mode-ask').click();
-        await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'ask');
+        await expect(page.locator('#ingot-composer-more')).toHaveAttribute('data-mode', 'ask');
         await send(page, 'What does add do?');
         await expect(agents(page).locator('.ingot-chat-agent .ingot-md').last()).toHaveText('Plain answer.');
         expect(server.requests.at(-1)?.system).toContain('Do not propose edits');
@@ -125,7 +126,7 @@ test.describe('IDEA-77 chat redesign', () => {
         // Ctrl+. cycles Ask → Plan while the chat has focus.
         await page.locator('#ingot-composer-input').click();
         await page.keyboard.press('Control+.');
-        await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'plan');
+        await expect(page.locator('#ingot-composer-more')).toHaveAttribute('data-mode', 'plan');
         await send(page, 'Add qty support');
         await expect(agents(page).locator('.ingot-chat-plan')).toContainText('Add qty to addItem');
         await expect(page.locator('#ingot-plan-build')).toBeVisible();
@@ -134,14 +135,14 @@ test.describe('IDEA-77 chat redesign', () => {
         await page.locator('#ingot-agents-new').click();
         await pickMode(page, 'debug');
         await tabs(page).first().click();
-        await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'plan');
+        await expect(page.locator('#ingot-composer-more')).toHaveAttribute('data-mode', 'plan');
 
         await page.locator('#ingot-plan-build').click();
-        await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'agent');
+        await expect(page.locator('#ingot-composer-more')).toHaveAttribute('data-mode', 'agent');
         await expect(agents(page).locator('.ingot-chat-agent .ingot-md').last()).toHaveText('Building now.');
         expect(server.requests.at(-1)?.system).toContain('<<<EDIT');
         await tabs(page).nth(1).click();
-        await expect(page.locator('#ingot-composer-mode')).toHaveAttribute('data-mode', 'debug');
+        await expect(page.locator('#ingot-composer-more')).toHaveAttribute('data-mode', 'debug');
     });
 
     test('model picker: families with > arrow, search, favorites, no badges, Add key, Auto, Manage models', async ({ page }) => {
@@ -193,7 +194,7 @@ test.describe('IDEA-77 chat redesign', () => {
 
     test('context chips, usage ring, memories (save, undo, inject, manage) and Summarize & continue', async ({ page }) => {
         reply = (system, user) => user.includes('remember') ? 'Noted.\nREMEMBER: The project uses tabs for indentation.' : user.includes('Summarize this conversation')
-            ? '- Goal: big paste\n- Left: nothing' : `Echo: ${user.slice(0, 20)}`;
+            ? '- Goal: big paste\n- Left: nothing' : `Echo reply: ${user.slice(0, 20)}`;
         await openIngot(page, project);
         await dismissNotifications(page);
         await connectOllama(page, server);
@@ -216,9 +217,12 @@ test.describe('IDEA-77 chat redesign', () => {
         expect(fs.readdirSync(dir).filter(f => f.endsWith('.md'))).toHaveLength(1);
         expect(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8')).toContain('*');
         expect(server.requests.at(-1)?.system).not.toContain('Project files for context');
+        await page.locator('#ingot-composer-more').click();
         const ring = page.locator('#ingot-context-ring');
+        await expect(ring).toBeVisible();
         expect(Number(await ring.getAttribute('data-ratio'))).toBeGreaterThan(0);
         await expect(ring).toHaveAttribute('title', /tokens/);
+        await page.locator('#ingot-composer-more').click();
 
         // The next request carries the memory silently: no chip is auto-attached to the message (IDEA-100).
         await send(page, 'What is our style?');

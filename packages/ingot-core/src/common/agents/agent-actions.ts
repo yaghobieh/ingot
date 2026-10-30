@@ -58,7 +58,10 @@ export const BUILTIN_TOOLS = [
     { name: 'browser_scroll', description: 'Scroll the page. Arguments: {"direction": "down" | "up" | "top" | "bottom"}.' },
     { name: 'browser_back', description: 'Go back one page. No arguments.' },
     { name: 'browser_screenshot', description: 'Take a screenshot of the browser panel (shown to the user; sent to you when the model reads images). No arguments.' },
-    { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' }
+    { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' },
+    { name: 'ask_user', description: 'Ask the user a clarifying question and wait for the answer before continuing. Arguments: {"question": "…", "options"?: ["a", "b"]}. The user can also type their own answer. Runs at once and pauses the run.' },
+    { name: 'create_library', description: 'Create a new React + Vite client and Node + Express server for a library (books, authors, members, loans, borrow and return) in a new empty folder. Arguments: {"path": "/absolute/or/relative", "react": "feature-folders" | "atomic", "node": "layered" | "modular", "reactExample"?: "/path/to/example", "nodeExample"?: "/path/to/example"}. Named presets or an example folder. If the layout is unclear, call ask_user first. Runs at once; each file shows up for Accept or Reject.' },
+    { name: 'open_workspace', description: 'Open a folder as the Ingot workspace. Arguments: {"path": "/absolute/path"}. Waits for the user\'s approval. Call it last, after install, tests and git.' }
 ] as const;
 
 const str = (value: unknown): string => typeof value === 'string' ? value : '';
@@ -120,11 +123,13 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
         }
         case 'run': {
             const command = str(a.command).trim();
-            return { kind: 'terminal', label: a.background === true ? 'Run in background' : 'Run command', detail: command, command };
+            const cwd = str(a.cwd).trim();
+            return { kind: 'terminal', label: a.background === true ? 'Run in background' : 'Run command', detail: cwd ? `${command} (${cwd})` : command, command };
         }
         case 'scripts': case 'processes': case 'process_output': return undefined;
         // IDEA-186: read-only project tools run at once.
-        case 'read_file': case 'list_dir': case 'grep': return undefined;
+        case 'read_file': case 'list_dir': case 'glob': case 'grep': case 'ask_user': case 'create_library': return undefined;
+        case 'open_workspace': return { kind: 'terminal', label: 'Open folder', detail: str(a.path), command: str(a.path) };
         case 'process_stop': return { kind: 'terminal', label: 'Stop process', detail: str(a.id) };
         case 'web_search': return { kind: 'web', label: 'Search web', detail: str(a.query) };
         case 'web_fetch': return { kind: 'web', label: 'Fetch', detail: str(a.url) };
@@ -254,5 +259,9 @@ export const builtinToolEnabled = (name: string, on: BuiltinToolSwitches): boole
 export const builtinToolProtocol = (on: BuiltinToolSwitches = { terminal: true, browser: true }): string => [
     'Ingot tools (same block format, server "ingot"):',
     ...BUILTIN_TOOLS.filter(t => builtinToolEnabled(t.name, on)).map(t => `- ${BUILTIN_TOOL_SERVER}/${t.name}: ${t.description}`),
-    'If the user skips an action you get its reason as the tool result; adapt instead of retrying.'
+    'If the user skips an action you get its reason as the tool result; adapt instead of retrying.',
+    'New React and Node library: if the user asks to create one, call ingot/ask_user when the React structure (feature-folders or atomic) or the Node structure (layered or modular) or the folder path is unclear. An example folder can be passed as reactExample or nodeExample.',
+    'Then ingot/create_library. Then ingot/run npm install, npm test and npm run build with {"cwd": "<that path>"}. If tests fail, fix the files and rerun npm test, up to 3 times.',
+    'Then ingot/ask_user whether to git init on branch feature/library and make the first commit. If they agree, ingot/run those git commands with that cwd.',
+    'Last, ingot/open_workspace with the same path. Do not hand-write the project when create_library can do it.'
 ].join('\n');

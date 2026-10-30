@@ -1,4 +1,5 @@
-import { inject, injectable } from '@theia/core/shared/inversify';
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
+import { registerClientDrop } from '../../common/rpc/disconnected-client';
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { FileUri } from '@theia/core/lib/common/file-uri';
@@ -44,6 +45,11 @@ export class IngotAccountBackend implements AccountBackend {
     protected role?: string;
     /** 403 account_blocked seen (IDEA-124); cleared by the next sign-in or sign-out. */
     protected blocked = false;
+
+    @postConstruct()
+    protected watchDisconnect(): void {
+        registerClientDrop(() => this.clients.clear());
+    }
 
     setClient(client: AccountClient | undefined): void {
         if (client) {

@@ -1,6 +1,6 @@
 /*
  * IDEA-175: chat composer toolbar. One control height, ghost icon buttons, quiet outlined pills,
- * brand tokens only (no warning orange on the model pill) and a gold send button. Loaded last so it
+ * brand tokens only (no warning orange on the model pill) and a theme-colored send button. Loaded last so it
  * wins over the older layered composer rules in shell.css / review.css.
  */
 .ingot-agents .ingot-composer {
@@ -79,8 +79,8 @@
   transition: background-color .12s ease, color .12s ease, transform .08s ease;
 }
 .ingot-agents .ingot-composer-bar .ingot-composer-send .codicon { font-size: 15px; font-weight: 700; }
-.ingot-agents .ingot-composer-bar .ingot-composer-send:not(:disabled) { background: var(--ingot-cb-gold); color: var(--ingot-cb-navy); }
-.ingot-agents .ingot-composer-bar .ingot-composer-send:not(:disabled):hover { background: color-mix(in srgb, var(--ingot-cb-gold) 88%, #fff); }
+.ingot-agents .ingot-composer-bar .ingot-composer-send:not(:disabled) { background: var(--ingot-primary); color: var(--ingot-primary-text); }
+.ingot-agents .ingot-composer-bar .ingot-composer-send:not(:disabled):hover { background: var(--ingot-primary-hover); }
 .ingot-agents .ingot-composer-bar .ingot-composer-send:not(:disabled):active { transform: translateY(1px); }
 .ingot-agents .ingot-composer-bar .ingot-composer-send:disabled { opacity: 1; background: var(--ingot-cb-fill); color: var(--ingot-cb-muted); border-color: var(--ingot-cb-line); cursor: default; }
 .ingot-agents .ingot-composer-bar .ingot-composer-stop,

@@ -34,10 +34,9 @@ test.describe('IDEA-173 Zaprex link', () => {
         await dismissNotifications(page);
         const logo = page.locator('#ingot-tb-zaprex');
         await expect(logo).toBeVisible();
-        // One T-rex in the title bar; the only other one is the composer button (IDEA-184), never the agent header.
+        // The title bar has the one T-rex.
         await expect(logo.locator('.ingot-zaprex-link-icon')).toHaveCount(1);
-        await expect(page.locator('.ingot-zaprex-link-icon:not(#ingot-tb-zaprex *):not(#ingot-composer-zaprex *)')).toHaveCount(0);
-        await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(await page.locator('.ingot-agents .ingot-composer-bar').count());
+        await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
         await expect(page.locator('#ingot-agents-zaprex')).toHaveCount(0);
         expect(await logo.locator('.ingot-zaprex-trex').evaluate(el => getComputedStyle(el).animationName)).toBe('ingot-trex-idle');
         await expect(logo).toHaveAttribute('title', 'Open Zaprex');

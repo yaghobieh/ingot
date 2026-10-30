@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    appendTail, describeProcesses, isListed, detectPorts, finalStatus, formatUptime, isSafeScriptName, packageManagerFor, parseScripts, scriptCommand, sortProcesses, stripAnsi
+    appendTail, describeProcesses, isListed, detectPorts, finalStatus, formatUptime, isSafeProjectPath, isSafeScriptName, packageManagerFor, parseScripts, scriptCommand, sortProcesses, stripAnsi
 } from './processes.utils';
 import type { ProcessInfo } from './processes.types';
 
@@ -46,6 +46,13 @@ describe('IDEA-131 process helpers', () => {
         expect(finalStatus(0, false)).toBe('exited');
         expect(finalStatus(1, false)).toBe('failed');
         expect(finalStatus(null, true)).toBe('stopped');
+    });
+
+    it('refuses paths that leave the project', () => {
+        expect(isSafeProjectPath('src/total.js')).toBe(true);
+        expect(isSafeProjectPath('../secret')).toBe(false);
+        expect(isSafeProjectPath('/etc/passwd')).toBe(false);
+        expect(isSafeProjectPath('')).toBe(false);
     });
 
     it('IDEA-132: lists running and background processes, not finished foreground ones', () => {

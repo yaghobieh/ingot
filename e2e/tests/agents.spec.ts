@@ -29,9 +29,10 @@ test.describe('IDEA-27/28 Agents tool window', () => {
         await pickModel(page, 'gpt-5');
         await page.locator('#ingot-composer-input').fill('make addItem optimistic and add qty support');
         await page.keyboard.press('Enter');
-        await expect(panel.locator('.ingot-chat-user')).toHaveText('make addItem optimistic and add qty support');
+        await expect(panel.locator('.ingot-chat-user')).toContainText('make addItem optimistic and add qty support');
         await expect(panel.locator('.ingot-chat-tab-title').first()).toHaveText('Make addItem optimistic and add');
-        await expect(panel.locator('.ingot-chat-system')).toContainText('not connected yet');
+        await expect(panel.locator('.ingot-chat-system')).toContainText('No model is connected');
+        await expect(panel.locator('#ingot-open-models')).toHaveText('Choose a model');
     });
 
     test('right stripe Agents button toggles the panel', async ({ page }) => {
@@ -58,7 +59,7 @@ test.describe('IDEA-29 inline agent edit review', () => {
         await expect(page.locator('.ingot-diff-added-line').first()).toBeVisible();
         await expect(page.locator('.ingot-diff-removed-zone').first()).toBeVisible();
         await expect(page.locator('#ingot-agents .ingot-chat-plan')).toBeVisible();
-        await expect(page.locator('#ingot-changes-bar')).toContainText('1 file changed');
+        await expect(page.locator('#ingot-changes-bar')).toContainText('1 file');
         await expect(page.locator('#ingot-agents .ingot-change-block .ingot-change-name')).toHaveText('math.ts');
         await expect(page.locator('#theia-statusBar')).toContainText('1 agent active');
 

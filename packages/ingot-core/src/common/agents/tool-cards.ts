@@ -145,7 +145,7 @@ export const parseProfile = (text: string): ProfileCard | undefined => {
 
 const TOOL_TITLES: Record<string, string> = {
     git: 'Git', web_search: 'Searched the web', web_fetch: 'Fetched', delete: 'Deleted', scripts: 'Listed scripts',
-    processes: 'Listed processes', process_output: 'Read process output', process_stop: 'Stopped process'
+    processes: 'Listed processes', process_output: 'Read process output', process_stop: 'Stopped process', summary: 'Summary'
 };
 
 /** What card a finished (or running) tool message gets. */
@@ -170,6 +170,25 @@ export const toolCard = (info: ToolCallInfo, text: string, builtinServer = 'ingo
     const detail = builtin && info.tool === 'git' ? shorten([str(info.args.op), str(info.args.branch) || str(info.args.message)].filter(Boolean).join(' '), 48)
         : firstArg ? shorten(firstArg, 48) : '';
     return { kind: 'generic', title, detail, output: text.replace(/^Error: /, '') };
+};
+
+/** Read and search steps for the Explored list. The same file read twice (a recovered shell read, then the tool) is one row. */
+export const exploredItems = (steps: readonly { kind: string; target: string }[]): { kind: string; target: string }[] => {
+    const seen = new Set<string>();
+    const items: { kind: string; target: string }[] = [];
+    for (const step of steps) {
+        if (!((step.kind === 'read' && !step.target.startsWith('rules:')) || step.kind === 'search')) {
+            continue;
+        }
+        const key = `${step.kind}\u0000${step.target}`;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        items.push({ kind: step.kind, target: step.target });
+    }
+    const rank = (item: { kind: string; target: string }): number => item.kind === 'search' ? 2 : item.target.endsWith('/') ? 0 : 1;
+    return items.sort((a, b) => rank(a) - rank(b));
 };
 
 /** "Explored 3 files, 2 searches" from the run's read / search steps (past tense once the run is over). */

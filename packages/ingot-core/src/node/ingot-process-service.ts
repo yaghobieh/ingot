@@ -1,14 +1,19 @@
 import { spawn, type ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { injectable } from '@theia/core/shared/inversify';
+import { injectable, postConstruct } from '@theia/core/shared/inversify';
+import { createRequire } from 'module';
+import { rgArgs } from '../common/agents/workspace-tools';
+import { RG_TIMEOUT_MS } from '../common/agents/work-loop.consts';
 import type {
-    ForegroundOptions, ForegroundResult, PackageScripts, ProcessClient, ProcessInfo, ProcessOutput, ProcessService, ProcessStartOptions
+    ForegroundOptions, ForegroundResult, PackageScripts, ProcessClient, ProcessInfo, ProcessOutput, ProcessService, ProcessStartOptions,
+    WorkspaceSearchQuery, WorkspaceSearchResult
 } from '../common/processes/processes.types';
 import {
     BACKGROUND_SETTLE_MS, FOREGROUND_TIMEOUT_MS, MAX_FINISHED_PROCESSES, PROCESS_AGENT_OUTPUT_CHARS, PROCESS_BUFFER_CHARS, PROCESS_LIST_DEBOUNCE_MS, STOP_GRACE_MS
 } from '../common/processes/processes.consts';
-import { appendTail, detectPorts, finalStatus, packageManagerFor, parseScripts, sortProcesses, stripAnsi } from '../common/processes/processes.utils';
+import { appendTail, detectPorts, finalStatus, isSafeProjectPath, packageManagerFor, parseScripts, sortProcesses, stripAnsi } from '../common/processes/processes.utils';
+import { registerClientDrop } from '../common/rpc/disconnected-client';
 
 interface Entry {
     info: ProcessInfo;
@@ -34,6 +39,11 @@ export class IngotProcessService implements ProcessService {
 
     constructor() {
         process.once('exit', () => this.killAll());
+    }
+
+    @postConstruct()
+    protected watchDisconnect(): void {
+        registerClientDrop(() => this.clients.clear());
     }
 
     setClient(client: ProcessClient | undefined): void {
@@ -72,6 +82,35 @@ export class IngotProcessService implements ProcessService {
         return { info: entry.info, output: text, movedToBackground: !finished };
     }
 
+    async readText(cwd: string, relativePath: string): Promise<string | undefined> {
+        const full = this.projectFile(cwd, relativePath);
+        if (!full) {
+            return undefined;
+        }
+        return fs.promises.readFile(full, 'utf8').catch(() => undefined);
+    }
+
+    async writeText(cwd: string, relativePath: string, content: string): Promise<void> {
+        const full = this.projectFile(cwd, relativePath);
+        if (!full) {
+            throw new Error(`Refusing to write "${relativePath}".`);
+        }
+        await fs.promises.mkdir(path.dirname(full), { recursive: true });
+        await fs.promises.writeFile(full, content, 'utf8');
+    }
+
+    protected projectFile(cwd: string, relativePath: string): string | undefined {
+        if (!isSafeProjectPath(relativePath)) {
+            return undefined;
+        }
+        const root = path.resolve(cwd);
+        const full = path.resolve(root, relativePath);
+        if (full !== root && !full.startsWith(root + path.sep)) {
+            return undefined;
+        }
+        return full;
+    }
+
     async output(id: string, maxChars = PROCESS_AGENT_OUTPUT_CHARS): Promise<ProcessOutput | undefined> {
         const entry = this.entries.get(id);
         if (!entry) {
@@ -101,6 +140,45 @@ export class IngotProcessService implements ProcessService {
             }
         }
         this.notify();
+    }
+
+    /** IDEA-248: ripgrep over the open project. A miss returns `engine: 'none'` so the caller can walk the tree. */
+    async workspaceSearch(query: WorkspaceSearchQuery): Promise<WorkspaceSearchResult> {
+        const bin = ripgrepBinary();
+        if (!bin || !query.cwd) {
+            return { engine: 'none', text: '' };
+        }
+        const args = rgArgs({ pattern: query.pattern, path: query.path, glob: query.glob, regex: query.regex, files: query.files });
+        return new Promise(resolve => {
+            let text = '';
+            let settled = false;
+            const finish = (result: WorkspaceSearchResult): void => {
+                if (!settled) {
+                    settled = true;
+                    resolve(result);
+                }
+            };
+            const child = spawn(bin, args, { cwd: query.cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+            const timer = setTimeout(() => {
+                child.kill('SIGKILL');
+                finish({ engine: 'ripgrep', text });
+            }, RG_TIMEOUT_MS);
+            const add = (chunk: Buffer): void => {
+                if (text.length < PROCESS_AGENT_OUTPUT_CHARS) {
+                    text += chunk.toString('utf8');
+                }
+            };
+            child.stdout?.on('data', add);
+            child.stderr?.on('data', add);
+            child.on('error', () => {
+                clearTimeout(timer);
+                finish({ engine: 'none', text: '' });
+            });
+            child.on('close', () => {
+                clearTimeout(timer);
+                finish({ engine: 'ripgrep', text });
+            });
+        });
     }
 
     async scripts(cwd: string): Promise<PackageScripts | undefined> {
@@ -185,6 +263,20 @@ export class IngotProcessService implements ProcessService {
         this.notify();
     }
 
+    /** A closed client rejects the notification. Drop it instead of filling the disconnect buffer. */
+    protected async pushList(): Promise<void> {
+        const list = await this.list();
+        for (const client of [...this.clients]) {
+            try {
+                void Promise.resolve(client.onProcessesChanged(list)).catch(() => {
+                    this.clients.delete(client);
+                });
+            } catch {
+                this.clients.delete(client);
+            }
+        }
+    }
+
     protected prune(): void {
         const finished = [...this.entries.values()].filter(e => e.info.status !== 'running').sort((a, b) => a.info.startedAt - b.info.startedAt);
         for (const e of finished.slice(0, Math.max(0, finished.length - MAX_FINISHED_PROCESSES))) {
@@ -196,16 +288,9 @@ export class IngotProcessService implements ProcessService {
         if (this.notifyTimer) {
             return;
         }
-        this.notifyTimer = setTimeout(async () => {
+        this.notifyTimer = setTimeout(() => {
             this.notifyTimer = undefined;
-            const list = await this.list();
-            for (const client of this.clients) {
-                try {
-                    client.onProcessesChanged(list);
-                } catch {
-                    this.clients.delete(client);
-                }
-            }
+            void this.pushList();
         }, PROCESS_LIST_DEBOUNCE_MS);
     }
 
@@ -220,3 +305,13 @@ export class IngotProcessService implements ProcessService {
 }
 
 const delay = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms));
+const nodeRequire = createRequire(__filename);
+
+const ripgrepBinary = (): string | undefined => {
+    try {
+        const found = nodeRequire('@vscode/ripgrep') as { rgPath?: string };
+        return found.rgPath && fs.existsSync(found.rgPath) ? found.rgPath : undefined;
+    } catch {
+        return undefined;
+    }
+};

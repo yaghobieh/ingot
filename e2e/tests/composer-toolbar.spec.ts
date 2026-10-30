@@ -2,9 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { dismissNotifications, openIngot } from '../src/app.utils';
+import { tokenColor } from '../src/agent-tools.e2e-utils';
 
-/** IDEA-175: one height for every composer control, tooltips, brand-gold send, neutral model pill. Screenshots with INGOT_SHOTS_DIR=<dir>. */
+/** IDEA-175 / IDEA-248: one height for the inline controls, theme-colored send, extras in the overflow menu. */
 const SHOTS_DIR = process.env.INGOT_SHOTS_DIR;
+const ARTIFACTS = '/opt/cursor/artifacts/screenshots';
 const BAR = '.ingot-agents .ingot-composer-bar';
 const GOLD = 'rgb(217, 160, 78)';
 
@@ -20,75 +22,74 @@ const useScheme = async (page: Page, scheme: 'light' | 'dark'): Promise<void> =>
 const style = (page: Page, selector: string, prop: string): Promise<string> =>
     page.locator(selector).first().evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
 
+const saveShot = async (page: Page, name: string): Promise<void> => {
+    fs.mkdirSync(ARTIFACTS, { recursive: true });
+    await page.locator('.ingot-agents').screenshot({ path: path.join(ARTIFACTS, name), animations: 'disabled' });
+    if (SHOTS_DIR) {
+        fs.mkdirSync(SHOTS_DIR, { recursive: true });
+        await page.locator('.ingot-agents').screenshot({ path: path.join(SHOTS_DIR, name), animations: 'disabled' });
+    }
+};
+
 for (const scheme of ['light', 'dark'] as const) {
     test(`IDEA-175 composer toolbar is consistent (${scheme})`, async ({ page }) => {
         await useScheme(page, scheme);
         await page.locator('#ingot-agents-new').click();
         const bar = page.locator(BAR);
         await expect(bar).toBeVisible();
+        const sendColor = await tokenColor(page, '--ingot-primary');
+        const sendText = await tokenColor(page, '--ingot-primary-text');
+        const surface = await tokenColor(page, '--ingot-surface');
 
-        // Every control in the bar has the same height and a tooltip.
-        const controls = ['#ingot-composer-attach', '#ingot-composer-mode', '#ingot-composer-model', '#ingot-composer-review', '#ingot-composer-zaprex', '#ingot-composer-send'];
+        const controls = ['#ingot-composer-attach', '#ingot-composer-more', '#ingot-composer-model', '#ingot-composer-send'];
         for (const id of controls) {
             const box = await page.locator(id).boundingBox();
             expect(box, id).not.toBeNull();
             expect(Math.round(box!.height), `${id} height`).toBe(26);
             expect(await page.locator(id).getAttribute('title'), `${id} tooltip`).toBeTruthy();
         }
-        const mic = page.locator('#ingot-composer-mic');
-        if (await mic.count()) {
-            expect(Math.round((await mic.boundingBox())!.height)).toBe(26);
-        }
 
-        // IDEA-184: borderless ghost pills, a review toggle with no filled circle, the animated T-rex.
-        for (const id of ['#ingot-composer-mode', '#ingot-composer-model']) {
-            expect(await style(page, id, 'border-top-color'), `${id} border`).toBe('rgba(0, 0, 0, 0)');
-            expect(await style(page, id, 'background-color'), `${id} background`).toBe('rgba(0, 0, 0, 0)');
-        }
-        expect(await style(page, '#ingot-composer-review', 'background-color')).toBe('rgba(0, 0, 0, 0)');
-        await expect(page.locator('#ingot-composer-review .codicon-eye, #ingot-composer-review.codicon-eye')).toHaveCount(0);
-        await expect(page.locator('#ingot-composer-review .codicon-checklist')).toBeVisible();
-        if (await page.locator('#ingot-composer-review').getAttribute('aria-pressed') === 'true') {
-            await expect(page.locator('#ingot-composer-review .ingot-composer-review-dot')).toBeVisible();
-        }
-        const trex = page.locator('#ingot-composer-zaprex .ingot-zaprex-trex');
-        await expect(trex).toBeVisible();
-        expect(await style(page, '#ingot-composer-zaprex', 'background-color')).toBe('rgba(0, 0, 0, 0)');
-        expect(await trex.evaluate(el => getComputedStyle(el).animationName)).toBe('ingot-trex-idle');
-        await expect(page.locator('#ingot-composer-zaprex')).toHaveAttribute('title', 'Zaprex · Harmony mode on');
+        expect(await style(page, '#ingot-composer-model', 'border-top-color')).toBe('rgba(0, 0, 0, 0)');
+        expect(await style(page, '#ingot-composer-model', 'background-color')).toBe('rgba(0, 0, 0, 0)');
+        expect(await style(page, '#ingot-composer-more', 'background-color')).toBe('rgba(0, 0, 0, 0)');
+        await expect(page.locator('.ingot-composer-bar #ingot-composer-mode')).toHaveCount(0);
+        await expect(page.locator('#ingot-composer-review')).toHaveCount(0);
+        await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
+        await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
 
-        // The model pill is never painted warning orange, ready or not.
         const modelColor = await style(page, '#ingot-composer-model', 'color');
         const textColor = await style(page, '.ingot-agents .ingot-composer-input', 'color');
         expect(modelColor).toBe(textColor);
+        await expect(page.locator('.ingot-agents .ingot-composer')).toHaveCSS('background-color', surface);
 
-        // Send: muted while empty, brand gold with a tooltip once there is text.
+        await page.locator('#ingot-composer-more').click();
+        await expect(page.locator('#ingot-composer-more-menu')).toBeVisible();
+        await expect(page.locator('#ingot-composer-mode')).toBeVisible();
+        await expect(page.locator('#ingot-composer-mode .ingot-pill-label')).toHaveText('Agent');
+        await expect(page.locator('#ingot-composer-review')).toBeVisible();
+        await expect(page.locator('#ingot-composer-more-menu')).toHaveCSS('background-color', surface);
+        await saveShot(page, `composer-rex-menu-${scheme}.png`);
+        await page.locator('#ingot-composer-more').click();
+        await expect(page.locator('#ingot-composer-more-menu')).toBeHidden();
+
         const send = page.locator('#ingot-composer-send');
         await expect(send).toBeDisabled();
-        expect(await style(page, '#ingot-composer-send', 'background-color')).not.toBe(GOLD);
+        expect(await style(page, '#ingot-composer-send', 'background-color')).not.toBe(sendColor);
+        expect(sendColor).not.toBe(GOLD);
         await expect(send).toHaveAttribute('title', 'Type a message to send');
-        if (SHOTS_DIR) {
-            fs.mkdirSync(SHOTS_DIR, { recursive: true });
-            await page.locator('.ingot-agents .ingot-composer').screenshot({ path: path.join(SHOTS_DIR, `composer-toolbar-empty-${scheme}.png`) });
-        }
         await page.locator('#ingot-composer-input').click();
         await page.keyboard.type('Refactor the cart hook');
         await expect(send).toBeEnabled();
-        await expect.poll(() => style(page, '#ingot-composer-send', 'background-color')).toBe(GOLD);
+        await expect.poll(() => style(page, '#ingot-composer-send', 'background-color')).toBe(sendColor);
+        await expect.poll(() => style(page, '#ingot-composer-send', 'color')).toBe(sendText);
         await expect(send).toHaveAttribute('title', 'Send (Enter)');
 
-        // Keyboard focus shows a ring; hover fills the pill.
-        await page.locator('#ingot-composer-mode').focus();
+        await page.locator('#ingot-composer-more').focus();
         await page.keyboard.press('Shift+Tab');
         await page.keyboard.press('Tab');
-        await expect.poll(() => style(page, '#ingot-composer-mode', 'outline-style')).toBe('solid');
+        await expect.poll(() => style(page, '#ingot-composer-more', 'outline-style')).toBe('solid');
         await page.locator('#ingot-composer-model').hover();
         await expect.poll(() => style(page, '#ingot-composer-model', 'background-color')).not.toBe('rgba(0, 0, 0, 0)');
-        if (SHOTS_DIR) {
-            await page.mouse.move(0, 0);
-            await page.locator('#ingot-composer-input').focus();
-            await page.locator('.ingot-agents .ingot-composer').screenshot({ path: path.join(SHOTS_DIR, `composer-toolbar-typed-${scheme}.png`) });
-            await page.locator('.ingot-agents').screenshot({ path: path.join(SHOTS_DIR, `composer-panel-${scheme}.png`) });
-        }
+        await saveShot(page, `composer-toolbar-typed-${scheme}.png`);
     });
 }

@@ -74,4 +74,22 @@ describe('native tool-call format (IDEA-250)', () => {
         expect(parsed.toolCalls).toEqual([]);
         expect(normalizeToolCalls('No tools here.')).toBe('No tools here.');
     });
+
+    it('runs tool_call JSON, fenced JSON and a line-start ingot tool, and leaves other JSON alone', () => {
+        const json = parseAgentOutput('<tool_call>\n{"name":"read_file","arguments":{"path":"src/a.ts"}}\n</tool_call>');
+        expect(json.toolCalls).toEqual([{ server: 'ingot', tool: 'read_file', args: { path: 'src/a.ts' } }]);
+        const fenced = parseAgentOutput('```tool\n{"name":"ingot/grep","arguments":{"pattern":"rank"}}\n```');
+        expect(fenced.toolCalls).toEqual([{ server: 'ingot', tool: 'grep', args: { pattern: 'rank' } }]);
+        const inline = parseAgentOutput('ingot/read_file {"path":"README.md"}');
+        expect(inline.toolCalls).toEqual([{ server: 'ingot', tool: 'read_file', args: { path: 'README.md' } }]);
+        const plain = parseAgentOutput('```json\n{"hello":1}\n```');
+        expect(plain.toolCalls).toEqual([]);
+        expect(plain.display).toContain('"hello":1');
+        const streaming = parseAgentOutput('Looking.\n<tool_call>\n{"name":"ingot/read_file"');
+        expect(streaming.display).toBe('Looking.');
+        expect(streaming.toolCalls).toEqual([]);
+        const openFence = parseAgentOutput('Looking.\n```json\n{"name":"ingot/read_file","arguments":{"path":"a.ts"}}');
+        expect(openFence.display).toBe('Looking.');
+        expect(openFence.toolCalls).toEqual([]);
+    });
 });

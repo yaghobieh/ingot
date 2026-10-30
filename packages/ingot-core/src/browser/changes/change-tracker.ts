@@ -3,6 +3,7 @@ import { Emitter, type Event } from '@theia/core/lib/common/event';
 import type { Reference as IReference } from '@theia/core/lib/common/reference';
 import URI from '@theia/core/lib/common/uri';
 import { ContextKeyService, type ContextKey } from '@theia/core/lib/browser/context-key-service';
+import { close as widgetClose } from '@theia/core/lib/browser/saveable';
 import { EditorManager, type EditorOpenerOptions } from '@theia/editor/lib/browser/editor-manager';
 import type { EditorWidget } from '@theia/editor/lib/browser/editor-widget';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
@@ -78,8 +79,12 @@ export class ChangeTracker {
     protected counter = 0;
     /** In-flight beginStream per session + file, so a finalize that arrives first lands on the same change. */
     protected readonly starting = new Map<string, Promise<string>>();
-    /** Last editor open per file: opens are chained so two never race into two widgets (save prompt on close). */
-    protected readonly opening = new Map<string, Promise<unknown>>();
+    /** The one preview tab agent edits replace. A click in the change list pins that file and leaves this slot. */
+    protected agentPreview?: EditorWidget;
+    /** Files the user opened from the change list. Later edits must not close them. */
+    protected readonly pinned = new Set<string>();
+    /** Serializes preview replacement so two files never open two tabs. */
+    protected previewQueue: Promise<unknown> = Promise.resolve();
 
     @postConstruct()
     protected init(): void {
@@ -112,6 +117,11 @@ export class ChangeTracker {
 
     pending(sessionId?: string): CodeChange[] {
         return this.items.filter(c => isPending(c) && (!sessionId || c.sessionId === sessionId));
+    }
+
+    /** Sessions that already have a change for this path, including a live stream. */
+    sessionsTouching(path: string): readonly string[] {
+        return [...new Set(this.items.filter(change => change.path === path).map(change => change.sessionId))];
     }
 
     /** Starts (or continues) the live view of an edit that is still streaming. */
@@ -160,6 +170,16 @@ export class ChangeTracker {
             await this.applyText(change, preview, false);
             this.replace({ ...change, newText: preview, hunks: buildHunks(change.oldText, preview, `${id}-h`) });
         }, STREAM_APPLY_MS);
+    }
+
+    /** Write the open model's text to disk without clearing a pending review. */
+    async persist(uri: string): Promise<void> {
+        const pending = this.refs.get(uri);
+        if (!pending) {
+            return;
+        }
+        const ref = await pending;
+        await ref.object.save();
     }
 
     /** The edit is complete: apply the final text and wait for per-hunk decisions. */
@@ -248,17 +268,36 @@ export class ChangeTracker {
         return pending.find(c => c.uri === uri) ?? pending[0];
     }
 
-    /** Opens the file and scrolls to the hunk (or the first pending one). */
-    async reveal(id: string, hunkId?: string): Promise<void> {
+    /**
+     * Opens the file and scrolls to the hunk (or the first pending one).
+     * `pin` keeps the tab (a click in the change list). Stepping files replaces the one preview tab.
+     */
+    async reveal(id: string, hunkId?: string, pin = false): Promise<void> {
         const change = this.find(id);
         if (!change) {
             return;
         }
         const target = change.hunks.find(h => h.id === hunkId) ?? change.hunks.find(h => h.state === 'pending') ?? change.hunks[0];
         const line = target ? (hunkLines(change.hunks).get(target.id)?.start ?? 0) : 0;
-        const widget = await this.openEditor(new URI(change.uri), { mode: 'activate', selection: { start: { line, character: 0 }, end: { line, character: 0 } } });
-        if (widget.editor instanceof MonacoEditor) {
-            widget.editor.getControl().revealLineInCenter(line + 1);
+        const uri = new URI(change.uri);
+        let widget: EditorWidget | undefined;
+        if (pin) {
+            this.pinned.add(change.uri);
+            if (this.agentPreview?.editor.uri.toString() === change.uri) {
+                this.agentPreview = undefined;
+            }
+            widget = await this.openEditor(uri, {
+                mode: 'activate', preview: false,
+                selection: { start: { line, character: 0 }, end: { line, character: 0 } }
+            });
+        } else {
+            await this.revealFile(uri);
+            widget = this.editors.all.find(editor => editor.editor.uri.toString() === change.uri);
+        }
+        if (widget?.editor instanceof MonacoEditor) {
+            const control = widget.editor.getControl();
+            control.setPosition({ lineNumber: line + 1, column: 1 });
+            control.revealLineInCenter(line + 1);
         }
     }
 
@@ -324,6 +363,12 @@ export class ChangeTracker {
         this.fire();
     }
 
+    /** Text in an open editor model, including an unsaved or pending edit. Undefined when the file is not open. */
+    async bufferText(uri: string): Promise<string | undefined> {
+        const ref = await this.refs.get(uri)?.catch(() => undefined);
+        return ref?.object.textEditorModel.getValue();
+    }
+
     stats(change: CodeChange): { added: number; removed: number } {
         return changeStats(change.hunks);
     }
@@ -339,13 +384,45 @@ export class ChangeTracker {
         return this.editors.open(uri, Number.isFinite(counter) ? { ...options, counter } : options);
     }
 
-    /** Opens (or reveals) the file's editor; chained per file so concurrent opens reuse one widget. */
+    /** Opens the file in the single agent preview tab. The previous preview is closed without saving or reverting. */
     protected revealFile(uri: URI): Promise<unknown> {
-        const key = uri.toString();
-        const next = (this.opening.get(key) ?? Promise.resolve()).then(() => this.openEditor(uri, { mode: 'reveal' })).catch(() => undefined);
-        this.opening.set(key, next);
-        next.then(() => this.opening.get(key) === next && this.opening.delete(key));
+        const next = this.previewQueue.then(() => this.openRollingPreview(uri)).catch(() => undefined);
+        this.previewQueue = next;
         return next;
+    }
+
+    protected async openRollingPreview(uri: URI): Promise<void> {
+        const key = uri.toString();
+        if (this.pinned.has(key)) {
+            await this.openEditor(uri, { mode: 'reveal', preview: false });
+            return;
+        }
+        const existing = this.editors.all.find(widget => widget.editor.uri.toString() === key);
+        if (existing && existing !== this.agentPreview) {
+            await this.openEditor(uri, { mode: 'reveal' });
+            return;
+        }
+        const previous = this.agentPreview;
+        if (previous && !previous.isDisposed && previous.editor.uri.toString() !== key) {
+            this.agentPreview = undefined;
+            this.dropPreview(previous);
+        }
+        this.agentPreview = await this.openEditor(uri, { mode: 'reveal', preview: true });
+    }
+
+    /** Closes the rolling preview without a save prompt and without putting the pending edit back. */
+    protected dropPreview(widget: EditorWidget): void {
+        const uri = widget.editor.uri.toString();
+        for (const change of this.items.filter(item => item.uri === uri)) {
+            this.clearViews(change.id);
+        }
+        const host = widget as EditorWidget & { [widgetClose]?: () => void };
+        const dispose = host[widgetClose];
+        if (dispose) {
+            dispose.call(widget);
+            return;
+        }
+        widget.close();
     }
 
     protected async readOrCreate(uri: URI): Promise<{ text: string; created: boolean }> {
@@ -649,7 +726,7 @@ export class ChangeTracker {
         const icon = (codicon: string, action: string, title: string): string =>
             `<button type="button" class="ingot-rb-icon codicon codicon-${codicon}" data-action="${action}" title="${title}" aria-label="${title}"></button>`;
         const html = `
-            ${pause ? `<span class="ingot-rb-pause" title="Paused for review · ${pause.applied} of ${pause.total} files applied"><span class="codicon codicon-debug-pause"></span>`
+            ${pause ? `<span class="ingot-rb-pause" title="${pause.applied} of ${pause.total} files applied. Pause for review?"><span class="codicon codicon-debug-pause"></span>`
                 + `${left !== undefined ? '<span class="ingot-rb-countdown"></span>' : '<span>Paused</span>'}`
                 + `<button type="button" class="ingot-rb-continue" data-action="continue">Continue</button></span><span class="ingot-rb-sep"></span>` : ''}
             <span class="ingot-rb-files">

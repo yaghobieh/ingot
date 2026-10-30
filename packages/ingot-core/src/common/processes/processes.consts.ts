@@ -11,6 +11,8 @@ export const STOP_GRACE_MS = 3_000;
 /** Finished processes kept in the list. */
 export const MAX_FINISHED_PROCESSES = 20;
 export const PROCESS_LIST_DEBOUNCE_MS = 150;
+/** How often a running command refreshes the tool card. */
+export const OUTPUT_POLL_MS = 400;
 export const LOCKFILES: readonly { readonly file: string; readonly manager: 'pnpm' | 'yarn' | 'bun' | 'npm' }[] = [
     { file: 'pnpm-lock.yaml', manager: 'pnpm' },
     { file: 'yarn.lock', manager: 'yarn' },

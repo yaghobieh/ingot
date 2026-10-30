@@ -52,7 +52,8 @@ export const dismissNotifications = async (page: Page): Promise<void> => {
 /** Signs the e2e account out when signed in (no-op otherwise), so the next test starts signed out. */
 export const signOutIfSignedIn = async (page: Page): Promise<void> => {
     const status = page.locator('#status-bar-ingot-account-status');
-    if (!(await status.isVisible().catch(() => false)) || (await status.innerText()).includes('Sign in')) {
+    const label = await status.innerText().catch(() => '');
+    if (!(await status.isVisible().catch(() => false)) || label.includes('Sign in') || label.includes('Signing in')) {
         return;
     }
     await runCommand(page, 'Account: Sign Out');

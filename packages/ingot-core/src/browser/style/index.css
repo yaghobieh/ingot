@@ -26,3 +26,5 @@
 @import './tool-cards.css';
 @import './subagents.css';
 @import './hooks.css';
+@import './chat-thread.css';
+@import './agent-panel.css';

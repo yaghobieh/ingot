@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentSession } from './agents.types';
-import { activeAgentCount, agentSubtitle, changesSummary, relativeTime, titleFromPrompt } from './agents.utils';
+import { activeAgentCount, agentSubtitle, changesSummary, CHILD_LOOP_GENERATION, editedFilesLabel, fileBadge, formatWorked, relativeTime, resolveLoopGeneration, titleFromPrompt } from './agents.utils';
 
 const session = (over: Partial<AgentSession>): AgentSession => ({
     id: '1', title: 't', status: 'idle', updatedAt: 0, mode: 'agent', model: 'm', messages: [], plan: [], steps: [], changes: [], ...over
@@ -25,8 +25,32 @@ describe('agents utils', () => {
         expect(changesSummary(1)).toBe('1 file changed');
     });
 
+    it('keeps a child run on a real generation', () => {
+        expect(resolveLoopGeneration(undefined)).toBe(CHILD_LOOP_GENERATION);
+        expect(resolveLoopGeneration(2)).toBe(2);
+    });
+
     it('derives titles from prompts', () => {
         expect(titleFromPrompt('  make addItem optimistic ')).toBe('Make addItem optimistic');
         expect(titleFromPrompt('x'.repeat(80))).toHaveLength(48);
+    });
+});
+
+describe('agent panel labels', () => {
+    it('formats how long the agent worked', () => {
+        expect(formatWorked(0)).toBe('0s');
+        expect(formatWorked(14_000)).toBe('14s');
+        expect(formatWorked(134_000)).toBe('2m 14s');
+    });
+
+    it('names the edited-files card and the type badge', () => {
+        expect(editedFilesLabel(1)).toBe('Edited 1 file');
+        expect(editedFilesLabel(16)).toBe('Edited 16 files');
+        expect(fileBadge('Books.tsx')).toEqual({ label: 'TSX', tone: 'tsx' });
+        expect(fileBadge('package.json')).toEqual({ label: 'JSON', tone: 'json' });
+        expect(fileBadge('styles.css')).toEqual({ label: 'CSS', tone: 'css' });
+        expect(fileBadge('index.html')).toEqual({ label: 'HTML', tone: 'html' });
+        expect(fileBadge('types.ts')).toEqual({ label: 'TS', tone: 'ts' });
+        expect(fileBadge('README')).toEqual({ label: 'FILE', tone: 'file' });
     });
 });

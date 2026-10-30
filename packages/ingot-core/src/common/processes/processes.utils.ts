@@ -4,6 +4,14 @@ import { LOCKFILES } from './processes.consts';
 // eslint-disable-next-line no-control-regex
 const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007]*\u0007|\r(?!\n)/g;
 
+/** A relative project path. Absolute paths and `..` are refused. */
+export const isSafeProjectPath = (value: string): boolean => {
+    if (!value || value.includes('\0') || value.startsWith('/') || value.startsWith('\\') || /^[a-zA-Z]:/.test(value)) {
+        return false;
+    }
+    return !value.split(/[\\/]/).includes('..');
+};
+
 /** Output without terminal colour codes or carriage-return redraws. */
 export const stripAnsi = (text: string): string => text.replace(ANSI, '');
 
