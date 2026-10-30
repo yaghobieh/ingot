@@ -1996,6 +1996,12 @@ export class AgentStore {
         return rel => git(rel) || agent.agent(rel);
     }
 
+    /** IDEA-287: the open project's rules, for the composer's @ menu. */
+    async mentionRules(): Promise<readonly ProjectRule[]> {
+        const root = this.workspace.tryGetRoots()[0]?.resource;
+        return root ? (await this.projectConfig.load(root).catch(() => undefined))?.rules ?? [] : [];
+    }
+
     /** IDEA-294: `.ingotignore` / `.cursorignore` of the project (none without a project). */
     async agentIgnore(root: URI | undefined): Promise<IgnoreRules> {
         return this.projectConfig.ignoreRules(root);

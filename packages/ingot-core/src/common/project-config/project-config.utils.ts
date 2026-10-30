@@ -1,4 +1,5 @@
 import type { ConfigSource, McpServerConfig, ProjectCommand, ProjectRule, RuleKind } from './project-config.types';
+import { MAX_RULE_MENTIONS, RULE_MENTION_PREFIX } from './project-config.consts';
 
 export interface Frontmatter {
     readonly data: Record<string, string | boolean | string[]>;
@@ -170,6 +171,15 @@ export const findRule = (rules: readonly ProjectRule[], name: string): ProjectRu
 /** IDEA-287: rules the @ menu offers; manual and agent-requested rules first since they are not applied on their own. */
 export const mentionableRules = (rules: readonly ProjectRule[]): ProjectRule[] =>
     [...rules].sort((a, b) => Number(a.kind === 'always' || a.kind === 'auto') - Number(b.kind === 'always' || b.kind === 'auto') || a.name.localeCompare(b.name));
+
+/** IDEA-287: `@` menu entries (`rule:<name>`) for the rules matching what was typed after `@`. */
+export const ruleMentionItems = (rules: readonly ProjectRule[], query: string): string[] => {
+    const wanted = query.trim().toLowerCase();
+    return mentionableRules(rules)
+        .filter(r => !wanted || r.name.toLowerCase().includes(wanted) || (r.description ?? '').toLowerCase().includes(wanted) || (wanted.length > 1 && 'rules'.startsWith(wanted)))
+        .slice(0, MAX_RULE_MENTIONS)
+        .map(r => `${RULE_MENTION_PREFIX}${r.name}`);
+};
 
 /**
  * IDEA-287: where a nested rule file lives. `packages/web/.ingot/rules/x.md` → scope `packages/web`, source `ingot`.

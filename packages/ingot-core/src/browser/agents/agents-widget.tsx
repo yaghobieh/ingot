@@ -3,7 +3,10 @@ import { ImageHoverService } from '../preview/image-hover-service';
 import { actionLine, activityLine } from '../../common/agents/agent-actions';
 import { isWorkspaceTool, SKIPPED_DIRS } from '../../common/agents/workspace-tools';
 import { mentionQuery, rankFiles, SLASH_BUILTINS, SlashBuiltinAction } from '../../common/agents/composer-menus';
-import { commandFolder } from '../../common/project-config/project-config.utils';
+import { commandFolder, findRule, ruleMentionItems } from '../../common/project-config/project-config.utils';
+import { RULE_MENTION_PREFIX } from '../../common/project-config/project-config.consts';
+import type { ProjectRule } from '../../common/project-config/project-config.types';
+import { RuleMentionItem } from './rule-mention-item';
 import { exploredItems, exploredLine, extractThought } from '../../common/agents/tool-cards';
 import { tabRunState } from '../../common/agents/chat-round';
 import { REACTION_HEART, REACTION_LIKE } from '../../common/agents/chat-round.consts';
@@ -134,6 +137,7 @@ export class IngotAgentsWidget extends ReactWidget {
     protected mention?: { query: string; index: number };
     protected mentionDismissed?: string;
     protected mentionFiles?: { root: string; at: number; files: string[]; loading?: Promise<void> };
+    protected mentionRules: readonly ProjectRule[] = [];
     /** Height set by dragging the handle (IDEA-67); persisted. */
     protected manualHeight?: number;
     /** In-place edit of a sent user message. */
@@ -215,7 +219,7 @@ export class IngotAgentsWidget extends ReactWidget {
         if (!this.mention || this.mentionDismissed === this.mention.query) {
             return [];
         }
-        return rankFiles(this.mentionFiles?.files ?? [], this.mention.query);
+        return [...ruleMentionItems(this.mentionRules, this.mention.query), ...rankFiles(this.mentionFiles?.files ?? [], this.mention.query)];
     }
 
     protected updateMention(): void {
@@ -258,8 +262,9 @@ export class IngotAgentsWidget extends ReactWidget {
                 }
             }
         };
-        entry.loading = walk(root, 0).then(() => {
-            entry.files = files;
+        void this.store.mentionRules().then(rules => { this.mentionRules = rules; this.update(); });
+        entry.loading = Promise.all([walk(root, 0), this.store.agentIgnore(root)]).then(([, ignore]) => {
+            entry.files = files.filter(f => !ignore.agent(f));
             entry.at = Date.now();
             entry.loading = undefined;
             this.update();
@@ -270,6 +275,13 @@ export class IngotAgentsWidget extends ReactWidget {
     protected acceptMention(path: string): void {
         const query = this.mention?.query ?? '';
         this.mention = undefined;
+        const rule = path.startsWith(RULE_MENTION_PREFIX) ? findRule(this.mentionRules, path.slice(RULE_MENTION_PREFIX.length)) : undefined;
+        if (rule) {
+            this.inline?.replaceBeforeCaret(query.length + 1, '');
+            this.inline?.insertCode({ path: rule.path, uri: rule.uri ?? '', start: 1, end: lineCount(rule.body), text: rule.body, whole: true, rule: rule.name });
+            this.focusComposer();
+            return;
+        }
         this.inline?.replaceBeforeCaret(query.length + 1, `@${path} `);
         this.focusComposer();
     }
@@ -1558,6 +1570,10 @@ export class IngotAgentsWidget extends ReactWidget {
         return <div id='ingot-mention-menu' className='ingot-slash-menu ingot-mention-menu' role='listbox' aria-label='Mention a file'>
             {items.map((path, i) => {
                 const slash = path.lastIndexOf('/');
+                const rule = path.startsWith(RULE_MENTION_PREFIX) ? findRule(this.mentionRules, path.slice(RULE_MENTION_PREFIX.length)) : undefined;
+                if (rule) {
+                    return <RuleMentionItem key={path} rule={rule} selected={i === this.mention!.index} onPick={() => this.acceptMention(path)} />;
+                }
                 return <div key={path} data-path={path} role='option' aria-selected={i === this.mention!.index}
                     className={`ingot-slash-item ingot-mention-item${i === this.mention!.index ? ' selected' : ''}`}
                     onMouseDown={e => { e.preventDefault(); this.acceptMention(path); }}>

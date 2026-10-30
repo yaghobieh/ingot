@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     applicableRules, commandFolder, commandFromFile, expandCommand, findRule, formatRuleIndex, formatRules, matchGlob, mentionableRules, mergeByName, nestedRuleScope,
-    parseFrontmatter, parseMcpJson, requestableRules, ruleFromFile, ruleKindLabel
+    parseFrontmatter, parseMcpJson, requestableRules, ruleFromFile, ruleKindLabel, ruleMentionItems
 } from './project-config.utils';
 
 describe('project config', () => {
@@ -72,6 +72,15 @@ describe('IDEA-287 rule kinds and nested rules', () => {
         expect(index).toContain('- api: API handlers');
         expect(findRule([api, manual], '@Bear')).toBe(manual);
         expect(mentionableRules([ruleFromFile('.ingot/rules/z.md', 'Z', 'ingot'), manual]).map(r => r.name)).toEqual(['bear', 'z']);
+    });
+
+    it('offers rules in the @ menu, matching name or description', () => {
+        const api = ruleFromFile('.ingot/rules/api.md', '---\ndescription: API handlers\n---\nUse zod.', 'ingot');
+        const bear = ruleFromFile('.ingot/rules/bear.md', '---\nalwaysApply: false\n---\nUse Bear.', 'ingot');
+        expect(ruleMentionItems([api, bear], 'be')).toEqual(['rule:bear']);
+        expect(ruleMentionItems([api, bear], 'handlers')).toEqual(['rule:api']);
+        expect(ruleMentionItems([api, bear], '')).toEqual(['rule:api', 'rule:bear']);
+        expect(ruleMentionItems([api, bear], 'zzz')).toEqual([]);
     });
 
     it('applies nested rules only under their folder; the closest AGENTS.md wins', () => {

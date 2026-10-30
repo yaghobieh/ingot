@@ -40,6 +40,14 @@ describe('composer parts (IDEA-98)', () => {
         expect(composed.parts.map(p => p.kind)).toEqual(['text', 'image', 'text']);
     });
 
+    it('attaches a rule chip (IDEA-287) as a rule to follow', () => {
+        const rule = { id: 'r', path: '.ingot/rules/bear.md', uri: 'file:///p/.ingot/rules/bear.md', start: 1, end: 1, text: 'Use Bear.', whole: true, rule: 'bear' };
+        const sent = composeParts([{ kind: 'text', text: 'build it ' }, { kind: 'code', chip: rule }]);
+        expect(sent.text).toBe('build it [@bear]');
+        expect(sent.expanded).toContain('Project rule bear (.ingot/rules/bear.md), follow it');
+        expect(sent.expanded).toContain('Use Bear.');
+    });
+
     it('normalizes, detects empty and reads plain text', () => {
         expect(normalizeParts([{ kind: 'text', text: 'a' }, { kind: 'text', text: '' }, { kind: 'text', text: 'b' }])).toEqual([{ kind: 'text', text: 'ab' }]);
         expect(partsEmpty([{ kind: 'text', text: '  ' }])).toBe(true);

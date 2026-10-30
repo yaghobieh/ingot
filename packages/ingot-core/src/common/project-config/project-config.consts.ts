@@ -47,6 +47,10 @@ export const AGENTS_FILE = 'AGENTS.md';
 /** IDEA-287: the agent tool that returns an Agent Requested rule's body. */
 export const FETCH_RULE_TOOL = 'fetch_rule';
 
+/** IDEA-287: `@` menu entries that attach a rule rather than a file. */
+export const RULE_MENTION_PREFIX = 'rule:';
+export const MAX_RULE_MENTIONS = 6;
+
 /** IDEA-294: hidden from agents, search, the @ picker and the index (gitignore syntax). `.ingot*` first, then Cursor's. */
 export const AGENT_IGNORE_FILES = ['.ingotignore', '.cursorignore'] as const;
 /** IDEA-294: kept out of the codebase index only. */

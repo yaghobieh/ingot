@@ -332,10 +332,10 @@ export class InlineComposer {
     }
 
     protected codeNode(chip: ContextChip): HTMLElement {
-        const span = this.chipShell(chip.id, `ingot-chip ingot-chip-code ingot-chip-inline${chip.whole ? ' ingot-chip-file' : ''}`);
+        const span = this.chipShell(chip.id, `ingot-chip ingot-chip-code ingot-chip-inline${chip.whole ? ' ingot-chip-file' : ''}${chip.rule ? ' ingot-chip-rule' : ''}`);
         span.dataset.path = chip.path;
         const icon = document.createElement('span');
-        icon.className = chip.path ? fileIconClass(chip.path.split('/').pop() ?? chip.path) : 'codicon codicon-code';
+        icon.className = chip.rule ? 'codicon codicon-law' : chip.path ? fileIconClass(chip.path.split('/').pop() ?? chip.path) : 'codicon codicon-code';
         const label = document.createElement('span');
         label.className = 'ingot-chip-label';
         label.textContent = chipLabel(chip);
