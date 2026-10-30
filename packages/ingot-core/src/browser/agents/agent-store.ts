@@ -79,6 +79,7 @@ import { toTarget } from '../../common/browser-tool/browser-tool.utils';
 import { describeProcesses, isSafeScriptName, scriptCommand } from '../../common/processes/processes.utils';
 import { OUTPUT_POLL_MS } from '../../common/processes/processes.consts';
 import { truncateForEdit } from '../../common/agents/chat-thread';
+import { SteerQueue } from '../../common/agents/steer-queue';
 import { ASK_STOPPED, ASK_USER_TOOL } from '../../common/agents/chat-round.consts';
 import { conflictWarning, stampThought, toggleReaction } from '../../common/agents/chat-round';
 import type { ReactionKind } from '../../common/agents/chat-round.types';
@@ -128,6 +129,8 @@ export class AgentStore {
     protected readonly answers = new Map<string, (text: string | undefined) => void>();
     /** Messages typed while a run is in progress, delivered on the next round. */
     protected readonly steers = new Map<string, string[]>();
+    /** IDEA-280: steer messages the model has not read yet (shown with a "Queued" chip). */
+    protected readonly queuedSteers = new SteerQueue<AgentMessage>();
     /** Nested runModel calls for one chat. The set stays until the outermost call returns. */
     protected readonly loopDepth = new Map<string, number>();
     /** Bumped by send and stop so a replaced or stopped turn cannot keep writing. */
@@ -439,7 +442,9 @@ export class AgentStore {
             return session;
         }
         if (askedNow && this.isRunning(session.id)) {
-            session.messages.push({ role: 'user', text: askedNow });
+            const steer: AgentMessage = { role: 'user', text: askedNow };
+            session.messages.push(steer);
+            this.queuedSteers.add(session.id, steer);
             this.steers.set(session.id, [...(this.steers.get(session.id) ?? []), askedNow]);
             session.updatedAt = Date.now();
             this.changed();
@@ -524,6 +529,7 @@ export class AgentStore {
         this.answers.get(id)?.(undefined);
         this.answers.delete(id);
         this.steers.delete(id);
+        this.queuedSteers.take(id);
         const session = this.items.find(s => s.id === id);
         if (session) {
             session.ask = undefined;
@@ -564,6 +570,11 @@ export class AgentStore {
         return new Promise(resolve => {
             this.answers.set(session.id, resolve);
         });
+    }
+
+    /** IDEA-280: a message typed during the run that the model has not read yet. */
+    isQueued(sessionId: string, message: AgentMessage): boolean {
+        return this.queuedSteers.has(sessionId, message);
     }
 
     /** Continues a run that is waiting on ingot/ask_user. */
@@ -1103,6 +1114,10 @@ export class AgentStore {
             return undefined;
         }
         const history = this.historyFor(session);
+        if (this.queuedSteers.take(session.id).length) {
+            // This round reads the queued messages, so no extra round is needed for them afterwards.
+            this.steers.delete(session.id);
+        }
         const index = session.messages.push({ role: 'agent', text: '' }) - 1;
         session.status = 'thinking';
         this.changed();
@@ -2163,10 +2178,10 @@ export class AgentStore {
     }
 
     /**
-     * Edit a sent user message in place: restore files to before that turn, drop it and everything after it,
-     * then send the new text so the agent runs again from there.
+     * Edit a sent user message in place: restore files to before that turn (unless `revert` is false, IDEA-280),
+     * drop it and everything after it, then send the new text so the agent runs again from there.
      */
-    async editUserMessage(sessionId: string, index: number, text: string): Promise<void> {
+    async editUserMessage(sessionId: string, index: number, text: string, revert = true): Promise<void> {
         const session = this.items.find(s => s.id === sessionId);
         const message = session?.messages[index];
         const trimmed = text.trim();
@@ -2176,7 +2191,9 @@ export class AgentStore {
         this.stop(sessionId);
         this.selected = sessionId;
         try {
-            await this.tracker.revertTo(sessionId, index, restorePlan(this.tracker.checkpoints, sessionId, index));
+            if (revert) {
+                await this.tracker.revertTo(sessionId, index, restorePlan(this.tracker.checkpoints, sessionId, index));
+            }
         } catch (error) {
             session.messages.push({ role: 'system', text: `Could not restore files: ${error instanceof Error ? error.message : String(error)}` });
             session.status = 'error';
