@@ -44,7 +44,7 @@ describe('IDEA-289 console and failed requests', () => {
         expect(formatConsole(entries, 'all', PAGE)).toBe([
             `3 console messages on ${PAGE}:`, '[info] booted', '[warning] deprecated api', `[error] Uncaught TypeError: x is undefined (${PAGE}app.js:12)`
         ].join('\n'));
-        expect(formatConsole(entries, 'error', PAGE).split('\n')).toHaveLength(2);
+        expect(formatConsole(entries, 'error', PAGE).split('\n')).toEqual([`1 console error on ${PAGE}:`, `[error] Uncaught TypeError: x is undefined (${PAGE}app.js:12)`]);
         expect(formatConsole(entries, 'warning', PAGE)).toContain('2 console warnings or errors');
         expect(formatConsole([], 'error', PAGE)).toBe(`No console errors on ${PAGE}.`);
         expect(consoleFilter('error')).toBe('error');

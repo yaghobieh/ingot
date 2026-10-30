@@ -2,7 +2,7 @@ import { Emitter, type Event } from '@theia/core/lib/common/event';
 import type { BrowserConsoleEntry, BrowserNetworkError, BrowserScreenshot, PageSelection } from '../../common/browser-tool/browser-tool.types';
 import {
     BROWSER_LOAD_TIMEOUT_MS, BROWSER_LOG_LIMIT, BROWSER_NET_PREFIX, BROWSER_PARTITION, BROWSER_SEL_PREFIX, BROWSER_SETTLE_MS, BROWSER_STATUS_META,
-    HTTP_ERROR_MIN, LOAD_ABORTED_CODE, SELECTION_DEBOUNCE_MS
+    ELECTRON_INTERNAL_SOURCE, HTTP_ERROR_MIN, LOAD_ABORTED_CODE, SELECTION_DEBOUNCE_MS
 } from '../../common/browser-tool/browser-tool.consts';
 import { consoleLevel, parseObserverMessage, proxyUrl, pushCapped, unproxyUrl } from '../../common/browser-tool/browser-tool.utils';
 import { failedAssets, installObserver, readSelection, serializeScript, type PageScript, type SelectionReport } from './page-scripts';
@@ -178,7 +178,7 @@ export class WebviewEngine extends BaseEngine implements BrowserEngine {
             this.addNetworkError(observed.entry);
         } else if (observed?.kind === 'sel') {
             this.select(observed.selection ?? { text: '' });
-        } else if (!observed) {
+        } else if (!observed && !event.sourceId?.startsWith(ELECTRON_INTERNAL_SOURCE)) {
             pushCapped(this.consoleEntries, {
                 level: consoleLevel(event.level), text: event.message, at: Date.now(),
                 ...(event.sourceId ? { source: event.sourceId } : {}), ...(event.line ? { line: event.line } : {})

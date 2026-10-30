@@ -212,6 +212,12 @@ export const installObserver: PageScript<ObserverArgs, boolean> = (doc, args) =>
             report({ kind: 'resource', url: String(url), status: statusOf(String(url)) });
         }
     }, true);
+    for (const img of Array.from(doc.images) as any[]) {
+        const url = img.currentSrc || img.src;
+        if (url && img.complete && img.naturalWidth === 0) {
+            report({ kind: 'resource', url: String(url), status: statusOf(String(url)) });
+        }
+    }
     const fetchFn = win.fetch;
     if (typeof fetchFn === 'function') {
         win.fetch = function (this: any, ...params: any[]) {

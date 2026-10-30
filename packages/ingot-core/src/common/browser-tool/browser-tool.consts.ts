@@ -22,6 +22,8 @@ export const BROWSER_NET_PREFIX = '__ingot_net__';
 export const BROWSER_SEL_PREFIX = '__ingot_sel__';
 /** The proxy marks an upstream HTTP error in the page it returns (the frame cannot read the status). */
 export const BROWSER_STATUS_META = 'ingot-status';
+/** Console lines Electron itself adds to pages (dev security warnings), not the page's own. */
+export const ELECTRON_INTERNAL_SOURCE = 'node:electron/';
 export const HTTP_ERROR_MIN = 400;
 /** Electron's ERR_ABORTED: a load replaced by another navigation, not a failure. */
 export const LOAD_ABORTED_CODE = -3;

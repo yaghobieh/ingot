@@ -156,7 +156,8 @@ const clip = (text: string, max: number): string => text.length > max ? `${text.
 /** The page's console for the agent: latest entries first filtered by level, oldest to newest. */
 export const formatConsole = (entries: readonly BrowserConsoleEntry[], filter: ConsoleFilter, pageUrl: string): string => {
     const shown = entries.filter(e => LEVEL_RANK[e.level] >= FILTER_MIN[filter]).slice(-BROWSER_LOG_REPORT);
-    const what = filter === 'all' ? 'console messages' : filter === 'error' ? 'console errors' : 'console warnings or errors';
+    const s = shown.length === 1 ? '' : 's';
+    const what = filter === 'all' ? `console message${s}` : filter === 'error' ? `console error${s}` : `console warning${s} or error${s}`;
     if (!shown.length) {
         return `No ${what} on ${pageUrl}.`;
     }
