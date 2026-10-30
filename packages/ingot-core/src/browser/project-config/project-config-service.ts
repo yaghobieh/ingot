@@ -3,11 +3,15 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import URI from '@theia/core/lib/common/uri';
 import {
-    AGENTS_FILES, COMMANDS_DIR, CONFIG_DIRS, EXTRA_COMMAND_DIRS, IMPORT_HOME_ENV, MCP_FILE, RULE_EXTENSIONS, RULES_DIR, SKILL_FILE, SKILLS_DIR
+    AGENT_IGNORE_FILES, AGENTS_FILE, AGENTS_FILES, COMMANDS_DIR, CONFIG_DIRS, EXTRA_COMMAND_DIRS, IMPORT_HOME_ENV, INDEX_IGNORE_FILES, MCP_FILE, NESTED_RULE_GLOBS,
+    NESTED_RULES_MAX_DEPTH, NESTED_RULES_MAX_FILES, NESTED_RULES_TTL_MS, RULE_EXTENSIONS, RULES_DIR, SKILL_FILE, SKILLS_DIR
 } from '../../common/project-config/project-config.consts';
-import type { ConfigSource, McpServerConfig, ProjectCommand, ProjectConfig, ProjectRule } from '../../common/project-config/project-config.types';
-import { commandFromFile, mergeByName, parseMcpJson, ruleFromFile } from '../../common/project-config/project-config.utils';
+import type { ConfigSource, IgnoreRules, McpServerConfig, ProjectCommand, ProjectConfig, ProjectRule } from '../../common/project-config/project-config.types';
+import { commandFromFile, mergeByName, nestedRuleScope, parseMcpJson, ruleFromFile } from '../../common/project-config/project-config.utils';
 import { withoutImportedCursorrules } from '../../common/import/cursor-rules-import.utils';
+import { ignoreRules } from '../../common/project-config/ignore-files.utils';
+import { parseRgFiles, SKIPPED_DIRS } from '../../common/agents/workspace-tools';
+import { ProcessService } from '../../common/processes/processes.types';
 
 interface DirConfig { rules: ProjectRule[]; commands: ProjectCommand[]; mcpServers: McpServerConfig[] }
 const EMPTY_DIR: DirConfig = { rules: [], commands: [], mcpServers: [] };
@@ -24,6 +28,8 @@ export class ProjectConfigService {
 
     @inject(FileService) protected readonly files: FileService;
     @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
+    @inject(ProcessService) protected readonly processes: ProcessService;
+    protected readonly nestedCache = new Map<string, { at: number; rules: Promise<ProjectRule[]> }>();
 
     /** `~/.ingot` (the app configuration folder). */
     async globalDir(): Promise<URI> {
@@ -55,19 +61,79 @@ export class ProjectConfigService {
             this.loadExtraCommands(home, 'global-imported', u => `~/${home.relative(u)?.toString() ?? u.path.base}`)
         ]);
         const rel = (u: URI) => root?.relative(u)?.toString() ?? u.path.base;
-        const [external, legacy, ingot, agents, projectExtra] = root ? await Promise.all([
+        const [external, legacy, ingot, agents, projectExtra, nested] = root ? await Promise.all([
             this.loadDir(root.resolve(CONFIG_DIRS.external), 'external', rel),
             this.loadDir(root.resolve(CONFIG_DIRS.legacy), 'legacy', rel),
             this.loadDir(root.resolve(CONFIG_DIRS.ingot), 'ingot', rel),
             this.loadAgentsFiles(root, 'agents', name => name, AGENTS_FILES),
-            this.loadExtraCommands(root, 'external', rel)
-        ]) : [EMPTY_DIR, EMPTY_DIR, EMPTY_DIR, [], []];
+            this.loadExtraCommands(root, 'external', rel),
+            this.loadNested(root)
+        ]) : [EMPTY_DIR, EMPTY_DIR, EMPTY_DIR, [], [], []];
         return {
-            rules: [...globalAgents, ...withoutImportedCursorrules(agents, ingot.rules), ...mergeByName(importedGlobal.rules, global.rules, external.rules, legacy.rules, ingot.rules)],
+            rules: [
+                ...globalAgents, ...withoutImportedCursorrules(agents, ingot.rules), ...mergeByName(importedGlobal.rules, global.rules, external.rules, legacy.rules, ingot.rules),
+                ...nested
+            ],
             // Later wins: other editors' folders (home, then project) < imported < legacy < `.ingot` (IDEA-249).
             commands: mergeByName(globalExtra, importedGlobal.commands, global.commands, projectExtra, external.commands, legacy.commands, ingot.commands),
             mcpServers: mergeByName(external.mcpServers, legacy.mcpServers, ingot.mcpServers)
         };
+    }
+
+    /**
+     * IDEA-287: rules in subfolders (`packages/web/.ingot/rules`, `.cursor/rules`, `AGENTS.md`), scoped to their folder.
+     * Found with ripgrep (gitignore and .ingotignore respected), cached for a few seconds per project.
+     */
+    async loadNested(root: URI): Promise<ProjectRule[]> {
+        const key = root.toString();
+        const cached = this.nestedCache.get(key);
+        if (cached && Date.now() - cached.at < NESTED_RULES_TTL_MS) {
+            return cached.rules;
+        }
+        const rules = this.findNested(root).then(paths => Promise.all(paths.map(async path => {
+            const where = nestedRuleScope(path);
+            const uri = root.resolve(path);
+            const text = where ? await this.read(uri) : undefined;
+            return where && text !== undefined ? { ...ruleFromFile(path, text, where.source, where.scope), uri: uri.toString() } : undefined;
+        }))).then(list => list.filter((r): r is ProjectRule & { uri: string } => !!r));
+        this.nestedCache.set(key, { at: Date.now(), rules });
+        return rules;
+    }
+
+    protected async findNested(root: URI): Promise<string[]> {
+        const cwd = root.path.fsPath();
+        const found = cwd ? await this.processes.workspaceSearch({ cwd, files: true, globs: [...NESTED_RULE_GLOBS], agentIgnore: true }).catch(() => undefined) : undefined;
+        if (found?.engine === 'ripgrep') {
+            return parseRgFiles(found.text, NESTED_RULES_MAX_FILES).map(p => p.replace(/\\/g, '/'));
+        }
+        const paths: string[] = [];
+        const isRule = (name: string) => RULE_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
+        const walk = async (dir: URI, depth: number, inRules: boolean): Promise<void> => {
+            if (depth > NESTED_RULES_MAX_DEPTH || paths.length >= NESTED_RULES_MAX_FILES) {
+                return;
+            }
+            const stat = await this.files.resolve(dir).catch(() => undefined);
+            for (const child of stat?.children ?? []) {
+                const rel = root.relative(child.resource)?.toString() ?? child.name;
+                if (child.isDirectory) {
+                    const config = child.name === CONFIG_DIRS.ingot || child.name === CONFIG_DIRS.external;
+                    if (inRules || config || (!SKIPPED_DIRS.has(child.name) && !child.name.startsWith('.'))) {
+                        await walk(child.resource, depth + 1, inRules || /\/\.(ingot|cursor)\/rules$/.test(`/${rel}`));
+                    }
+                } else if ((inRules && isRule(child.name)) || child.name === AGENTS_FILE) {
+                    paths.push(rel);
+                }
+            }
+        };
+        await walk(root, 0, false);
+        return paths;
+    }
+
+    /** IDEA-294: `.ingotignore` / `.cursorignore` (agents, search, index) and `.ingotindexingignore` / `.cursorindexingignore` (index). */
+    async ignoreRules(root: URI | undefined): Promise<IgnoreRules> {
+        const read = (names: readonly string[]) => Promise.all(names.map(name => root ? this.read(root.resolve(name)) : Promise.resolve(undefined)));
+        const [agent, index] = await Promise.all([read(AGENT_IGNORE_FILES), read(INDEX_IGNORE_FILES)]);
+        return ignoreRules(agent, index);
     }
 
     /** Imported global MCP servers (default off until the user enables them). */
