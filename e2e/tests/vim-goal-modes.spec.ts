@@ -132,6 +132,20 @@ test.describe('IDEA-286 / IDEA-292 Vim mode, /goal and custom modes', () => {
         expect(await vimStatus(page).evaluate(el => getComputedStyle(el).color)).toBe(await tokenColor(page, '--ingot-primary'));
         await shot(page, 'vim-normal-dark.png');
 
+        // :wq saves and closes in one go.
+        await editorLines(page).click();
+        await page.keyboard.type('ggA');
+        await expect(vimStatus(page)).toHaveText('INSERT');
+        await page.keyboard.type(' // wq');
+        await page.keyboard.press('Escape');
+        await expect(vimStatus(page)).toHaveText('NORMAL');
+        await page.keyboard.type(':wq');
+        await page.keyboard.press('Enter');
+        await expect.poll(() => fs.readFileSync(path.join(dir, 'src/notes.ts'), 'utf8')).toContain('// wq');
+        await expect(editorTab(page, 'notes.ts')).toHaveCount(0);
+        await openFile(page, 'notes.ts');
+        await expect(vimStatus(page)).toHaveText('NORMAL');
+
         // Toggle off from Find Action: the open editor drops Vim keys and the status bar item goes away.
         await runCommand(page, 'Toggle Vim Mode');
         await expect(vimStatus(page)).toHaveCount(0);
