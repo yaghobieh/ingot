@@ -11,4 +11,6 @@ export const PANEL_BAR_SELECTORS: Readonly<Record<PanelBar, string>> = {
     right: '#ingot-right-stripe, .ingot-right-stripe'
 };
 export const PANEL_TAB_SELECTOR = '.lm-TabBar-tab';
+/** IDEA-281: the layout (open editors, panels, chat visibility) is saved this long after the last change. */
+export const LAYOUT_SAVE_DEBOUNCE_MS = 500;
 export const PANELS_SUBMENU_LABEL = 'Tool Windows';
