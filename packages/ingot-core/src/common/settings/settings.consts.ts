@@ -52,14 +52,15 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                     'ingot.zaprex.harmony.enabled', 'ingot.zaprex.harmony.maxPieces', 'ingot.zaprex.harmony.askFirst',
                     'ingot.agents.subagents.view', 'ingot.zaprex.showButton',
                     'ingot.commit.ai.enabled', 'ingot.commit.madeWithTrailer',
-                    'ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'
+                    'ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks', 'ingot.agent.hooks.agentEvents'
                 ],
                 groups: [
                     { label: 'Agent defaults', preferences: ['ingot.agent.defaultMode', 'ingot.agent.defaultModel'] },
                     { label: 'Harmony mode', preferences: ['ingot.zaprex.harmony.enabled', 'ingot.zaprex.harmony.maxPieces', 'ingot.zaprex.harmony.askFirst'] },
                     { label: 'Subagents & Zaprex', preferences: ['ingot.agents.subagents.view', 'ingot.zaprex.showButton'] },
                     { label: 'Commits', preferences: ['ingot.commit.ai.enabled', 'ingot.commit.madeWithTrailer'] },
-                    { label: 'Agent git hooks', preferences: ['ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'] }
+                    { label: 'Agent git hooks', preferences: ['ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'] },
+                    { label: 'Agent event hooks', preferences: ['ingot.agent.hooks.agentEvents'] }
                 ]
             },
             {

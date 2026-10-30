@@ -1,5 +1,6 @@
 import type { PreferenceSchema } from '@theia/core/lib/common/preferences';
 import { HOOKS_FILE, HOOKS_PREFS } from '../../common/git/hooks';
+import { AGENT_EVENT_HOOKS_PREF } from './hooks.consts';
 
 /** IDEA-178: agent git hooks from `.ingot/hooks.json` (Settings › AI & Zaprex). */
 export const hooksPreferenceSchema: PreferenceSchema = {
@@ -7,6 +8,10 @@ export const hooksPreferenceSchema: PreferenceSchema = {
         [HOOKS_PREFS.enabled]: {
             type: 'boolean', default: true,
             description: `Agent git hooks: before Ingot commits or pushes, run the steps in ${HOOKS_FILE} (shell commands or agent checks). A failing step blocks the commit or push; you can fix it with the agent or bypass it once.`
+        },
+        [AGENT_EVENT_HOOKS_PREF]: {
+            type: 'boolean', default: true,
+            description: 'Agent event hooks: run the commands under "hooks" in .ingot/hooks.json (and .cursor/hooks.json) on beforeShellExecution, beforeMCPExecution, beforeReadFile, afterFileEdit and stop. A command gets the event as JSON on stdin and can answer {"permission": "allow" | "deny" | "ask"}.'
         },
         [HOOKS_PREFS.installGitHooks]: {
             type: 'boolean', default: true,
