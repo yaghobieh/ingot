@@ -281,11 +281,7 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     protected focusComposer(): void {
-        if (this.inline) {
-            this.inline.focus();
-        } else {
-            this.focusComposer();
-        }
+        (this.inline ?? this.node).focus();
     }
 
     /** Creates the inline editor once React has mounted its element (IDEA-98). */
