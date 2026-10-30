@@ -22,7 +22,7 @@ export class IngotMcpService implements McpService {
     protected readonly keychain = process.env.INGOT_KEYCHAIN_SERVICE || DEFAULT_KEYCHAIN_SERVICE;
 
     async setSecret(server: string, name: string, value: string): Promise<void> {
-        if (!/^[A-Za-z0-9_.-]+$/.test(server) || !/^[A-Z0-9_]+$/i.test(name)) {
+        if (!/^[A-Za-z0-9_.-]+$/.test(server) || !/^(?:[A-Z0-9_]+|header:[A-Z0-9-]+)$/i.test(name)) {
             throw new Error('Invalid MCP secret name.');
         }
         await this.keyStore.setPassword(this.keychain, mcpSecretKey(server, name), value);
