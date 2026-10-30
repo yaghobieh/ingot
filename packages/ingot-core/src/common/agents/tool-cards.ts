@@ -148,6 +148,12 @@ const TOOL_TITLES: Record<string, string> = {
     processes: 'Listed processes', process_output: 'Read process output', process_stop: 'Stopped process', summary: 'Summary', run_tests: 'Ran tests'
 };
 
+/** "1 failed · 2 passed" from a run_tests result, or its first line when the tests could not run. */
+const testsDetail = (text: string): string => {
+    const counts = /(\d+) failed, (\d+) passed/.exec(text);
+    return counts ? `${counts[1]} failed · ${counts[2]} passed` : shorten(text.replace(/^Error: /, '').split('\n')[0], 48);
+};
+
 /** What card a finished (or running) tool message gets. */
 export const toolCard = (info: ToolCallInfo, text: string, builtinServer = 'ingot'): ToolCard => {
     const builtin = info.server === builtinServer;
@@ -167,7 +173,7 @@ export const toolCard = (info: ToolCallInfo, text: string, builtinServer = 'ingo
     }
     const firstArg = Object.values(info.args).find(v => typeof v === 'string' && v.trim()) as string | undefined;
     const title = builtin ? (TOOL_TITLES[info.tool] ?? info.tool) : `Ran ${info.tool}`;
-    const detail = builtin && info.tool === 'run_tests' ? shorten(text.replace(/^Error: /, '').split('\n')[0].replace(/ Iteration .*$/, ''), 72)
+    const detail = builtin && info.tool === 'run_tests' ? testsDetail(text)
         : builtin && info.tool === 'git' ? shorten([str(info.args.op), str(info.args.branch) || str(info.args.message)].filter(Boolean).join(' '), 48)
         : firstArg ? shorten(firstArg, 48) : '';
     return { kind: 'generic', title, detail, output: text.replace(/^Error: /, '') };

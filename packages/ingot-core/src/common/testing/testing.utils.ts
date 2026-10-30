@@ -176,6 +176,17 @@ export const relativeTo = (root: string, path: string): string => {
 
 const clean = (text: string): string => stripAnsi(text).trim().slice(0, FAILURE_MESSAGE_MAX_CHARS);
 
+const STACK_FRAME = /^\s*at\s/;
+
+/** The error lines and the first stack frame in the test file; runner internals are dropped. */
+export const compactFailure = (message: string, file: string): string => {
+    const base = file.split('/').pop() ?? file;
+    const lines = stripAnsi(message).split('\n');
+    const frame = lines.find(line => STACK_FRAME.test(line) && line.includes(base));
+    const kept = lines.filter(line => !STACK_FRAME.test(line) && line.trim());
+    return clean([...kept, ...(frame ? [frame.trim()] : [])].join('\n'));
+};
+
 /** The first `<file>:<line>` in a stack that points into the test file. */
 export const lineFromStack = (message: string, file: string): number | undefined => {
     const base = file.split('/').pop();
@@ -216,7 +227,7 @@ const parseJestReport = (report: Record<string, unknown>, root: string): TestRes
         for (const assertion of assertions) {
             const suites = array(assertion.ancestorTitles).map(text);
             const title = text(assertion.title);
-            const message = clean(array(assertion.failureMessages).map(text).join('\n'));
+            const message = compactFailure(array(assertion.failureMessages).map(text).join('\n'), file);
             const state = jestState(text(assertion.status));
             results.push({
                 id: testId(file, suites, title), file, name: [...suites, title].join(' › '), state,
@@ -240,7 +251,7 @@ const parseMochaReport = (report: Record<string, unknown>, root: string): TestRe
         const file = relativeTo(root, text(test.file));
         const key = `${text(test.file)}\n${text(test.fullTitle)}`;
         const err = record(test.err);
-        const message = clean([text(err.message), text(err.stack)].filter(Boolean).join('\n'));
+        const message = compactFailure(text(err.stack) || text(err.message), file);
         const state: TestState = failed.has(key) || message ? 'failed' : pending.has(key) ? 'skipped' : 'passed';
         const full = text(test.fullTitle);
         return {
@@ -293,6 +304,15 @@ const parsePlaywrightReport = (report: Record<string, unknown>, root: string): T
         }
     }
     return results;
+};
+
+/** A title-filtered run reports the other tests of its files as skipped; those are not results. */
+export const scopeToRequest = (tests: readonly TestResult[], request: TestRunRequest): TestResult[] => {
+    const titles = new Set((request.titles ?? []).map(title => title.trim()));
+    if (!titles.size) {
+        return [...tests];
+    }
+    return tests.filter(test => test.state !== 'skipped' || titles.has(test.name.split(' › ').pop() ?? ''));
 };
 
 /** Results from a runner's JSON report, or undefined when the report is not one. */

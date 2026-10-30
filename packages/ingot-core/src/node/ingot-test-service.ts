@@ -7,7 +7,7 @@ import {
     DISCOVERY_SKIPPED_DIRS, MAX_DISCOVERY_DEPTH, MAX_TEST_FILE_BYTES, MAX_TEST_FILES, NO_RUNNER_TEXT, RUN_OUTPUT_TAIL_CHARS, TEST_RUN_TIMEOUT_MS
 } from '../common/testing/testing.consts';
 import type { RunnerCommand, TestDiscovery, TestFile, TestRunner, TestRunRequest, TestRunResult, TestService } from '../common/testing/testing.types';
-import { commandLine, detectRunner, discoverTests, extractJson, isTestFile, parseReport, runError, runnerCommand, summarizeRun } from '../common/testing/testing.utils';
+import { commandLine, detectRunner, discoverTests, extractJson, isTestFile, parseReport, runError, runnerCommand, scopeToRequest, summarizeRun } from '../common/testing/testing.utils';
 
 const REPORT_FILE = 'report.json';
 const IS_WINDOWS = process.platform === 'win32';
@@ -91,7 +91,7 @@ export class IngotTestService implements TestService {
             if (!tests) {
                 return runError(runner, `${shown} exited with code ${code ?? '?'} without a report.${tail ? `\n${tail}` : ''}`, shown);
             }
-            return summarizeRun(runner, tests, durationMs, code, shown, tail);
+            return summarizeRun(runner, scopeToRequest(tests, request), durationMs, code, shown, tail);
         } finally {
             await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => undefined);
         }

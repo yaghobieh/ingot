@@ -42,7 +42,7 @@ describe.skipIf(isWin)('IDEA-261 test service (real runners)', () => {
 
         fs.writeFileSync(path.join(dir, 'src/sum.js'), 'export const sum = (a, b) => a + b;\n');
         const green = await service.run(dir, { files: ['src/sum.test.js'], titles: ['adds'] });
-        expect(green).toMatchObject({ status: 'passed', passed: 1, failed: 0 });
+        expect(green).toMatchObject({ status: 'passed', passed: 1, failed: 0, skipped: 0 });
     }, RUN_TIMEOUT_MS);
 
     it('runs mocha with its JSON reporter', async () => {

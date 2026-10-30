@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-    clampIterations, detectRunner, discoverTests, explorerFiles, failedRequest, formatForAgent, isTestFile, parseReport, requestFromArgs,
-    runnerCommand, summarizeRun, testId, testLoopStep, titlePattern
+    clampIterations, compactFailure, detectRunner, discoverTests, explorerFiles, failedRequest, formatForAgent, isTestFile, parseReport, requestFromArgs,
+    runnerCommand, scopeToRequest, summarizeRun, testId, testLoopStep, titlePattern
 } from './testing.utils';
 import { DEFAULT_TEST_ITERATIONS, MAX_TEST_ITERATIONS_CAP, TESTS_CAPPED_TEXT, TESTS_GREEN_TEXT, TESTS_RED_TEXT } from './testing.consts';
 import type { TestResult } from './testing.types';
@@ -86,7 +86,7 @@ describe('runner reports (IDEA-261)', () => {
                 {
                     name: `${ROOT}/src/sum.test.js`, status: 'failed', assertionResults: [
                         { ancestorTitles: ['sum'], title: 'adds', status: 'passed', duration: 2, failureMessages: [] },
-                        { ancestorTitles: ['sum'], title: 'carries', status: 'failed', duration: 3, failureMessages: [`\u001b[31mAssertionError: expected 1 to be 2\u001b[39m\n    at ${ROOT}/src/sum.test.js:9:18`] },
+                        { ancestorTitles: ['sum'], title: 'carries', status: 'failed', duration: 3, failureMessages: [`\u001b[31mAssertionError: expected 1 to be 2\u001b[39m\n    at ${ROOT}/node_modules/@vitest/runner/dist/index.js:146:14\n    at ${ROOT}/src/sum.test.js:9:18`] },
                         { ancestorTitles: [], title: 'later', status: 'pending', failureMessages: [] }
                     ]
                 },
@@ -102,6 +102,7 @@ describe('runner reports (IDEA-261)', () => {
         ]);
         expect(tests[1]).toMatchObject({ line: 9, message: expect.stringMatching(/^AssertionError: expected 1 to be 2/) });
         expect(tests[1].message).not.toContain('\u001b');
+        expect(tests[1].message).not.toContain('@vitest/runner');
         expect(parseReport('jest', { nope: true }, ROOT)).toBeUndefined();
     });
 
@@ -154,6 +155,13 @@ describe('run summary and the explorer tree (IDEA-261)', () => {
         expect(summarizeRun('vitest', tests.slice(0, 1), 50, 0, 'vitest run', '').status).toBe('passed');
         expect(summarizeRun('vitest', [], 50, 1, 'vitest run', 'No test files found').error).toContain('No test files found');
         expect(summarizeRun('jest', tests.slice(0, 1), 50, 1, 'jest', '').status).toBe('error');
+    });
+
+    it('drops tests a title filter skipped and keeps only the error and the test file frame', () => {
+        const tests = [result('a.test.js::sum adds', 'passed'), result('a.test.js::sum zero', 'skipped'), result('a.test.js::sum later', 'skipped')];
+        expect(scopeToRequest(tests, { titles: ['adds', 'later'] }).map(test => test.id)).toEqual(['a.test.js::sum adds', 'a.test.js::sum later']);
+        expect(scopeToRequest(tests, {})).toHaveLength(3);
+        expect(compactFailure('Error: boom\n  at run (node_modules/x.js:1:1)\n  at /p/a.test.js:4:2\n  at /p/a.test.js:9:1', 'src/a.test.js')).toBe('Error: boom\nat /p/a.test.js:4:2');
     });
 
     it('builds a rerun-failed request from the failed tests only', () => {
