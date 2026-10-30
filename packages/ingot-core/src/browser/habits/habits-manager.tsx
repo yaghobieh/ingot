@@ -3,7 +3,8 @@ import { HABIT_KIND_LABELS, HABIT_STATUS_LABELS, HABITS_FILE } from '../../commo
 import type { HabitStore } from './habit-store';
 
 /** IDEA-296: the Habits page: learned habits with on/off, evidence (count, examples) and delete. */
-export class HabitsManager extends React.Component<{ store: HabitStore }> {
+export class HabitsManager extends React.Component<{ store: HabitStore }, { enabled?: boolean }> {
+    override state: { enabled?: boolean } = {};
     protected listener?: { dispose(): void };
 
     override componentDidMount(): void {
@@ -23,11 +24,11 @@ export class HabitsManager extends React.Component<{ store: HabitStore }> {
                 <h3 className='ingot-settings-card-title'>Learned habits</h3>
                 <span className='ingot-flex' />
                 <label className='ingot-memories-generate'>
-                    <input id='ingot-habits-enabled' type='checkbox' checked={store.enabled} onChange={e => { store.enabled = e.currentTarget.checked; }} /> Learn habits
+                    <input id='ingot-habits-enabled' type='checkbox' checked={this.state.enabled ?? store.enabled} onChange={e => { const on = e.currentTarget.checked; store.enabled = on; this.setState({ enabled: on }); }} /> Learn habits
                 </label>
             </div>
             <p className='ingot-dim ingot-rules-hint'>Kept in {HABITS_FILE} of this project (git-ignored). Nothing leaves this machine.</p>
-            {!habits.length && <div className='ingot-dim ingot-pick-empty'>{store.enabled ? 'Nothing learned yet. Repeat an instruction, command or rejected edit style and it shows up here.' : 'Turn on "Learn habits" to start.'}</div>}
+            {!habits.length && <div className='ingot-dim ingot-pick-empty'>{(this.state.enabled ?? store.enabled) ? 'Nothing learned yet. Repeat an instruction, command or rejected edit style and it shows up here.' : 'Turn on "Learn habits" to start.'}</div>}
             {habits.map(h => <div key={h.id} className={`ingot-habit-row${h.enabled ? '' : ' off'}`} data-habit={h.id}>
                 <div className='ingot-habit-row-head'>
                     <input type='checkbox' checked={h.enabled} aria-label={`Track ${h.label}`} onChange={e => store.setHabitEnabled(h, e.currentTarget.checked)} />

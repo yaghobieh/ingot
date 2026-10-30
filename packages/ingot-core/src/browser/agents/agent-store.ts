@@ -1322,9 +1322,7 @@ export class AgentStore {
                 this.changed();
             }
             const workspaceTool = call.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(call.tool);
-            const fetchRule = call.server === BUILTIN_TOOL_SERVER && call.tool === FETCH_RULE_TOOL;
-            session.steps = [...session.steps, workspaceTool ? this.workspaceStep(call)
-                : fetchRule ? { kind: 'read', target: `rules: ${typeof call.args.name === 'string' ? call.args.name : ''}`, done: true } : { kind: 'run', target, done: false }];
+            session.steps = [...session.steps, workspaceTool ? this.workspaceStep(call) : { kind: 'run', target, done: false }];
             session.status = 'thinking';
             // IDEA-177: the card shows at once with a spinner, then fills in with the result.
             const tool: ToolCallInfo = { server: call.server, tool: call.tool, args: call.args, state: 'running', startedAt: Date.now() };
