@@ -4,6 +4,7 @@ import type { KeymapEntry } from './keymap.types';
 export const TOOL_WINDOW_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Project tool window', command: 'fileNavigator:toggle', mac: 'ctrlcmd+1', other: 'alt+1' },
     { action: 'Bookmarks / Search tool window', command: 'search-in-workspace.toggle', mac: 'ctrlcmd+2', other: 'alt+2' },
+    { action: 'Threads tool window', command: 'ingot.threads.toggle', mac: 'ctrlcmd+3', other: 'alt+3' },
     { action: 'Run tool window', command: 'output:toggle', mac: 'ctrlcmd+4', other: 'alt+4' },
     { action: 'Debug tool window', command: 'debug:toggle', mac: 'ctrlcmd+5', other: 'alt+5' },
     { action: 'Problems tool window', command: 'problemsView:toggle', mac: 'ctrlcmd+6', other: 'alt+6' },
