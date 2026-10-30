@@ -41,6 +41,10 @@ export interface AgentMessage {
     readonly refs?: readonly string[];
     /** Like and heart on this message. Kept with the saved chat. */
     readonly reactions?: readonly import('./chat-round.types').ReactionKind[];
+    /** IDEA-267: IDE context attached to a user message (labels only), shown under it. */
+    readonly auto?: readonly import('./auto-context.types').SentAutoContext[];
+    /** IDEA-267: suggested next prompts under the final reply of a turn. */
+    readonly followUps?: readonly string[];
     /** When a think block opened, and how long it lasted once it closed. */
     readonly thoughtStarted?: number;
     readonly thoughtMs?: number;

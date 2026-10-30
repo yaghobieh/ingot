@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatContextFiles, normalizeToolCalls, parseAgentOutput, parseMentions, toolProtocol } from './agent-protocol';
+import { cutAfterToolCalls, formatContextFiles, normalizeToolCalls, parseAgentOutput, parseMentions, TOOL_CALL_FORMAT, toolProtocol } from './agent-protocol';
 
 const OUTPUT = [
     'PLAN:',
@@ -48,6 +48,26 @@ describe('agent protocol', () => {
         expect(parseAgentOutput('<<<TOOL calc/add\nnot json\n>>>END').toolCalls[0].args).toEqual({});
         expect(toolProtocol([{ server: 'calc', name: 'add', description: 'Adds' }])).toContain('- calc/add: Adds');
         expect(toolProtocol([])).toBe('');
+    });
+
+    it('ends a reply after its first group of tool calls', () => {
+        const read = '<<<TOOL ingot/read_file\n{"path": "a.js"}\n>>>END';
+        const grep = '<<<TOOL ingot/grep\n{"pattern": "x"}\n>>>END';
+        const edit = '<<<EDIT a.js\nfixed\n>>>END';
+        const invented = 'Found it in b.ts:\n<<<EDIT b.ts\ninvented\n>>>END\n<<<TOOL ingot/run\n{"command": "npm test"}\n>>>END';
+        const cut = cutAfterToolCalls(`PLAN:\n- read\n${edit}\nChecking:\n${read}\n\n${grep}\n${invented}`);
+        const parsed = parseAgentOutput(cut);
+        expect(parsed.edits.map(e => e.path)).toEqual(['a.js']);
+        expect(parsed.toolCalls.map(c => c.tool)).toEqual(['read_file', 'grep']);
+        expect(cut).not.toContain('invented');
+        expect(cutAfterToolCalls(`Done.\n${edit}\nNEXT: Run it`)).toBe(`Done.\n${edit}\nNEXT: Run it`);
+        expect(cutAfterToolCalls(`${read}\n<<<TOOL ingot/gr`)).toBe(`${read}\n<<<TOOL ingot/gr`);
+    });
+
+    it('describes the tool block format on its own for the built-in tools', () => {
+        expect(TOOL_CALL_FORMAT).toContain('<<<TOOL server/tool\n{"json": "arguments"}\n>>>END');
+        const call = parseAgentOutput(TOOL_CALL_FORMAT.replace('server/tool', 'ingot/read_file').replace('"json": "arguments"', '"path": "a.ts"'));
+        expect(call.toolCalls).toEqual([{ server: 'ingot', tool: 'read_file', args: { path: 'a.ts' } }]);
     });
 });
 

@@ -15,8 +15,15 @@ import { reorderTabs, tabTitleFromText, togglePinOrder } from '../../common/agen
 import { BUILD_PROMPT, MAX_SUB_AGENTS, TERMINAL_CONTEXT_LINES, modeInfo } from '../../common/agents/agent-modes';
 import { CHATS_STORAGE_KEY, mergeWindowChats, parseChats, serializeChats, windowChats } from '../../common/agents/chat-history';
 import { SUMMARIZE_PROMPT, contextUsage, estimateTokens } from '../../common/agents/context-usage';
-import { MEMORY_PROTOCOL, extractMemories, formatMemories, relevantMemories } from '../../common/memories/memories';
+import { DEFAULT_SCOPE, MEMORY_PROTOCOL, extractMemories, formatMemories, relevantMemories, type MemoryNote } from '../../common/memories/memories';
 import { MemoryStore } from './memory-store';
+import { formatAutoContext, sentAutoContext } from '../../common/agents/auto-context';
+import type { AutoAttach } from '../../common/agents/auto-context.types';
+import { extractFollowUps, followUpsFor } from '../../common/agents/follow-ups';
+import { FOLLOW_UPS_PROTOCOL } from '../../common/agents/follow-ups.consts';
+import type { CheckOutcome } from '../../common/agents/follow-ups.types';
+import { misreadTask } from '../../common/agents/task-intent';
+import { ACT_NUDGE, AGENT_WORKFLOW, EXPLAIN_NUDGE } from '../../common/agents/task-intent.consts';
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service';
 import { postConstruct } from '@theia/core/shared/inversify';
 import type { ChatMessage } from '../../common/models/models.types';
@@ -43,7 +50,7 @@ import {
     GREP_MAX_FILE_BYTES, GREP_MAX_FILES, GREP_MAX_MATCHES, GLOB_MAX_PATHS, compileGitignore, githubRepoFromRemote, globMatcher, grepMatcher,
     answerFromFiles, answerFromProject, asksAboutOpenProject, FILE_ANSWER_PATHS, fileQuestionGlob, globPaths, isPromptEcho, isTextCandidate, isWorkspaceTool, LIST_MAX_ENTRIES, numberLines, parseRgFiles, parseRgMatches,
     printsShellInsteadOfRunning, PROJECT_ENTRY_FILES, SHELL_NUDGE, shellReadsAsTools, textForRead,
-    SKIPPED_DIRS, withRepoDefaults, workspaceProtocol, type GitHubRepo, type WorkspaceInfo
+    SKIPPED_DIRS, withRepoDefaults, WORKSPACE_TOOLS, workspaceProtocol, type GitHubRepo, type WorkspaceInfo
 } from '../../common/agents/workspace-tools';
 import { MAX_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
 import {
@@ -66,14 +73,14 @@ import { ProjectConfigService } from '../project-config/project-config-service';
 import { IngotMcpClient } from '../project-config/mcp-client';
 import { applicableRules, expandCommand, formatRules } from '../../common/project-config/project-config.utils';
 import type { ProjectCommand } from '../../common/project-config/project-config.types';
-import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
+import { cutAfterToolCalls, TOOL_CALL_FORMAT, toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
 import { MADE_WITH_PREF, withMadeWith } from '../../common/git/made-with';
 import { clampPieces, HARMONY_DEFAULTS, HARMONY_PREFS, harmonyLock, harmonyPrompt, isHeavyRun, pickHarmonyPiece, type HarmonyPiece } from '../../common/agents/harmony';
 import {
     APPROVAL_PREFS, BUILTIN_TOOLS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
-    updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind,
+    unknownToolResult, updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind,
     type BuiltinToolSwitches
 } from '../../common/agents/agent-actions';
 import { ProcessStore } from '../processes/process-store';
@@ -128,6 +135,8 @@ export class AgentStore {
     protected readonly streamingEdits = new Map<string, Promise<string | undefined>>();
     /** IDEA-248: work-loop state for the current user turn, not saved with the chat. */
     protected readonly loops = new Map<string, LoopState>();
+    /** IDEA-267: IDE context attached to the latest user turn, per chat; not saved with the chat. */
+    protected readonly autoContexts = new Map<string, AutoAttach>();
     /** Chats whose model loop is on the stack, so accepting a review does not start a second one. */
     protected readonly modelLoops = new Set<string>();
     /** Answers waiting on ingot/ask_user. Undefined means the user stopped. */
@@ -451,7 +460,7 @@ export class AgentStore {
     }
 
     /** Sends a prompt. Without a connected model the agent explains how to connect one instead of pretending. */
-    send(prompt: string, chips: readonly ContextChip[] = [], composed?: ComposedMessage): AgentSession {
+    send(prompt: string, chips: readonly ContextChip[] = [], composed?: ComposedMessage, auto?: AutoAttach): AgentSession {
         const session = this.current ?? this.create();
         const askedNow = prompt.trim();
         if (session.ask && askedNow) {
@@ -484,6 +493,7 @@ export class AgentStore {
                 ? { role: 'user', text: prompt.trim(), expanded: expandWithChips(prompt.trim(), chips), chips: chips.map(c => ({ label: chipLabel(c), path: c.path })) }
                 : { role: 'user', text: prompt.trim() });
         }
+        this.attachAutoContext(session, auto);
         const asked = prompt.trim();
         this.loops.set(session.id, {
             prompt: asked, wants: this.workLoopOn() && wantsWorkLoop(asked), edits: [], checks: [], fixAttempts: 0,
@@ -525,6 +535,19 @@ export class AgentStore {
         this.changed();
         this.runModel(session, generation).finally(() => this.browser.endAgentRun(session.id));
         return session;
+    }
+
+    /** IDEA-267: the composer's IDE-context chips go to the model with this turn and show under the user message. */
+    protected attachAutoContext(session: AgentSession, auto: AutoAttach | undefined): void {
+        if (!auto) {
+            this.autoContexts.delete(session.id);
+            return;
+        }
+        this.autoContexts.set(session.id, auto);
+        const last = session.messages.length - 1;
+        if (auto.items.length && session.messages[last]?.role === 'user') {
+            session.messages[last] = { ...session.messages[last], auto: sentAutoContext(auto.items) };
+        }
     }
 
     isRunning(id: string | undefined): boolean {
@@ -916,18 +939,24 @@ export class AgentStore {
         const rules = applicableRules(config.rules, activePath ? [...context.paths, activePath] : context.paths);
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
-        const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
+        const auto = this.autoContexts.get(session.id);
+        const memories = auto?.skipMemories ? [] : relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
         const workspace = await this.workspaceInfo(root);
         this.github = workspace.github;
-        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', info.canUseTools ? TOOL_CALL_FORMAT : '', info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol(this.toolSwitches()) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
+        const base = [
+            AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_WORKFLOW : '', info.canEdit ? AGENT_PROTOCOL : '', info.canUseTools ? TOOL_CALL_FORMAT : '',
+            info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools),
+            info.canUseTools ? builtinToolProtocol(this.toolSwitches()) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : '', session.parent ? '' : FOLLOW_UPS_PROTOCOL
+        ].filter(Boolean).join('\n\n');
         const rulesText = formatRules(rules);
         const memoriesText = formatMemories(memories);
-        const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
+        const autoText = formatAutoContext(auto?.items ?? []);
+        const system = [base, rulesText, memoriesText, context.text, autoText].filter(Boolean).join('\n\n');
         const model = findModel(this.resolveModel(session.model));
         session.context = {
             files: context.paths, rules: rules.map(r => r.name), memories: memories.map(m => ({ id: m.id, text: m.text })),
             usage: contextUsage({
-                system: estimateTokens(base), rules: estimateTokens(rulesText), files: estimateTokens(context.text), memories: estimateTokens(memoriesText),
+                system: estimateTokens(base), rules: estimateTokens(rulesText), files: estimateTokens([context.text, autoText].join('\n')), memories: estimateTokens(memoriesText),
                 history: estimateTokens(this.historyFor(session).map(m => m.content).join('\n'))
             }, model?.contextWindow ?? DEFAULT_CONTEXT_WINDOW)
         };
@@ -945,6 +974,9 @@ export class AgentStore {
 
         let nudged = false;
         let retriedEmpty = false;
+        let redirected = false;
+        let edited = false;
+        let followUps: string[] = [];
         const rounds = this.maxToolRounds();
         try {
             for (let round = 0; ; round++) {
@@ -962,6 +994,7 @@ export class AgentStore {
                     }
                     return;
                 }
+                followUps = parsed.followUps;
                 const agentIndex = session.messages.map(m => m.role).lastIndexOf('agent');
                 const agentText = session.messages[agentIndex]?.text ?? '';
                 const asked = lastUser?.m.text ?? prompt;
@@ -1015,6 +1048,7 @@ export class AgentStore {
                 if (recovered.length) {
                     this.hidePrinted(session, agentIndex);
                     if (info.canEdit && parsed.edits.length) {
+                        edited = true;
                         await this.applyParsedEdits(session, parsed.edits, parsed.plan, root);
                     }
                     if (!await this.finishTools(session, generation, recovered)) {
@@ -1029,8 +1063,17 @@ export class AgentStore {
                     session.messages.push({ role: 'user', text: SHELL_NUDGE, hidden: true });
                     continue;
                 }
+                // IDEA-267: an overview of the repo is not an answer to "fix…" or "explain src/x.ts". Send it back once.
+                const misread = !parsed.toolCalls.length && !parsed.edits.length && !redirected && round < rounds ? misreadTask(asked, agentText, edited) : undefined;
+                if (misread && (misread === 'explain' || info.canEdit)) {
+                    redirected = true;
+                    this.hidePrinted(session, agentIndex);
+                    session.messages.push({ role: 'user', text: misread === 'act' ? ACT_NUDGE : EXPLAIN_NUDGE, hidden: true });
+                    continue;
+                }
                 const applied = info.canEdit && parsed.edits.length > 0;
                 if (applied) {
+                    edited = true;
                     await this.applyParsedEdits(session, parsed.edits, parsed.plan, root);
                 }
                 const cut = info.canEdit && parsed.editing && round < rounds ? parsed.editing : undefined;
@@ -1098,6 +1141,7 @@ export class AgentStore {
                 if (session.status !== 'review' && this.followSteer(session, generation)) {
                     continue;
                 }
+                this.attachFollowUps(session, followUps, edited);
                 session.activeFile = undefined;
                 session.updatedAt = Date.now();
                 this.changed();
@@ -1166,7 +1210,7 @@ export class AgentStore {
     }
 
     /** One streamed model reply; returns the parsed output, or undefined after an error. */
-    protected async streamRound(session: AgentSession, system: string, retried = false): Promise<(ReturnType<typeof parseAgentOutput> & { memories: string[] }) | undefined> {
+    protected async streamRound(session: AgentSession, system: string, retried = false): Promise<(ReturnType<typeof parseAgentOutput> & { memories: MemoryNote[]; followUps: string[] }) | undefined> {
         const generation = this.loopGeneration.get(session.id) ?? 0;
         const live = (): boolean => !this.stale(session.id, generation) && !this.cancelled.has(session.id);
         if (!live()) {
@@ -1190,9 +1234,9 @@ export class AgentStore {
                 if (!live() || !session.messages[index]) {
                     return;
                 }
-                const parsed = parseAgentOutput(text);
+                const parsed = parseAgentOutput(cutAfterToolCalls(text));
                 this.streamEdit(session, index, parsed.editing, parsed.editingContent);
-                this.writeAgentDraft(session, index, extractMemories(parsed.display).display);
+                this.writeAgentDraft(session, index, extractFollowUps(extractMemories(parsed.display).display).display);
                 if (parsed.plan.length) {
                     session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
                     this.considerHarmony(session, parsed.edits.length);
@@ -1203,7 +1247,7 @@ export class AgentStore {
                 this.poke();
             }, { maxTokens: AGENT_MAX_TOKENS, ...(tools.length ? { tools } : {}) });
             this.running.set(session.id, stream.cancel);
-            final = await stream.done;
+            final = cutAfterToolCalls(await stream.done);
         } catch (error) {
             await this.tracker.cancelStreams(session.id);
             const gateway = decodeGatewayError(error instanceof Error ? error.message : String(error));
@@ -1229,14 +1273,16 @@ export class AgentStore {
         }
         this.flushPoke();
         const parsed = parseAgentOutput(final);
-        const { display, memories } = extractMemories(parsed.display);
+        const remembered = extractMemories(parsed.display);
+        const { display, followUps } = extractFollowUps(remembered.display);
+        const memories = remembered.memories;
         // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
         this.writeAgentDraft(session, index, display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)'), {
             expanded: final,
             // IDEA-186: a silent round of project reads shows only in the Explored row.
             ...(!display && !parsed.edits.length && parsed.toolCalls.length && parsed.toolCalls.every(c => c.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(c.tool)) ? { hidden: true } : {})
         });
-        return { ...parsed, memories };
+        return { ...parsed, memories, followUps };
     }
 
     /**
@@ -1685,7 +1731,11 @@ export class AgentStore {
                     await this.files.delete(root.resolve(path), { recursive: false, useTrash: true });
                     return { text: `Deleted ${path}.`, isError: false };
                 }
-                default: return { text: `Unknown Ingot tool "${call.tool}".`, isError: true };
+                default: return {
+                    text: unknownToolResult(call.tool, [...WORKSPACE_TOOLS, ...BUILTIN_TOOLS].map(t => t.name)
+                        .filter(name => builtinToolEnabled(name, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }))),
+                    isError: true
+                };
             }
         } catch (error) {
             return { text: error instanceof Error ? error.message : String(error), isError: true };
@@ -2333,14 +2383,28 @@ export class AgentStore {
         this.changed();
     }
 
-    /** Saves facts the model marked with REMEMBER: (when Generate memories is on) and shows them with Undo. */
-    protected async saveMemories(session: AgentSession, facts: readonly string[], root: URI | undefined): Promise<void> {
-        if (!facts.length || !this.memoryStore.generate) {
+    /** IDEA-267: suggested next prompts on the last visible reply of the turn (the model's, or ones that fit what happened). */
+    protected attachFollowUps(session: AgentSession, fromModel: readonly string[], edited: boolean): void {
+        if (session.parent || session.status === 'error') {
             return;
         }
-        for (const fact of facts) {
-            const scope = root ? 'project' : 'global';
-            const memory = await this.memoryStore.save(scope, fact, root).catch(() => undefined);
+        const index = session.messages.map((m, i) => ({ m, i })).reverse().find(({ m }) => m.role === 'agent' && !m.hidden && m.text)?.i;
+        if (index === undefined) {
+            return;
+        }
+        const latest = new Map(this.loopOf(session).checks.map(check => [check.command, check.passed]));
+        const checks: CheckOutcome = !latest.size ? 'none' : [...latest.values()].every(Boolean) ? 'passed' : 'failed';
+        session.messages[index] = { ...session.messages[index], followUps: followUpsFor(fromModel, { edited, checks }) };
+    }
+
+    /** Saves repo facts (REMEMBER:) and preferences (PREFERENCE:) when Generate memories is on, and shows them with Undo. */
+    protected async saveMemories(session: AgentSession, notes: readonly MemoryNote[], root: URI | undefined): Promise<void> {
+        if (!notes.length || !this.memoryStore.generate) {
+            return;
+        }
+        for (const note of notes) {
+            const scope = root ? DEFAULT_SCOPE[note.kind] : 'global';
+            const memory = await this.memoryStore.save(scope, note.text, root, note.kind).catch(() => undefined);
             if (memory) {
                 session.messages.push({ role: 'system', text: memory.text, memory: { id: memory.id, scope: memory.scope } });
             }

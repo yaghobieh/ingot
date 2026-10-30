@@ -40,13 +40,15 @@ export interface AgentToolCall {
     readonly args: Record<string, unknown>;
 }
 
+const toolCallFormat = (lead: string): string => [lead, `${TOOL_OPEN}server/tool`, '{"json": "arguments"}', EDIT_CLOSE].join('\n');
+
+/** How to call the built-in Ingot tools when no MCP tools are connected (the "same block format" they refer to). */
+export const TOOL_CALL_FORMAT = toolCallFormat('To call a tool, output a block and STOP; the result comes back in the next message:');
+
 /** Describes the MCP tools the agent may call with `<<<TOOL server/tool` blocks. */
 export const toolProtocol = (tools: readonly { server: string; name: string; description?: string; inputSchema?: unknown }[]): string =>
     tools.length ? [
-        'You can call these tools. To call one, output a block and STOP; the result comes back in the next message:',
-        `${TOOL_OPEN}server/tool`,
-        '{"json": "arguments"}',
-        EDIT_CLOSE,
+        toolCallFormat('You can call these tools. To call one, output a block and STOP; the result comes back in the next message:'),
         'Tools:',
         ...tools.map(t => `- ${t.server}/${t.name}: ${t.description ?? ''}${t.inputSchema ? ` Input schema: ${JSON.stringify(t.inputSchema)}` : ''}`)
     ].join('\n') : '';
@@ -182,6 +184,33 @@ export const normalizeToolCalls = (text: string): string => {
         }
     });
     return hidePartialFence(next.replace(PARTIAL_CALL_RE, ''));
+};
+
+/**
+ * Ends a reply after its first group of tool calls (blocks separated only by whitespace). Models often keep writing
+ * after a call: invented results, then edits to files they never read. Nothing after the group has seen a result,
+ * so it is dropped. Edits before the first call (edit, then run the tests) stay.
+ */
+export const cutAfterToolCalls = (raw: string): string => {
+    const text = normalizeToolCalls(raw);
+    let at = 0;
+    let groupEnd = -1;
+    for (;;) {
+        const editAt = text.indexOf(EDIT_OPEN, at);
+        const toolAt = text.indexOf(TOOL_OPEN, at);
+        if (toolAt < 0 || (groupEnd >= 0 && text.slice(groupEnd, toolAt).trim())) {
+            return groupEnd >= 0 ? text.slice(0, groupEnd) : text;
+        }
+        const blockAt = groupEnd < 0 && editAt >= 0 && editAt < toolAt ? editAt : toolAt;
+        const close = text.indexOf(EDIT_CLOSE, blockAt);
+        if (close < 0) {
+            return text;
+        }
+        at = close + EDIT_CLOSE.length;
+        if (blockAt === toolAt) {
+            groupEnd = at;
+        }
+    }
 };
 
 /** Parses (possibly partial, streaming) agent output. */

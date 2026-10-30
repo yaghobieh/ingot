@@ -31,6 +31,9 @@ import { IngotAccountService } from '../account/account-service';
 import { AccountAvatar } from '../account/account-avatar';
 import { SIGN_IN_FOR_MODELS } from '../../common/models/models.consts';
 import { MemoryStore } from './memory-store';
+import { AutoContextService } from './auto-context-service';
+import { AUTO_CONTEXT_ICONS } from '../../common/agents/auto-context.consts';
+import type { AutoContextItem } from '../../common/agents/auto-context.types';
 import { CommandRegistry } from '@theia/core/lib/common/command';
 import { IngotModelClient } from '../models/model-client';
 import { MODELS_OPEN_COMMAND } from '../models/models.browser-consts';
@@ -104,6 +107,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
+    @inject(AutoContextService) protected readonly autoContext: AutoContextService;
     @inject(ContextKeyService) protected readonly contextKeys: ContextKeyService;
     @inject(KeybindingRegistry) protected readonly keybindings: KeybindingRegistry;
     @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
@@ -327,6 +331,7 @@ export class IngotAgentsWidget extends ReactWidget {
         this.addClass('ingot-agents');
         this.listenForDrops();
         this.toDispose.push(this.store.onDidChange(() => this.holdScroll()));
+        this.toDispose.push(this.autoContext.onDidChange(() => this.update()));
         this.toDispose.push(this.account.onDidChange(() => this.update()));
         this.toDispose.push(this.processes.onDidChange(() => this.update()));
         this.toDispose.push(this.preferences.onPreferenceChanged(e => { if (e.preferenceName === RUN_PREFS.showProcesses) { this.update(); } }));
@@ -553,6 +558,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected override onActivateRequest(msg: Message): void {
         super.onActivateRequest(msg);
+        this.autoContext.refresh();
         if (this.composer) {
             this.focusComposer();
         } else {
@@ -576,11 +582,29 @@ export class IngotAgentsWidget extends ReactWidget {
         const prompt = composed.text.trim() || 'Explain this code.';
         this.resumeFollowing();
         this.editingIndex = undefined;
-        this.store.send(prompt, composed.chips, composed.expanded ? composed : undefined);
+        this.store.send(prompt, composed.chips, composed.expanded ? composed : undefined, this.autoContext.attach);
         inline.clear();
         this.draft = '';
         this.composerEmpty = true;
         this.update();
+    }
+
+    /** IDEA-267: a suggested follow-up is sent like a typed prompt, with the current IDE context. */
+    protected sendFollowUp(text: string): void {
+        this.stickToLatest = true;
+        this.store.send(text, [], undefined, this.autoContext.attach);
+        this.update();
+    }
+
+    /** Clicking a context chip shows what it stands for: the file at the line, or the memories. */
+    protected openAutoContext(item: AutoContextItem): void {
+        if (item.kind === 'memory') {
+            this.toggleMemories();
+            return;
+        }
+        if (item.uri) {
+            void this.editors.open(new URI(item.uri), { mode: 'activate', selection: item.line ? { start: { line: item.line - 1, character: 0 } } : undefined });
+        }
     }
 
     /** Keybinding label for a command, for tooltips (follows the user's keymap). */
@@ -960,6 +984,9 @@ export class IngotAgentsWidget extends ReactWidget {
                         ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
                             : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
                         : this.editingIndex === i ? this.renderEditForm(session, i) : m.text}
+                    {m.role === 'user' && !!m.auto?.length && this.editingIndex !== i && <div className='ingot-chat-auto' title='IDE context sent with this message'>
+                        {m.auto.map((a, j) => <span key={j} className='ingot-chat-auto-item'><span className={`codicon codicon-${AUTO_CONTEXT_ICONS[a.kind]}`} />{a.label}</span>)}
+                    </div>}
                     {m.role === 'tool' && !!m.images?.length && <div className='ingot-chat-tool-images'>{m.images.filter(img => img.data).map(img =>
                         <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
                             onClick={() => { this.lightbox = img; this.update(); }} />)}</div>}
@@ -969,6 +996,7 @@ export class IngotAgentsWidget extends ReactWidget {
                         onToggle={() => { if (!this.collapsedChanges.delete(change.id)) { this.collapsedChanges.add(change.id); } this.update(); }}
                         onOpen={hunkId => this.tracker.reveal(change.id, hunkId)}
                         onDecide={(hunks, state) => this.tracker.decide(change.id, hunks, state)} />)}
+                    {m.role === 'agent' && this.renderFollowUps(session, m, i)}
                     {m.role === 'agent' && !!m.text && !(this.store.isRunning(session.id) && i === session.messages.length - 1)
                         && <ReplyReactions index={i} reactions={m.reactions} onToggle={kind => this.store.toggleReaction(session.id, i, kind)} />}
                     {m.role === 'user' && this.store.isQueued(session.id, m) && <QueuedChip />}
@@ -1310,6 +1338,7 @@ export class IngotAgentsWidget extends ReactWidget {
             </div>}
             {this.renderMentionMenu()}
             {this.renderMentionChips()}
+            {this.renderAutoContext()}
             <div id={COMPOSER_INPUT_ID} ref={el => this.setComposer(el)} className='ingot-composer-input' data-placeholder={COMPOSER_PLACEHOLDER}
                 aria-label='Message' suppressContentEditableWarning
                 onPaste={e => this.onPaste(e)}
@@ -1662,6 +1691,38 @@ export class IngotAgentsWidget extends ReactWidget {
                 onClick={() => this.openWorkspacePath(chip.path)}>
                 <span className={`ingot-chip-badge ingot-chip-badge-${chip.badge.tone}`}>{chip.badge.label}</span>{chip.label}
             </button>)}
+        </div>;
+    }
+
+    /** IDEA-267: IDE context that goes with the next message; × removes a chip until that context changes. */
+    protected renderAutoContext(): React.ReactNode {
+        const items = this.autoContext.items;
+        if (!items.length && !this.autoContext.hasDismissed) {
+            return undefined;
+        }
+        return <div id='ingot-auto-context' className='ingot-auto-context' aria-label='Context sent with the next message'>
+            {items.map(item => <span key={item.key} id={`ingot-auto-chip-${item.kind}`} className={`ingot-auto-chip ingot-auto-chip-${item.kind}`} data-kind={item.kind} title={item.title}>
+                <button type='button' className='ingot-auto-chip-label' onClick={() => this.openAutoContext(item)}>
+                    <span className={`codicon codicon-${AUTO_CONTEXT_ICONS[item.kind]}`} />{item.label}
+                </button>
+                <button type='button' className='ingot-auto-chip-remove codicon codicon-close' aria-label={`Remove ${item.label} from context`}
+                    title='Do not send this with the next message' onClick={() => this.autoContext.dismiss(item.key)} />
+            </span>)}
+            {this.autoContext.hasDismissed && <button type='button' id='ingot-auto-context-restore' className='ingot-auto-context-restore codicon codicon-discard'
+                aria-label='Restore removed context' title='Restore removed context' onClick={() => this.autoContext.restoreAll()} />}
+        </div>;
+    }
+
+    /** IDEA-267: suggested next prompts under the final reply, while the chat is idle. */
+    protected renderFollowUps(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+        const lastAgent = session.messages.map((message, index) => ({ message, index })).reverse().find(({ message }) => message.role === 'agent' && !message.hidden && message.text)?.index;
+        const idle = !this.store.isRunning(session.id) && session.status !== 'review' && session.status !== 'approval' && !session.ask;
+        if (!m.followUps?.length || i !== lastAgent || !idle) {
+            return undefined;
+        }
+        return <div id='ingot-follow-ups' className='ingot-follow-ups' role='group' aria-label='Suggested next steps'>
+            {m.followUps.map((text, j) => <button key={j} type='button' id={`ingot-follow-up-${j}`} className='ingot-follow-up' title={`Send: ${text}`}
+                onClick={() => this.sendFollowUp(text)}><span className='codicon codicon-arrow-right' />{text}</button>)}
         </div>;
     }
 

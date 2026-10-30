@@ -4,6 +4,7 @@
  */
 import type { GitOperation } from '../git/git-ops';
 import type { AgentToolCall } from './agent-protocol';
+import { EDIT_CLOSE, TOOL_OPEN } from './agent-protocol';
 import { describeTarget, toTarget } from '../browser-tool/browser-tool.utils';
 import { CREATE_LIBRARY_TOOL } from './library-app.consts';
 
@@ -243,6 +244,12 @@ export const activityLine = (steps: readonly { kind: string; target: string }[])
 /** Tool result the agent gets when the user skips an action. */
 export const skippedResult = (action: AgentAction, reason?: string): string =>
     `The user skipped this action (${actionLine(action, 200)}). Do not retry it unless the user asks.${reason?.trim() ? ` Reason: ${reason.trim()}` : ''}`;
+
+/** Tool result for a call to a tool that does not exist (often a malformed native call): names the real ones. */
+export const unknownToolResult = (tool: string, names: readonly string[]): string => [
+    `Unknown Ingot tool "${tool}". Use one of: ${names.join(', ')}.`,
+    `Call it as a block: ${TOOL_OPEN}${BUILTIN_TOOL_SERVER}/<name>, then the JSON arguments on the next line, then ${EDIT_CLOSE}.`
+].join('\n');
 
 /** IDEA-133: which built-in tools Settings › Tools › Agent tools turns on. */
 export interface BuiltinToolSwitches {
