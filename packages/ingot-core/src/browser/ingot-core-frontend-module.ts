@@ -106,6 +106,7 @@ import { ZaprexLauncher } from './agents/zaprex-launcher';
 import { GitService } from '../common/git/git.types';
 import { EDITOR_IMPORT_SERVICE_PATH, EditorImportService } from '../common/import/editor-import.types';
 import { EditorImportContribution } from './import/editor-import-contribution';
+import { CursorRulesImportContribution, cursorImportPreferenceSchema } from './import/cursor-rules-import-contribution';
 import { GitResourceResolver } from './git/git-resource-resolver';
 import { IngotGitLogWidget } from './git/git-log-widget';
 import { IngotGitContribution } from './git/git-contribution';
@@ -197,6 +198,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CommandContribution).toService(EditorImportContribution);
     bind(MenuContribution).toService(EditorImportContribution);
     bind(FrontendApplicationContribution).toService(EditorImportContribution);
+    bind(PreferenceContribution).toConstantValue({ schema: cursorImportPreferenceSchema });
+    bind(CursorRulesImportContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(CursorRulesImportContribution);
+    bind(FrontendApplicationContribution).toService(CursorRulesImportContribution);
     bind(ErrorReportingContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(ErrorReportingContribution);
     bind(GitService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<GitService>(ctx.container, GIT_SERVICE_PATH)).inSingletonScope();

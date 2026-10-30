@@ -7,6 +7,7 @@ import {
 } from '../../common/project-config/project-config.consts';
 import type { ConfigSource, McpServerConfig, ProjectCommand, ProjectConfig, ProjectRule } from '../../common/project-config/project-config.types';
 import { commandFromFile, mergeByName, parseMcpJson, ruleFromFile } from '../../common/project-config/project-config.utils';
+import { withoutImportedCursorrules } from '../../common/import/cursor-rules-import.utils';
 
 interface DirConfig { rules: ProjectRule[]; commands: ProjectCommand[]; mcpServers: McpServerConfig[] }
 const EMPTY_DIR: DirConfig = { rules: [], commands: [], mcpServers: [] };
@@ -62,7 +63,7 @@ export class ProjectConfigService {
             this.loadExtraCommands(root, 'external', rel)
         ]) : [EMPTY_DIR, EMPTY_DIR, EMPTY_DIR, [], []];
         return {
-            rules: [...globalAgents, ...agents, ...mergeByName(importedGlobal.rules, global.rules, external.rules, legacy.rules, ingot.rules)],
+            rules: [...globalAgents, ...withoutImportedCursorrules(agents, ingot.rules), ...mergeByName(importedGlobal.rules, global.rules, external.rules, legacy.rules, ingot.rules)],
             // Later wins: other editors' folders (home, then project) < imported < legacy < `.ingot` (IDEA-249).
             commands: mergeByName(globalExtra, importedGlobal.commands, global.commands, projectExtra, external.commands, legacy.commands, ingot.commands),
             mcpServers: mergeByName(external.mcpServers, legacy.mcpServers, ingot.mcpServers)
