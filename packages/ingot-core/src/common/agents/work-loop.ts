@@ -6,8 +6,8 @@ import type { AgentToolCall } from './agent-protocol';
 import { scriptCommand } from '../processes/processes.utils';
 import {
     ALLOW_WEAKER_TESTS, CASE_PATTERN, CHECK_FAIL_PREFIX, CHECK_SCRIPTS, CHECKS_PASSED_PREFIX, COMMIT_BLOCKED_BRANCH, COMMIT_BLOCKED_CHECKS,
-    COMMIT_INTENT, CUT_EDIT_PREFIX, CYPRESS_FILES, E2E_INTENT, E2E_NUDGE_PREFIX, E2E_SCRIPTS, FAILURE_LIMIT, FAILURE_MESSAGE_CHARS, FEATURE_BRANCH_PREFIXES,
-    LAYOUT_WORDS, MAX_FIX_ATTEMPTS, PLAYWRIGHT_FILES, PROTECTED_BRANCHES, SKIP_PATTERN, STOP_PREFIX, TEST_PATH, UI_PATH, WORK_LOOP_INTENT
+    COMMIT_CONSENT, COMMIT_INTENT, CUT_EDIT_PREFIX, CYPRESS_FILES, SHELL_GIT_BLOCKED, SHELL_GIT_WRITE, E2E_INTENT, E2E_NUDGE_PREFIX, E2E_SCRIPTS, FAILURE_LIMIT, FAILURE_MESSAGE_CHARS, FEATURE_BRANCH_PREFIXES,
+    LAYOUT_WORDS, MAX_AUTO_CONTINUES, MAX_FIX_ATTEMPTS, MORE_WORK, PLAYWRIGHT_FILES, PROTECTED_BRANCHES, SKIP_PATTERN, STOP_PREFIX, TEST_PATH, UI_PATH, WORK_LOOP_INTENT
 } from './work-loop.consts';
 import type { CheckFailure, E2eFramework, LoopSnapshot, PlannedCheck, ProjectSignals, SummaryInput } from './work-loop.types';
 
@@ -20,6 +20,20 @@ const intentText = (prompt: string): string => prompt.replace(LAYOUT_WORDS, ' ')
 export const wantsWorkLoop = (prompt: string): boolean => WORK_LOOP_INTENT.test(intentText(prompt));
 export const wantsCommit = (prompt: string): boolean => COMMIT_INTENT.test(intentText(prompt));
 export const wantsE2e = (prompt: string): boolean => E2E_INTENT.test(intentText(prompt));
+
+/**
+ * IDEA-282: a `git commit` or `git push` through ingot/run, when the user neither asked for one in the prompt nor
+ * agreed on an ask_user card, is refused. Otherwise a blocked ingot/git commit is simply retried in the shell.
+ */
+export const shellGitBlockReason = (command: string, prompt: string, answers: readonly string[]): string | undefined => {
+    if (!SHELL_GIT_WRITE.test(command) || wantsCommit(prompt) || /\bpush\b/i.test(intentText(prompt)) || answers.some(answer => COMMIT_CONSENT.test(answer))) {
+        return undefined;
+    }
+    return SHELL_GIT_BLOCKED;
+};
+
+/** True when a reply that called no tool says what it will do next, so the turn should not end yet. */
+export const promisesMoreWork = (reply: string, continues: number): boolean => continues < MAX_AUTO_CONTINUES && MORE_WORK.test(reply);
 
 /** The reply hit the output limit inside an edit block, so that file was not saved. */
 export const cutEditNudge = (path: string): string =>
@@ -224,8 +238,8 @@ export const WORK_LOOP_PROTOCOL = [
     '- Before changing more than one file, start with a PLAN: list (files, steps, and the tests you will run or add).',
     '- After the edits, run the project checks with ingot/run or ingot/run_script (package scripts named gate, test, lint, typecheck or e2e; otherwise pytest, make test, go test, cargo test, Maven or Gradle).',
     '- If a check fails, read the file and line, fix the code, and run it again. Stop after 3 failures and explain. Never delete a test, skip a test, or weaken an assertion to make it pass.',
-    '- For a feature or UI change, add or update an end-to-end test (Playwright, or Cypress if that is what the repo uses) and run it before you commit. For a bug, add a test that fails before the fix and passes after.',
-    '- Commit only on a feature/ or bug/ branch, only when the checks and the .ingot pre-commit hooks pass. Never commit on master, main or release/*.',
+    '- If the project already has end-to-end tests (Playwright or Cypress), add or update one for a feature or UI change and run it. For a bug, add a test that fails before the fix and passes after.',
+    '- Commit only when the user asked for a commit, with ingot/git (never git commands through ingot/run), only on a feature/ or bug/ branch, and only when the checks and the .ingot pre-commit hooks pass. Never commit on master, main or release/*.',
     '- Then give a short summary: files, checks, branch, result.'
 ].join('\n');
 

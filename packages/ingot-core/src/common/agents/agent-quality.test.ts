@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { builtinToolEnabled, builtinToolProtocol } from './agent-actions';
-import { cutEditNudge, wantsCommit, wantsE2e, wantsWorkLoop } from './work-loop';
+import { cutEditNudge, promisesMoreWork, shellGitBlockReason, wantsCommit, wantsE2e, wantsWorkLoop } from './work-loop';
 import { parseAgentOutput } from './agent-protocol';
 
 const LIBRARY_PROMPT = 'Create a new React (Vite+TS, feature folders) and Node.js (Express+TS, routes/controllers/services) project with full CRUD APIs for a library (books, authors, loans) at path /tmp/ingot-e2e-lib';
@@ -22,6 +22,25 @@ describe('IDEA-282 agent quality loop', () => {
         const nudge = cutEditNudge(parsed.editing ?? '');
         expect(nudge).toContain('server/src/app.ts was NOT saved');
         expect(nudge).toContain('complete block');
+    });
+
+    it('keeps going when a reply stops while naming its next step', () => {
+        expect(promisesMoreWork('Next: `loanService.ts`, then the controllers.', 0)).toBe(true);
+        expect(promisesMoreWork('Routes and the tests come next, then install, build and test.', 0)).toBe(true);
+        expect(promisesMoreWork("I'll run npm install in server now.", 0)).toBe(true);
+        expect(promisesMoreWork('### Done\nBoth apps build and all tests pass.', 0)).toBe(false);
+        expect(promisesMoreWork('The next button is disabled until the form is valid.', 0)).toBe(false);
+        expect(promisesMoreWork('Next: the routes.', 12)).toBe(false);
+    });
+
+    it('refuses a shell commit the user never asked for', () => {
+        const commit = 'git init -b feature/x && git add . && git -c user.name=Bot commit -m "Init"';
+        expect(shellGitBlockReason(commit, LIBRARY_PROMPT, [])).toContain('did not ask for a commit');
+        expect(shellGitBlockReason('git push origin main', LIBRARY_PROMPT, [])).toBeDefined();
+        expect(shellGitBlockReason(commit, `${LIBRARY_PROMPT} and commit it`, [])).toBeUndefined();
+        expect(shellGitBlockReason(commit, LIBRARY_PROMPT, ['Yes, init and commit'])).toBeUndefined();
+        expect(shellGitBlockReason('npm install && npm test', LIBRARY_PROMPT, [])).toBeUndefined();
+        expect(shellGitBlockReason('git status', LIBRARY_PROMPT, [])).toBeUndefined();
     });
 
     it('runs a tool written as a fence named after it', () => {

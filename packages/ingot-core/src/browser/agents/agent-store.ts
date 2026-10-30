@@ -45,10 +45,10 @@ import {
 } from '../../common/agents/workspace-tools';
 import { MAX_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
 import {
-    CHECKS_PASSED_PREFIX, MAX_FIX_ATTEMPTS, MAX_TOOL_ROUNDS_CAP, MULTI_FILE_EDITS, REMOTE_BLOCKED, REVIEW_THEN_CHECKS, TOOL_ROUNDS_STOP, WORK_LOOP_PREFS
+    CHECKS_PASSED_PREFIX, CONTINUE_NUDGE, MAX_FIX_ATTEMPTS, MAX_TOOL_ROUNDS_CAP, MULTI_FILE_EDITS, REMOTE_BLOCKED, REVIEW_THEN_CHECKS, TOOL_ROUNDS_STOP, WORK_LOOP_PREFS
 } from '../../common/agents/work-loop.consts';
 import {
-    WORK_LOOP_PROTOCOL, checkFailNudge, checkPassed, checksPassedNudge, commitBlockReason, cutEditNudge, detectChecks, detectE2eFramework, e2eNudge, isRemoteCodeFetch,
+    WORK_LOOP_PROTOCOL, checkFailNudge, checkPassed, checksPassedNudge, commitBlockReason, cutEditNudge, detectChecks, promisesMoreWork, shellGitBlockReason, detectE2eFramework, e2eNudge, isRemoteCodeFetch,
     isTestPath, isUiPath, needsE2eNudge, planFromEdits, stopMessage, summaryText, userAllowsWeakerTests, userAskedForRemote, wantsCommit,
     wantsE2e, wantsWorkLoop, weakensTests, withCheckEnv
 } from '../../common/agents/work-loop';
@@ -1003,6 +1003,15 @@ export class AgentStore {
                     session.messages.push({ role: 'user', text: cutEditNudge(cut), hidden: true });
                     continue;
                 }
+                const loopNow = this.loopOf(session);
+                if (!parsed.toolCalls.length && round < rounds && session.mode === 'agent' && promisesMoreWork(agentText, loopNow.continues ?? 0)) {
+                    loopNow.continues = (loopNow.continues ?? 0) + 1;
+                    if (!(applied && this.tracker.pending().some(change => change.sessionId === session.id))) {
+                        session.messages.push({ role: 'user', text: CONTINUE_NUDGE, hidden: true });
+                        continue;
+                    }
+                    loopNow.promised = true;
+                }
                 if (parsed.toolCalls.length) {
                     session.messages.push({ role: 'system', text: TOOL_ROUNDS_STOP });
                 }
@@ -1225,6 +1234,19 @@ export class AgentStore {
                 });
                 this.changed();
                 continue;
+            }
+            if (call.server === BUILTIN_TOOL_SERVER && call.tool === 'run' && typeof call.args.command === 'string') {
+                const userText = session.messages.filter(message => message.role === 'user' && !message.hidden).map(message => message.text).join('\n');
+                const answers = session.messages.filter(message => message.role === 'tool' && message.tool?.tool === ASK_USER_TOOL).map(message => message.text);
+                const refused = shellGitBlockReason(call.args.command, userText, answers);
+                if (refused) {
+                    session.messages.push({
+                        role: 'tool', from: target, text: `Error: ${refused}`,
+                        tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                    });
+                    this.changed();
+                    continue;
+                }
             }
             const isGit = call.server === BUILTIN_TOOL_SERVER && call.tool === 'git';
             const branch = isGit && rootPath && call.args.op === 'push' && !call.args.branch
@@ -2063,7 +2085,17 @@ export class AgentStore {
 
     /** Review finished and the files are on disk: continue the loop if this turn asked for one. */
     protected async resumeLoop(session: AgentSession): Promise<void> {
-        if (this.modelLoops.has(session.id) || !this.loopOf(session).wants) {
+        const loop = this.loopOf(session);
+        if (this.modelLoops.has(session.id)) {
+            return;
+        }
+        if (loop.promised) {
+            loop.promised = false;
+            session.messages.push({ role: 'user', text: CONTINUE_NUDGE, hidden: true });
+            await this.runModel(session);
+            return;
+        }
+        if (!loop.wants) {
             return;
         }
         if (await this.nudgeLoop(session, this.rootFor(session))) {
@@ -2168,7 +2200,7 @@ export class AgentStore {
             if (changes.length) {
                 session.messages.push({ role: 'system', text: `Review finished: ${kept.length} of ${total} change(s) kept.` });
             }
-            if (kept.length && this.loopOf(session).wants && !this.modelLoops.has(session.id)) {
+            if (kept.length && (this.loopOf(session).wants || this.loopOf(session).promised) && !this.modelLoops.has(session.id)) {
                 void this.resumeLoop(session);
             }
             if (session.status === 'review') {

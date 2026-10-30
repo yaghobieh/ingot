@@ -273,7 +273,8 @@ const LIBRARY_TEMPLATE_STEPS = [
 export const NEW_PROJECT_STEPS = [
     'New project from scratch: start with a PLAN of the apps, folders and files. Write the files with <<<EDIT blocks, a few files per reply, paths relative to the open folder (e.g. server/src/app.ts).',
     'Keep going without asking: after the files, run npm install, npm run build and npm test in each app with ingot/run {"command": "...", "cwd": "server"}. Read every failure, fix the files, and run again until all of them pass.',
-    'Pin dependency versions that work together, give each app "build" and "test" scripts that exit on their own (vitest run, not watch mode), and finish with a short summary of what runs and how.'
+    'Pin dependency versions that work together. Every app needs a "build" script and a "test" script with real unit or API tests that exit on their own (vitest run, not watch mode).',
+    'Do not git init or commit unless the user asked for it. Finish with a short summary of what runs and how.'
 ];
 
 /** The system-prompt section for Ingot's built-in tools. */
