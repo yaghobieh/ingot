@@ -86,7 +86,7 @@ import { runToolSettings, type RunToolSettings } from '../../common/processes/ru
 import { AgentActionsService, type AgentActionResult } from '../../common/agents/agent-actions-service';
 import { GitService } from '../../common/git/git.types';
 import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
-import { applyTextEdits, findSymbolPosition, formatDiagnostics, formatLocations, isCodeEditTool, isCodeTool, parseNewName, parseSymbolTarget, severityFilter } from '../../common/agents/code-tools';
+import { applyTextEdits, codeToolStep, findSymbolPosition, formatDiagnostics, formatLocations, isCodeEditTool, isCodeTool, parseNewName, parseSymbolTarget, severityFilter } from '../../common/agents/code-tools';
 import { CodeToolsService, type CodeEditResult } from './code-tools-service';
 
 let nextId = 1;
@@ -1277,7 +1277,9 @@ export class AgentStore {
                 this.changed();
             }
             const workspaceTool = call.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(call.tool);
-            session.steps = [...session.steps, workspaceTool ? this.workspaceStep(call) : { kind: 'run', target, done: false }];
+            const codeTool = call.server === BUILTIN_TOOL_SERVER && isCodeTool(call.tool) ? call.tool : undefined;
+            session.steps = [...session.steps, workspaceTool ? this.workspaceStep(call)
+                : { kind: 'run', target, done: false, ...(codeTool ? { label: codeToolStep(codeTool, call.args) } : {}) }];
             session.status = 'thinking';
             // IDEA-177: the card shows at once with a spinner, then fills in with the result.
             const tool: ToolCallInfo = { server: call.server, tool: call.tool, args: call.args, state: 'running', startedAt: Date.now() };

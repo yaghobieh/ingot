@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-    applyTextEdits, codeToolDetail, findSymbolPosition, formatDiagnostics, formatLocations, isCodeEditTool, isCodeTool, parseNewName, parseSymbolTarget, severityFilter, severityOf
+    applyTextEdits, codeToolDetail, codeToolStep, findSymbolPosition, formatDiagnostics, formatLocations, isCodeEditTool, isCodeTool, parseNewName, parseSymbolTarget, severityFilter, severityOf
 } from './code-tools';
 import type { CodeDiagnostic, CodeLocation } from './code-tools.types';
+import { stepText } from './agents.utils';
 
 const SOURCE = [
     "import { add } from './math';",
@@ -103,5 +104,12 @@ describe('code tools (IDEA-259)', () => {
         expect(codeToolDetail('rename_symbol', { path: 'src/a.ts', symbol: 'add', new_name: 'sum' })).toBe('add → sum · src/a.ts');
         expect(codeToolDetail('find_references', { path: 'src/a.ts', line: 3 })).toBe('line 3 · src/a.ts');
         expect(codeToolDetail('diagnostics', {})).toBe('whole project');
+    });
+
+    it('labels the checklist step', () => {
+        expect(codeToolStep('find_references', { path: 'src/math.ts', symbol: 'add' })).toBe('Find references: add · src/math.ts');
+        expect(codeToolStep('organize_imports', { path: 'src/main.ts' })).toBe('Organize imports: src/main.ts');
+        expect(stepText({ kind: 'run', target: 'ingot/diagnostics', done: true, label: 'Check problems: whole project' })).toBe('Check problems: whole project');
+        expect(stepText({ kind: 'read', target: 'a.ts', done: true })).toBe('Read a.ts');
     });
 });

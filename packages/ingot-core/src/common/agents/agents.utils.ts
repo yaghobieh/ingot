@@ -54,6 +54,8 @@ export const titleFromPrompt = (prompt: string): string => {
 
 export const stepVerb = (step: AgentStep): string => ({ read: 'Read', edit: 'Edit', run: 'Run', search: 'Search' })[step.kind];
 
+export const stepText = (step: AgentStep): string => step.label ?? `${stepVerb(step)} ${step.target}`;
+
 export const changesSummary = (count: number): string => `${count} ${count === 1 ? 'file' : 'files'} changed`;
 
 export const fileWord = (count: number): string => count === 1 ? 'file' : 'files';

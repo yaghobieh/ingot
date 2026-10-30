@@ -21,6 +21,15 @@ export const CODE_TOOL_TITLES: Record<CodeToolName, string> = {
     diagnostics: 'Checked problems'
 };
 
+/** Checklist verbs for the run's steps. */
+export const CODE_TOOL_STEPS: Record<CodeToolName, string> = {
+    go_to_definition: 'Go to definition',
+    find_references: 'Find references',
+    rename_symbol: 'Rename',
+    organize_imports: 'Organize imports',
+    diagnostics: 'Check problems'
+};
+
 export const CODE_TOOL_ICONS: Record<CodeToolName, string> = {
     go_to_definition: 'go-to-file',
     find_references: 'references',

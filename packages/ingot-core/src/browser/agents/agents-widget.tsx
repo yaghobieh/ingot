@@ -36,7 +36,7 @@ import { CommandRegistry } from '@theia/core/lib/common/command';
 import { IngotModelClient } from '../models/model-client';
 import { MODELS_OPEN_COMMAND } from '../models/models.browser-consts';
 import type { AgentSession } from '../../common/agents/agents.types';
-import { changesSummary, editedFilesLabel, fileBadge, fileWord, formatWorked, stepVerb } from '../../common/agents/agents.utils';
+import { changesSummary, editedFilesLabel, fileBadge, fileWord, formatWorked, stepText } from '../../common/agents/agents.utils';
 import { AgentStore } from './agent-store';
 import { EditorManager } from '@theia/editor/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
@@ -1076,7 +1076,7 @@ export class IngotAgentsWidget extends ReactWidget {
             </div>)}
             {work.map((step, index) => <div key={`step-${index}`} className={`ingot-check-row${step.done ? ' done' : ''}`}>
                 <span className='ingot-step-mark'>{step.done ? '✓' : '●'}</span>
-                <span className='ingot-step-text'>{stepVerb(step)} {step.target}</span>
+                <span className='ingot-step-text'>{stepText(step)}</span>
             </div>)}
         </div>;
     }

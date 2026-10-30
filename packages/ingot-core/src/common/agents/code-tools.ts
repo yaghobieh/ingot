@@ -3,7 +3,7 @@
  * and how definitions, references and diagnostics read in a tool result.
  */
 import {
-    CODE_EDIT_TOOLS, CODE_TOOL_NAMES, IDENTIFIER_RE, LSP_SEVERITIES, MAX_CODE_LOCATIONS, MAX_DIAGNOSTICS, PREVIEW_MAX_CHARS, SEVERITY_ORDER
+    CODE_EDIT_TOOLS, CODE_TOOL_NAMES, CODE_TOOL_STEPS, IDENTIFIER_RE, LSP_SEVERITIES, MAX_CODE_LOCATIONS, MAX_DIAGNOSTICS, PREVIEW_MAX_CHARS, SEVERITY_ORDER
 } from './code-tools.consts';
 import type { CodeDiagnostic, CodeLocation, CodePosition, CodeSeverity, CodeTextEdit, CodeToolName, SymbolTarget } from './code-tools.types';
 
@@ -177,4 +177,10 @@ export const codeToolDetail = (tool: string, args: Readonly<Record<string, unkno
     const symbol = str(args.symbol) || str(args.name) || (positiveInt(args.line) ? `line ${positiveInt(args.line)}` : '');
     const subject = tool === 'rename_symbol' && symbol ? `${symbol} → ${str(args.new_name) || str(args.newName) || '?'}` : symbol;
     return [subject, path].filter(Boolean).join(' · ') || (tool === 'diagnostics' ? 'whole project' : '');
+};
+
+/** Checklist row: `Find references: add · src/math.ts`. */
+export const codeToolStep = (tool: CodeToolName, args: Readonly<Record<string, unknown>>): string => {
+    const detail = codeToolDetail(tool, args);
+    return detail ? `${CODE_TOOL_STEPS[tool]}: ${detail}` : CODE_TOOL_STEPS[tool];
 };
