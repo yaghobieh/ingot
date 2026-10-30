@@ -17,6 +17,9 @@ const FILE = 'server/src/books.ts';
 const BODY = "export const books = [{ id: 1, title: 'Dune' }];\nexport const findBook = (id: number) => books.find(book => book.id === id);";
 const PROMPT = 'Create the books module of the library API in server/src (feature folders)';
 const CUT_MARK = 'Your last reply was cut off.';
+const EMPTY_PROMPT = 'List the library resources';
+const EMPTY_MARK = 'Your last reply was empty.';
+const EMPTY_RECOVERED = 'The library has books, authors and loans.';
 
 const readTrace = (page: Page): Promise<TraceSnapshot | undefined> =>
     page.evaluate(() => (window as unknown as Record<string, () => TraceSnapshot | undefined>).ingotAgentTrace?.());
@@ -29,6 +32,12 @@ test.describe('agent quality loop (IDEA-282)', () => {
     test.beforeEach(async () => {
         dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-aq-')));
         server = await startFakeOllama((_system, user) => {
+            if (user.includes(EMPTY_MARK)) {
+                return EMPTY_RECOVERED;
+            }
+            if (user.includes(EMPTY_PROMPT)) {
+                return '';
+            }
             if (user.includes(CUT_MARK)) {
                 return `Sending ${FILE} again.\n\n<<<EDIT ${FILE}\n${BODY}\n>>>END\n\nThe books module is written.`;
             }
@@ -67,5 +76,20 @@ test.describe('agent quality loop (IDEA-282)', () => {
         await expect.poll(() => fs.existsSync(path.join(dir, FILE)) && fs.readFileSync(path.join(dir, FILE), 'utf8')).toContain('findBook');
         await setAppearance(page, 'light');
         await shot(page, 'agent-quality-loop-light.png');
+    });
+
+    test('retries an empty reply once instead of stopping', async ({ page }) => {
+        await openIngot(page, dir);
+        await dismissNotifications(page);
+        await connectOllama(page, server);
+        await page.locator('#ingot-agents-new').click();
+        await pickModel(page, 'ollama-local');
+        await page.locator('#ingot-composer-input').fill(EMPTY_PROMPT);
+        await page.locator('#ingot-composer-input').press('Enter');
+
+        await expect(page.locator('.ingot-agents .ingot-chat-agent').last()).toContainText(EMPTY_RECOVERED, { timeout: 60_000 });
+        await expect(page.locator('.ingot-agents .ingot-chat-agent', { hasText: '(empty reply)' })).toHaveCount(0);
+        const trace = await readTrace(page);
+        expect(trace?.messages.some(message => message.hidden && message.text.startsWith(EMPTY_MARK))).toBe(true);
     });
 });

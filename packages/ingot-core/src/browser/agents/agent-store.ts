@@ -45,7 +45,7 @@ import {
 } from '../../common/agents/workspace-tools';
 import { MAX_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
 import {
-    CHECKS_PASSED_PREFIX, CONTINUE_NUDGE, MAX_FIX_ATTEMPTS, MAX_TOOL_ROUNDS_CAP, MULTI_FILE_EDITS, REMOTE_BLOCKED, REVIEW_THEN_CHECKS, TOOL_ROUNDS_STOP, WORK_LOOP_PREFS
+    CHECKS_PASSED_PREFIX, CONTINUE_NUDGE, EMPTY_REPLY_NUDGE, MAX_FIX_ATTEMPTS, MAX_TOOL_ROUNDS_CAP, MULTI_FILE_EDITS, REMOTE_BLOCKED, REVIEW_THEN_CHECKS, TOOL_ROUNDS_STOP, WORK_LOOP_PREFS
 } from '../../common/agents/work-loop.consts';
 import {
     WORK_LOOP_PROTOCOL, checkFailNudge, checkPassed, checksPassedNudge, commitBlockReason, cutEditNudge, detectChecks, promisesMoreWork, shellGitBlockReason, detectE2eFramework, e2eNudge, isRemoteCodeFetch,
@@ -904,6 +904,7 @@ export class AgentStore {
         this.changed();
 
         let nudged = false;
+        let retriedEmpty = false;
         const rounds = this.maxToolRounds();
         try {
             for (let round = 0; ; round++) {
@@ -963,6 +964,12 @@ export class AgentStore {
                     session.updatedAt = Date.now();
                     this.changed();
                     return;
+                }
+                if (!retriedEmpty && round < rounds && !parsed.display.trim() && !parsed.edits.length && !parsed.toolCalls.length && !parsed.editing) {
+                    retriedEmpty = true;
+                    this.hidePrinted(session, agentIndex);
+                    session.messages.push({ role: 'user', text: EMPTY_REPLY_NUDGE, hidden: true });
+                    continue;
                 }
                 const recovered = !parsed.toolCalls.length && round < rounds ? shellReadsAsTools(agentText) : [];
                 if (recovered.length) {

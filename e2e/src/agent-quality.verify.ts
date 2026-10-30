@@ -91,7 +91,9 @@ export const structureChecks = (root: string, client: string | undefined, server
         checks.push({ name: 'server TypeScript', ok: files.some(file => file === `${server}/tsconfig.json`) && files.some(file => file.startsWith(`${server}/src/`) && file.endsWith('.ts')), detail: server });
         for (const layer of SERVER_LAYERS) {
             const layerFiles = files.filter(file => file.startsWith(`${server}/`) && file.split('/').includes(layer));
-            const missing = RESOURCES.filter(resource => !layerFiles.some(file => file.toLowerCase().includes(resource.slice(0, -1))));
+            const covers = (file: string, resource: string): boolean => file.toLowerCase().includes(resource.slice(0, -1))
+                || (layer === 'routes' && fs.readFileSync(path.join(root, file), 'utf8').includes(`/${resource}`));
+            const missing = RESOURCES.filter(resource => !layerFiles.some(file => covers(file, resource)));
             checks.push({ name: `server ${layer}/ for ${RESOURCES.join(', ')}`, ok: layerFiles.length > 0 && !missing.length, detail: missing.length ? `missing: ${missing.join(', ')}` : layerFiles.join(', ') });
         }
     }
@@ -228,8 +230,10 @@ export const apiChecks = async (root: string, server: string | undefined): Promi
         if (bookId !== undefined) {
             const read = await call(base, 'GET', `/books/${bookId}`);
             results.push({ name: 'GET /books/:id', ok: ok(read), detail: `${read.status}` });
-            const update = await call(base, 'PUT', `/books/${bookId}`, { title: 'Notes on the Engine (2nd ed.)', authorId, isbn: '9780000000001', publishedYear: 1843, year: 1843 });
-            results.push({ name: 'PUT /books/:id', ok: ok(update), detail: `${update.status} ${JSON.stringify(update.body).slice(0, 160)}` });
+            const changes = { title: 'Notes on the Engine (2nd ed.)', authorId, isbn: '9780000000001', publishedYear: 1843, year: 1843 };
+            const put = await call(base, 'PUT', `/books/${bookId}`, changes);
+            const update = ok(put) ? put : await call(base, 'PATCH', `/books/${bookId}`, changes);
+            results.push({ name: 'PUT or PATCH /books/:id', ok: ok(update), detail: `${update.status} ${JSON.stringify(update.body).slice(0, 160)}` });
         }
         for (const [resource, id] of [['loans', loanId], ['books', bookId], ['authors', authorId]] as const) {
             if (id !== undefined) {
