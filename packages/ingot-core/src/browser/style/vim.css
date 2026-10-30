@@ -1,0 +1,25 @@
+/* IDEA-286: Vim keys. The mode lives in the status bar; the editor keeps a thin command line for `:` input. */
+.ingot-vim-cmdline {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 20;
+  height: 22px; line-height: 22px; padding: 0 10px; box-sizing: border-box;
+  font-family: var(--theia-code-font-family, monospace); font-size: 12px;
+  color: var(--ingot-text); background: transparent; pointer-events: none;
+}
+/* monaco-vim writes the mode into its first span; the status bar shows it instead. */
+.ingot-vim-cmdline > span:first-child { display: none; }
+.ingot-vim-cmdline > span:last-child { color: var(--ingot-text-muted); }
+.ingot-vim-cmdline:has(input),
+.ingot-vim-cmdline:has(.vim-notification:not(:empty)) {
+  background: var(--ingot-panel); border-top: 1px solid var(--ingot-border); pointer-events: auto;
+}
+.ingot-vim-cmdline input {
+  width: calc(100% - 40px); border: none; outline: none; padding: 0; margin-left: 1px;
+  background: transparent; color: var(--ingot-text); font: inherit;
+}
+.ingot-vim-cmdline .vim-notification { color: var(--ingot-warning); }
+
+#theia-statusBar .ingot-vim-status { font-weight: 600; letter-spacing: .04em; padding: 0 8px; }
+#theia-statusBar .ingot-vim-status-normal { color: var(--ingot-primary); }
+#theia-statusBar .ingot-vim-status-insert { color: var(--ingot-success); }
+#theia-statusBar .ingot-vim-status-visual { color: var(--ingot-accent); }
+#theia-statusBar .ingot-vim-status-replace { color: var(--ingot-danger); }
