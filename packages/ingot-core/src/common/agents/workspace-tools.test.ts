@@ -109,5 +109,9 @@ describe('workspace tools (IDEA-186)', () => {
         const files = rgArgs({ glob: '**/*.json', files: true });
         expect(files.lastIndexOf('!.ingot/index/**')).toBeGreaterThan(files.indexOf('**/*.json'));
         expect(parseRgFiles('src/a.js\nsecret.txt\n')).toEqual(['src/a.js', 'secret.txt']);
+        // IDEA-287 / IDEA-294: several file globs, plus .ingotignore files.
+        const files = rgArgs({ files: true, globs: ['**/AGENTS.md', '**/.ingot/rules/**/*.md'], ignoreFiles: ['.ingotignore'] });
+        expect(files.join(' ')).toContain('--ignore-file .ingotignore');
+        expect(files.join(' ')).toContain('--files --glob **/AGENTS.md --glob **/.ingot/rules/**/*.md');
     });
 });

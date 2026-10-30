@@ -70,6 +70,8 @@ export const BUILTIN_TOOLS = [
     { name: 'browser_scroll', description: 'Scroll the page. Arguments: {"direction": "down" | "up" | "top" | "bottom"}.' },
     { name: 'browser_back', description: 'Go back one page. No arguments.' },
     { name: 'browser_screenshot', description: 'Take a screenshot of the browser panel (shown to the user; sent to you when the model reads images). No arguments.' },
+    { name: 'fetch_rule', description: 'Read the full text of a project rule from "Available rules". Arguments: {"name": "api-style"}. Runs at once.' },
+    { name: 'use_habit', description: 'Follow a habit (a team playbook) from "Habits": returns its steps, tool limits and done criteria. Arguments: {"name": "Payments bug"}. Runs at once.' },
     { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' },
     ...CODE_TOOLS,
     { name: 'ask_user', description: 'Ask the user a clarifying question and wait for the answer before continuing. Arguments: {"question": "…", "options"?: ["a", "b"]}. The user can also type their own answer. Runs at once and pauses the run.' },
@@ -152,7 +154,7 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
         }
         case 'scripts': case 'processes': case 'process_output': return undefined;
         // IDEA-186: read-only project tools run at once.
-        case 'read_file': case 'list_dir': case 'glob': case 'grep': case 'codebase_search': case 'ask_user': case 'create_library': return undefined;
+        case 'read_file': case 'list_dir': case 'glob': case 'grep': case 'codebase_search': case 'ask_user': case 'create_library': case 'fetch_rule': case 'use_habit': return undefined;
         case 'open_workspace': return { kind: 'terminal', label: 'Open folder', detail: str(a.path), command: str(a.path) };
         case 'process_stop': return { kind: 'terminal', label: 'Stop process', detail: str(a.id) };
         case 'web_search': return { kind: 'web', label: 'Search web', detail: str(a.query) };

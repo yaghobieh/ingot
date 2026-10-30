@@ -31,6 +31,9 @@ import { MODEL_SERVICE_PATH } from '../common/models/models.consts';
 import { ModelService } from '../common/models/models.types';
 import { WorkspaceFileService } from '@theia/workspace/lib/common/workspace-file-service';
 import { IngotWorkspaceFileService } from '../common/workspace/ingot-workspace-file-service';
+import { FileSearchService } from '@theia/file-search/lib/common/file-search-service';
+import { SearchInWorkspaceServer } from '@theia/search-in-workspace/lib/common/search-in-workspace-interface';
+import { IngotFileSearchService, IngotSearchInWorkspaceServer } from './ingot-search-ignore';
 
 import { IngotMcpService } from './ingot-mcp-service';
 import { MCP_SERVICE_PATH } from '../common/project-config/project-config.consts';
@@ -63,6 +66,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     // ~/.ingot/keystore.json unless INGOT_DEV_FILE_KEYSTORE points elsewhere. Nothing is read from the Keychain.
     const fileKeyStore = process.env[DEV_FILE_KEYSTORE_ENV] || path.join(os.homedir(), '.ingot', 'keystore.json');
     rebind(KeyStoreService).toConstantValue(new DevFileKeyStoreService(fileKeyStore));
+    // IDEA-294: quick open's file index and Find in Files honour .ingotignore (and .ingotindexingignore for the index).
+    bind(IngotFileSearchService).toSelf().inSingletonScope();
+    rebind(FileSearchService).toService(IngotFileSearchService);
+    rebind(SearchInWorkspaceServer).to(IngotSearchInWorkspaceServer);
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
     rebind(WorkspaceFileService).toService(IngotWorkspaceFileService);
     bind(IngotPortsService).toSelf().inSingletonScope();

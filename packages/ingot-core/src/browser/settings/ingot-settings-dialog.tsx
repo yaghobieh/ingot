@@ -15,6 +15,11 @@ import {
     APPROVAL_KIND_LABELS, APPROVAL_PREFS, toAlwaysRunCommands, toAlwaysRunMap, updateAlwaysRun, updateAlwaysRunCommands, type ApprovalKind
 } from '../../common/agents/agent-actions';
 import { MemoryStore } from '../agents/memory-store';
+import { UserRulesService } from '../project-config/user-rules-service';
+import { RulesManager } from '../project-config/rules-manager';
+import { HabitStore } from '../habits/habit-store';
+import { HabitsManager } from '../habits/habits-manager';
+import { PlaybookService } from '../habits/playbook-service';
 import { IngotAccountService } from '../account/account-service';
 import { AccountAvatar } from '../account/account-avatar';
 import { SETTINGS_ACCOUNT_TEXT } from '../account/account.consts';
@@ -32,6 +37,9 @@ export class IngotSettingsDialog extends ReactDialog<void> {
     @inject(ThemeService) protected readonly themes: ThemeService;
     @inject(IconThemeService) protected readonly iconThemes: IconThemeService;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
+    @inject(UserRulesService) protected readonly userRules: UserRulesService;
+    @inject(HabitStore) protected readonly habitStore: HabitStore;
+    @inject(PlaybookService) protected readonly playbookService: PlaybookService;
     @inject(IngotAccountService) protected readonly accounts: IngotAccountService;
 
     protected query = '';
@@ -219,6 +227,8 @@ export class IngotSettingsDialog extends ReactDialog<void> {
             {page.description && <p className='ingot-settings-description'>{page.description}</p>}
             {page.custom === 'approvals' && this.renderAlwaysRun()}
             {page.custom === 'account' && this.renderAccount()}
+            {page.custom === 'rules' && <RulesManager service={this.userRules} />}
+            {page.custom === 'habits' && <HabitsManager store={this.habitStore} playbooks={this.playbookService} />}
             {page.custom === 'memories' && <section className='ingot-settings-card ingot-settings-memories'><MemoriesManager store={this.memoryStore} /></section>}
             {this.groupsFor(page, keys).map(group => <section key={group.label} className='ingot-settings-card'>
                 <h3 className='ingot-settings-card-title'>{group.label}</h3>

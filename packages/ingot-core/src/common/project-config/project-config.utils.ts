@@ -1,4 +1,5 @@
-import type { ConfigSource, McpServerConfig, ProjectCommand, ProjectRule } from './project-config.types';
+import type { ConfigSource, McpServerConfig, ProjectCommand, ProjectRule, RuleDraft, RuleKind } from './project-config.types';
+import { MAX_RULE_MENTIONS, RULE_FILE_EXT, RULE_MENTION_PREFIX } from './project-config.consts';
 
 export interface Frontmatter {
     readonly data: Record<string, string | boolean | string[]>;
@@ -45,14 +46,34 @@ const baseName = (path: string): string => path.split('/').pop()!.replace(/\.(md
 const asList = (value: string | boolean | string[] | undefined): string[] =>
     Array.isArray(value) ? value : typeof value === 'string' && value ? value.split(',').map(v => v.trim()).filter(Boolean) : [];
 
-/** A rule file. Without globs or `alwaysApply: false` a rule always applies (like AGENTS.md); with globs it applies to matching files. */
-export const ruleFromFile = (path: string, text: string, source: ConfigSource): ProjectRule => {
+/**
+ * IDEA-287: Cursor's rule types from frontmatter. `alwaysApply: true` → always; globs → auto; a description → agent
+ * requested; `alwaysApply: false` alone → manual (@-mention). A plain file without frontmatter keys stays always-on.
+ */
+export const ruleKindOf = (data: Frontmatter['data'], globs: readonly string[]): RuleKind => {
+    const description = typeof data.description === 'string' && data.description.trim();
+    if (data.alwaysApply === true) {
+        return 'always';
+    }
+    if (globs.length) {
+        return 'auto';
+    }
+    if (description) {
+        return 'agent';
+    }
+    return data.alwaysApply === false ? 'manual' : 'always';
+};
+
+/** A rule file (or AGENTS.md, always on). `scope` is the folder of a nested rule. */
+export const ruleFromFile = (path: string, text: string, source: ConfigSource, scope?: string): ProjectRule => {
     const { data, body } = parseFrontmatter(text);
     const globs = asList(data.globs);
-    const alwaysApply = data.alwaysApply === true || (data.alwaysApply === undefined && globs.length === 0);
+    const kind = source === 'agents' ? 'always' : ruleKindOf(data, globs);
+    const file = source === 'agents' ? path.split('/').pop()! : baseName(path);
     return {
-        name: source === 'agents' ? path.split('/').pop()! : baseName(path), path, source, globs, alwaysApply, body,
-        ...(typeof data.description === 'string' && data.description ? { description: data.description } : {})
+        name: scope ? `${scope}/${file}` : file, path, source, globs, kind, alwaysApply: kind === 'always', body,
+        ...(typeof data.description === 'string' && data.description ? { description: data.description } : {}),
+        ...(scope ? { scope } : {})
     };
 };
 
@@ -93,12 +114,103 @@ export const matchGlob = (glob: string, path: string): boolean => {
     return re.test(normalized) || (!glob.includes('/') && re.test(normalized.split('/').pop()!));
 };
 
-/** Rules that apply to this turn: always-on rules plus rules whose globs match a file in context. */
-export const applicableRules = (rules: readonly ProjectRule[], files: readonly string[]): ProjectRule[] =>
-    rules.filter(rule => rule.alwaysApply || rule.globs.some(glob => files.some(file => matchGlob(glob, file))));
+const isUnder = (file: string, folder: string): boolean => file.startsWith(`${folder}/`);
+
+/** Context files as seen from a nested rule's folder (relative to it); all files for a root rule. */
+const filesInScope = (rule: ProjectRule, files: readonly string[]): string[] =>
+    rule.scope ? files.filter(f => isUnder(f, rule.scope!)).map(f => f.slice(rule.scope!.length + 1)) : [...files];
+
+const depth = (rule: ProjectRule): number => rule.scope ? rule.scope.split('/').length : 0;
+
+/**
+ * Rules that apply to this turn: always-on rules plus rules whose globs match a file in context. A nested rule
+ * (IDEA-287) only applies when a context file is under its folder; for nested AGENTS.md files only the closest one to
+ * each file applies. Root rules come first, deeper ones last (more specific wins on conflicts).
+ */
+export const applicableRules = (rules: readonly ProjectRule[], files: readonly string[]): ProjectRule[] => {
+    const closestAgents = new Set(files.map(file => rules
+        .filter(r => r.source === 'agents' && r.scope && isUnder(file, r.scope))
+        .sort((a, b) => depth(b) - depth(a))[0]).filter((r): r is ProjectRule => !!r));
+    return rules.filter(rule => {
+        const scoped = filesInScope(rule, files);
+        if (rule.scope && !scoped.length) {
+            return false;
+        }
+        if (rule.source === 'agents' && rule.scope) {
+            return closestAgents.has(rule);
+        }
+        return rule.kind === 'always' || (rule.kind === 'auto' && rule.globs.some(glob => scoped.some(file => matchGlob(glob, file))));
+    }).sort((a, b) => depth(a) - depth(b));
+};
+
+/** Short label for lists: `always`, the globs, `agent requested` or `manual (@)`, plus a nested rule's folder. */
+export const ruleKindLabel = (rule: Pick<ProjectRule, 'kind' | 'globs' | 'scope'>): string => {
+    const kind = rule.kind === 'auto' ? rule.globs.join(', ') : rule.kind === 'agent' ? 'agent requested' : rule.kind === 'manual' ? 'manual (@)' : 'always';
+    return rule.scope ? `${kind} · ${rule.scope}/` : kind;
+};
+
+const scopeNote = (rule: ProjectRule): string => rule.scope ? ` (for files under ${rule.scope}/)` : '';
 
 export const formatRules = (rules: readonly ProjectRule[]): string =>
-    rules.length ? `Project rules (follow them):\n\n${rules.map(r => `## ${r.name}\n${r.body}`).join('\n\n')}` : '';
+    rules.length ? `Project rules (follow them; a nested rule wins over a root rule for files under its folder):\n\n${rules.map(r => `## ${r.name}${scopeNote(r)}\n${r.body}`).join('\n\n')}` : '';
+
+/** IDEA-287: Agent Requested rules, listed by name and description so the agent can fetch the relevant ones. */
+export const requestableRules = (rules: readonly ProjectRule[]): ProjectRule[] => rules.filter(r => r.kind === 'agent');
+
+export const formatRuleIndex = (rules: readonly ProjectRule[], tool: string): string => rules.length
+    ? [`Available rules: read one with ${tool} {"name": "<rule name>"} before working on something it describes.`,
+        ...rules.map(r => `- ${r.name}: ${r.description ?? ''}${scopeNote(r)}`)].join('\n')
+    : '';
+
+/** A rule by name (case-insensitive), for `fetch_rule` and @-mentions. */
+export const findRule = (rules: readonly ProjectRule[], name: string): ProjectRule | undefined => {
+    const wanted = name.trim().toLowerCase().replace(/^@/, '');
+    return rules.find(r => r.name.toLowerCase() === wanted) ?? rules.find(r => baseName(r.name).toLowerCase() === wanted);
+};
+
+/** IDEA-287: rules the @ menu offers; manual and agent-requested rules first since they are not applied on their own. */
+export const mentionableRules = (rules: readonly ProjectRule[]): ProjectRule[] =>
+    [...rules].sort((a, b) => Number(a.kind === 'always' || a.kind === 'auto') - Number(b.kind === 'always' || b.kind === 'auto') || a.name.localeCompare(b.name));
+
+/** IDEA-295: `API style!` → `api-style.md`; undefined when nothing usable is left. */
+export const ruleFileName = (name: string): string | undefined => {
+    const slug = name.trim().toLowerCase().replace(/\.(md|mdc)$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return slug ? `${slug}${RULE_FILE_EXT}` : undefined;
+};
+
+/** IDEA-295: a rule file (Cursor-style frontmatter, then the body) that loads back as the same kind. */
+export const ruleFileText = (draft: RuleDraft): string => {
+    const quote = (v: string): string => JSON.stringify(v.trim());
+    const globs = (draft.globs ?? '').split(',').map(g => g.trim()).filter(Boolean);
+    const front = draft.kind === 'always' ? ['alwaysApply: true']
+        : draft.kind === 'auto' ? [`globs: [${globs.map(quote).join(', ')}]`, 'alwaysApply: false']
+            : draft.kind === 'agent' ? [`description: ${quote(draft.description ?? draft.name)}`, 'alwaysApply: false']
+                : ['alwaysApply: false'];
+    return `---\n${front.join('\n')}\n---\n${draft.body.trim()}\n`;
+};
+
+/** IDEA-287: `@` menu entries (`rule:<name>`) for the rules matching what was typed after `@`. */
+export const ruleMentionItems = (rules: readonly ProjectRule[], query: string): string[] => {
+    const wanted = query.trim().toLowerCase();
+    return mentionableRules(rules)
+        .filter(r => !wanted || r.name.toLowerCase().includes(wanted) || (r.description ?? '').toLowerCase().includes(wanted) || (wanted.length > 1 && 'rules'.startsWith(wanted)))
+        .slice(0, MAX_RULE_MENTIONS)
+        .map(r => `${RULE_MENTION_PREFIX}${r.name}`);
+};
+
+/**
+ * IDEA-287: where a nested rule file lives. `packages/web/.ingot/rules/x.md` → scope `packages/web`, source `ingot`.
+ * Root files (no folder in front) return undefined: they are loaded with the project's own config.
+ */
+export const nestedRuleScope = (path: string): { scope: string; source: ConfigSource } | undefined => {
+    const clean = path.replace(/\\/g, '/').replace(/^\.\//, '');
+    const agents = /^(.+)\/AGENTS\.md$/.exec(clean);
+    if (agents) {
+        return { scope: agents[1], source: 'agents' };
+    }
+    const folder = /^(.+?)\/\.(ingot|cursor)\/rules\//.exec(clean);
+    return folder ? { scope: folder[1], source: folder[2] === 'ingot' ? 'ingot' : 'external' } : undefined;
+};
 
 /** IDEA-249: the folder a command came from, shown as its source in the `/` menu (for example `.ingot/commands`). */
 export const commandFolder = (command: Pick<ProjectCommand, 'path' | 'kind'>): string => {

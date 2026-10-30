@@ -337,15 +337,23 @@ export interface RgQuery {
     readonly regex?: boolean;
     /** List files instead of matching lines. */
     readonly files: boolean;
+    /** IDEA-287: several file globs at once (files mode), instead of `glob`. */
+    readonly globs?: readonly string[];
+    /** IDEA-294: extra gitignore-style files (`.ingotignore`), paths relative to the search root. */
+    readonly ignoreFiles?: readonly string[];
 }
 
 /** Arguments for ripgrep. Gitignore is on by default; hidden files are included so `.ingot` is visible, `.git` is not. */
 export const rgArgs = (query: RgQuery): string[] => {
     const args = ['--color', 'never', '--hidden', '--glob', '!.git/**', '--glob', '!**/node_modules/**', '--max-filesize', '512K'];
+    for (const file of query.ignoreFiles ?? []) {
+        args.push('--ignore-file', file);
+    }
     // The last matching glob wins in ripgrep, so the index folder is excluded after the caller's glob.
     const noIndex = ['--glob', `!${INDEX_DIR}/**`];
     if (query.files) {
-        args.push('--files', '--glob', query.glob?.trim() || '*', '--glob', '!.git/**', ...noIndex);
+        const globs = query.globs?.length ? query.globs : [query.glob?.trim() || '*'];
+        args.push('--files', ...globs.flatMap(g => ['--glob', g]), '--glob', '!.git/**', ...noIndex);
         if (query.path?.trim()) {
             args.push(query.path.trim());
         }

@@ -52,14 +52,15 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                     'ingot.zaprex.harmony.enabled', 'ingot.zaprex.harmony.maxPieces', 'ingot.zaprex.harmony.askFirst',
                     'ingot.agents.subagents.view', 'ingot.zaprex.showButton',
                     'ingot.commit.ai.enabled', 'ingot.commit.madeWithTrailer',
-                    'ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'
+                    'ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks', 'ingot.agent.hooks.agentEvents'
                 ],
                 groups: [
                     { label: 'Agent defaults', preferences: ['ingot.agent.defaultMode', 'ingot.agent.defaultModel'] },
                     { label: 'Harmony mode', preferences: ['ingot.zaprex.harmony.enabled', 'ingot.zaprex.harmony.maxPieces', 'ingot.zaprex.harmony.askFirst'] },
                     { label: 'Subagents & Zaprex', preferences: ['ingot.agents.subagents.view', 'ingot.zaprex.showButton'] },
                     { label: 'Commits', preferences: ['ingot.commit.ai.enabled', 'ingot.commit.madeWithTrailer'] },
-                    { label: 'Agent git hooks', preferences: ['ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'] }
+                    { label: 'Agent git hooks', preferences: ['ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'] },
+                    { label: 'Agent event hooks', preferences: ['ingot.agent.hooks.agentEvents'] }
                 ]
             },
             {
@@ -89,6 +90,14 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                 ]
             },
             { id: 'agent-config', label: 'Rules & MCP', actions: [{ id: 'openAgentConfig', label: 'Open Rules, Commands & MCP Servers…' }] },
+            {
+                id: 'user-rules', label: 'User Rules', custom: 'rules',
+                description: 'Rules agents follow. Always rules apply to every request; auto rules when matching files are in context; agent-requested rules are listed by description and read on demand; manual rules only when you @-mention them in the composer.'
+            },
+            {
+                id: 'habits', label: 'Habits', custom: 'habits', preferences: ['ingot.habits.playbooks.autoSelect', 'ingot.habits.threshold'],
+                description: 'Habits are playbooks: what to do in which scenario (for example a bug in payments: search the logs, check the service, run the tests). Project habits live in .ingot/habits (commit them to share), global ones in ~/.ingot/habits. Learned patterns are what Ingot notices you repeat; they can become a rule, command, hook or habit.'
+            },
             {
                 id: 'memories', label: 'Memories', custom: 'memories',
                 description: 'Facts and preferences agents remember between chats. Project memories stay on this machine (git-ignored); global ones apply to every project.'

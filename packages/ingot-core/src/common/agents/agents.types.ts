@@ -107,6 +107,8 @@ export interface AgentSession {
     pause?: ReviewPause;
     /** A question the agent is waiting on. Cleared when the user answers or stops. */
     ask?: { readonly question: string; readonly options?: readonly string[] };
+    /** IDEA-296: the habit (scenario playbook) this chat follows, with its live checklist. */
+    habit?: import('../habits/playbook.types').ActiveHabit;
 }
 
 export interface ReviewPause {

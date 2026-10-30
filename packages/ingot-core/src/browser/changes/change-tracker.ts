@@ -69,6 +69,9 @@ export class ChangeTracker {
     protected readonly onDidEditEmitter = new Emitter<AgentEditEvent>();
     /** IDEA-262: file text before an agent edit and after its review (Local History). */
     readonly onDidEdit: Event<AgentEditEvent> = this.onDidEditEmitter.event;
+    protected readonly onDidRejectEmitter = new Emitter<{ change: CodeChange; hunks: readonly ChangeHunk[] }>();
+    /** IDEA-296: hunks the user rejected (Habits learns the styles they keep rejecting). */
+    readonly onDidReject: Event<{ change: CodeChange; hunks: readonly ChangeHunk[] }> = this.onDidRejectEmitter.event;
 
     protected items: CodeChange[] = [];
     protected checkpointList: Checkpoint[] = [];
@@ -254,6 +257,12 @@ export class ChangeTracker {
             return;
         }
         const next = decide(change, hunkIds, state);
+        if (state === 'rejected') {
+            const rejected = next.hunks.filter(h => h.state === 'rejected' && change.hunks.find(o => o.id === h.id)?.state !== 'rejected');
+            if (rejected.length) {
+                this.onDidRejectEmitter.fire({ change: next, hunks: rejected });
+            }
+        }
         this.replace(next);
         if (!isPending(next)) {
             await this.settle(next);

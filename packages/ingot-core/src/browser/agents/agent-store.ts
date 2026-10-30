@@ -71,8 +71,15 @@ import { ChangeTracker, type ChangeOrigin } from '../changes/change-tracker';
 import { restorePlan } from '../../common/changes/changes.utils';
 import { ProjectConfigService } from '../project-config/project-config-service';
 import { IngotMcpClient } from '../project-config/mcp-client';
-import { applicableRules, expandCommand, formatRules } from '../../common/project-config/project-config.utils';
-import type { ProjectCommand } from '../../common/project-config/project-config.types';
+import { applicableRules, expandCommand, findRule, formatRuleIndex, formatRules, requestableRules } from '../../common/project-config/project-config.utils';
+import type { IgnoreRules, ProjectCommand, ProjectRule } from '../../common/project-config/project-config.types';
+import { FETCH_RULE_TOOL } from '../../common/project-config/project-config.consts';
+import { AgentEventHooks } from '../hooks/agent-event-hooks';
+import type { AgentHookEvent, AgentHookOutcome } from '../../common/hooks/agent-hooks.types';
+import { hookBlockedText, hookOutcomeText } from '../../common/hooks/agent-hooks.utils';
+import { HabitRunner } from '../habits/habit-runner';
+import { HABIT_TICKED_REPLY, USE_HABIT_TOOL } from '../../common/habits/playbook.consts';
+import { stripHabitMarks } from '../../common/habits/playbook.utils';
 import { cutAfterToolCalls, toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
@@ -182,6 +189,13 @@ export class AgentStore {
     @inject(IngotMcpClient) protected readonly mcp: IngotMcpClient;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
+    @inject(AgentEventHooks) protected readonly eventHooks: AgentEventHooks;
+    @inject(HabitRunner) protected readonly habitRunner: HabitRunner;
+    /** IDEA-287: the rules loaded for a chat's last turn, for ingot/fetch_rule. */
+    protected readonly sessionRules = new Map<string, readonly ProjectRule[]>();
+    protected readonly onDidSendEmitter = new Emitter<{ session: AgentSession; prompt: string }>();
+    /** IDEA-296: a prompt the user sent (Habits counts repeated instructions). */
+    readonly onDidSend: Event<{ session: AgentSession; prompt: string }> = this.onDidSendEmitter.event;
     @inject(TerminalService) protected readonly terminals: TerminalService;
     @inject(CodeToolsService) protected readonly codeTools: CodeToolsService;
     @inject(CodebaseIndexStore) protected readonly codebaseIndex: CodebaseIndexStore;
@@ -527,6 +541,9 @@ export class AgentStore {
             this.changed();
             return session;
         }
+        if (asked) {
+            this.onDidSendEmitter.fire({ session, prompt: composed?.text ?? asked });
+        }
         if (this.flags.forceUpdate) {
             session.messages.push({ role: 'system', text: UPDATE_TEXT.chatBlocked });
             session.status = 'idle';
@@ -852,7 +869,8 @@ export class AgentStore {
             }
         };
         if (root) {
-            for (const mention of parseMentions(prompt).filter(isSafeRelativePath)) {
+            const ignore = await this.agentIgnore(root);
+            for (const mention of parseMentions(prompt).filter(isSafeRelativePath).filter(m => !ignore.agent(m))) {
                 await add(root.resolve(mention));
             }
             for (const folder of parseFolderMentions(prompt).filter(path => isSafeRelativePath(path.slice(0, -1)))) {
@@ -959,7 +977,9 @@ export class AgentStore {
         // Glob rules still match the file open in the editor; its content is not attached (the agent reads files via tools).
         const active = this.editors.currentEditor?.editor.uri;
         const activePath = active && root?.isEqualOrParent(active) ? root.relative(active)?.toString() : undefined;
-        const rules = applicableRules(config.rules, activePath ? [...context.paths, activePath] : context.paths);
+        // IDEA-287: nested rules also follow files the agent read or edited earlier in this chat.
+        const rules = applicableRules(config.rules, [...new Set([...context.paths, ...(activePath ? [activePath] : []), ...this.touchedPaths(session)])]);
+        this.sessionRules.set(session.id, config.rules);
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const auto = this.autoContexts.get(session.id);
@@ -971,15 +991,19 @@ export class AgentStore {
             info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools),
             info.canUseTools ? builtinToolProtocol(this.toolSwitches()) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : '', session.parent ? '' : FOLLOW_UPS_PROTOCOL
         ].filter(Boolean).join('\n\n');
-        const rulesText = formatRules(rules);
+        const rulesText = [formatRules(rules), info.canUseTools ? formatRuleIndex(requestableRules(config.rules), `${BUILTIN_TOOL_SERVER}/${FETCH_RULE_TOOL}`) : ''].filter(Boolean).join('\n\n');
+        const habitText = await this.habitRunner.prepare(session, {
+            root, prompt: lastUser?.m.text ?? '', attachments: prompt, canUseTools: info.canUseTools,
+            files: [...new Set([...context.paths, ...(activePath ? [activePath] : []), ...(lastUser?.m.chips ?? []).map(c => c.path).filter(Boolean)])]
+        });
         const memoriesText = formatMemories(memories);
         const autoText = formatAutoContext(auto?.items ?? []);
-        const system = [base, rulesText, memoriesText, context.text, autoText].filter(Boolean).join('\n\n');
+        const system = [base, rulesText, habitText, memoriesText, context.text, autoText].filter(Boolean).join('\n\n');
         const model = findModel(this.resolveModel(session.model));
         session.context = {
             files: context.paths, rules: rules.map(r => r.name), memories: memories.map(m => ({ id: m.id, text: m.text })),
             usage: contextUsage({
-                system: estimateTokens(base), rules: estimateTokens(rulesText), files: estimateTokens([context.text, autoText].join('\n')), memories: estimateTokens(memoriesText),
+                system: estimateTokens(base), rules: estimateTokens(rulesText) + estimateTokens(habitText), files: estimateTokens([context.text, autoText].join('\n')), memories: estimateTokens(memoriesText),
                 history: estimateTokens(this.historyFor(session).map(m => m.content).join('\n'))
             }, model?.contextWindow ?? DEFAULT_CONTEXT_WINDOW)
         };
@@ -1140,6 +1164,8 @@ export class AgentStore {
                         return;
                     }
                     continue;
+                } else if (!pending && info.canUseTools && round < rounds && this.nudgeHabitDone(session)) {
+                    continue;
                 } else if (!applied && !parsed.toolCalls.length && round < rounds && (this.nudgeLibraryFix(session) || this.nudgeLibrary(session, prompt))) {
                     continue;
                 } else if (!applied && session.mode === 'multi' && parsed.plan.length) {
@@ -1181,7 +1207,54 @@ export class AgentStore {
         } finally {
             this.leaveLoop(session.id);
             this.flushPoke();
+            if (!this.loopDepth.has(session.id)) {
+                void this.runEventHook(session, 'stop', { status: session.status === 'error' ? 'error' : this.cancelled.has(session.id) ? 'aborted' : 'completed' });
+            }
         }
+    }
+
+    /** IDEA-296: one more round to verify the active habit's open done criteria before the run ends. */
+    protected nudgeHabitDone(session: AgentSession): boolean {
+        const nudge = this.habitRunner.doneNudge(session);
+        if (nudge) {
+            session.messages.push({ role: 'user', text: nudge, hidden: true });
+        }
+        return !!nudge;
+    }
+
+    /** IDEA-296: the user picked a habit in the pill (or turned it off); a running turn sees it on its next round. */
+    async chooseHabit(sessionId: string, id: string | undefined): Promise<void> {
+        const session = this.items.find(s => s.id === sessionId);
+        if (!session) {
+            return;
+        }
+        const note = await this.habitRunner.choose(session, this.rootFor(session), id);
+        if (note && this.isRunning(session.id)) {
+            session.messages.push({ role: 'user', text: note, hidden: true });
+        }
+        session.updatedAt = Date.now();
+        this.changed();
+    }
+
+    /** IDEA-287: project files the agent read or edited in this chat (nested rules apply to them). */
+    protected touchedPaths(session: AgentSession): string[] {
+        const paths = session.messages.flatMap(m => m.tool && m.tool.server === BUILTIN_TOOL_SERVER && m.tool.tool === 'read_file' && typeof m.tool.args.path === 'string' ? [m.tool.args.path] : []);
+        return [...paths, ...session.steps.filter(s => s.kind === 'edit').map(s => s.target)].map(p => p.replace(/^\.\/+/, ''));
+    }
+
+    /** IDEA-294: runs a `hooks.json` agent event; undefined when no hook is configured (or hooks are off). */
+    protected async runEventHook(session: AgentSession, event: AgentHookEvent, data: Readonly<Record<string, unknown>>): Promise<AgentHookOutcome | undefined> {
+        const generation = this.loopGeneration.get(session.id) ?? 0;
+        return this.eventHooks.run(event, this.rootFor(session), { conversationId: session.id, generationId: `${session.id}-${generation}` }, data).catch(() => undefined);
+    }
+
+    /** IDEA-294: a hook that denied (or asked about) an action shows as a hook card in the chat. */
+    protected pushHookCard(session: AgentSession, outcome: AgentHookOutcome, target: string): void {
+        const now = Date.now();
+        session.messages.push({
+            role: 'tool', from: `${BUILTIN_TOOL_SERVER}/hook`, text: hookOutcomeText(outcome.results),
+            tool: { server: BUILTIN_TOOL_SERVER, tool: 'hook', args: { check: `${outcome.event} · ${outcome.decision.permission}: ${target}` }, state: outcome.decision.permission === 'deny' ? 'error' : 'done', startedAt: now, endedAt: now }
+        });
     }
 
     /** Stop or a newer turn owns the chat. A stopped turn is marked idle; a replaced turn is left alone. */
@@ -1251,6 +1324,7 @@ export class AgentStore {
         try {
             const tools = modeInfo(session.mode).canUseTools
                 ? BUILTIN_TOOLS.filter(tool => builtinToolEnabled(tool.name, this.toolSwitches()))
+                    .filter(tool => this.habitRunner.allows(session, BUILTIN_TOOL_SERVER, tool.name))
                     .map(tool => ({ name: tool.name, description: tool.description }))
                 : [];
             const stream = this.models.stream(this.resolveModel(session.model), [{ role: 'system', content: system }, ...history], text => {
@@ -1259,7 +1333,7 @@ export class AgentStore {
                 }
                 const parsed = parseAgentOutput(cutAfterToolCalls(text));
                 this.streamEdit(session, index, parsed.editing, parsed.editingContent);
-                this.writeAgentDraft(session, index, extractFollowUps(extractMemories(parsed.display).display).display);
+                this.writeAgentDraft(session, index, stripHabitMarks(extractFollowUps(extractMemories(parsed.display).display).display));
                 if (parsed.plan.length) {
                     session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
                     this.considerHarmony(session, parsed.edits.length);
@@ -1296,11 +1370,15 @@ export class AgentStore {
         }
         this.flushPoke();
         const parsed = parseAgentOutput(final);
-        const remembered = extractMemories(parsed.display);
-        const { display, followUps } = extractFollowUps(remembered.display);
-        const memories = remembered.memories;
+        const extracted = extractMemories(parsed.display);
+        const withFollowUps = extractFollowUps(extracted.display);
+        const display = stripHabitMarks(withFollowUps.display);
+        const followUps = withFollowUps.followUps;
+        const memories = extracted.memories;
+        this.habitRunner.consume(session, final);
         // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
-        this.writeAgentDraft(session, index, display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)'), {
+        const empty = extracted.display.trim() ? HABIT_TICKED_REPLY : '(empty reply)';
+        this.writeAgentDraft(session, index, display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : empty), {
             expanded: final,
             // IDEA-186: a silent round of project reads shows only in the Explored row.
             ...(!display && !parsed.edits.length && parsed.toolCalls.length && parsed.toolCalls.every(c => c.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(c.tool)) ? { hidden: true } : {})
@@ -1375,6 +1453,23 @@ export class AgentStore {
                     continue;
                 }
             }
+            const refusedByHabit = this.habitRunner.refuse(session, call);
+            if (refusedByHabit) {
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: ${refusedByHabit}`,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                });
+                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: refusedByHabit, startedAt });
+                this.changed();
+                continue;
+            }
+            const gate = await this.gateWithHooks(session, call, root);
+            if (gate.blocked) {
+                session.messages.push({ role: 'tool', from: target, text: `Error: ${gate.blocked}` });
+                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: gate.blocked, startedAt });
+                this.changed();
+                continue;
+            }
             // IDEA-263: `.ingot/policy.json` decides first: denied calls never reach the card; allowed ones skip it.
             const isRun = call.server === BUILTIN_TOOL_SERVER && call.tool === 'run';
             const runCwd = isRun && rootPath ? this.resolveRunCwd(rootPath, typeof call.args.cwd === 'string' ? call.args.cwd : '') : undefined;
@@ -1397,7 +1492,9 @@ export class AgentStore {
                 ? (await this.git.run(rootPath, { kind: 'currentBranch' }).catch(() => ({ output: '' }))).output.trim() || undefined : undefined;
             const described = describeAction(call, branch);
             // Stopping a process the agent started itself never asks; the user's own processes do.
-            const action = call.server === BUILTIN_TOOL_SERVER && call.tool === 'process_stop' && this.processes.find(String(call.args.id))?.origin !== 'user' ? undefined : described;
+            const plain = call.server === BUILTIN_TOOL_SERVER && call.tool === 'process_stop' && this.processes.find(String(call.args.id))?.origin !== 'user' ? undefined : described;
+            // IDEA-294: a hook that answers "ask" always shows the approval card, even for actions that run at once.
+            const action = gate.ask ? { ...(plain ?? { kind: 'mcp' as const, label: call.tool, detail: String(call.args.path ?? '') }), label: `Hook asks · ${plain?.label ?? call.tool}` } : plain;
             const requireGit = this.preferences.get<boolean>(APPROVAL_PREFS.gitRequireApproval, true) !== false;
             const isBrowser = call.server === BUILTIN_TOOL_SERVER && call.tool.startsWith('browser_');
             const requireRun = action?.kind === 'terminal' ? this.runSettings.requireApproval
@@ -1406,7 +1503,7 @@ export class AgentStore {
             const turnedOff = call.server === BUILTIN_TOOL_SERVER
                 && !builtinToolEnabled(call.tool, this.toolSwitches());
             const card = action && outside ? outsideApproval(action) : action;
-            const asks = !!card && !turnedOff && (outside || (verdict.verdict !== 'allow' && requireRun && needsApproval(card, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)));
+            const asks = !!card && !turnedOff && (outside || gate.ask || (verdict.verdict !== 'allow' && requireRun && needsApproval(card, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)));
             if (card && asks) {
                 const choice = await this.askApproval(session, card);
                 if (choice.stopped) {
@@ -1419,7 +1516,7 @@ export class AgentStore {
                     this.changed();
                     continue;
                 }
-                const always = choice.decision === 'always' && !card.once && !card.alwaysAsk;
+                const always = choice.decision === 'always' && !card.once && !card.alwaysAsk && !gate.ask;
                 if (always && rootPath) {
                     await (card.command ? this.setAlwaysRunCommand(rootPath, card.command, true) : this.setAlwaysRun(rootPath, card.kind, true));
                 }
@@ -1493,6 +1590,7 @@ export class AgentStore {
                 this.recordTool(session, call, rootPath, { decision, outcome: result.isError ? 'error' : 'ok', output: result.text, sandboxed: result.sandboxed, startedAt });
             }
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
+            this.habitRunner.afterTool(session, call, !!result.isError);
             const done: AgentMessage = {
                 role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}),
                 tool: { ...tool, state: result.isError ? 'error' : 'done', endedAt: Date.now() }
@@ -1529,6 +1627,34 @@ export class AgentStore {
             tool: `${call.server}/${call.tool}`, summary: summary ?? toolSummary(call), args: call.args,
             ...rest, ...(startedAt ? { durationMs: Date.now() - startedAt } : {})
         });
+    }
+
+    /**
+     * IDEA-294: `.ingotignore` and the before-hooks of `hooks.json` for one tool call. `blocked` is the tool result when
+     * the call must not run; `ask` forces the approval card.
+     */
+    protected async gateWithHooks(session: AgentSession, call: AgentToolCall, root: URI | undefined): Promise<{ blocked?: string; ask?: boolean }> {
+        const builtin = call.server === BUILTIN_TOOL_SERVER;
+        const path = typeof call.args.path === 'string' ? call.args.path.trim().replace(/^\.\/+/, '') : '';
+        if (builtin && call.tool === 'read_file' && path && (await this.agentIgnore(root)).agent(path)) {
+            return { blocked: `"${path}" is in .ingotignore: agents cannot read it.` };
+        }
+        const cwd = root?.path.fsPath();
+        const event: AgentHookEvent | undefined = builtin ? (call.tool === 'run' ? 'beforeShellExecution' : call.tool === 'read_file' ? 'beforeReadFile' : undefined) : 'beforeMCPExecution';
+        if (!event || !root) {
+            return {};
+        }
+        const file = event === 'beforeReadFile' ? root.resolve(path) : undefined;
+        const data = event === 'beforeShellExecution' ? { command: String(call.args.command ?? ''), cwd: call.args.cwd ? String(call.args.cwd) : cwd }
+            : event === 'beforeReadFile' ? { file_path: file?.path.fsPath(), content: file ? await this.files.read(file).then(r => r.value, () => '') : '' }
+                : { server: call.server, tool_name: call.tool, tool_input: call.args };
+        const outcome = await this.runEventHook(session, event, data);
+        if (!outcome || outcome.decision.permission === 'allow') {
+            return {};
+        }
+        this.pushHookCard(session, outcome, event === 'beforeShellExecution' ? String(call.args.command ?? '') : event === 'beforeReadFile' ? path : `${call.server}/${call.tool}`);
+        this.changed();
+        return outcome.decision.permission === 'deny' ? { blocked: hookBlockedText(outcome) } : { ask: true };
     }
 
     /** IDEA-186: GitHub owner/repo of the open project (from its git remote), for GitHub tool calls. */
@@ -1775,6 +1901,17 @@ export class AgentStore {
         return { text: formatSearchResult(result), isError: Boolean(result.error) };
     }
 
+    /** IDEA-287: the body of an Agent Requested (or any) project rule, by name. */
+    protected fetchRuleTool(session: AgentSession, name: string): AgentActionResult {
+        const rules = this.sessionRules.get(session.id) ?? [];
+        const rule = findRule(rules, name);
+        if (!rule) {
+            const known = requestableRules(rules).map(r => r.name).join(', ');
+            return { text: `No rule "${name}".${known ? ` Rules: ${known}.` : ''}`, isError: true };
+        }
+        return { text: `Rule ${rule.name} (${rule.path})${rule.scope ? `, for files under ${rule.scope}/` : ''}:\n\n${rule.body}`, isError: false };
+    }
+
     /** Ingot's built-in agent tools (IDEA-109): git, terminal command, web search / fetch, file delete. */
     protected async runBuiltin(session: AgentSession, call: AgentToolCall, root: URI | undefined, hooksRan = false, sandbox?: SandboxSpec): Promise<AgentActionResult> {
         const rootPath = root?.path.fsPath();
@@ -1803,6 +1940,8 @@ export class AgentStore {
                     return { text: result.output.trim() || 'Done.', isError: false };
                 }
                 case 'read_file': return await this.readFileTool(root, str(call.args.path), Number(call.args.start) || 1, Number(call.args.end) || undefined);
+                case FETCH_RULE_TOOL: return this.fetchRuleTool(session, str(call.args.name));
+                case USE_HABIT_TOOL: return this.habitRunner.use(session, str(call.args.name));
                 case 'list_dir': return await this.listDirTool(root, str(call.args.path), Math.min(3, Math.max(1, Number(call.args.depth) || 1)));
                 case 'glob': return await this.globTool(root, str(call.args.pattern), str(call.args.path));
                 case 'grep': return await this.grepTool(root, str(call.args.pattern), str(call.args.path), str(call.args.glob), call.args.regex === true);
@@ -2282,8 +2421,20 @@ export class AgentStore {
     }
 
     protected async ignoreOf(root: URI): Promise<(rel: string) => boolean> {
-        const text = await this.files.read(root.resolve('.gitignore')).then(file => file.value, () => '');
-        return compileGitignore(text);
+        const [text, agent] = await Promise.all([this.files.read(root.resolve('.gitignore')).then(file => file.value, () => ''), this.agentIgnore(root)]);
+        const git = compileGitignore(text);
+        return rel => git(rel) || agent.agent(rel);
+    }
+
+    /** IDEA-287: the open project's rules, for the composer's @ menu. */
+    async mentionRules(): Promise<readonly ProjectRule[]> {
+        const root = this.workspace.tryGetRoots()[0]?.resource;
+        return root ? (await this.projectConfig.load(root).catch(() => undefined))?.rules ?? [] : [];
+    }
+
+    /** IDEA-294: `.ingotignore` / `.cursorignore` of the project (none without a project). */
+    async agentIgnore(root: URI | undefined): Promise<IgnoreRules> {
+        return this.projectConfig.ignoreRules(root);
     }
 
     /** Ripgrep when the backend has it. Undefined asks the caller to walk the tree. */
@@ -2292,7 +2443,7 @@ export class AgentStore {
         if (!cwd) {
             return undefined;
         }
-        const found = await this.processes.service.workspaceSearch({ cwd, ...query }).catch(() => undefined);
+        const found = await this.processes.service.workspaceSearch({ cwd, ...query, agentIgnore: true }).catch(() => undefined);
         if (!found || found.engine !== 'ripgrep') {
             return undefined;
         }
@@ -2500,6 +2651,11 @@ export class AgentStore {
                     await this.tracker.cancelStream(session.id, edit.path);
                     continue;
                 }
+                if ((await this.agentIgnore(root)).agent(edit.path.replace(/^\.\/+/, ''))) {
+                    session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": it is in .ingotignore.` });
+                    await this.tracker.cancelStream(session.id, edit.path);
+                    continue;
+                }
                 const locked = this.lockedFor(session, edit.path);
                 if (locked) {
                     session.messages.push({ role: 'system', text: locked });
@@ -2514,6 +2670,7 @@ export class AgentStore {
                 // Wait for the live view of this file (if it streamed) so the final text lands on the same change.
                 await this.streamingEdits.get(`${session.id}\u0000${messageIndex}\u0000${edit.path}`);
                 const change = await this.tracker.finalize(origin, edit.path, root.resolve(edit.path), edit.content);
+                void this.runEventHook(session, 'afterFileEdit', { file_path: root.resolve(edit.path).path.fsPath(), edits: [{ old_string: change.oldText, new_string: edit.content }] });
                 this.loopOf(session).edits.push(edit.path);
                 const stats = this.tracker.stats(change);
                 this.recordTool(session, editCall(edit.path), rootPath, {

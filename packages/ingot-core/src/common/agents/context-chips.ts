@@ -11,6 +11,8 @@ export interface ContextChip {
     readonly text: string;
     /** A whole file dropped into the composer (IDEA-100): labelled by name only. */
     readonly whole?: boolean;
+    /** IDEA-287: a project rule attached with @ (its body is the text). */
+    readonly rule?: string;
 }
 
 export const MAX_CHIP_PREVIEW_LINES = 12;
@@ -18,8 +20,8 @@ export const MAX_CHIP_PREVIEW_LINES = 12;
 const baseName = (p: string): string => p.split('/').pop() ?? p;
 
 /** `cart.ts (25-28)`, or `cart.ts (7)` for one line. */
-export const chipLabel = (chip: Pick<ContextChip, 'path' | 'start' | 'end' | 'whole'>): string =>
-    chip.whole ? baseName(chip.path) : `${baseName(chip.path)} (${chip.start === chip.end ? chip.start : `${chip.start}-${chip.end}`})`;
+export const chipLabel = (chip: Pick<ContextChip, 'path' | 'start' | 'end' | 'whole' | 'rule'>): string =>
+    chip.rule ? `@${baseName(chip.rule)}` : chip.whole ? baseName(chip.path) : `${baseName(chip.path)} (${chip.start === chip.end ? chip.start : `${chip.start}-${chip.end}`})`;
 
 export const lineCount = (text: string): number => text.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n').length;
 

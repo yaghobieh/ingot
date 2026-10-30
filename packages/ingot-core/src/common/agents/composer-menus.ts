@@ -1,7 +1,8 @@
 /** IDEA-187: the composer's `/` built-in commands and `@` file mentions. */
 import type { AgentMode } from './agents.types';
+import { INIT_COMMAND } from '../project-config/init-agents.consts';
 
-export type SlashBuiltinAction = { kind: 'mode'; mode: AgentMode } | { kind: 'new' } | { kind: 'compact' } | { kind: 'model' } | { kind: 'history' } | { kind: 'memories' };
+export type SlashBuiltinAction = { kind: 'mode'; mode: AgentMode } | { kind: 'new' } | { kind: 'compact' } | { kind: 'model' } | { kind: 'history' } | { kind: 'memories' } | { kind: 'prompt'; prompt: string };
 
 export interface SlashBuiltin {
     readonly name: string;
@@ -19,7 +20,8 @@ export const SLASH_BUILTINS: readonly SlashBuiltin[] = [
     { name: 'compact', description: 'Summarize this chat to free up context', action: { kind: 'compact' } },
     { name: 'model', description: 'Pick the model', action: { kind: 'model' } },
     { name: 'history', description: 'Open chat history', action: { kind: 'history' } },
-    { name: 'memories', description: 'Manage memories', action: { kind: 'memories' } }
+    { name: 'memories', description: 'Manage memories', action: { kind: 'memories' } },
+    { name: 'init', description: 'Write AGENTS.md for this repo (stack, scripts, layout)', action: { kind: 'prompt', prompt: INIT_COMMAND } }
 ];
 
 /** The `@query` right before the caret, if one is being typed (start of text or after a space). */
