@@ -2,11 +2,21 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { dismissNotifications, openIngot, runCommand } from '../src/app.utils';
+import { ZAPREX_DETECT_FILE, ZAPREX_LINK_LOG } from '../src/e2e.consts';
 
 /** Optional: where to save review screenshots (outside the repo). */
 const SHOTS = process.env.INGOT_SCREENSHOT_DIR;
 // IDEA-185: without the desktop app the T-rex opens the web app, which offers the download or "Stay here".
 const ZAPREX_APP_URL = 'https://zaprex.dev/app?from=ingot';
+/** IDEA-266: what the backend records instead of running `open -a Zaprex` (see INGOT_ZAPREX_LINK_LOG). */
+const LAUNCH_LINE = 'launch:Zaprex';
+
+const setDesktopApp = (installed: boolean): void => {
+    fs.mkdirSync(path.dirname(ZAPREX_DETECT_FILE), { recursive: true });
+    fs.writeFileSync(ZAPREX_DETECT_FILE, installed ? 'installed' : 'missing');
+    fs.rmSync(ZAPREX_LINK_LOG, { force: true });
+};
+const launches = (): string[] => fs.existsSync(ZAPREX_LINK_LOG) ? fs.readFileSync(ZAPREX_LINK_LOG, 'utf8').split('\n').filter(line => line === LAUNCH_LINE) : [];
 
 const setTheme = async (page: Page, label: string): Promise<void> => {
     await runCommand(page, 'Preferences: Color Theme');
@@ -28,7 +38,24 @@ const shotHeader = async (page: Page, name: string): Promise<void> => {
 
 /** IDEA-173 / IDEA-179: Zaprex is its own app. The IDE has no Zaprex panel, one small T-rex in the title bar (plus the composer button, IDEA-184) that opens it. */
 test.describe('IDEA-173 Zaprex link', () => {
+    test.afterEach(() => {
+        fs.rmSync(ZAPREX_DETECT_FILE, { force: true });
+        fs.rmSync(ZAPREX_LINK_LOG, { force: true });
+    });
+
+    test('IDEA-266: with the desktop app installed the Rex button launches it, not the website', async ({ page, context }) => {
+        setDesktopApp(true);
+        let popups = 0;
+        context.on('page', () => { popups++; });
+        await openIngot(page);
+        await dismissNotifications(page);
+        await page.locator('#ingot-tb-zaprex').click();
+        await expect.poll(launches).toEqual([LAUNCH_LINE]);
+        expect(popups).toBe(0);
+    });
+
     test('the title bar shows the one Zaprex T-rex (not in the agent header), which opens the Zaprex app', async ({ page, context }) => {
+        setDesktopApp(false);
         await context.route('https://zaprex.dev/**', route => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Zaprex</title>' }));
         await openIngot(page);
         await dismissNotifications(page);
@@ -62,6 +89,7 @@ test.describe('IDEA-173 Zaprex link', () => {
         await logo.click();
         const opened = await popup;
         expect(opened.url()).toBe(ZAPREX_APP_URL);
+        expect(launches()).toEqual([]);
         await opened.close();
         await setTheme(page, 'Ingot Light');
     });
