@@ -1,0 +1,52 @@
+/* IDEA-288: composer sandbox / approvals picker and the sandbox note on the approval card. */
+.ingot-agents .ingot-composer-bar .ingot-sandbox-pill .codicon:first-child { color: var(--ingot-text-muted); }
+.ingot-agents .ingot-composer-bar .ingot-sandbox-pill.ingot-sandbox-read-only .codicon:first-child { color: var(--ingot-info); }
+.ingot-agents .ingot-composer-bar .ingot-sandbox-pill.ingot-sandbox-full-access .codicon:first-child { color: var(--ingot-warning); }
+.ingot-agents .ingot-composer-bar:is([data-width='narrow'], [data-width='tiny']) .ingot-sandbox-pill .ingot-pill-label { display: none; }
+.ingot-agents .ingot-composer-bar[data-width='tiny'] .ingot-sandbox-pill .ingot-pill-caret { display: none; }
+
+.ingot-composer-bar .ingot-popover.ingot-sandbox-menu { left: 0; right: auto; width: 100%; max-width: 320px; box-sizing: border-box; }
+.ingot-sandbox-menu { width: 300px; }
+.ingot-sandbox-heading {
+    padding: 6px 8px 2px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--ingot-text-muted);
+}
+.ingot-sandbox-item,
+.ingot-sandbox-network {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ingot-text);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+}
+.ingot-sandbox-item:hover,
+.ingot-sandbox-item.selected,
+.ingot-sandbox-network:hover { background: var(--ingot-selection); }
+.ingot-sandbox-item:focus-visible { outline: 1px solid var(--ingot-focus-ring); }
+.ingot-sandbox-icon { margin-top: 1px; color: var(--ingot-text-muted); }
+.ingot-sandbox-network { margin-left: 22px; }
+.ingot-sandbox-network input { margin: 2px 0 0; accent-color: var(--ingot-primary); }
+.ingot-sandbox-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.ingot-sandbox-label { font-weight: 600; }
+.ingot-sandbox-desc { color: var(--ingot-text-muted); font-size: 11px; line-height: 1.35; }
+.ingot-sandbox-check { color: var(--ingot-primary); }
+.ingot-sandbox-menu .ingot-popover-footer { border-top-color: var(--ingot-border); color: var(--ingot-text-muted); }
+
+.ingot-approval-sandbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--ingot-warning);
+}

@@ -74,7 +74,12 @@ import { RUN_PREFS } from '../../common/processes/run-settings';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import { composerBarWidthClass } from '../../common/agents/composer-bar';
 import { distanceFromBottom, latestUserIndex, scrollTopAfterUpdate, showJumpToLatest, userJumpTargets } from '../../common/agents/chat-thread';
-type Popover = 'mode' | 'model' | 'history' | 'context' | 'more' | 'jumps' | undefined;
+import { SandboxPresetService } from '../sandbox/sandbox-preset-service';
+import { SandboxMenu } from '../sandbox/sandbox-menu';
+import { SANDBOX_PILL_ID } from '../sandbox/sandbox.browser-consts';
+import { SANDBOX_INFO } from '../../common/sandbox/sandbox.consts';
+import { presetLabel, presetTitle } from '../../common/sandbox/sandbox.utils';
+type Popover = 'mode' | 'model' | 'history' | 'context' | 'more' | 'jumps' | 'sandbox' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
 /** Right tool window: chats as tabs with History, conversation with plan and tool steps, composer with mode, model and context (IDEA-27/28, IDEA-77). */
@@ -103,6 +108,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
     @inject(ImageHoverService) protected readonly imageHovers: ImageHoverService;
+    @inject(SandboxPresetService) protected readonly sandbox: SandboxPresetService;
 
     protected readonly markdown = new AgentMarkdownRenderer(() => this.update());
     /** Expanded "Read rules" step rows, by session id + step index. */
@@ -334,6 +340,7 @@ export class IngotAgentsWidget extends ReactWidget {
         const ticker = setInterval(() => { if (this.store.current?.pause?.continueAt !== undefined) { this.update(); } }, 500);
         this.toDispose.push({ dispose: () => clearInterval(ticker) });
         this.toDispose.push(this.models.onDidChange(() => this.update()));
+        this.toDispose.push(this.sandbox.onDidChange(() => this.update()));
         this.toDispose.push(this.reviewComments.onDidChange(() => this.update()));
         this.toDispose.push(this.flags.onDidChange(() => this.update()));
         this.toDispose.push(this.editors.onCurrentEditorChanged(() => this.update()));
@@ -1153,11 +1160,12 @@ export class IngotAgentsWidget extends ReactWidget {
                 <div className='ingot-approval-line' id='ingot-approval-line' title={full} aria-label={actionLine(approval, 200)}>
                     <span className='ingot-approval-label'>{approval.label}{approval.detail ? ':' : ''}</span>{approval.detail && <span className='ingot-approval-detail'> {approval.detail.replace(/\s+/g, ' ').trim()}</span>}
                 </div>
+                {approval.sandbox && <div className='ingot-approval-sandbox' id='ingot-approval-sandbox'><span className='codicon codicon-shield' aria-hidden='true' /> {approval.sandbox}</div>}
                 <div className='ingot-approval-actions'>
                     {!this.composerEmpty && <span className='ingot-approval-note ingot-dim'>Your note is sent as the reason</span>}
                     <button type='button' id='ingot-approval-skip' className='ingot-approval-skip' title='Skip (Esc)' onClick={() => this.decideFromComposer('skip')}>Skip</button>
-                    <button type='button' id='ingot-approval-always' className='ingot-approval-always' title={approval.command ? `Run "${approval.command}" now and every time in this project without asking` : `Run this and future ${approval.kind === 'mcp' ? 'MCP tool calls' : approval.kind} actions in this project without asking`}
-                        onClick={() => this.store.decideApproval(session.id, 'always')}>Always Run</button>
+                    {!approval.sandbox && <button type='button' id='ingot-approval-always' className='ingot-approval-always' title={approval.command ? `Run "${approval.command}" now and every time in this project without asking` : `Run this and future ${approval.kind === 'mcp' ? 'MCP tool calls' : approval.kind} actions in this project without asking`}
+                        onClick={() => this.store.decideApproval(session.id, 'always')}>Always Run</button>}
                     <button type='button' id='ingot-approval-run' className='ingot-approval-run' title='Run (Enter)' onClick={() => this.store.decideApproval(session.id, 'run')}>Run <span className='ingot-approval-key'>⏎</span></button>
                 </div>
             </div>
@@ -1328,6 +1336,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     <input type='file' accept='image/png,image/jpeg,image/gif,image/webp' multiple hidden onChange={e => this.attachImages(e.currentTarget)} />
                 </label>
                 {this.renderModelPill()}
+                {this.renderSandboxPill()}
                 <button type='button' id='ingot-composer-more' className={`ingot-icon-button codicon codicon-ellipsis${this.popover === 'more' ? ' active' : ''}`}
                     data-mode={info.id} aria-label='More' aria-haspopup='menu' aria-expanded={this.popover === 'more'}
                     title={`More · Mode: ${info.label}`}
@@ -1614,6 +1623,26 @@ export class IngotAgentsWidget extends ReactWidget {
                 onSignIn={this.account.signedIn ? undefined : () => { this.closePopover(); this.account.signIn(false); }}
                 onClose={() => this.closePopover()} />}
         </span>;
+    }
+
+    /** IDEA-288: sandbox and approvals preset of the open project. */
+    protected renderSandboxPill(): React.ReactNode {
+        const root = this.sandbox.defaultRoot;
+        const preset = this.sandbox.peek(root);
+        return <span className='ingot-pill-anchor'>
+            <button type='button' id={SANDBOX_PILL_ID} className={`ingot-pill ingot-sandbox-pill ingot-sandbox-${preset.sandbox}`} data-sandbox={preset.sandbox} data-approvals={preset.approvals}
+                data-network={String(preset.network)} aria-haspopup='menu' aria-expanded={this.popover === 'sandbox'} title={presetTitle(preset)} disabled={!root}
+                onClick={() => this.toggleSandboxMenu()}>
+                <span className={`codicon codicon-${SANDBOX_INFO[preset.sandbox].icon}`} aria-hidden='true' /><span className='ingot-pill-label'>{presetLabel(preset)}</span><span className='codicon codicon-chevron-down ingot-pill-caret' />
+            </button>
+            {this.popover === 'sandbox' && root && <SandboxMenu preset={preset} onClose={() => this.closePopover()}
+                onChange={next => void this.sandbox.set(root, next).catch(error => this.messages.error(`Could not save the sandbox preset: ${error instanceof Error ? error.message : String(error)}`))} />}
+        </span>;
+    }
+
+    toggleSandboxMenu(): void {
+        this.popover = this.popover === 'sandbox' ? undefined : 'sandbox';
+        this.update();
     }
 
     /** Ring showing how full the context window was on the last request; hover for the breakdown. */
