@@ -1,5 +1,5 @@
-import { JUMP_FROM_BOTTOM_PX, USER_JUMP_LABEL_CHARS } from './chat-thread.consts';
-import type { JumpTarget } from './chat-thread.types';
+import { AT_BOTTOM_PX, JUMP_FROM_BOTTOM_PX, USER_JUMP_LABEL_CHARS } from './chat-thread.consts';
+import type { JumpTarget, ThreadFollow, ThreadScroll } from './chat-thread.types';
 
 export interface ThreadMessage {
     readonly role: string;
@@ -13,6 +13,18 @@ export const distanceFromBottom = (scrollTop: number, scrollHeight: number, clie
 
 /** True when the user has scrolled up far enough that the latest turn may be off screen. */
 export const showJumpToLatest = (distance: number): boolean => distance > JUMP_FROM_BOTTOM_PX;
+
+/**
+ * Follow state after a scroll event. Any move up away from the bottom stops following at once, so a small wheel
+ * step is never yanked back by the next streamed token; reaching the bottom again resumes following. Text streaming in
+ * grows scrollHeight without moving scrollTop, and a shrinking thread clamps the reader to the bottom, so neither
+ * stops following on its own.
+ */
+export const followAfterScroll = (scroll: ThreadScroll, stick: boolean): ThreadFollow => {
+    const atBottom = distanceFromBottom(scroll.top, scroll.scrollHeight, scroll.clientHeight) <= AT_BOTTOM_PX;
+    const next = atBottom || (stick && scroll.top >= scroll.previousTop);
+    return { stick: next, showJump: !next };
+};
 
 /**
  * Where the thread should sit after new text or a panel under it changes size.

@@ -73,7 +73,7 @@ import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import { composerBarWidthClass } from '../../common/agents/composer-bar';
-import { distanceFromBottom, latestUserIndex, scrollTopAfterUpdate, showJumpToLatest, userJumpTargets } from '../../common/agents/chat-thread';
+import { followAfterScroll, latestUserIndex, scrollTopAfterUpdate, userJumpTargets } from '../../common/agents/chat-thread';
 type Popover = 'mode' | 'model' | 'history' | 'context' | 'more' | 'jumps' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
@@ -143,6 +143,8 @@ export class IngotAgentsWidget extends ReactWidget {
     protected stickToLatest = true;
     /** scrollTop to put back when the reader is not following the latest line. */
     protected savedScroll = 0;
+    /** scrollTop at the previous scroll event, so a move up (the reader) is told apart from text growing below. */
+    protected lastScrollTop = 0;
     /** Follow flag captured before the next render. */
     protected pendingFollow = true;
     /** Ignores the scroll event caused by restoring or following. */
@@ -1397,6 +1399,7 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         this.applyingScroll = true;
         node.scrollTop = next;
+        this.lastScrollTop = node.scrollTop;
         this.applyingScroll = false;
     }
 
@@ -1411,6 +1414,7 @@ export class IngotAgentsWidget extends ReactWidget {
         if (!el) {
             return;
         }
+        this.lastScrollTop = el.scrollTop;
         // The run card and the files panel sit under the thread and change its height. Put the same place back.
         this.chatSize = new ResizeObserver(() => this.applyScroll(this.stickToLatest));
         this.chatSize.observe(el);
@@ -1426,8 +1430,11 @@ export class IngotAgentsWidget extends ReactWidget {
             return;
         }
         this.savedScroll = thread.scrollTop;
-        const show = showJumpToLatest(distanceFromBottom(thread.scrollTop, thread.scrollHeight, thread.clientHeight));
-        this.stickToLatest = !show;
+        const { stick, showJump: show } = followAfterScroll({
+            previousTop: this.lastScrollTop, top: thread.scrollTop, scrollHeight: thread.scrollHeight, clientHeight: thread.clientHeight
+        }, this.stickToLatest);
+        this.lastScrollTop = thread.scrollTop;
+        this.stickToLatest = stick;
         this.pendingFollow = this.stickToLatest;
         if (show !== this.showJump) {
             this.showJump = show;
@@ -1461,6 +1468,7 @@ export class IngotAgentsWidget extends ReactWidget {
             this.applyingScroll = true;
             thread.scrollTop = thread.scrollHeight;
             this.savedScroll = thread.scrollTop;
+            this.lastScrollTop = thread.scrollTop;
             this.applyingScroll = false;
         }
         this.update();
