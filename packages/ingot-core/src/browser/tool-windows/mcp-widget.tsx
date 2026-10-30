@@ -23,6 +23,7 @@ import { ProjectConfigService } from '../project-config/project-config-service';
 import { MCP_WIDGET_ID } from './tool-windows.consts';
 import { SlackConnectionCard, SlackConnectionService } from '../slack';
 import { SLACK_APPS_URL, SLACK_SERVER_NAME, SLACK_TEXT } from '../../common/slack';
+import { AGENT_COMMANDS } from '../agents/agents.consts';
 
 type ScopeFilter = 'all' | McpScope;
 interface AddForm { entry: McpCatalogEntry; name: string; scope: McpScope; values: Record<string, string>; error?: string; busy?: boolean }
@@ -573,6 +574,10 @@ export class IngotMcpWidget extends ReactWidget {
                         <div className='ingot-mcp-summary'>{i.detail}</div>
                     </div>
                     <div className='ingot-mcp-row-actions' onClick={e => e.stopPropagation()}>
+                        {(kind === 'command' || kind === 'skill') && <button type='button' className='ingot-mcp-use-mode' title='Use as mode: pin it into the current chat'
+                            onClick={() => void this.commands.executeCommand(AGENT_COMMANDS.useAsMode.id, i.name)}>
+                            <span className='codicon codicon-pinned' aria-hidden='true' />Use as mode
+                        </button>}
                         {i.uri && <button type='button' className='codicon codicon-edit' title='Edit' onClick={() => open(this.opener, new URI(i.uri!))} />}
                         {i.uri && scopeLabel(i.source) !== 'Imported' && <button type='button' className='codicon codicon-trash ingot-mcp-item-delete' title='Delete' onClick={() => this.deleteItem(i, kind)} />}
                     </div>

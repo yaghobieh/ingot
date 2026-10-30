@@ -109,6 +109,10 @@ export interface AgentSession {
     ask?: { readonly question: string; readonly options?: readonly string[] };
     /** IDEA-296: the habit (scenario playbook) this chat follows, with its live checklist. */
     habit?: import('../habits/playbook.types').ActiveHabit;
+    /** IDEA-292: a `/goal` run: the agent keeps taking turns until its self-check passes. */
+    goal?: import('./goal.types').AgentGoal;
+    /** IDEA-292: a command or skill pinned into this chat's system prompt ("Use as mode"). */
+    customMode?: import('./custom-mode.types').CustomMode;
 }
 
 export interface ReviewPause {

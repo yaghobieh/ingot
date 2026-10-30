@@ -58,5 +58,7 @@ export const E2E_USER_SETTINGS = {
     'ingot.agent.browser.requireApproval': true,
     'ingot.agent.browser.approveReads': false,
     // IDEA-281: fixtures with .cursor rules would otherwise show the import prompt in every spec; its own spec turns it on.
-    'ingot.import.cursorRules': 'never'
+    'ingot.import.cursorRules': 'never',
+    // IDEA-286: modal editing starts off even if an interrupted run left it on.
+    'ingot.editor.modalEditing': false
 } as const;

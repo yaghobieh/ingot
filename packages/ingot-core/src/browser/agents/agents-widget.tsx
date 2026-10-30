@@ -98,6 +98,10 @@ import { AskCard, EditRerunForm, QueuedChip, ReplyReactions } from './composer-u
 import { editRerunPlan, promptClickAction } from '../../common/agents/composer-usability';
 import { EDIT_PROMPT_TITLE, PROMPT_CLICK_IGNORE } from '../../common/agents/composer-usability.consts';
 import type { EditRerunChoice } from '../../common/agents/composer-usability.types';
+import { goalMetCount, goalProgress } from '../../common/agents/goal';
+import { GOAL_STOP_LABELS, PERCENT } from '../../common/agents/goal.consts';
+import type { AgentGoal } from '../../common/agents/goal.types';
+import { modePillLabel } from '../../common/agents/custom-mode';
 type Popover = 'mode' | 'model' | 'history' | 'context' | 'more' | 'header' | 'jumps' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
@@ -206,7 +210,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected acceptSlash(item: { name: string; action?: SlashBuiltinAction }): void {
         this.slashIndex = 0;
-        if (!item.action) {
+        if (!item.action || item.action.kind === 'goal') {
             this.inline?.setText(`/${item.name} `);
             this.focusComposer();
             return;
@@ -744,6 +748,7 @@ export class IngotAgentsWidget extends ReactWidget {
             {!this.showMemories && current?.habit && <HabitPill key={current.id} habit={current.habit}
                 load={() => this.playbooks.enabledPlaybooks(current.project ? new URI(current.project) : undefined)}
                 onChoose={id => void this.store.chooseHabit(current.id, id)} />}
+            {!this.showMemories && current?.goal && this.renderGoal(current, current.goal)}
             {this.renderComposer()}
             {empty && <div className='ingot-agents-disclaimer'>AI can make mistakes. Review generated code before you keep it.</div>}
         </div>;
@@ -1412,6 +1417,10 @@ export class IngotAgentsWidget extends ReactWidget {
                     <div key={`${item.kind}:${item.name}`} id={item.action ? `ingot-slash-builtin-${item.name}` : `ingot-slash-item-${item.name}`} role='option' aria-selected={i === this.slashIndex}
                         className={`ingot-slash-item${i === this.slashIndex ? ' selected' : ''}`} onMouseDown={e => { e.preventDefault(); this.acceptSlash(item); }}>
                         <code>/{item.name}</code>{item.args && <span className='ingot-slash-args'>{item.args}</span>}<span className='ingot-badge' title={item.kind}>{item.kind}</span><span className='ingot-slash-desc'>{item.description}</span>
+                        {!item.action && <button type='button' className='ingot-slash-use-mode' id={`ingot-slash-mode-${item.name}`} title='Use as mode: pin it into this chat'
+                            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); void this.useAsMode(item.name); }}>
+                            <span className='codicon codicon-pinned' aria-hidden='true' />Use as mode
+                        </button>}
                     </div>
                 ))}
             </div>}
@@ -1487,6 +1496,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     <span className='ingot-pill-label'>{info.label}</span><ChevronIcon className='ingot-pill-caret' size={AGENT_ICON_SIZE.caret} />
                 </button>
                 {this.renderModelPill()}
+                {this.renderCustomModePill()}
                 <span className='ingot-flex' />
                 <button type='button' id='ingot-composer-more' className={`ingot-icon-button ingot-composer-more${this.popover === 'more' ? ' active' : ''}`}
                     data-mode={info.id} aria-label='More' aria-haspopup='menu' aria-expanded={this.popover === 'more'}
@@ -1517,6 +1527,63 @@ export class IngotAgentsWidget extends ReactWidget {
                 onCompact={() => { this.closePopover(); this.store.compact(current.id); }}
                 onNewWithSummary={() => { this.closePopover(); this.store.summarizeAndContinue(current.id); }} />}
         </div>;
+    }
+
+    /** IDEA-292: `/goal` progress (criteria, iterations, budget) with Stop while it runs. */
+    protected renderGoal(session: AgentSession, goal: AgentGoal): React.ReactNode {
+        const running = goal.state === 'running';
+        const percent = Math.round(goalProgress(goal) * PERCENT);
+        const status = running ? 'Working' : goal.state === 'done' ? 'Done' : GOAL_STOP_LABELS[goal.reason ?? 'user'];
+        return <div id='ingot-goal-banner' className={`ingot-goal-banner ingot-goal-${goal.state}`} role='status' aria-label={`Goal: ${goal.objective}`}>
+            <div className='ingot-goal-head'>
+                <span className={`codicon codicon-${goal.state === 'done' ? 'pass-filled' : 'target'}`} aria-hidden='true' />
+                <span className='ingot-goal-label'>Goal</span>
+                <span className='ingot-goal-objective' title={goal.objective}>{goal.objective}</span>
+                <span className='ingot-goal-state' id='ingot-goal-state'>{status}</span>
+                {running
+                    ? <button type='button' id='ingot-goal-stop' className='ingot-goal-stop' title='Stop the goal' onClick={() => this.store.stopGoal(session.id)}>
+                        <span className='codicon codicon-debug-stop' aria-hidden='true' />Stop
+                    </button>
+                    : <button type='button' id='ingot-goal-dismiss' className='ingot-icon-button codicon codicon-close' aria-label='Dismiss goal' title='Dismiss' onClick={() => this.store.dismissGoal(session.id)} />}
+            </div>
+            <div className='ingot-goal-bar' role='progressbar' aria-valuemin={0} aria-valuemax={PERCENT} aria-valuenow={percent}><span style={{ width: `${percent}%` }} /></div>
+            <div className='ingot-goal-meta' id='ingot-goal-meta'>
+                <span>{goal.criteria.length ? `${goalMetCount(goal)}/${goal.criteria.length} criteria` : 'Listing criteria'}</span>
+                <span>Iteration {Math.min(goal.iteration + (running ? 1 : 0), goal.maxIterations)}/{goal.maxIterations}</span>
+                <span>{formatTokens(goal.tokensUsed)} / {formatTokens(goal.tokenBudget)} tokens</span>
+            </div>
+            {goal.criteria.length > 0 && <ul className='ingot-goal-criteria' id='ingot-goal-criteria'>
+                {goal.criteria.map((item, i) => <li key={i} className={item.met ? 'met' : ''}>
+                    <span className={`codicon codicon-${item.met ? 'check' : 'circle-large-outline'}`} aria-hidden='true' />{item.text}
+                </li>)}
+            </ul>}
+        </div>;
+    }
+
+    /** IDEA-292: the pinned command or skill of this chat, with a clear button. */
+    protected renderCustomModePill(): React.ReactNode {
+        const current = this.store.current;
+        const mode = current?.customMode;
+        if (!current || !mode) {
+            return undefined;
+        }
+        return <span id='ingot-custom-mode-pill' className='ingot-pill ingot-custom-mode-pill' title={`Mode: ${mode.name}${mode.description ? ` · ${mode.description}` : ''}. Its instructions are in every request of this chat.`}>
+            <span className={`codicon codicon-${mode.kind === 'skill' ? 'mortar-board' : 'terminal'}`} aria-hidden='true' />
+            <span className='ingot-pill-label'>{modePillLabel(mode)}</span>
+            <button type='button' id='ingot-custom-mode-clear' className='codicon codicon-close' aria-label='Clear mode' title='Clear mode' onClick={() => this.store.clearMode(current.id)} />
+        </span>;
+    }
+
+    async useAsMode(name: string): Promise<void> {
+        this.inline?.clear();
+        this.draft = '';
+        this.composerEmpty = true;
+        const mode = await this.store.useAsMode(name);
+        if (!mode) {
+            this.messages.warn(`No command or skill named "${name}" in this project.`);
+        }
+        this.update();
+        this.focusComposer();
     }
 
     protected renderReviewToggle(): React.ReactNode {

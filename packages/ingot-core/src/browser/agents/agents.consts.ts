@@ -17,7 +17,9 @@ export const AGENT_COMMANDS = {
     addSelectionToChat: { id: 'ingot.agents.addSelectionToChat', label: 'Add Selection to Agent Chat', category: 'Agents' },
     acceptEdit: { id: 'ingot.agents.acceptEdit', label: 'Accept Agent Edit', category: 'Agents' },
     rejectEdit: { id: 'ingot.agents.rejectEdit', label: 'Reject Agent Edit', category: 'Agents' },
-    demoEdit: { id: 'ingot.agents.demoEdit', label: 'Try Agent Edit Review (demo)', category: 'Agents' }
+    demoEdit: { id: 'ingot.agents.demoEdit', label: 'Try Agent Edit Review (demo)', category: 'Agents' },
+    useAsMode: { id: 'ingot.agents.useAsMode', label: 'Use Command or Skill as Mode…', category: 'Agents' },
+    clearMode: { id: 'ingot.agents.clearMode', label: 'Clear Chat Mode', category: 'Agents' }
 } as const;
 
 /** Reference design shortcuts: real Ctrl on every platform. */

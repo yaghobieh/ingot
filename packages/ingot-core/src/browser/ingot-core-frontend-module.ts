@@ -196,6 +196,8 @@ import { LabelProviderContribution } from '@theia/core/lib/browser/label-provide
 import { AppearanceContribution, appearancePreferenceSchema } from './theme/appearance-contribution';
 import { LaunchBackgroundContribution } from './theme/launch-background-contribution';
 import { IngotEditorContextMenuContribution } from './editor/editor-context-menu-contribution';
+import { ModalEditingContribution } from './editor/modal-editing-contribution';
+import { modalEditingPreferenceSchema } from './editor/modal-editing-preferences';
 import '../../src/browser/style/index.css';
 import { ErrorReportingContribution } from './error-reporting-contribution';
 
@@ -545,6 +547,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CommandContribution).toService(IngotEditorContextMenuContribution);
     bind(MenuContribution).toService(IngotEditorContextMenuContribution);
     bind(FrontendApplicationContribution).toService(IngotEditorContextMenuContribution);
+    bind(PreferenceContribution).toConstantValue({ schema: modalEditingPreferenceSchema });
+    bind(ModalEditingContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(ModalEditingContribution);
+    bind(FrontendApplicationContribution).toService(ModalEditingContribution);
     bind(IngotBadgeIconTheme).toSelf().inSingletonScope();
     bind(IconThemeContribution).toService(IngotBadgeIconTheme);
     bind(LabelProviderContribution).toService(IngotBadgeIconTheme);

@@ -121,6 +121,11 @@ import type { PolicyDecision, SandboxSpec } from '../../common/policy/agent-poli
 import { checkEdit, checkToolCall, outsideApproval, policyBlockedText, sandboxRetryApproval, sandboxSpec } from '../../common/policy/agent-policy.utils';
 import type { AuditDecision, AuditEntryInput } from '../../common/audit/agent-audit.types';
 import { toolSummary } from '../../common/audit/agent-audit.utils';
+import { GOAL_BUDGET_TEXT, GOAL_DONE_TEXT, GOAL_PREFS, GOAL_STOPPED_TEXT, GOAL_USAGE } from '../../common/agents/goal.consts';
+import { applyGoalCheck, createGoal, decideGoal, goalLimits, goalProtocol, parseGoalCheck, parseGoalCommand, stripGoalCheck } from '../../common/agents/goal';
+import type { GoalStopReason } from '../../common/agents/goal.types';
+import { customModeFrom, customModePrompt, findModeCommand } from '../../common/agents/custom-mode';
+import type { CustomMode } from '../../common/agents/custom-mode.types';
 
 let nextId = 1;
 const newChatId = (): string => `chat-${Date.now().toString(36)}-${nextId++}`;
@@ -184,6 +189,8 @@ export class AgentStore {
     protected readonly libraryFixes = new Map<string, number>();
     /** Chats the user stopped. Cleared when they send again. */
     protected readonly cancelled = new Set<string>();
+    /** IDEA-292: the agent message each goal last self-checked, so one reply never counts twice. */
+    protected readonly goalChecked = new Map<string, number>();
     protected pokeTimer?: ReturnType<typeof setTimeout>;
     @inject(ProjectConfigService) protected readonly projectConfig: ProjectConfigService;
     @inject(IngotMcpClient) protected readonly mcp: IngotMcpClient;
@@ -512,12 +519,27 @@ export class AgentStore {
             this.changed();
             return session;
         }
+        const goalCommand = parseGoalCommand(askedNow);
+        if (session.goal && session.goal.state !== 'running') {
+            session.goal = undefined;
+        }
+        if (goalCommand && !goalCommand.objective) {
+            session.messages.push({ role: 'user', text: askedNow }, { role: 'system', text: GOAL_USAGE });
+            session.updatedAt = Date.now();
+            this.changed();
+            return session;
+        }
         if (session.title === NEW_AGENT_TITLE) {
-            session.title = tabTitleFromText(prompt) || titleFromPrompt(prompt);
+            const titled = goalCommand?.objective ?? prompt;
+            session.title = tabTitleFromText(titled) || titleFromPrompt(titled);
         }
         session.mode = this.mode;
         session.model = this.model;
-        if (composed && (composed.chips.length || composed.images.length)) {
+        if (goalCommand) {
+            session.goal = createGoal(goalCommand, goalLimits(key => this.preferences.get(GOAL_PREFS[key])), Date.now());
+            this.goalChecked.delete(session.id);
+            session.messages.push({ role: 'user', text: askedNow, expanded: `Goal: ${goalCommand.objective}` });
+        } else if (composed && (composed.chips.length || composed.images.length)) {
             // Inline composer (IDEA-98): chips and images stay where the user put them.
             session.messages.push({
                 role: 'user', text: composed.text, expanded: composed.expanded, parts: composed.parts,
@@ -618,6 +640,9 @@ export class AgentStore {
         const session = this.items.find(s => s.id === id);
         if (session) {
             session.ask = undefined;
+            if (session.goal?.state === 'running') {
+                this.endGoal(session, 'user', GOAL_STOPPED_TEXT);
+            }
         }
         if (session && (session.status === 'thinking' || session.status === 'editing' || session.status === 'approval')) {
             session.status = 'idle';
@@ -965,7 +990,7 @@ export class AgentStore {
         const config = await this.projectConfig.load(root);
         this.projectCommands = config.commands;
         const lastUser = session.messages.map((m, i) => ({ m, i })).reverse().find(x => x.m.role === 'user');
-        if (lastUser && lastUser.m.text.startsWith('/')) {
+        if (lastUser && lastUser.m.text.startsWith('/') && !parseGoalCommand(lastUser.m.text)) {
             const expansion = expandCommand(lastUser.m.text, config.commands);
             if (expansion) {
                 session.messages[lastUser.i] = { ...lastUser.m, expanded: lastUser.m.expanded ? lastUser.m.expanded.replace(lastUser.m.text, expansion.text) : expansion.text };
@@ -987,7 +1012,9 @@ export class AgentStore {
         const workspace = await this.workspaceInfo(root);
         this.github = workspace.github;
         const base = [
-            AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_WORKFLOW : '', info.canEdit ? AGENT_PROTOCOL : '', info.canUseTools ? TOOL_CALL_FORMAT : '',
+            AGENT_SYSTEM_PROMPTS[session.mode], session.customMode ? customModePrompt(session.customMode, config.commands) : '',
+            session.goal?.state === 'running' ? goalProtocol(session.goal) : '',
+            info.canEdit ? AGENT_WORKFLOW : '', info.canEdit ? AGENT_PROTOCOL : '', info.canUseTools ? TOOL_CALL_FORMAT : '',
             info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools),
             info.canUseTools ? builtinToolProtocol(this.toolSwitches()) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : '', session.parent ? '' : FOLLOW_UPS_PROTOCOL
         ].filter(Boolean).join('\n\n');
@@ -1028,6 +1055,12 @@ export class AgentStore {
         try {
             for (let round = 0; ; round++) {
                 if (this.gaveUp(session, generation)) {
+                    return;
+                }
+                if (session.goal?.state === 'running' && session.goal.tokensUsed >= session.goal.tokenBudget) {
+                    this.endGoal(session, 'budget', GOAL_BUDGET_TEXT);
+                    session.status = 'idle';
+                    this.changed();
                     return;
                 }
                 const parsed = await this.streamRound(session, system);
@@ -1209,7 +1242,105 @@ export class AgentStore {
             this.flushPoke();
             if (!this.loopDepth.has(session.id)) {
                 void this.runEventHook(session, 'stop', { status: session.status === 'error' ? 'error' : this.cancelled.has(session.id) ? 'aborted' : 'completed' });
+                this.afterGoalTurn(session, generation);
             }
+        }
+    }
+
+    /**
+     * IDEA-292: after a full agent turn of a running goal, read the reply's self-check and either finish,
+     * stop at the iteration or budget cap, or send a hidden nudge and take another turn.
+     */
+    protected afterGoalTurn(session: AgentSession, generation = this.loopGeneration.get(session.id) ?? 0): void {
+        const goal = session.goal;
+        if (goal?.state !== 'running' || this.stale(session.id, generation) || this.cancelled.has(session.id) || this.modelLoops.has(session.id)) {
+            return;
+        }
+        if (session.status === 'review' || session.status === 'approval' || session.status === 'paused' || session.ask) {
+            return;
+        }
+        if (session.status === 'error') {
+            this.endGoal(session, 'error', GOAL_STOPPED_TEXT);
+            this.changed();
+            return;
+        }
+        const index = session.messages.map(m => m.role).lastIndexOf('agent');
+        if (index < 0 || this.goalChecked.get(session.id) === index) {
+            return;
+        }
+        this.goalChecked.set(session.id, index);
+        const reply = session.messages[index];
+        const check = parseGoalCheck(reply.expanded ?? reply.text);
+        const next = applyGoalCheck(goal, check, 0);
+        const decision = decideGoal(next, check);
+        session.goal = next;
+        if (decision.kind === 'done') {
+            session.goal = { ...next, state: 'done' };
+            session.messages.push({ role: 'system', text: GOAL_DONE_TEXT });
+        } else if (decision.kind === 'stop') {
+            this.endGoal(session, decision.reason, decision.message);
+        } else {
+            session.messages.push({ role: 'user', text: decision.nudge, hidden: true });
+            session.status = 'thinking';
+            session.updatedAt = Date.now();
+            this.changed();
+            void this.runModel(session, generation).finally(() => this.browser.endAgentRun(session.id));
+            return;
+        }
+        session.updatedAt = Date.now();
+        this.changed();
+    }
+
+    protected goalDisplay(session: AgentSession, text: string): string {
+        return session.goal ? stripGoalCheck(text) : text;
+    }
+
+    protected endGoal(session: AgentSession, reason: GoalStopReason, message: string): void {
+        if (session.goal?.state !== 'running') {
+            return;
+        }
+        session.goal = { ...session.goal, state: 'stopped', reason };
+        session.messages.push({ role: 'system', text: message });
+    }
+
+    /** Goal banner Stop: ends the goal and the current run. */
+    stopGoal(id: string): void {
+        const session = this.items.find(s => s.id === id);
+        if (!session?.goal) {
+            return;
+        }
+        this.endGoal(session, 'user', GOAL_STOPPED_TEXT);
+        this.stop(id);
+    }
+
+    dismissGoal(id: string): void {
+        const session = this.items.find(s => s.id === id);
+        if (session?.goal && session.goal.state !== 'running') {
+            session.goal = undefined;
+            this.changed();
+        }
+    }
+
+    /** IDEA-292: pins a project command or skill into the current chat's system prompt. */
+    async useAsMode(name: string): Promise<CustomMode | undefined> {
+        await this.loadCommands();
+        const command = findModeCommand(this.projectCommands, name);
+        if (!command) {
+            return undefined;
+        }
+        const session = this.current ?? this.create();
+        session.customMode = customModeFrom(command);
+        session.updatedAt = Date.now();
+        this.changed();
+        return session.customMode;
+    }
+
+    clearMode(id: string): void {
+        const session = this.items.find(s => s.id === id);
+        if (session?.customMode) {
+            session.customMode = undefined;
+            session.updatedAt = Date.now();
+            this.changed();
         }
     }
 
@@ -1333,7 +1464,7 @@ export class AgentStore {
                 }
                 const parsed = parseAgentOutput(cutAfterToolCalls(text));
                 this.streamEdit(session, index, parsed.editing, parsed.editingContent);
-                this.writeAgentDraft(session, index, stripHabitMarks(extractFollowUps(extractMemories(parsed.display).display).display));
+                this.writeAgentDraft(session, index, stripHabitMarks(this.goalDisplay(session, extractFollowUps(extractMemories(parsed.display).display).display)));
                 if (parsed.plan.length) {
                     session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
                     this.considerHarmony(session, parsed.edits.length);
@@ -1369,10 +1500,14 @@ export class AgentStore {
             return undefined;
         }
         this.flushPoke();
+        if (session.goal?.state === 'running') {
+            const spent = estimateTokens(system) + estimateTokens(history.map(m => m.content).join('\n')) + estimateTokens(final);
+            session.goal = { ...session.goal, tokensUsed: session.goal.tokensUsed + spent };
+        }
         const parsed = parseAgentOutput(final);
         const extracted = extractMemories(parsed.display);
         const withFollowUps = extractFollowUps(extracted.display);
-        const display = stripHabitMarks(withFollowUps.display);
+        const display = stripHabitMarks(this.goalDisplay(session, withFollowUps.display));
         const followUps = withFollowUps.followUps;
         const memories = extracted.memories;
         this.habitRunner.consume(session, final);
@@ -2705,14 +2840,18 @@ export class AgentStore {
             if (changes.length) {
                 session.messages.push({ role: 'system', text: `Review finished: ${kept.length} of ${total} change(s) kept.` });
             }
-            if (kept.length && (this.loopOf(session).wants || this.loopOf(session).promised) && !this.modelLoops.has(session.id)) {
-                void this.resumeLoop(session);
+            const resume = kept.length && (this.loopOf(session).wants || this.loopOf(session).promised) && !this.modelLoops.has(session.id);
+            if (resume) {
+                void this.resumeLoop(session).then(() => this.afterGoalTurn(session));
             }
             if (session.status === 'review') {
                 session.status = kept.length ? 'done' : 'idle';
             }
             session.updatedAt = Date.now();
             this.changed();
+            if (!resume) {
+                this.afterGoalTurn(session);
+            }
             return true;
         };
         if (check()) {
