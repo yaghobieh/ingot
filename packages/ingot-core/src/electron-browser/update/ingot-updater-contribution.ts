@@ -1,9 +1,10 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { CommandContribution, CommandRegistry, MenuContribution, MenuModelRegistry } from '@theia/core/lib/common';
 import { MessageService } from '@theia/core/lib/common/message-service';
+import type { Progress } from '@theia/core/lib/common/message-service-protocol';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { CommonMenus, type FrontendApplicationContribution } from '@theia/core/lib/browser';
-import { IngotUpdater, UPDATE_CHANNEL_PREFERENCE, UPDATER_COMMANDS, UPDATER_TEXT } from '../../common/update/auto-update.consts';
+import { IngotUpdater, PERCENT_MAX, UPDATE_CHANNEL_PREFERENCE, UPDATER_COMMANDS, UPDATER_TEXT } from '../../common/update/auto-update.consts';
 import type { IngotUpdaterService, UpdateChannel, UpdateStatus } from '../../common/update/auto-update.types';
 import { IngotUpdaterClientImpl } from '../../browser/update/updater-client';
 
@@ -19,6 +20,8 @@ export class IngotUpdaterContribution implements FrontendApplicationContribution
     /** The downloaded version this window already offered a restart for. */
     protected offered?: string;
     protected status?: UpdateStatus;
+    /** Download progress toast after a manual check; closes when the download ends. */
+    protected progress?: Progress;
 
     onStart(): void {
         this.client.onDidChange(status => this.onStatus(status));
@@ -51,6 +54,12 @@ export class IngotUpdaterContribution implements FrontendApplicationContribution
 
     protected onStatus(status: UpdateStatus): void {
         this.status = status;
+        if (this.progress && status.state === 'downloading') {
+            this.progress.report({ message: `${status.percent ?? 0}%`, work: { done: status.percent ?? 0, total: PERCENT_MAX } });
+        } else if (this.progress) {
+            this.progress.cancel();
+            this.progress = undefined;
+        }
         if (status.state === 'downloaded' && status.version && this.offered !== status.version) {
             this.offerRestart(status.version);
         }
@@ -83,7 +92,9 @@ export class IngotUpdaterContribution implements FrontendApplicationContribution
                 }
                 return;
             case 'downloading':
-                this.messages.info(UPDATER_TEXT.downloading(status.version ?? ''));
+                this.progress ??= await this.messages.showProgress({ text: UPDATER_TEXT.downloading(status.version ?? '') });
+                // The download may have finished while the toast opened.
+                this.onStatus(await this.updater.getStatus());
                 return;
             default:
                 this.messages.info(UPDATER_TEXT.checking);
