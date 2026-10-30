@@ -363,7 +363,7 @@ export class IngotAgentsWidget extends ReactWidget {
         const session = this.store.current?.id;
         if (session !== this.shownSession) {
             this.shownSession = session;
-            this.following = true;
+            this.resumeFollowing();
         }
         this.followLatest();
         requestAnimationFrame(() => { this.fitComposer(); this.checkTabOverflow(); this.followLatest(); });
@@ -570,7 +570,7 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         const composed = composeParts(inline.parts);
         const prompt = composed.text.trim() || 'Explain this code.';
-        this.following = true;
+        this.resumeFollowing();
         this.editingIndex = undefined;
         this.store.send(prompt, composed.chips, composed.expanded ? composed : undefined);
         inline.clear();
@@ -1438,12 +1438,20 @@ export class IngotAgentsWidget extends ReactWidget {
         this.update();
     }
 
+    /** Follow the latest line again from wherever the list is (new chat, sent message, edited prompt). */
+    protected resumeFollowing(): void {
+        this.following = true;
+        this.lastTop = 0;
+    }
+
     /** Keeps the latest line in view while following; the browser keeps scrollTop on its own otherwise. */
     protected followLatest(): void {
         const node = this.chatScroll;
         if (!node) {
             return;
         }
+        // A scroll up whose event is not dispatched yet (a reply chunk re-rendered first) still stops following.
+        this.following = followAfterScroll(this.following, node.scrollTop, this.lastTop, distanceFromBottom(node.scrollTop, node.scrollHeight, node.clientHeight));
         if (this.following && !this.gliding) {
             const bottom = scrollTopAfterUpdate(node.scrollTop, node.scrollHeight, node.clientHeight, true);
             if (node.scrollTop !== bottom) {
@@ -1609,7 +1617,7 @@ export class IngotAgentsWidget extends ReactWidget {
         const index = this.editingIndex;
         const text = this.editDraft;
         this.editingIndex = undefined;
-        this.following = true;
+        this.resumeFollowing();
         this.update();
         if (index !== undefined) {
             void this.store.editUserMessage(session.id, index, text);
