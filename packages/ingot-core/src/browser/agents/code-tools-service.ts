@@ -1,4 +1,4 @@
-import { inject, injectable } from '@theia/core/shared/inversify';
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import URI from '@theia/core/lib/common/uri';
 import type { Reference } from '@theia/core/lib/common/reference';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
@@ -45,6 +45,17 @@ export class CodeToolsService {
     @inject(MonacoTextModelService) protected readonly textModels: MonacoTextModelService;
     @inject(FileService) protected readonly files: FileService;
     @inject(ProblemManager) protected readonly problems: ProblemManager;
+    /** Model version of each file when a language server last reported on it (an empty report is still a report). */
+    protected readonly reported = new Map<string, number | undefined>();
+
+    @postConstruct()
+    protected init(): void {
+        this.problems.onDidChangeMarkers(uri => this.reported.set(uri.toString(), this.versionOf(uri)));
+    }
+
+    protected versionOf(uri: URI): number | undefined {
+        return monaco.editor.getModel(monaco.Uri.parse(uri.toString()))?.getVersionId();
+    }
 
     protected get features(): ILanguageFeaturesService {
         return StandaloneServices.get(ILanguageFeaturesService);
@@ -113,11 +124,12 @@ export class CodeToolsService {
     /** Problems for one file (opened and checked first) or for every file under the root. */
     async diagnostics(root: URI, uri?: URI): Promise<CodeDiagnostic[]> {
         if (uri) {
-            const known = !!monaco.editor.getModel(monaco.Uri.parse(uri.toString()));
             const reference = await this.textModels.createModelReference(uri);
             try {
-                if (!known) {
-                    await this.waitForMarkers(uri);
+                const key = uri.toString();
+                // Wait for a report unless the last one is for the text the buffer has now.
+                if (!this.reported.has(key) || this.reported.get(key) !== this.versionOf(uri)) {
+                    await this.waitForMarkers(uri, DIAGNOSTICS_WAIT_MS);
                 }
                 return this.markers(root, uri);
             } finally {
@@ -141,8 +153,8 @@ export class CodeToolsService {
         });
     }
 
-    /** The first diagnostics update for a file just opened, then a quiet moment (syntax and semantic checks come apart). */
-    protected waitForMarkers(uri: URI): Promise<void> {
+    /** The next diagnostics update for the file (up to `limitMs`), then a quiet moment (syntax and semantic checks come apart). */
+    protected waitForMarkers(uri: URI, limitMs: number): Promise<void> {
         const key = uri.toString();
         return new Promise(resolve => {
             let settle: ReturnType<typeof setTimeout> | undefined;
@@ -152,7 +164,7 @@ export class CodeToolsService {
                 listener.dispose();
                 resolve();
             };
-            const limit = setTimeout(done, DIAGNOSTICS_WAIT_MS);
+            const limit = setTimeout(done, limitMs);
             const listener = this.problems.onDidChangeMarkers(changed => {
                 if (changed.toString() === key) {
                     clearTimeout(settle);

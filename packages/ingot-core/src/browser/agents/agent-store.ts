@@ -1640,7 +1640,7 @@ export class AgentStore {
             const result = await this.codeTools.organizeImportsEdits(uri);
             return result.ranCommand
                 ? { text: `Organized imports in ${path} (the language server saved the file).`, isError: false }
-                : this.applyCodeEdits(session, root, result, `Organized imports in ${path}`, `Imports in ${path} are already organized.`);
+                : this.applyCodeEdits(session, root, result, 'Organized imports', `Imports in ${path} are already organized.`);
         }
         const target = parseSymbolTarget(call.args);
         if ('error' in target) {
