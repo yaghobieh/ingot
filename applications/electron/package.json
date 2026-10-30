@@ -96,12 +96,7 @@
           "java.configuration.updateBuildConfiguration": "automatic"
         },
         "electron": {
-          "showWindowEarly": true,
-          "splashScreenOptions": {
-            "content": "resources/splash.svg",
-            "width": 480,
-            "height": 300
-          }
+          "showWindowEarly": true
         }
       }
     },

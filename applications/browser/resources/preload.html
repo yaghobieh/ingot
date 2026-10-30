@@ -1,15 +1,4 @@
 <style>
-  html, body { background: #F7F8FA; }
-  @media (prefers-color-scheme: dark) { html, body { background: #1C1E24; } }
-  .ingot-preload { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; font-family: Inter, -apple-system, 'Segoe UI', sans-serif; color: #5E6673; }
-  .ingot-preload svg { width: 72px; height: 72px; animation: ingot-pulse 1.6s ease-in-out infinite; }
-  @keyframes ingot-pulse { 0%, 100% { opacity: .55 } 50% { opacity: 1 } }
+  .theia-preload { background: var(--ingot-launch-background, var(--theia-editor-background)); transition: opacity 180ms ease-out; }
+  .theia-preload::after { content: none; }
 </style>
-<div class="ingot-preload">
-  <svg viewBox="40 60 180 140" xmlns="http://www.w3.org/2000/svg" aria-label="Ingot">
-    <polygon points="88,76 168,76 186,110 70,110" fill="#F3D29A"/>
-    <polygon points="70,110 186,110 210,190 46,190" fill="#D9A04E"/>
-    <rect x="121" y="126" width="14" height="48" rx="3" fill="#1C2440"/>
-  </svg>
-  <div>Ingot</div>
-</div>

@@ -155,6 +155,7 @@ import { IngotBadgeIconTheme, IngotFilesIconTheme, IngotIconTheme } from './icon
 import { IconThemeContribution } from '@theia/core/lib/browser/icon-theme-contribution';
 import { LabelProviderContribution } from '@theia/core/lib/browser/label-provider';
 import { AppearanceContribution, appearancePreferenceSchema } from './theme/appearance-contribution';
+import { LaunchBackgroundContribution } from './theme/launch-background-contribution';
 import { IngotEditorContextMenuContribution } from './editor/editor-context-menu-contribution';
 import '../../src/browser/style/index.css';
 import { ErrorReportingContribution } from './error-reporting-contribution';
@@ -190,6 +191,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(AppearanceContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(AppearanceContribution);
     bind(CommandContribution).toService(AppearanceContribution);
+    bind(LaunchBackgroundContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(LaunchBackgroundContribution);
     bind(NavigationHistory).toSelf().inSingletonScope();
     bind(ProjectConfigService).toSelf().inSingletonScope();
     bind(EditorImportService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<EditorImportService>(ctx.container, EDITOR_IMPORT_SERVICE_PATH)).inSingletonScope();

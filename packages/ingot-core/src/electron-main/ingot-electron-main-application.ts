@@ -1,10 +1,11 @@
-import { app, type WebContents } from '@theia/core/electron-shared/electron';
+import { app, nativeTheme, type WebContents } from '@theia/core/electron-shared/electron';
 import { injectable } from '@theia/core/shared/inversify';
 import { ElectronMainApplication } from '@theia/core/lib/electron-main/electron-main-application';
 import type { TheiaBrowserWindowOptions } from '@theia/core/lib/electron-main/theia-electron-window';
 import { BROWSER_PARTITION } from '../common/browser-tool/browser-tool.consts';
 import { MOCK_KEYCHAIN_SWITCH } from '../common/launch/keychain.consts';
 import { needsMockKeychain } from '../common/launch/keychain.utils';
+import { launchBackground } from '../common/launch/launch.utils';
 import { FORCED_EXIT_AFTER_MS, QUIT_SIGNALS } from '../common/lifecycle/lifecycle.consts';
 
 const WEB_URL = /^(https?:|about:blank)/i;
@@ -16,9 +17,17 @@ const WEB_URL = /^(https?:|about:blank)/i;
 @injectable()
 export class IngotElectronMainApplication extends ElectronMainApplication {
 
+    /**
+     * No splash window: the main window opens at once as a plain window in the last theme background (restored from
+     * the saved window state; the Ingot canvas on first launch) and the workbench fades in when ready.
+     */
     protected override getDefaultOptions(): TheiaBrowserWindowOptions {
         const options = super.getDefaultOptions();
-        return { ...options, webPreferences: { ...options.webPreferences, webviewTag: true } };
+        return {
+            ...options,
+            backgroundColor: launchBackground(undefined, nativeTheme.shouldUseDarkColors),
+            webPreferences: { ...options.webPreferences, webviewTag: true }
+        };
     }
 
     override async start(config: Parameters<ElectronMainApplication['start']>[0]): Promise<void> {
