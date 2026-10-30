@@ -55,7 +55,7 @@ test.describe('IDEA-130 agent browser tool', () => {
         };
         await start(page);
         await setAppearance(page, 'light');
-        await ask(page, 'find red shoes in the shop');
+        await ask(page, '/browser find red shoes in the shop');
         await expect(page.locator('#ingot-approval-line')).toHaveText(`Open page: ${site.url}`, { timeout: 30_000 });
         await page.keyboard.press('Enter');
 
@@ -87,7 +87,7 @@ test.describe('IDEA-130 agent browser tool', () => {
         };
         await start(page);
         await setAppearance(page, 'dark');
-        await ask(page, 'open the shop');
+        await ask(page, '/browser open the shop');
         await page.locator('#ingot-approval-run').click({ timeout: 30_000 });
         await expect(lastReply(page)).toContainText('Opened.', { timeout: 30_000 });
 
@@ -95,7 +95,7 @@ test.describe('IDEA-130 agent browser tool', () => {
         await expect(page.locator('#ingot-browser-control')).toHaveText('Give back control');
         await expect(page.locator('#ingot-browser-banner')).toContainText('You have control of the browser.');
 
-        await ask(page, 'what is on the page');
+        await ask(page, '/browser what is on the page');
         await expect(page.locator('#ingot-browser-banner')).toContainText('The agent is waiting for you.', { timeout: 30_000 });
         // The user drives the page: links load through the panel.
         await frame(page).getByRole('link', { name: 'Cart' }).click();
