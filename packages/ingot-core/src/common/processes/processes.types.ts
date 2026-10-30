@@ -1,4 +1,5 @@
 import type { RpcServer } from '@theia/core/lib/common/messaging';
+import type { SandboxSpec } from '../policy/agent-policy.types';
 
 /** IDEA-131/132: processes started by the agent (or the user from the chat's process list). */
 export type ProcessStatus = 'running' | 'exited' | 'failed' | 'stopped';
@@ -19,6 +20,8 @@ export interface ProcessInfo {
     readonly pid?: number;
     /** Ports found in the output ("Local: http://localhost:5173"). */
     readonly ports: readonly number[];
+    /** IDEA-263: runs inside the OS sandbox (writes only in the project). */
+    readonly sandboxed?: boolean;
 }
 
 export interface ProcessStartOptions {
@@ -26,6 +29,8 @@ export interface ProcessStartOptions {
     readonly command: string;
     readonly origin?: ProcessOrigin;
     readonly background?: boolean;
+    /** IDEA-263: run in the OS sandbox where the platform has one. */
+    readonly sandbox?: SandboxSpec;
 }
 
 export interface ForegroundOptions extends ProcessStartOptions {
@@ -39,6 +44,8 @@ export interface ForegroundResult {
     readonly output: string;
     /** Still running after the timeout: it was moved to the background. */
     readonly movedToBackground: boolean;
+    /** IDEA-263: the sandbox refused something the command tried (a write outside the project). */
+    readonly sandboxDenied?: boolean;
 }
 
 export interface ProcessOutput {

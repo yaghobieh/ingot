@@ -29,6 +29,7 @@
 @import './tool-cards.css';
 @import './subagents.css';
 @import './hooks.css';
+@import './audit-log.css';
 @import './chat-thread.css';
 @import './agent-panel.css';
 @import './composer-usability.css';

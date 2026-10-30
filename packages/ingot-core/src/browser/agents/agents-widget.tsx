@@ -1221,8 +1221,8 @@ export class IngotAgentsWidget extends ReactWidget {
                 <div className='ingot-approval-actions'>
                     {!this.composerEmpty && <span className='ingot-approval-note ingot-dim'>Your note is sent as the reason</span>}
                     <button type='button' id='ingot-approval-skip' className='ingot-approval-skip' title='Skip (Esc)' onClick={() => this.decideFromComposer('skip')}>Skip</button>
-                    <button type='button' id='ingot-approval-always' className='ingot-approval-always' title={approval.command ? `Run "${approval.command}" now and every time in this project without asking` : `Run this and future ${approval.kind === 'mcp' ? 'MCP tool calls' : approval.kind} actions in this project without asking`}
-                        onClick={() => this.store.decideApproval(session.id, 'always')}>Always Run</button>
+                    {!approval.once && <button type='button' id='ingot-approval-always' className='ingot-approval-always' title={approval.command ? `Run "${approval.command}" now and every time in this project without asking` : `Run this and future ${approval.kind === 'mcp' ? 'MCP tool calls' : approval.kind} actions in this project without asking`}
+                        onClick={() => this.store.decideApproval(session.id, 'always')}>Always Run</button>}
                     <button type='button' id='ingot-approval-run' className='ingot-approval-run' title='Run (Enter)' onClick={() => this.store.decideApproval(session.id, 'run')}>Run <span className='ingot-approval-key'>⏎</span></button>
                 </div>
             </div>

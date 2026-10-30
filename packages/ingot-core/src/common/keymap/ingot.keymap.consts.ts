@@ -4,6 +4,7 @@ import { TEST_COMMAND_IDS } from '../testing/testing.consts';
 import { INLINE_EDIT_COMMANDS } from '../inline-edit/inline-edit.consts';
 import { LOCAL_HISTORY_COMMANDS } from '../local-history/local-history.consts';
 import { INDEX_COMMANDS } from '../codebase-index/codebase-index.consts';
+import { AUDIT_LOG_COMMAND_ID } from '../audit/agent-audit.consts';
 
 /** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
@@ -127,7 +128,9 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'New Thread in Git Worktree', command: 'ingot.threads.newWorktree', mac: 'ctrlcmd+alt+shift+w', other: 'ctrl+alt+shift+w' },
     { action: 'Reload All from Disk', command: 'ingot.files.reloadFromDisk', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: `!${AGENTS_FOCUS}` },
     // Codebase index (IDEA-260)
-    { action: INDEX_COMMANDS.rebuild.label, command: INDEX_COMMANDS.rebuild.id, mac: 'ctrlcmd+alt+shift+i', other: 'ctrl+alt+shift+i' }
+    { action: INDEX_COMMANDS.rebuild.label, command: INDEX_COMMANDS.rebuild.id, mac: 'ctrlcmd+alt+shift+i', other: 'ctrl+alt+shift+i' },
+    // Agent policy and audit (IDEA-263)
+    { action: 'Agent Audit Log', command: AUDIT_LOG_COMMAND_ID, mac: 'ctrlcmd+alt+shift+a', other: 'ctrl+alt+shift+a' }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';

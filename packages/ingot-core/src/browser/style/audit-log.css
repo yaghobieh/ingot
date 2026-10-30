@@ -1,0 +1,58 @@
+/* IDEA-263: Agent Audit Log viewer. Colors come from Ingot tokens only (light and dark). */
+.ingot-audit { background: var(--ingot-surface); color: var(--ingot-text); font-size: 13px; }
+.ingot-audit:focus { outline: none; }
+.ingot-audit-root { display: flex; flex-direction: column; height: 100%; padding: var(--ingot-space-2) var(--ingot-space-3); box-sizing: border-box; gap: var(--ingot-space-2); }
+
+.ingot-audit-policy { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px var(--ingot-space-2); border: 1px solid var(--ingot-border); border-radius: 6px; background: var(--ingot-panel); }
+.ingot-audit-policy .codicon { color: var(--ingot-primary); }
+.ingot-audit-policy-title { font-weight: 600; margin-right: var(--ingot-space-1); font-family: var(--theia-code-font-family); font-size: 12px; }
+.ingot-audit-policy[data-exists='false'] .ingot-audit-policy-title { font-family: inherit; font-weight: 500; color: var(--ingot-text-muted); }
+.ingot-audit-chip { padding: 1px 7px; border-radius: 10px; border: 1px solid var(--ingot-border); background: var(--ingot-surface); color: var(--ingot-text-muted); font-size: 11.5px; line-height: 18px; }
+.ingot-audit-policy-error { color: var(--ingot-danger); font-size: 12px; flex-basis: 100%; }
+.ingot-audit-btn { margin-left: auto; border: 1px solid var(--ingot-border); background: var(--ingot-surface); color: var(--ingot-text); border-radius: 5px; padding: 2px 10px; font-size: 12px; cursor: pointer; }
+.ingot-audit-btn:hover { border-color: var(--ingot-primary); color: var(--ingot-primary); }
+.ingot-audit-btn:focus-visible, .ingot-audit-iconbtn:focus-visible, .ingot-audit-row:focus-visible { outline: 1px solid var(--ingot-focus-ring); outline-offset: -1px; }
+
+.ingot-audit-toolbar { display: flex; align-items: center; gap: 6px; }
+.ingot-audit-filter { flex: 1; max-width: 360px; }
+.ingot-audit-select { min-width: 130px; }
+.ingot-audit-chain { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: 12px; padding: 1px 8px; border-radius: 10px; }
+.ingot-audit-chain.ok { color: var(--ingot-success); background: color-mix(in srgb, var(--ingot-success) 12%, transparent); }
+.ingot-audit-chain.broken { color: var(--ingot-danger); background: color-mix(in srgb, var(--ingot-danger) 12%, transparent); }
+.ingot-audit-iconbtn { border: 0; background: transparent; color: var(--ingot-text-muted); border-radius: 5px; width: 24px; height: 22px; cursor: pointer; display: inline-grid; place-items: center; }
+.ingot-audit-iconbtn:hover { background: var(--ingot-selection); color: var(--ingot-text); }
+.ingot-audit-error { color: var(--ingot-danger); padding: var(--ingot-space-2) 0; }
+
+.ingot-audit-scroll { flex: 1; min-height: 0; overflow: auto; border-top: 1px solid var(--ingot-border); }
+.ingot-audit-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.ingot-audit-table th { position: sticky; top: 0; z-index: 1; background: var(--ingot-surface); text-align: left; font-weight: 600; color: var(--ingot-text-muted); padding: 5px 8px; border-bottom: 1px solid var(--ingot-border); }
+.ingot-audit-table th:nth-child(1) { width: 74px; }
+.ingot-audit-table th:nth-child(2) { width: 100px; }
+.ingot-audit-table th:nth-child(4) { width: 96px; }
+.ingot-audit-table th:nth-child(5) { width: 72px; }
+.ingot-audit-table th:nth-child(6) { width: 64px; }
+.ingot-audit-table td { padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid color-mix(in srgb, var(--ingot-border) 60%, transparent); }
+.ingot-audit-row { cursor: pointer; }
+.ingot-audit-row:hover td, .ingot-audit-row.open td { background: var(--ingot-selection); }
+.ingot-audit-time, .ingot-audit-tool, .ingot-audit-num { font-family: var(--theia-code-font-family); font-size: 11.5px; }
+.ingot-audit-time, .ingot-audit-num { color: var(--ingot-text-muted); }
+.ingot-audit-num { text-align: right; }
+.ingot-audit-table th.ingot-audit-num { text-align: right; }
+.ingot-audit-tag { margin-left: 6px; padding: 0 5px; border-radius: 3px; font-size: 10.5px; color: var(--ingot-info); border: 1px solid color-mix(in srgb, var(--ingot-info) 45%, transparent); }
+
+.ingot-audit-badge { display: inline-block; padding: 0 7px; border-radius: 9px; font-size: 11px; line-height: 17px; font-weight: 500; color: var(--ingot-text-muted); background: color-mix(in srgb, var(--ingot-text-muted) 12%, transparent); }
+.ingot-audit-badge.decision-approved, .ingot-audit-badge.decision-always { color: var(--ingot-primary); background: color-mix(in srgb, var(--ingot-primary) 13%, transparent); }
+.ingot-audit-badge.decision-allowed, .ingot-audit-badge.outcome-ok { color: var(--ingot-success); background: color-mix(in srgb, var(--ingot-success) 13%, transparent); }
+.ingot-audit-badge.decision-denied, .ingot-audit-badge.decision-stopped, .ingot-audit-badge.outcome-error { color: var(--ingot-danger); background: color-mix(in srgb, var(--ingot-danger) 13%, transparent); }
+.ingot-audit-badge.outcome-blocked { color: var(--ingot-warning); background: color-mix(in srgb, var(--ingot-warning) 15%, transparent); }
+
+.ingot-audit-details td { white-space: normal; background: var(--ingot-panel); padding: var(--ingot-space-2) var(--ingot-space-3); }
+.ingot-audit-details dl { display: grid; grid-template-columns: 90px 1fr; gap: 4px var(--ingot-space-3); margin: 0; }
+.ingot-audit-details dt { color: var(--ingot-text-muted); font-weight: 500; }
+.ingot-audit-details dd { margin: 0; min-width: 0; }
+.ingot-audit-details pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--theia-code-font-family); font-size: 11.5px; max-height: 180px; overflow: auto; }
+.ingot-audit-reason { color: var(--ingot-danger); }
+.ingot-audit-hash { font-family: var(--theia-code-font-family); font-size: 11px; color: var(--ingot-text-muted); }
+
+.ingot-audit-empty { padding: var(--ingot-space-4) var(--ingot-space-2); color: var(--ingot-text-muted); }
+.ingot-audit-footer { color: var(--ingot-text-muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
