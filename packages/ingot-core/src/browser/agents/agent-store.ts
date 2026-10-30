@@ -21,19 +21,21 @@ import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-servi
 import { postConstruct } from '@theia/core/shared/inversify';
 import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
-import { ACTIVE_STATUSES, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE, STREAM_POKE_MS } from '../../common/agents/agents.consts';
+import { ACTIVE_STATUSES, AGENT_MAX_TOKENS, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE, STREAM_POKE_MS } from '../../common/agents/agents.consts';
 import type { AgentMessage, AgentMode, AgentSession } from '../../common/agents/agents.types';
 import type { ToolCallInfo } from '../../common/agents/tool-cards';
 import { hookCardInfo } from '../../common/git/hooks';
 import { AgentHooksService } from '../hooks/agent-hooks-service';
 import { activeAgentCount, resolveLoopGeneration, titleFromPrompt } from '../../common/agents/agents.utils';
-import { CREATE_LIBRARY_TOOL, LIBRARY_COMMAND_TIMEOUT_SECONDS, LIBRARY_EXAMPLE_DEPTH, OPEN_WORKSPACE_DELAY_MS, OPEN_WORKSPACE_TOOL, TEMPLATE_NOTE } from '../../common/agents/library-app.consts';
+import {
+    CREATE_LIBRARY_TOOL, LIBRARY_COMMAND_TIMEOUT_SECONDS, LIBRARY_EXAMPLE_DEPTH, LIBRARY_TEMPLATE_PREF, OPEN_WORKSPACE_DELAY_MS, OPEN_WORKSPACE_TOOL, TEMPLATE_NOTE
+} from '../../common/agents/library-app.consts';
 import {
     isNodeStructure, isReactStructure, libraryCommandNeedsTime, libraryFiles, libraryNudge, libraryPathError, nodeStructureFromTree, parseLibraryPrompt, reactStructureFromTree, wantsProjectSkills
 } from '../../common/agents/library-app';
 import type { NodeStructure, ReactStructure } from '../../common/agents/library-app.types';
 import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
-import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
+import { AGENT_PROTOCOL, TOOL_CALL_FORMAT, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import { parseFolderMentions } from '../../common/agents/agent-panel';
 import { FOLDER_LISTING_LIMIT } from '../../common/agents/agent-panel.consts';
@@ -45,10 +47,10 @@ import {
 } from '../../common/agents/workspace-tools';
 import { MAX_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
 import {
-    CHECKS_PASSED_PREFIX, MAX_FIX_ATTEMPTS, MAX_TOOL_ROUNDS_CAP, MULTI_FILE_EDITS, REMOTE_BLOCKED, REVIEW_THEN_CHECKS, TOOL_ROUNDS_STOP, WORK_LOOP_PREFS
+    CHECKS_PASSED_PREFIX, CONTINUE_NUDGE, EMPTY_REPLY_NUDGE, MAX_FIX_ATTEMPTS, MAX_TOOL_ROUNDS_CAP, MULTI_FILE_EDITS, REMOTE_BLOCKED, REVIEW_THEN_CHECKS, TOOL_ROUNDS_STOP, WORK_LOOP_PREFS
 } from '../../common/agents/work-loop.consts';
 import {
-    WORK_LOOP_PROTOCOL, checkFailNudge, checkPassed, checksPassedNudge, commitBlockReason, detectChecks, detectE2eFramework, e2eNudge, isRemoteCodeFetch,
+    WORK_LOOP_PROTOCOL, checkFailNudge, checkPassed, checksPassedNudge, commitBlockReason, cutEditNudge, detectChecks, promisesMoreWork, shellGitBlockReason, detectE2eFramework, e2eNudge, isRemoteCodeFetch,
     isTestPath, isUiPath, needsE2eNudge, planFromEdits, stopMessage, summaryText, userAllowsWeakerTests, userAskedForRemote, wantsCommit,
     wantsE2e, wantsWorkLoop, weakensTests, withCheckEnv
 } from '../../common/agents/work-loop';
@@ -71,7 +73,8 @@ import { MADE_WITH_PREF, withMadeWith } from '../../common/git/made-with';
 import { clampPieces, HARMONY_DEFAULTS, HARMONY_PREFS, harmonyLock, harmonyPrompt, isHeavyRun, pickHarmonyPiece, type HarmonyPiece } from '../../common/agents/harmony';
 import {
     APPROVAL_PREFS, BUILTIN_TOOLS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
-    updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
+    updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind,
+    type BuiltinToolSwitches
 } from '../../common/agents/agent-actions';
 import { ProcessStore } from '../processes/process-store';
 import type { ImageChip } from '../../common/agents/composer-parts.types';
@@ -896,7 +899,7 @@ export class AgentStore {
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
         const workspace = await this.workspaceInfo(root);
         this.github = workspace.github;
-        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
+        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', info.canUseTools ? TOOL_CALL_FORMAT : '', info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol(this.toolSwitches()) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
         const rulesText = formatRules(rules);
         const memoriesText = formatMemories(memories);
         const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
@@ -921,6 +924,7 @@ export class AgentStore {
         this.changed();
 
         let nudged = false;
+        let retriedEmpty = false;
         const rounds = this.maxToolRounds();
         try {
             for (let round = 0; ; round++) {
@@ -942,7 +946,7 @@ export class AgentStore {
                 const agentText = session.messages[agentIndex]?.text ?? '';
                 const asked = lastUser?.m.text ?? prompt;
                 const echoed = isPromptEcho(agentText, prompt) || isPromptEcho(agentText, asked);
-                const scaffold = parseLibraryPrompt(asked) ?? parseLibraryPrompt(prompt);
+                const scaffold = this.libraryTemplateOn() ? parseLibraryPrompt(asked) ?? parseLibraryPrompt(prompt) : undefined;
                 // Last resort: the hosted model repeated the prompt and called nothing. Say it is a template.
                 if (echoed && scaffold?.path && scaffold.react && scaffold.node && !scaffold.ambiguous && !this.libraries.has(session.id)
                     && !parsed.toolCalls.length && !parsed.edits.length && round < rounds) {
@@ -981,6 +985,12 @@ export class AgentStore {
                     this.changed();
                     return;
                 }
+                if (!retriedEmpty && round < rounds && !parsed.display.trim() && !parsed.edits.length && !parsed.toolCalls.length && !parsed.editing) {
+                    retriedEmpty = true;
+                    this.hidePrinted(session, agentIndex);
+                    session.messages.push({ role: 'user', text: EMPTY_REPLY_NUDGE, hidden: true });
+                    continue;
+                }
                 const recovered = !parsed.toolCalls.length && round < rounds ? shellReadsAsTools(agentText) : [];
                 if (recovered.length) {
                     this.hidePrinted(session, agentIndex);
@@ -1003,11 +1013,31 @@ export class AgentStore {
                 if (applied) {
                     await this.applyParsedEdits(session, parsed.edits, parsed.plan, root);
                 }
+                const cut = info.canEdit && parsed.editing && round < rounds ? parsed.editing : undefined;
+                if (cut) {
+                    await this.tracker.cancelStream(session.id, cut);
+                }
                 if (parsed.toolCalls.length && round < rounds) {
                     if (!await this.finishTools(session, generation, parsed.toolCalls)) {
                         return;
                     }
+                    if (cut) {
+                        session.messages.push({ role: 'user', text: cutEditNudge(cut), hidden: true });
+                    }
                     continue;
+                }
+                if (cut) {
+                    session.messages.push({ role: 'user', text: cutEditNudge(cut), hidden: true });
+                    continue;
+                }
+                const loopNow = this.loopOf(session);
+                if (!parsed.toolCalls.length && round < rounds && session.mode === 'agent' && promisesMoreWork([agentText, ...parsed.plan].join('\n'), loopNow.continues ?? 0)) {
+                    loopNow.continues = (loopNow.continues ?? 0) + 1;
+                    if (!(applied && this.tracker.pending().some(change => change.sessionId === session.id))) {
+                        session.messages.push({ role: 'user', text: CONTINUE_NUDGE, hidden: true });
+                        continue;
+                    }
+                    loopNow.promised = true;
                 }
                 if (parsed.toolCalls.length) {
                     session.messages.push({ role: 'system', text: TOOL_ROUNDS_STOP });
@@ -1133,7 +1163,7 @@ export class AgentStore {
         let final = '';
         try {
             const tools = modeInfo(session.mode).canUseTools
-                ? BUILTIN_TOOLS.filter(tool => builtinToolEnabled(tool.name, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }))
+                ? BUILTIN_TOOLS.filter(tool => builtinToolEnabled(tool.name, this.toolSwitches()))
                     .map(tool => ({ name: tool.name, description: tool.description }))
                 : [];
             const stream = this.models.stream(this.resolveModel(session.model), [{ role: 'system', content: system }, ...history], text => {
@@ -1151,7 +1181,7 @@ export class AgentStore {
                 session.activeFile = parsed.editing ?? parsed.edits[parsed.edits.length - 1]?.path;
                 session.updatedAt = Date.now();
                 this.poke();
-            }, tools.length ? { tools } : {});
+            }, { maxTokens: AGENT_MAX_TOKENS, ...(tools.length ? { tools } : {}) });
             this.running.set(session.id, stream.cancel);
             final = await stream.done;
         } catch (error) {
@@ -1236,6 +1266,19 @@ export class AgentStore {
                 this.changed();
                 continue;
             }
+            if (call.server === BUILTIN_TOOL_SERVER && call.tool === 'run' && typeof call.args.command === 'string') {
+                const userText = session.messages.filter(message => message.role === 'user' && !message.hidden).map(message => message.text).join('\n');
+                const answers = session.messages.filter(message => message.role === 'tool' && message.tool?.tool === ASK_USER_TOOL).map(message => message.text);
+                const refused = shellGitBlockReason(call.args.command, userText, answers);
+                if (refused) {
+                    session.messages.push({
+                        role: 'tool', from: target, text: `Error: ${refused}`,
+                        tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                    });
+                    this.changed();
+                    continue;
+                }
+            }
             const isGit = call.server === BUILTIN_TOOL_SERVER && call.tool === 'git';
             const branch = isGit && rootPath && call.args.op === 'push' && !call.args.branch
                 ? (await this.git.run(rootPath, { kind: 'currentBranch' }).catch(() => ({ output: '' }))).output.trim() || undefined : undefined;
@@ -1248,7 +1291,7 @@ export class AgentStore {
                 : isBrowser ? browserNeedsCard(call.tool, browserToolSettings(key => this.preferences.get(key))) : true;
             // IDEA-133: a tool turned off in Settings › Agent tools is refused at once, without a card.
             const turnedOff = call.server === BUILTIN_TOOL_SERVER
-                && !builtinToolEnabled(call.tool, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled });
+                && !builtinToolEnabled(call.tool, this.toolSwitches());
             if (action && !turnedOff && requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)) {
                 const choice = await this.askApproval(session, action);
                 if (choice.stopped) {
@@ -1590,7 +1633,7 @@ export class AgentStore {
                     if (!cwd) {
                         return { text: `Refusing to run "${command}" outside the open project.`, isError: true };
                     }
-                    const timeout = this.isCreatedApp(cwd) && libraryCommandNeedsTime(command) ? LIBRARY_COMMAND_TIMEOUT_SECONDS : undefined;
+                    const timeout = libraryCommandNeedsTime(command) ? Math.max(LIBRARY_COMMAND_TIMEOUT_SECONDS, this.runSettings.foregroundTimeoutSeconds) : undefined;
                     return await this.runCommand(cwd, command, call.args.background === true, undefined, timeout);
                 }
                 case 'scripts': {
@@ -1721,7 +1764,7 @@ export class AgentStore {
 
     /** One nudge when a library prompt never becomes create_library, and another when its tests fail. */
     protected nudgeLibrary(session: AgentSession, prompt: string): boolean {
-        if (this.libraryNudged.has(session.id) || this.libraries.has(session.id)) {
+        if (this.libraryNudged.has(session.id) || this.libraries.has(session.id) || !this.libraryTemplateOn()) {
             return false;
         }
         const parsed = parseLibraryPrompt(prompt);
@@ -1871,6 +1914,18 @@ export class AgentStore {
             text: `Created ${files.length} files at ${target} (React ${react}, Node ${node}). Next: ingot/run {"command":"npm install && npm test && npm run build","cwd":${JSON.stringify(target)}}. If tests fail, fix the files and rerun, up to ${MAX_FIX_ATTEMPTS} times. Then ask about git init on branch feature/library, and last call ingot/open_workspace.`,
             isError: false
         };
+    }
+
+    protected toolSwitches(): BuiltinToolSwitches {
+        return {
+            terminal: this.runSettings.enabled,
+            browser: browserToolSettings(key => this.preferences.get(key)).enabled,
+            template: this.libraryTemplateOn()
+        };
+    }
+
+    protected libraryTemplateOn(): boolean {
+        return this.preferences.get<boolean>(LIBRARY_TEMPLATE_PREF, true) !== false;
     }
 
     protected workLoopOn(): boolean {
@@ -2061,7 +2116,17 @@ export class AgentStore {
 
     /** Review finished and the files are on disk: continue the loop if this turn asked for one. */
     protected async resumeLoop(session: AgentSession): Promise<void> {
-        if (this.modelLoops.has(session.id) || !this.loopOf(session).wants) {
+        const loop = this.loopOf(session);
+        if (this.modelLoops.has(session.id)) {
+            return;
+        }
+        if (loop.promised) {
+            loop.promised = false;
+            session.messages.push({ role: 'user', text: CONTINUE_NUDGE, hidden: true });
+            await this.runModel(session);
+            return;
+        }
+        if (!loop.wants) {
             return;
         }
         if (await this.nudgeLoop(session, this.rootFor(session))) {
@@ -2166,7 +2231,7 @@ export class AgentStore {
             if (changes.length) {
                 session.messages.push({ role: 'system', text: `Review finished: ${kept.length} of ${total} change(s) kept.` });
             }
-            if (kept.length && this.loopOf(session).wants && !this.modelLoops.has(session.id)) {
+            if (kept.length && (this.loopOf(session).wants || this.loopOf(session).promised) && !this.modelLoops.has(session.id)) {
                 void this.resumeLoop(session);
             }
             if (session.status === 'review') {

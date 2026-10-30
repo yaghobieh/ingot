@@ -4,6 +4,8 @@ import type { NodeStructure, ReactStructure } from './library-app.types';
 export const TEMPLATE_NOTE = 'Template, not the agent. The model repeated the prompt and did not call any tools, so these files were written from the built-in library template.';
 
 export const CREATE_LIBRARY_TOOL = 'create_library';
+/** IDEA-282: off, the agent writes a new React and Node project itself instead of using the built-in template. */
+export const LIBRARY_TEMPLATE_PREF = 'ingot.agent.libraryTemplate';
 export const OPEN_WORKSPACE_TOOL = 'open_workspace';
 
 export const REACT_STRUCTURES: readonly ReactStructure[] = ['feature-folders', 'atomic'];

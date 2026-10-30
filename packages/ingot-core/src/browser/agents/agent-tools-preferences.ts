@@ -3,6 +3,7 @@ import { RUN_DEFAULTS, RUN_PREFS } from '../../common/processes/run-settings';
 import { BROWSER_DEFAULTS, BROWSER_PREFS } from '../../common/browser-tool/browser-settings';
 import { DEFAULT_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS_CAP, WORK_LOOP_PREFS } from '../../common/agents/work-loop.consts';
 import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
+import { LIBRARY_TEMPLATE_PREF } from '../../common/agents/library-app.consts';
 
 /** IDEA-133: Settings › Tools › Agent tools (terminal, processes, browser). Also editable in settings.json. */
 export const agentToolsPreferenceSchema: PreferenceSchema = {
@@ -46,6 +47,10 @@ export const agentToolsPreferenceSchema: PreferenceSchema = {
         [WORK_LOOP_PREFS.maxToolRounds]: {
             type: 'number', minimum: 1, maximum: MAX_TOOL_ROUNDS_CAP, default: MAX_TOOL_ROUNDS,
             description: 'Most tool rounds in one turn. A real task needs enough rounds to read, edit, run checks and fix.'
+        },
+        [LIBRARY_TEMPLATE_PREF]: {
+            type: 'boolean', default: true,
+            description: 'A request for a new React and Node library app uses the built-in template (create_library). Off: the agent writes, installs, builds and tests the project itself.'
         },
         [WORK_LOOP_PREFS.maxToolResultChars]: {
             type: 'number', minimum: 1000, maximum: 200000, default: DEFAULT_TOOL_RESULT_CHARS,

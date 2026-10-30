@@ -6,7 +6,8 @@
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
-    "test:electron": "playwright test -c playwright.electron.config.ts"
+    "test:electron": "playwright test -c playwright.electron.config.ts",
+    "test:agent-quality": "playwright test -c playwright.agent-quality.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
