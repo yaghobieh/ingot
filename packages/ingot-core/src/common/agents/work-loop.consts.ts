@@ -42,7 +42,7 @@ export const ALLOW_WEAKER_TESTS = /\b(remove|delete|skip|weaken)\b[^.]{0,40}\bte
 export const LAYOUT_WORDS = /\bfeature[- ]folders?\b|(?:^|\s)(?:\/|~\/|\.\/)\S*/gi;
 export const CUT_EDIT_PREFIX = 'Your last reply was cut off.';
 /** A reply that stops while saying what it does next ("Next: the routes", "then I'll run npm test"). */
-export const MORE_WORK = /(?:^|\n)\s*(?:#+\s*)?next\b|\bnext,? I(?:'|’)ll\b|\bthen I(?:'|’)ll\b|\bI(?:'|’)ll (?:now |next |then )?(?:run|add|write|create|wire|install|build|test|set up|scaffold)\b|\bcomes? next\b|\bnext (?:reply|message|turn)\b|\bstill (?:need|to do)\b|\bremaining (?:files|steps|work)\b/i;
+export const MORE_WORK = /(?:^|\n)\s*(?:#+\s*)?next\b|\bnext,? I(?:'|’)(?:ll|m)\b|\bthen I(?:'|’)ll\b|\bI(?:'|’)ll (?:now |next |then )?(?:run|add|write|create|wire|install|build|test|set up|scaffold)\b|\bcomes? next\b|\bnext (?:reply|message|turn)\b|\bstill (?:need|to do)\b|\bremaining (?:files|steps|work)\b/i;
 export const EMPTY_REPLY_NUDGE = 'Your last reply was empty. Answer the request now: start the work with edit blocks or tool blocks.';
 export const CONTINUE_NUDGE = 'Continue now with the next step: write the files with edit blocks and run the commands with tool blocks yourself. Do not stop until the task is complete and verified.';
 /** `git commit` / `git push` typed into ingot/run, which would skip the ingot/git branch, checks and hook rules. */

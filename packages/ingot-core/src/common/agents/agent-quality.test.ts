@@ -28,6 +28,7 @@ describe('IDEA-282 agent quality loop', () => {
         expect(promisesMoreWork('Next: `loanService.ts`, then the controllers.', 0)).toBe(true);
         expect(promisesMoreWork('Routes and the tests come next, then install, build and test.', 0)).toBe(true);
         expect(promisesMoreWork("I'll run npm install in server now.", 0)).toBe(true);
+        expect(promisesMoreWork('The server passed all 9 API tests. Next I’m scaffolding the Vite client.', 0)).toBe(true);
         expect(promisesMoreWork('Tests: next reply adds supertest CRUD tests for all three resources', 0)).toBe(true);
         expect(promisesMoreWork('### Done\nBoth apps build and all tests pass.', 0)).toBe(false);
         expect(promisesMoreWork('Run `npm install`, then run `npm run dev` in each app.', 0)).toBe(false);
