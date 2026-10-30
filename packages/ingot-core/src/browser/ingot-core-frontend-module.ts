@@ -27,6 +27,7 @@ import { IngotPortsContribution } from './ports/ingot-ports-contribution';
 import { PORTS_WIDGET_ID } from './ports/ingot-ports.consts';
 import { AgentStore } from './agents/agent-store';
 import { MemoryStore } from './agents/memory-store';
+import { AutoContextService } from './agents/auto-context-service';
 import { ChangeTracker } from './changes/change-tracker';
 import { ChangeKeybindingsContribution } from './changes/change-keybindings';
 import { IngotAgentsWidget } from './agents/agents-widget';
@@ -326,6 +327,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
 
     bind(AgentStore).toSelf().inSingletonScope();
     bind(MemoryStore).toSelf().inSingletonScope();
+    bind(AutoContextService).toSelf().inSingletonScope();
     bind(ChangeTracker).toSelf().inSingletonScope();
     bind(ChangeKeybindingsContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(ChangeKeybindingsContribution);
