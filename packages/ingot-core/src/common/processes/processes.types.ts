@@ -1,4 +1,5 @@
 import type { RpcServer } from '@theia/core/lib/common/messaging';
+import type { HookRunOutput } from '../hooks/agent-hooks.types';
 
 /** IDEA-131/132: processes started by the agent (or the user from the chat's process list). */
 export type ProcessStatus = 'running' | 'exited' | 'failed' | 'stopped';
@@ -66,6 +67,18 @@ export interface WorkspaceSearchQuery {
     readonly regex?: boolean;
     /** List matching files instead of matching lines. */
     readonly files: boolean;
+    /** IDEA-287: several file globs (files mode). */
+    readonly globs?: readonly string[];
+    /** IDEA-294: honour `.ingotignore` / `.cursorignore` in the root (agent searches). */
+    readonly agentIgnore?: boolean;
+}
+
+/** IDEA-294: one agent hook command: JSON on stdin, JSON (or exit code 2) back. */
+export interface HookRunOptions {
+    readonly cwd: string;
+    readonly command: string;
+    readonly input: string;
+    readonly timeoutMs: number;
 }
 
 export interface WorkspaceSearchResult {
@@ -92,4 +105,6 @@ export interface ProcessService extends RpcServer<ProcessClient> {
     /** Removes finished processes from the list. */
     clearFinished(): Promise<void>;
     scripts(cwd: string): Promise<PackageScripts | undefined>;
+    /** IDEA-294: runs an agent hook command (not listed as a process). */
+    runHook(options: HookRunOptions): Promise<HookRunOutput>;
 }

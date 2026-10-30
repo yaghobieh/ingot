@@ -6,9 +6,12 @@ import { createRequire } from 'module';
 import { rgArgs } from '../common/agents/workspace-tools';
 import { RG_TIMEOUT_MS } from '../common/agents/work-loop.consts';
 import type {
-    ForegroundOptions, ForegroundResult, PackageScripts, ProcessClient, ProcessInfo, ProcessOutput, ProcessService, ProcessStartOptions,
+    ForegroundOptions, ForegroundResult, HookRunOptions, PackageScripts, ProcessClient, ProcessInfo, ProcessOutput, ProcessService, ProcessStartOptions,
     WorkspaceSearchQuery, WorkspaceSearchResult
 } from '../common/processes/processes.types';
+import type { HookRunOutput } from '../common/hooks/agent-hooks.types';
+import { AGENT_HOOK_MAX_OUTPUT_CHARS, HOOK_CURSOR_PROJECT_ENV, HOOK_PROJECT_ENV } from '../common/hooks/agent-hooks.consts';
+import { AGENT_IGNORE_FILES } from '../common/project-config/project-config.consts';
 import {
     BACKGROUND_SETTLE_MS, FOREGROUND_TIMEOUT_MS, MAX_FINISHED_PROCESSES, PROCESS_AGENT_OUTPUT_CHARS, PROCESS_BUFFER_CHARS, PROCESS_LIST_DEBOUNCE_MS, STOP_GRACE_MS
 } from '../common/processes/processes.consts';
@@ -148,7 +151,8 @@ export class IngotProcessService implements ProcessService {
         if (!bin || !query.cwd) {
             return { engine: 'none', text: '' };
         }
-        const args = rgArgs({ pattern: query.pattern, path: query.path, glob: query.glob, regex: query.regex, files: query.files });
+        const ignoreFiles = query.agentIgnore ? AGENT_IGNORE_FILES.filter(f => fs.existsSync(path.join(query.cwd, f))) : [];
+        const args = rgArgs({ pattern: query.pattern, path: query.path, glob: query.glob, globs: query.globs, regex: query.regex, files: query.files, ignoreFiles });
         return new Promise(resolve => {
             let text = '';
             let settled = false;
@@ -188,6 +192,43 @@ export class IngotProcessService implements ProcessService {
         } catch {
             return undefined;
         }
+    }
+
+    /** IDEA-294: one agent hook command. The payload goes to stdin; stdout / stderr come back capped; killed at the timeout. */
+    async runHook(options: HookRunOptions): Promise<HookRunOutput> {
+        const win = process.platform === 'win32';
+        const shell = win ? { cmd: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/s', '/c', options.command] } : { cmd: process.env.SHELL || '/bin/sh', args: ['-c', options.command] };
+        return new Promise(resolve => {
+            let stdout = '';
+            let stderr = '';
+            let timedOut = false;
+            let settled = false;
+            const finish = (exitCode: number | undefined): void => {
+                if (!settled) {
+                    settled = true;
+                    clearTimeout(timer);
+                    resolve({ stdout, stderr, timedOut, ...(exitCode !== undefined ? { exitCode } : {}) });
+                }
+            };
+            const child = spawn(shell.cmd, shell.args, {
+                cwd: options.cwd, stdio: ['pipe', 'pipe', 'pipe'], detached: !win, windowsHide: true,
+                env: { ...process.env, [HOOK_PROJECT_ENV]: options.cwd, [HOOK_CURSOR_PROJECT_ENV]: options.cwd }
+            });
+            const timer = setTimeout(() => {
+                timedOut = true;
+                this.signal(child, 'SIGKILL');
+                finish(undefined);
+            }, options.timeoutMs);
+            child.stdout?.on('data', (chunk: Buffer) => { stdout = (stdout + chunk.toString('utf8')).slice(-AGENT_HOOK_MAX_OUTPUT_CHARS); });
+            child.stderr?.on('data', (chunk: Buffer) => { stderr = (stderr + chunk.toString('utf8')).slice(-AGENT_HOOK_MAX_OUTPUT_CHARS); });
+            child.on('error', error => {
+                stderr += error.message;
+                finish(1);
+            });
+            child.on('close', code => finish(code ?? undefined));
+            child.stdin?.on('error', () => undefined);
+            child.stdin?.end(options.input);
+        });
     }
 
     protected spawn(options: ProcessStartOptions): Entry {

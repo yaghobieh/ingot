@@ -48,6 +48,16 @@ describe.skipIf(isWin)('IDEA-131 process service', () => {
         expect(await service.list()).toEqual([]);
     });
 
+    it('IDEA-294: runs a hook command with JSON on stdin and kills it at the timeout', async () => {
+        const echo = await service.runHook({ cwd: os.tmpdir(), command: 'cat; echo; echo "dir=$INGOT_PROJECT_DIR" >&2; exit 2', input: '{"command":"rm -rf /"}', timeoutMs: 5_000 });
+        expect(echo.stdout.trim()).toBe('{"command":"rm -rf /"}');
+        expect(echo.stderr).toContain(`dir=${os.tmpdir()}`);
+        expect(echo).toMatchObject({ exitCode: 2, timedOut: false });
+        const slow = await service.runHook({ cwd: os.tmpdir(), command: 'sleep 20', input: '{}', timeoutMs: 200 });
+        expect(slow.timedOut).toBe(true);
+        expect(await service.list()).toEqual([]);
+    });
+
     it('reads package.json scripts and the package manager', async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-scripts-'));
         fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { dev: 'vite', test: 'vitest' } }));
