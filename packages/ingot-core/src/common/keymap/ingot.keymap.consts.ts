@@ -1,5 +1,6 @@
 import type { KeymapEntry } from './keymap.types';
 import { CHANGES_PENDING_KEY } from '../changes/changes.consts';
+import { INDEX_COMMANDS } from '../codebase-index/codebase-index.consts';
 
 /** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
@@ -108,7 +109,9 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Add Selection to Agent Chat', command: 'ingot.agents.addSelectionToChat', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: EDITOR },
     { action: 'Cycle Chat Mode', command: 'ingot.agents.cycleMode', mac: 'ctrlcmd+.', other: 'ctrl+.', when: AGENTS_FOCUS },
     { action: 'New Chat', command: 'ingot.agents.new', mac: 'ctrlcmd+alt+n', other: 'ctrl+alt+n', when: AGENTS_FOCUS },
-    { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS }
+    { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS },
+    // Codebase index (IDEA-260)
+    { action: INDEX_COMMANDS.rebuild.label, command: INDEX_COMMANDS.rebuild.id, mac: 'ctrlcmd+alt+shift+i', other: 'ctrl+alt+shift+i' }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';
