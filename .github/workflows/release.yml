@@ -1,6 +1,7 @@
-# Desktop release pipeline (IDEA-134). Push a tag like v0.1.0-beta.1 to build every installer and attach them to a
-# DRAFT GitHub Release (marked pre-release when the tag has a "-"). Nothing is public until the draft is published.
-# Signing is optional: each step switches on only when its secrets exist (see docs/release.md for the names).
+# Desktop release pipeline (IDEA-134, IDEA-269). Push a tag like v0.1.0-beta.1 to build every installer and publish a
+# GitHub Release with them and the latest*.yml update feeds (pre-release when the tag has a "-"); installed apps pick it
+# up through auto-update. Set the repository variable INGOT_RELEASE_DRAFT=true to get a draft to review instead.
+# Signing is optional: each step switches on only when its secrets exist (see docs/RELEASING.md for the names).
 name: Release
 
 on:
@@ -53,8 +54,9 @@ jobs:
         shell: bash
         env:
           # All optional; each OS signs only when its own secrets exist, otherwise the installers are unsigned.
-          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          # CSC_LINK / CSC_KEY_PASSWORD (MAC_* are the older names, still honoured).
+          MAC_CSC_LINK: ${{ secrets.CSC_LINK || secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD || secrets.MAC_CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -106,7 +108,7 @@ jobs:
             applications/electron/dist/latest*.yml
 
   release:
-    name: Draft GitHub Release
+    name: Publish GitHub Release
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
@@ -123,9 +125,11 @@ jobs:
           rm -f artifacts/*/latest-mac.yml
           mkdir -p upload && find artifacts -type f -exec cp {} upload/ \; && mv latest-mac.yml upload/
           ls -la upload
+      - name: Every update feed is there
+        run: for feed in latest.yml latest-mac.yml latest-linux.yml; do test -s "upload/$feed" || { echo "::error::missing $feed"; exit 1; }; done
       - uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          draft: ${{ vars.INGOT_RELEASE_DRAFT == 'true' }}
           prerelease: ${{ contains(github.ref_name, '-') }}
           name: Ingot ${{ github.ref_name }}
           generate_release_notes: true
