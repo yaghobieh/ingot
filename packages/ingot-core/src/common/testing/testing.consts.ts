@@ -3,6 +3,16 @@ import type { TestRunner } from './testing.types';
 /** IDEA-261: test runner detection, discovery limits and the agent test loop. */
 export const TEST_SERVICE_PATH = '/services/ingot-tests';
 
+export const TEST_EXPLORER_WIDGET_ID = 'ingot-test-explorer';
+
+/** Command ids shared by the Test Explorer and the keymap. */
+export const TEST_COMMAND_IDS = {
+    toggle: 'ingot.tests.toggle',
+    refresh: 'ingot.tests.refresh',
+    runAll: 'ingot.tests.runAll',
+    rerunFailed: 'ingot.tests.rerunFailed'
+} as const;
+
 /** Detection order when several runners are present and the test script names none. */
 export const TEST_RUNNERS: readonly TestRunner[] = ['vitest', 'jest', 'mocha', 'playwright'];
 

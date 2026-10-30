@@ -1,5 +1,6 @@
 import type { KeymapEntry } from './keymap.types';
 import { CHANGES_PENDING_KEY } from '../changes/changes.consts';
+import { TEST_COMMAND_IDS } from '../testing/testing.consts';
 
 /** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
@@ -89,6 +90,9 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Run', command: INGOT_RUN_COMMANDS.run.id, mac: 'ctrl+r', other: 'shift+f10' },
     { action: 'Debug', command: INGOT_RUN_COMMANDS.debug.id, mac: 'ctrl+d', other: 'shift+f9' },
     { action: 'Stop', command: INGOT_RUN_COMMANDS.stop.id, mac: 'ctrlcmd+f2', other: 'ctrl+f2' },
+    // Tests (IDEA-261)
+    { action: 'Run All Tests', command: TEST_COMMAND_IDS.runAll, mac: 'ctrl+shift+r', other: 'ctrl+shift+f10' },
+    { action: 'Rerun Failed Tests', command: TEST_COMMAND_IDS.rerunFailed, mac: 'ctrl+alt+shift+r', other: 'ctrl+alt+shift+f10' },
     // Debugger (IDEA-138)
     { action: 'Run/Debug Configurations', command: 'ingot.debug.selectConfiguration', mac: 'ctrl+alt+r', other: 'alt+shift+f10' },
     { action: 'Toggle Line Breakpoint', command: 'editor.debug.action.toggleBreakpoint', mac: 'ctrlcmd+f8', other: 'ctrl+f8', when: EDITOR },

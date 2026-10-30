@@ -1,4 +1,5 @@
 import type { PanelBar, PanelEntry } from './panels.types';
+import { TEST_COMMAND_IDS, TEST_EXPLORER_WIDGET_ID } from '../testing/testing.consts';
 
 /** Every tool window, grouped by its default bar (IDEA-119). */
 export const PANELS: readonly PanelEntry[] = [
@@ -13,6 +14,7 @@ export const PANELS: readonly PanelEntry[] = [
     { id: 'problems', label: 'Problems', widgetId: 'problems', open: 'problemsView:toggle', bar: 'bottom' },
     { id: 'output', label: 'Output', widgetId: 'outputView', open: 'output:toggle', bar: 'bottom' },
     { id: 'ports', label: 'Ports', widgetId: 'ingot-ports', open: 'ingot.ports.toggle', bar: 'bottom' },
+    { id: 'tests', label: 'Tests', widgetId: TEST_EXPLORER_WIDGET_ID, open: TEST_COMMAND_IDS.toggle, bar: 'bottom' },
     { id: 'agents', label: 'Agents (Chat)', widgetId: 'ingot-agents', open: 'ingot.agents.toggle', bar: 'right' },
     { id: 'database', label: 'Database', widgetId: 'ingot-database', open: 'ingot.database.toggle', bar: 'right' },
     { id: 'mcp', label: 'MCP Servers', widgetId: 'ingot-mcp', open: 'ingot.mcp.toggle', bar: 'right' },
