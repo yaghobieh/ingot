@@ -17,6 +17,8 @@ import { AGENT_COMMANDS, AGENTS_WIDGET_ID } from '../agents/agents.consts';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import { ZAPREX_LINK_LABEL } from '../agents/zaprex-link.consts';
 import { ZaprexLauncher } from '../agents/zaprex-launcher';
+import { IngotPlanService } from '../plan/plan-service';
+import { PLAN_COMMANDS, PLAN_TEXT } from '../plan/plan.browser-consts';
 import { TITLEBAR_COMMANDS, TITLEBAR_REFRESH_DELAYS_MS, TITLEBAR_TEXT, TOGGLE_BOTTOM_PANEL_COMMAND } from '../workbench/titlebar.consts';
 import { pickRunScript } from '../../common/vcs/vcs.utils';
 import { IngotDebugLauncher } from '../debug/ingot-debug-launcher';
@@ -87,6 +89,7 @@ export class IngotMainToolbar extends ReactWidget {
     @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
     @inject(ApplicationShell) protected readonly shell: ApplicationShell;
     @inject(IngotDebugLauncher) protected readonly debugLauncher: IngotDebugLauncher;
+    @inject(IngotPlanService) protected readonly plan: IngotPlanService;
 
     protected runScript?: string;
     protected projectPopupOpen = false;
@@ -115,6 +118,7 @@ export class IngotMainToolbar extends ReactWidget {
         this.toDispose.push(this.branches.onDidChange(() => this.update()));
         this.toDispose.push(this.agents.onDidChange(() => this.update()));
         this.toDispose.push(this.debugLauncher.onDidChange(() => this.update()));
+        this.toDispose.push(this.plan.onDidChange(() => this.update()));
         // Stop is enabled only while a run session is alive.
         this.toDispose.push(this.commands.onDidExecuteCommand(() => this.update()));
         this.loadRunScript();
@@ -277,12 +281,21 @@ export class IngotMainToolbar extends ReactWidget {
             onAccept={() => this.agents.acceptHarmony(sessionId)} onDismiss={() => this.agents.dismissHarmony(sessionId)} />;
     }
 
-    /** Bottom panel and chat icons, the Zaprex T-rex, then the Agents Window pill (IDEA-118, IDEA-179). */
+    /** Bottom panel and chat icons, the Zaprex T-rex, then the Agents Window pill (IDEA-118, IDEA-179). On free: one "Upgrade to Pro" pill (IDEA-271). */
     protected renderWindowActions(): React.ReactNode {
+        const panel = <IconButton id='ingot-tb-panel' codicon='layout-panel' title={TITLEBAR_TEXT.bottomPanel} pressed={this.bottomPanelOpen} onClick={() => this.toggle(TOGGLE_BOTTOM_PANEL_COMMAND)} />;
+        if (!this.plan.can('chat')) {
+            return <div className='ingot-tb-window-actions'>
+                {panel}
+                <button id='ingot-tb-upgrade' type='button' className='ingot-tb-pill' title={PLAN_TEXT.statusTooltip} onClick={() => this.run(PLAN_COMMANDS.upgrade.id)}>
+                    <span className='codicon codicon-sparkle' aria-hidden='true' /><span>{PLAN_TEXT.upgrade}</span>
+                </button>
+            </div>;
+        }
         return <div className='ingot-tb-window-actions'>
-            <IconButton id='ingot-tb-panel' codicon='layout-panel' title={TITLEBAR_TEXT.bottomPanel} pressed={this.bottomPanelOpen} onClick={() => this.toggle(TOGGLE_BOTTOM_PANEL_COMMAND)} />
+            {panel}
             <IconButton id='ingot-tb-chat' codicon='comment' title={TITLEBAR_TEXT.chat} pressed={this.chatOpen} onClick={() => this.toggle(AGENT_COMMANDS.toggle.id)} />
-            {this.agents.zaprexButtonVisible && this.renderZaprex()}
+            {this.agents.zaprexButtonVisible && this.plan.can('rex') && this.renderZaprex()}
             <button id='ingot-tb-agents-window' type='button' className='ingot-tb-pill' title={TITLEBAR_TEXT.agentsWindowTitle} onClick={() => this.run(TITLEBAR_COMMANDS.agentsWindow.id)}>
                 <span>{TITLEBAR_TEXT.agentsWindow}</span><span className='ingot-tb-pill-arrow' aria-hidden='true'>↗</span>
             </button>

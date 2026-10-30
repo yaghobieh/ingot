@@ -10,6 +10,7 @@ import { IngotAgentsWidget } from './agents-widget';
 import { AGENT_COMMANDS, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL, CHAT_MODEL_STATUS_ID, DEMO_MARKER } from './agents.consts';
 import { AUTO_MODEL_ID, AUTO_MODEL_LABEL } from '../../common/models/models.consts';
 import { findModel } from '../../common/models/models.utils';
+import { IngotPlanService } from '../plan/plan-service';
 
 /** Demo transformation: annotate the first function-like line so the review UI can be tried without a model. */
 const demoEdit = (text: string): string => {
@@ -28,6 +29,7 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(StatusBar) protected readonly statusBar: StatusBar;
+    @inject(IngotPlanService) protected readonly plan: IngotPlanService;
     protected chatModelStatus = '';
 
     constructor() {
@@ -37,11 +39,17 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
     @postConstruct()
     protected initStatus(): void {
         this.store.onDidChange(() => this.updateChatModelStatus());
+        this.plan.onDidChange(() => this.updateChatModelStatus());
         this.updateChatModelStatus();
     }
 
     /** IDEA-104: the status bar names the active chat's model, and follows every chat switch or model pick. */
     protected updateChatModelStatus(): void {
+        if (!this.plan.can('chat')) {
+            this.chatModelStatus = '';
+            this.statusBar.removeElement(CHAT_MODEL_STATUS_ID);
+            return;
+        }
         const session = this.store.current;
         const chosen = session?.model ?? AUTO_MODEL_ID;
         const resolved = this.store.resolveModel(chosen);

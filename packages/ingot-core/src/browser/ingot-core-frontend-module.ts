@@ -38,6 +38,8 @@ import { IngotExplorerHeader } from './navigator/explorer-header';
 import { IngotAccountService } from './account/account-service';
 import { IngotAccountContribution } from './account/account-contribution';
 import { IngotFeatureFlags } from './config/feature-flags';
+import { IngotPlanService } from './plan/plan-service';
+import { IngotPlanGateContribution } from './plan/plan-gate-contribution';
 import { IngotUpdateContribution } from './config/update-contribution';
 import { IngotSyncService } from './sync/sync-service';
 import { IngotRightStripeWidget } from './tool-windows/right-stripe-widget';
@@ -343,6 +345,11 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         bind(id).toService(IngotAccountContribution);
     }
     bind(IngotFeatureFlags).toSelf().inSingletonScope();
+    bind(IngotPlanService).toSelf().inSingletonScope();
+    bind(IngotPlanGateContribution).toSelf().inSingletonScope();
+    for (const id of [CommandContribution, FrontendApplicationContribution]) {
+        bind(id).toService(IngotPlanGateContribution);
+    }
     bind(IngotUpdateContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(IngotUpdateContribution);
     bind(IngotSyncService).toSelf().inSingletonScope();

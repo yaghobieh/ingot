@@ -2,6 +2,7 @@ import { inject, injectable } from '@theia/core/shared/inversify';
 import * as monaco from '@theia/monaco-editor-core';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { IngotModelClient } from './model-client';
+import { IngotPlanService } from '../plan/plan-service';
 import { AUTOCOMPLETE_SYSTEM_PROMPT, MODEL_PREFERENCES } from '../../common/models/models.consts';
 import { buildCompletionMessages, cleanCompletion } from '../../common/models/models.utils';
 
@@ -20,6 +21,7 @@ export class IngotInlineCompletions implements monaco.languages.InlineCompletion
 
     @inject(IngotModelClient) protected readonly client: IngotModelClient;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
+    @inject(IngotPlanService) protected readonly plan: IngotPlanService;
 
     lastError?: string;
 
@@ -28,7 +30,7 @@ export class IngotInlineCompletions implements monaco.languages.InlineCompletion
     }
 
     get enabled(): boolean {
-        return this.preferences.get<boolean>(MODEL_PREFERENCES.autocompleteEnabled, true);
+        return this.plan.can('inlineCompletions') && this.preferences.get<boolean>(MODEL_PREFERENCES.autocompleteEnabled, true);
     }
 
     async provideInlineCompletions(model: monaco.editor.ITextModel, position: monaco.Position, _context: monaco.languages.InlineCompletionContext,

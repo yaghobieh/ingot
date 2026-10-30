@@ -11,6 +11,7 @@ import { applyOrder, reorderIds, workspaceKey } from '../../common/workbench/lay
 import { RIGHT_STRIPE_ORDER_KEY } from '../workbench/layout-custom.consts';
 import { AGENTS_WIDGET_ID } from '../agents/agents.consts';
 import { LAYOUT_CONTEXT_MENU } from '../layout/layout.browser-consts';
+import { IngotPlanService } from '../plan/plan-service';
 import { RIGHT_STRIPE_BOTTOM, RIGHT_STRIPE_ID, RIGHT_STRIPE_TOP, type RightStripeItem } from './tool-windows.consts';
 
 /** Slim icon stripe on the right edge: Settings, Notifications, Agents, Database, MCP, Services, History (IDEA-61). */
@@ -24,6 +25,7 @@ export class IngotRightStripeWidget extends ReactWidget {
 
     @inject(StorageService) protected readonly storage: StorageService;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
+    @inject(IngotPlanService) protected readonly plan: IngotPlanService;
 
     protected notificationCount = 0;
     /** Saved per-workspace order of the top group (IDEA-127); unknown or new items keep their default place. */
@@ -41,6 +43,7 @@ export class IngotRightStripeWidget extends ReactWidget {
             this.update();
         }));
         this.toDispose.push(this.shell.onDidAddWidget(() => this.refreshSoon()));
+        this.toDispose.push(this.plan.onDidChange(() => this.update()));
         this.toDispose.push(this.shell.onDidRemoveWidget(() => this.refreshSoon()));
         this.shell.rightPanelHandler.dockPanel.layoutModified.connect(() => this.update());
         this.shell.bottomPanel.layoutModified.connect(() => this.update());
@@ -86,7 +89,8 @@ export class IngotRightStripeWidget extends ReactWidget {
     }
 
     protected topItems(): readonly RightStripeItem[] {
-        return applyOrder(RIGHT_STRIPE_TOP, this.order);
+        const items = applyOrder(RIGHT_STRIPE_TOP, this.order);
+        return this.plan.can('chat') ? items : items.filter(i => i.kind !== 'panel' || i.widgetId !== AGENTS_WIDGET_ID);
     }
 
     /** Drop one icon onto another: it takes that icon's place (HTML5 drag and drop). */
