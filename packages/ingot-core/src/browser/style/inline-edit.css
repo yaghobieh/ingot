@@ -1,0 +1,14 @@
+/* IDEA-262: Cmd+K inline edit prompt above the selected lines. */
+.monaco-editor .ingot-inline-edit-range { background: color-mix(in srgb, var(--ingot-primary) 9%, transparent); }
+.ingot-inline-edit { display: flex; align-items: center; gap: var(--ingot-space-1); box-sizing: border-box; padding: 0 var(--ingot-space-1) 0 var(--ingot-space-2); border: 1px solid var(--ingot-primary); border-radius: var(--ingot-radius); background: var(--ingot-surface); color: var(--ingot-text); box-shadow: 0 2px 8px color-mix(in srgb, var(--ingot-text) 14%, transparent); font-family: var(--theia-ui-font-family); font-size: 13px; z-index: 10; }
+.ingot-inline-edit.error { border-color: var(--ingot-danger); }
+.ingot-inline-edit-icon { color: var(--ingot-primary); }
+.ingot-inline-edit-input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--ingot-text); font: inherit; padding: 0; }
+.ingot-inline-edit-input::placeholder { color: var(--ingot-text-muted); }
+.ingot-inline-edit-status { display: inline-flex; align-items: center; gap: var(--ingot-space-1); max-width: 45%; color: var(--ingot-text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-inline-edit.error .ingot-inline-edit-status { color: var(--ingot-danger); }
+.ingot-inline-edit-button { border: 0; width: 22px; height: 22px; border-radius: var(--ingot-radius); background: transparent; color: var(--ingot-text-muted); cursor: pointer; }
+.ingot-inline-edit-button:hover:not(:disabled) { background: var(--ingot-panel); color: var(--ingot-text); }
+.ingot-inline-edit-button:disabled { opacity: .5; cursor: default; }
+#ingot-inline-edit-submit { background: var(--ingot-primary); color: var(--ingot-primary-text); }
+#ingot-inline-edit-submit:hover:not(:disabled) { background: var(--ingot-primary-hover); }
