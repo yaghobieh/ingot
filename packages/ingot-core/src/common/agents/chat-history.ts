@@ -45,6 +45,23 @@ export const parseChats = (json: string | null | undefined): AgentSession[] => {
     }
 };
 
+/**
+ * IDEA-266: the chats a window shows. Each window sees only its workspace's chats; chats saved before chats had a
+ * workspace move into the first workspace that loads them. A window without a folder has no chats.
+ */
+export const windowChats = (stored: readonly AgentSession[], workspace: string | undefined): AgentSession[] =>
+    workspace ? stored.filter(c => !c.workspace || c.workspace === workspace).map(c => ({ ...c, workspace })) : [];
+
+/**
+ * IDEA-266: what a window writes back. Its own chats replace its workspace's stored ones (so deleted chats stay
+ * deleted); other windows' chats are kept as stored, since that copy is the newest one.
+ */
+export const mergeWindowChats = (stored: readonly AgentSession[], mine: readonly AgentSession[], workspace: string): AgentSession[] => {
+    const own = mine.map(c => ({ ...c, workspace }));
+    const ids = new Set(own.map(c => c.id));
+    return [...own, ...stored.filter(c => c.workspace && c.workspace !== workspace && !ids.has(c.id))];
+};
+
 export const chatTime = (updatedAt: number, now: number): string => {
     const minutes = Math.floor((now - updatedAt) / 60_000);
     if (minutes < 1) { return 'now'; }

@@ -13,7 +13,7 @@ import { findModel, supportsVision } from '../../common/models/models.utils';
 import type { ComposedMessage } from '../../common/agents/composer-parts.types';
 import { reorderTabs, tabTitleFromText, togglePinOrder } from '../../common/agents/chat-tabs';
 import { BUILD_PROMPT, MAX_SUB_AGENTS, TERMINAL_CONTEXT_LINES, modeInfo } from '../../common/agents/agent-modes';
-import { CHATS_STORAGE_KEY, parseChats, serializeChats } from '../../common/agents/chat-history';
+import { CHATS_STORAGE_KEY, mergeWindowChats, parseChats, serializeChats, windowChats } from '../../common/agents/chat-history';
 import { SUMMARIZE_PROMPT, contextUsage, estimateTokens } from '../../common/agents/context-usage';
 import { MEMORY_PROTOCOL, extractMemories, formatMemories, relevantMemories } from '../../common/memories/memories';
 import { MemoryStore } from './memory-store';
@@ -151,10 +151,12 @@ export class AgentStore {
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
 
+    /** IDEA-266: the workspace this window's chats belong to; undefined in a window without a folder (nothing is saved). */
+    protected windowWorkspace?: string;
+
     @postConstruct()
     protected restore(): void {
-        this.items = parseChats(localStorage.getItem(CHATS_STORAGE_KEY));
-        this.selected = this.tabs[0]?.id;
+        void this.workspace.ready.then(() => this.loadWindowChats());
         this.preferences.onPreferenceChanged(e => {
             if (e.preferenceName === AI_SETTINGS_PREFS.defaultMode || e.preferenceName === AI_SETTINGS_PREFS.defaultModel) {
                 this.applyChatDefaults();
@@ -164,6 +166,16 @@ export class AgentStore {
             }
         });
         void this.preferences.ready.then(() => this.applyChatDefaults());
+    }
+
+    /** IDEA-266: a new window does not copy another window's chats; it shows the chats of its own workspace only. */
+    protected loadWindowChats(): void {
+        this.windowWorkspace = this.workspace.workspace?.resource.toString();
+        const loaded = windowChats(parseChats(localStorage.getItem(CHATS_STORAGE_KEY)), this.windowWorkspace);
+        const ids = new Set(this.items.map(s => s.id));
+        this.items = [...this.items, ...loaded.filter(s => !ids.has(s.id))];
+        this.selected ??= this.tabs[0]?.id;
+        this.onDidChangeEmitter.fire();
     }
 
     /** IDEA-182: new chats start in the mode and model from Settings › AI & Zaprex; open chats keep theirs. */
@@ -2682,6 +2694,15 @@ export class AgentStore {
     changed(): void {
         this.onDidChangeEmitter.fire();
         clearTimeout(this.persistTimer);
-        this.persistTimer = setTimeout(() => localStorage.setItem(CHATS_STORAGE_KEY, serializeChats(this.items)), 300);
+        this.persistTimer = setTimeout(() => this.persist(), 300);
+    }
+
+    protected persist(): void {
+        const workspace = this.windowWorkspace;
+        if (!workspace) {
+            return;
+        }
+        const stored = parseChats(localStorage.getItem(CHATS_STORAGE_KEY));
+        localStorage.setItem(CHATS_STORAGE_KEY, serializeChats(mergeWindowChats(stored, this.items, workspace)));
     }
 }

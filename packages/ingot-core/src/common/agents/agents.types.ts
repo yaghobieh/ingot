@@ -78,6 +78,8 @@ export interface AgentSession {
     activeFile?: string;
     /** Project root URI the agent works in; set inside project groups (IDEA-52). */
     project?: string;
+    /** IDEA-266: the workspace (folder or workspace file URI) of the window the chat belongs to. */
+    workspace?: string;
     /** Open as a tab in the Agents panel (closed chats stay in History). */
     open?: boolean;
     openedAt?: number;
