@@ -113,6 +113,7 @@ test.describe('agent panel proof', () => {
         await save(page, 'agent-panel-dark.png');
 
         await page.locator('#ingot-review-open').click();
-        await expect(page.locator('.lm-TabBar-tab', { hasText: 'Books.tsx' })).toBeVisible();
+        await expect(page.locator('#shell-tab-ingot-agent-review')).toBeVisible();
+        await expect(page.locator('.ingot-rv-file[data-path="client/src/features/books/Books.tsx"]')).toBeVisible();
     });
 });
