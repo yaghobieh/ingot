@@ -5,6 +5,8 @@
 import type { GitOperation } from '../git/git-ops';
 import type { AgentToolCall } from './agent-protocol';
 import { describeTarget, toTarget } from '../browser-tool/browser-tool.utils';
+import { CODE_TOOLS, CODE_TOOLS_HINT } from './code-tools.consts';
+import { isCodeTool } from './code-tools';
 
 export const BUILTIN_TOOL_SERVER = 'ingot';
 
@@ -59,6 +61,7 @@ export const BUILTIN_TOOLS = [
     { name: 'browser_back', description: 'Go back one page. No arguments.' },
     { name: 'browser_screenshot', description: 'Take a screenshot of the browser panel (shown to the user; sent to you when the model reads images). No arguments.' },
     { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' },
+    ...CODE_TOOLS,
     { name: 'ask_user', description: 'Ask the user a clarifying question and wait for the answer before continuing. Arguments: {"question": "…", "options"?: ["a", "b"]}. The user can also type their own answer. Runs at once and pauses the run.' },
     { name: 'create_library', description: 'Create a new React + Vite client and Node + Express server for a library (books, authors, members, loans, borrow and return) in a new empty folder. Arguments: {"path": "/absolute/or/relative", "react": "feature-folders" | "atomic", "node": "layered" | "modular", "reactExample"?: "/path/to/example", "nodeExample"?: "/path/to/example"}. Named presets or an example folder. If the layout is unclear, call ask_user first. Runs at once; each file shows up for Accept or Reject.' },
     { name: 'open_workspace', description: 'Open a folder as the Ingot workspace. Arguments: {"path": "/absolute/path"}. Waits for the user\'s approval. Call it last, after install, tests and git.' }
@@ -103,6 +106,10 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
     if (call.server !== BUILTIN_TOOL_SERVER) {
         const args = Object.values(call.args).filter(v => typeof v === 'string' || typeof v === 'number').join(' ');
         return { kind: 'mcp', label: `${call.server}: ${call.tool}`, detail: args };
+    }
+    // IDEA-259: language-server reads run at once; rename and organize imports land as reviewable edits.
+    if (isCodeTool(call.tool)) {
+        return undefined;
     }
     const a = call.args;
     switch (call.tool) {
@@ -260,6 +267,7 @@ export const builtinToolProtocol = (on: BuiltinToolSwitches = { terminal: true, 
     'Ingot tools (same block format, server "ingot"):',
     ...BUILTIN_TOOLS.filter(t => builtinToolEnabled(t.name, on)).map(t => `- ${BUILTIN_TOOL_SERVER}/${t.name}: ${t.description}`),
     'If the user skips an action you get its reason as the tool result; adapt instead of retrying.',
+    CODE_TOOLS_HINT,
     'New React and Node library: if the user asks to create one, call ingot/ask_user when the React structure (feature-folders or atomic) or the Node structure (layered or modular) or the folder path is unclear. An example folder can be passed as reactExample or nodeExample.',
     'Then ingot/create_library. Then ingot/run npm install, npm test and npm run build with {"cwd": "<that path>"}. If tests fail, fix the files and rerun npm test, up to 3 times.',
     'Then ingot/ask_user whether to git init on branch feature/library and make the first commit. If they agree, ingot/run those git commands with that cwd.',

@@ -36,6 +36,14 @@ describe('tool cards (IDEA-177)', () => {
         expect(toolCard(info('search_code', { query: 'foo' }, 'github'), '[]')).toMatchObject({ title: 'Ran search_code', detail: 'foo' });
     });
 
+    it('IDEA-259: code tools get their own title, icon and symbol detail', () => {
+        expect(toolCard(info('rename_symbol', { path: 'src/math.ts', symbol: 'add', new_name: 'sum' }), 'Renamed add to sum'))
+            .toMatchObject({ kind: 'generic', title: 'Renamed symbol', detail: 'add → sum · src/math.ts', icon: 'symbol-key' });
+        expect(toolCard(info('find_references', { path: 'src/math.ts', symbol: 'add' }), 'Error: No references found.'))
+            .toMatchObject({ title: 'Found references', icon: 'references', output: 'No references found.' });
+        expect(toolCard(info('diagnostics', {}, 'github'), '[]')).toMatchObject({ title: 'Ran diagnostics' });
+    });
+
     it('summarises explored files and searches', () => {
         const steps = [{ kind: 'read', target: 'a.ts, b.ts' }, { kind: 'read', target: 'rules: x' }, { kind: 'run', target: 'ingot/web_search' }, { kind: 'search', target: 'q' }];
         expect(exploredLine(steps, false)).toBe('Explored 2 files, 2 searches');

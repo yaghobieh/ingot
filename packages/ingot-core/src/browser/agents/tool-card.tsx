@@ -121,7 +121,7 @@ export const ToolCardView = (props: ToolCardProps): React.ReactElement => {
     const open = summary || props.expanded || (short && props.info.state !== 'running');
     return <div id={summary ? 'ingot-work-summary' : undefined} className={`ingot-chat-tool ingot-tc ingot-tc-generic ${props.info.state}${open ? ' open' : ''}`} data-tool={`${props.info.server}/${props.info.tool}`}>
         <button type='button' className='ingot-tc-head' aria-expanded={open} onClick={props.onToggle} disabled={short && props.info.state !== 'running'}>
-            <span className='codicon codicon-tools ingot-tc-icon' />
+            <span className={`codicon codicon-${card.icon ?? 'tools'} ingot-tc-icon`} />
             <span className='ingot-tc-title'>{card.title}</span>
             {card.detail && <span className='ingot-tc-programs'>{card.detail}</span>}
             <span className='ingot-tc-from'>{props.from}</span>
