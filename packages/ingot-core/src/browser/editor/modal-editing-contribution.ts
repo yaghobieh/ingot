@@ -7,39 +7,41 @@ import type { EditorWidget } from '@theia/editor/lib/browser/editor-widget';
 import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
 import { initVimMode, VimMode } from 'monaco-vim';
 import {
-    VIM_ACTIVE_ATTR, VIM_CMDLINE_CLASS, VIM_COMMANDS, VIM_EX_COMMANDS, VIM_LABELS, VIM_MODE_COLORS, VIM_MODE_PREF, VIM_STATUS_CLASS, VIM_STATUS_ID, VIM_STATUS_PRIORITY
-} from '../../common/editor/vim-mode.consts';
-import type { VimModeChange, VimModeLabel } from '../../common/editor/vim-mode.types';
-import { vimEnabled, vimExAction, vimModeLabel } from '../../common/editor/vim-mode.utils';
+    MODAL_ACTIVE_ATTR, MODAL_CMDLINE_CLASS, MODAL_EDITING_COLORS, MODAL_EDITING_COMMANDS, MODAL_EDITING_PREF, MODAL_EX_COMMANDS, MODAL_LABELS,
+    MODAL_STATUS_CLASS, MODAL_STATUS_ID, MODAL_STATUS_PRIORITY, MODAL_STATUS_TOOLTIP
+} from '../../common/editor/modal-editing.consts';
+import type { ModalEditingChange, ModalEditingLabel } from '../../common/editor/modal-editing.types';
+import { modalEditingEnabled, modalEditingLabel, modalExAction } from '../../common/editor/modal-editing.utils';
 
-interface VimAdapter {
-    on(event: string, handler: (arg: VimModeChange) => void): void;
+interface ModalAdapter {
+    on(event: string, handler: (arg: ModalEditingChange) => void): void;
     dispose(): void;
 }
 
 /** `VimMode.Vim` exists at runtime but is missing from the monaco-vim typings. */
-interface VimApi {
+interface ModalApi {
     defineEx(name: string, prefix: string, run: (cm: unknown, params?: { argString?: string }) => void): void;
     handleKey(cm: unknown, key: string, origin?: string): unknown;
 }
 
-const vimApi = (): VimApi => (VimMode as unknown as { Vim: VimApi }).Vim;
+const modalApi = (): ModalApi => (VimMode as unknown as { Vim: ModalApi }).Vim;
 const ESCAPE_KEY = 'Escape';
-const VIM_ESCAPE = '<Esc>';
+const ESCAPE_SEQUENCE = '<Esc>';
+const MODE_CHANGE_EVENT = 'vim-mode-change';
 
 interface Attached {
-    readonly adapter: VimAdapter;
+    readonly adapter: ModalAdapter;
     readonly cmdline: HTMLElement;
-    mode: VimModeLabel;
+    mode: ModalEditingLabel;
 }
 
 /**
- * IDEA-286: Vim keys (monaco-vim) in code editors when `editor.vimMode` is on. Only editors opened by the
- * EditorManager get Vim, so the agent composer and other inputs keep their keys; Ingot shortcuts run first
- * because monaco-vim skips key events a keybinding already handled.
+ * IDEA-286: modal editing (monaco-vim) in code editors when `ingot.editor.modalEditing` is on. Only editors
+ * opened by the EditorManager get it, so the agent composer and other inputs keep their keys; Ingot shortcuts
+ * run first because monaco-vim skips key events a keybinding already handled.
  */
 @injectable()
-export class VimModeContribution implements FrontendApplicationContribution, CommandContribution {
+export class ModalEditingContribution implements FrontendApplicationContribution, CommandContribution {
 
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
@@ -54,7 +56,7 @@ export class VimModeContribution implements FrontendApplicationContribution, Com
     onStart(): void {
         void this.preferences.ready.then(() => this.sync());
         this.preferences.onPreferenceChanged(e => {
-            if (e.preferenceName === VIM_MODE_PREF) {
+            if (e.preferenceName === MODAL_EDITING_PREF) {
                 this.sync();
             }
         });
@@ -70,17 +72,17 @@ export class VimModeContribution implements FrontendApplicationContribution, Com
 
     /**
      * Escape that closes a suggest or find widget is taken by its keybinding before monaco-vim sees it.
-     * Vim users expect it to leave Insert or Visual too, so finish that once the widget has closed.
+     * Users expect it to leave Insert or Visual too, so finish that once the widget has closed.
      */
     protected onEscape(event: KeyboardEvent): void {
         if (event.key !== ESCAPE_KEY || !this.attached.size) {
             return;
         }
         for (const [widget, entry] of this.attached) {
-            if (entry.mode !== VIM_LABELS.normal && widget.editor instanceof MonacoEditor && widget.editor.getControl().hasTextFocus()) {
+            if (entry.mode !== MODAL_LABELS.normal && widget.editor instanceof MonacoEditor && widget.editor.getControl().hasTextFocus()) {
                 setTimeout(() => {
-                    if (entry.mode !== VIM_LABELS.normal && this.attached.get(widget) === entry) {
-                        vimApi().handleKey(entry.adapter, VIM_ESCAPE, 'user');
+                    if (entry.mode !== MODAL_LABELS.normal && this.attached.get(widget) === entry) {
+                        modalApi().handleKey(entry.adapter, ESCAPE_SEQUENCE, 'user');
                     }
                 });
                 return;
@@ -89,14 +91,14 @@ export class VimModeContribution implements FrontendApplicationContribution, Com
     }
 
     registerCommands(registry: CommandRegistry): void {
-        registry.registerCommand(VIM_COMMANDS.toggle, {
-            execute: () => this.preferences.set(VIM_MODE_PREF, !this.enabled, PreferenceScope.User),
+        registry.registerCommand(MODAL_EDITING_COMMANDS.toggle, {
+            execute: () => this.preferences.set(MODAL_EDITING_PREF, !this.enabled, PreferenceScope.User),
             isToggled: () => this.enabled
         });
     }
 
     get enabled(): boolean {
-        return vimEnabled(this.preferences.get(VIM_MODE_PREF));
+        return modalEditingEnabled(this.preferences.get(MODAL_EDITING_PREF));
     }
 
     protected sync(): void {
@@ -115,16 +117,16 @@ export class VimModeContribution implements FrontendApplicationContribution, Com
         }
         this.defineEx();
         const cmdline = document.createElement('div');
-        cmdline.className = VIM_CMDLINE_CLASS;
+        cmdline.className = MODAL_CMDLINE_CLASS;
         widget.node.appendChild(cmdline);
-        const adapter = initVimMode(widget.editor.getControl() as Parameters<typeof initVimMode>[0], cmdline) as VimAdapter;
-        const entry: Attached = { adapter, cmdline, mode: VIM_LABELS.normal };
-        adapter.on('vim-mode-change', change => {
-            entry.mode = vimModeLabel(change);
-            widget.node.setAttribute(VIM_ACTIVE_ATTR, entry.mode.toLowerCase());
+        const adapter = initVimMode(widget.editor.getControl() as Parameters<typeof initVimMode>[0], cmdline) as ModalAdapter;
+        const entry: Attached = { adapter, cmdline, mode: MODAL_LABELS.normal };
+        adapter.on(MODE_CHANGE_EVENT, change => {
+            entry.mode = modalEditingLabel(change);
+            widget.node.setAttribute(MODAL_ACTIVE_ATTR, entry.mode.toLowerCase());
             this.updateStatus();
         });
-        widget.node.setAttribute(VIM_ACTIVE_ATTR, entry.mode.toLowerCase());
+        widget.node.setAttribute(MODAL_ACTIVE_ATTR, entry.mode.toLowerCase());
         this.attached.set(widget, entry);
         this.widgets.set(adapter, widget);
         widget.disposed.connect(() => this.detach(widget));
@@ -139,7 +141,7 @@ export class VimModeContribution implements FrontendApplicationContribution, Com
         this.widgets.delete(entry.adapter);
         entry.adapter.dispose();
         entry.cmdline.remove();
-        widget.node.removeAttribute(VIM_ACTIVE_ATTR);
+        widget.node.removeAttribute(MODAL_ACTIVE_ATTR);
         this.updateStatus();
     }
 
@@ -149,9 +151,9 @@ export class VimModeContribution implements FrontendApplicationContribution, Com
             return;
         }
         this.exDefined = true;
-        const vim = vimApi();
-        for (const command of VIM_EX_COMMANDS) {
-            vim.defineEx(command.name, command.prefix, (cm, params) => {
+        const api = modalApi();
+        for (const command of MODAL_EX_COMMANDS) {
+            api.defineEx(command.name, command.prefix, (cm, params) => {
                 void this.runEx(cm, command.name, params?.argString);
             });
         }
@@ -159,7 +161,7 @@ export class VimModeContribution implements FrontendApplicationContribution, Com
 
     protected async runEx(cm: unknown, name: string, argString?: string): Promise<void> {
         const widget = this.widgets.get(cm);
-        const action = vimExAction(name, argString);
+        const action = modalExAction(name, argString);
         if (!widget || !action) {
             return;
         }
@@ -192,17 +194,17 @@ export class VimModeContribution implements FrontendApplicationContribution, Com
         const current = this.editors.currentEditor;
         const entry = current && this.attached.get(current);
         if (!this.enabled || !entry) {
-            this.statusBar.removeElement(VIM_STATUS_ID);
+            this.statusBar.removeElement(MODAL_STATUS_ID);
             return;
         }
-        this.statusBar.setElement(VIM_STATUS_ID, {
+        this.statusBar.setElement(MODAL_STATUS_ID, {
             text: entry.mode,
             alignment: StatusBarAlignment.LEFT,
-            priority: VIM_STATUS_PRIORITY,
-            className: VIM_STATUS_CLASS,
-            color: VIM_MODE_COLORS[entry.mode],
-            tooltip: 'Vim mode. Click to turn Vim keys off.',
-            command: VIM_COMMANDS.toggle.id
+            priority: MODAL_STATUS_PRIORITY,
+            className: MODAL_STATUS_CLASS,
+            color: MODAL_EDITING_COLORS[entry.mode],
+            tooltip: MODAL_STATUS_TOOLTIP,
+            command: MODAL_EDITING_COMMANDS.toggle.id
         });
     }
 }

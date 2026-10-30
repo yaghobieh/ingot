@@ -45,6 +45,6 @@ export const E2E_USER_SETTINGS = {
     'ingot.agent.browser.enabled': true,
     'ingot.agent.browser.requireApproval': true,
     'ingot.agent.browser.approveReads': false,
-    // IDEA-286: Vim keys start off even if an interrupted run left them on.
-    'editor.vimMode': false
+    // IDEA-286: modal editing starts off even if an interrupted run left it on.
+    'ingot.editor.modalEditing': false
 } as const;

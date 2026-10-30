@@ -10,7 +10,7 @@ import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 
 /**
- * IDEA-286: Vim keys in code editors (status bar mode, :w and :q, composer and Ingot shortcuts untouched).
+ * IDEA-286: modal editing in code editors (status bar mode, :w and :q, composer and Ingot shortcuts untouched).
  * IDEA-292: /goal keeps taking turns until the self-check passes (banner, Stop), and "Use as mode" pins a
  * skill or command into the chat's system prompt (mode pill).
  */
@@ -20,14 +20,14 @@ const write = (dir: string, file: string, text: string): void => {
 };
 
 const makeProject = (): string => {
-    const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-vim-goal-')));
+    const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-modal-goal-')));
     write(dir, 'src/notes.ts', 'export const notes = 1;\n');
     write(dir, '.ingot/skills/reviewer/SKILL.md', '---\nname: reviewer\ndescription: Strict code review\n---\nAnswer like a strict reviewer. MODE-REVIEWER-MARKER\n');
     write(dir, '.ingot/commands/terse.md', '---\ndescription: Short answers\n---\nAnswer in one line. MODE-TERSE-MARKER\n');
     return dir;
 };
 
-const vimStatus = (page: Page) => page.locator('#status-bar-ingot-vim-mode');
+const modalStatus = (page: Page) => page.locator('#status-bar-ingot-modal-editing');
 const editorLines = (page: Page) => page.locator('#theia-main-content-panel .monaco-editor .view-lines').first();
 const editorTab = (page: Page, label: string) => page.locator('#theia-main-content-panel .lm-TabBar-tab', { hasText: label });
 const banner = (page: Page) => page.locator('#ingot-goal-banner');
@@ -53,7 +53,7 @@ const send = async (page: Page, text: string): Promise<void> => {
     await page.keyboard.press('Enter');
 };
 
-test.describe('IDEA-286 / IDEA-292 Vim mode, /goal and custom modes', () => {
+test.describe('IDEA-286 / IDEA-292 modal editing, /goal and custom modes', () => {
     test.setTimeout(150_000);
     let dir = '';
     let server: FakeOllama | undefined;
@@ -66,18 +66,18 @@ test.describe('IDEA-286 / IDEA-292 Vim mode, /goal and custom modes', () => {
         }
     });
 
-    test('Vim keys: modes in the status bar, :w saves, :q closes, composer and shortcuts keep working', async ({ page }) => {
+    test('Modal editing: modes in the status bar, :w saves, :q closes, composer and shortcuts keep working', async ({ page }) => {
         dir = makeProject();
         await openIngot(page, dir);
         await setAppearance(page, 'light');
         await dismissNotifications(page);
         await openFile(page, 'notes.ts');
-        await expect(vimStatus(page)).toHaveCount(0);
+        await expect(modalStatus(page)).toHaveCount(0);
 
-        // Ctrl+Alt+Shift+V (Ingot keymap) turns Vim keys on.
+        // Ctrl+Alt+Shift+V (Ingot keymap) turns modal editing on.
         await editorLines(page).click();
-        await actUntilVisible(() => page.keyboard.press('Control+Alt+Shift+V'), vimStatus(page));
-        await expect(vimStatus(page)).toHaveText('NORMAL');
+        await actUntilVisible(() => page.keyboard.press('Control+Alt+Shift+V'), modalStatus(page));
+        await expect(modalStatus(page)).toHaveText('NORMAL');
 
         // Normal: `x` deletes a character instead of typing it. Insert and Visual show in the status bar.
         await editorLines(page).click();
@@ -85,35 +85,35 @@ test.describe('IDEA-286 / IDEA-292 Vim mode, /goal and custom modes', () => {
         await page.keyboard.press('g');
         await page.keyboard.press('0');
         await page.keyboard.press('i');
-        await expect(vimStatus(page)).toHaveText('INSERT');
-        expect(await vimStatus(page).evaluate(el => getComputedStyle(el).color)).toBe(await tokenColor(page, '--ingot-success'));
-        await page.keyboard.type('// vim ');
-        await shot(page, 'vim-insert-light.png');
+        await expect(modalStatus(page)).toHaveText('INSERT');
+        expect(await modalStatus(page).evaluate(el => getComputedStyle(el).color)).toBe(await tokenColor(page, '--ingot-success'));
+        await page.keyboard.type('// modal ');
+        await shot(page, 'modal-insert-light.png');
         await page.keyboard.press('Escape');
-        await expect(vimStatus(page)).toHaveText('NORMAL');
+        await expect(modalStatus(page)).toHaveText('NORMAL');
         await page.keyboard.press('v');
-        await expect(vimStatus(page)).toHaveText('VISUAL');
+        await expect(modalStatus(page)).toHaveText('VISUAL');
         await page.keyboard.press('Escape');
-        await expect(vimStatus(page)).toHaveText('NORMAL');
+        await expect(modalStatus(page)).toHaveText('NORMAL');
 
         // :w saves through Ingot.
         await page.keyboard.type(':');
-        const cmdline = page.locator('.ingot-vim-cmdline input');
+        const cmdline = page.locator('.ingot-modal-cmdline input');
         await expect(cmdline).toBeVisible();
-        await shot(page, 'vim-cmdline-light.png');
+        await shot(page, 'modal-cmdline-light.png');
         await page.keyboard.type('w');
         await page.keyboard.press('Enter');
-        await expect.poll(() => fs.readFileSync(path.join(dir, 'src/notes.ts'), 'utf8')).toContain('// vim export const notes');
+        await expect.poll(() => fs.readFileSync(path.join(dir, 'src/notes.ts'), 'utf8')).toContain('// modal export const notes');
 
-        // The agent composer keeps normal typing: `i`, `j` and `k` are letters there, not Vim keys.
+        // The agent composer keeps normal typing: `i`, `j` and `k` are letters there, not modal keys.
         await page.locator(COMPOSER).click();
         await page.keyboard.type('ijk hello');
         await expect.poll(() => composerPlainText(page)).toBe('ijk hello');
-        await expect(vimStatus(page)).toHaveText('NORMAL');
+        await expect(modalStatus(page)).toHaveText('NORMAL');
         await page.keyboard.press('Control+A');
         await page.keyboard.press('Backspace');
 
-        // Ingot shortcuts still run from a Vim editor (Go to File).
+        // Ingot shortcuts still run from a modal editor (Go to File).
         await editorLines(page).click();
         await actUntilVisible(() => page.keyboard.press('Control+Shift+N'), quickInput(page));
         await actUntilHidden(() => page.keyboard.press('Escape'), quickInput(page));
@@ -123,33 +123,33 @@ test.describe('IDEA-286 / IDEA-292 Vim mode, /goal and custom modes', () => {
         await page.keyboard.type(':q');
         await page.keyboard.press('Enter');
         await expect(editorTab(page, 'notes.ts')).toHaveCount(0);
-        await expect(vimStatus(page)).toHaveCount(0);
+        await expect(modalStatus(page)).toHaveCount(0);
 
-        // Dark theme: a reopened file gets Vim keys again, colored from the dark tokens.
+        // Dark theme: a reopened file gets modal editing again, colored from the dark tokens.
         await setAppearance(page, 'dark');
         await openFile(page, 'notes.ts');
-        await expect(vimStatus(page)).toHaveText('NORMAL');
-        expect(await vimStatus(page).evaluate(el => getComputedStyle(el).color)).toBe(await tokenColor(page, '--ingot-primary'));
-        await shot(page, 'vim-normal-dark.png');
+        await expect(modalStatus(page)).toHaveText('NORMAL');
+        expect(await modalStatus(page).evaluate(el => getComputedStyle(el).color)).toBe(await tokenColor(page, '--ingot-primary'));
+        await shot(page, 'modal-normal-dark.png');
 
         // :wq saves and closes in one go.
         await editorLines(page).click();
         await page.keyboard.type('ggA');
-        await expect(vimStatus(page)).toHaveText('INSERT');
+        await expect(modalStatus(page)).toHaveText('INSERT');
         await page.keyboard.type(' // wq');
         await page.keyboard.press('Escape');
-        await expect(vimStatus(page)).toHaveText('NORMAL');
+        await expect(modalStatus(page)).toHaveText('NORMAL');
         await page.keyboard.type(':wq');
         await page.keyboard.press('Enter');
         await expect.poll(() => fs.readFileSync(path.join(dir, 'src/notes.ts'), 'utf8')).toContain('// wq');
         await expect(editorTab(page, 'notes.ts')).toHaveCount(0);
         await openFile(page, 'notes.ts');
-        await expect(vimStatus(page)).toHaveText('NORMAL');
+        await expect(modalStatus(page)).toHaveText('NORMAL');
 
-        // Toggle off from Find Action: the open editor drops Vim keys and the status bar item goes away.
-        await runCommand(page, 'Toggle Vim Mode');
-        await expect(vimStatus(page)).toHaveCount(0);
-        await expect(page.locator('#theia-main-content-panel [data-ingot-vim]')).toHaveCount(0);
+        // Toggle off from Find Action: the open editor drops modal editing and the status bar item goes away.
+        await runCommand(page, 'Toggle Modal Editing');
+        await expect(modalStatus(page)).toHaveCount(0);
+        await expect(page.locator('#theia-main-content-panel [data-ingot-modal]')).toHaveCount(0);
         await editorLines(page).click();
         await page.keyboard.type('zqz');
         await page.keyboard.press('ControlOrMeta+s');

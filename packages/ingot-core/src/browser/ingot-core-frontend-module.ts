@@ -156,8 +156,8 @@ import { IconThemeContribution } from '@theia/core/lib/browser/icon-theme-contri
 import { LabelProviderContribution } from '@theia/core/lib/browser/label-provider';
 import { AppearanceContribution, appearancePreferenceSchema } from './theme/appearance-contribution';
 import { IngotEditorContextMenuContribution } from './editor/editor-context-menu-contribution';
-import { VimModeContribution } from './editor/vim-mode-contribution';
-import { vimModePreferenceSchema } from './editor/vim-mode-preferences';
+import { ModalEditingContribution } from './editor/modal-editing-contribution';
+import { modalEditingPreferenceSchema } from './editor/modal-editing-preferences';
 import '../../src/browser/style/index.css';
 import { ErrorReportingContribution } from './error-reporting-contribution';
 
@@ -440,10 +440,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CommandContribution).toService(IngotEditorContextMenuContribution);
     bind(MenuContribution).toService(IngotEditorContextMenuContribution);
     bind(FrontendApplicationContribution).toService(IngotEditorContextMenuContribution);
-    bind(PreferenceContribution).toConstantValue({ schema: vimModePreferenceSchema });
-    bind(VimModeContribution).toSelf().inSingletonScope();
-    bind(CommandContribution).toService(VimModeContribution);
-    bind(FrontendApplicationContribution).toService(VimModeContribution);
+    bind(PreferenceContribution).toConstantValue({ schema: modalEditingPreferenceSchema });
+    bind(ModalEditingContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(ModalEditingContribution);
+    bind(FrontendApplicationContribution).toService(ModalEditingContribution);
     bind(IngotBadgeIconTheme).toSelf().inSingletonScope();
     bind(IconThemeContribution).toService(IngotBadgeIconTheme);
     bind(LabelProviderContribution).toService(IngotBadgeIconTheme);

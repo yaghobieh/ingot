@@ -81,7 +81,7 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Collapse All', command: 'editor.foldAll', mac: 'ctrlcmd+shift+-', other: 'ctrl+shift+-', when: EDITOR },
     { action: 'Expand All', command: 'editor.unfoldAll', mac: 'ctrlcmd+shift+=', other: 'ctrl+shift+=', when: EDITOR },
     // IDEA-286
-    { action: 'Toggle Vim Mode', command: 'ingot.editor.toggleVimMode', mac: 'ctrlcmd+alt+shift+v', other: 'ctrl+alt+shift+v' },
+    { action: 'Toggle Modal Editing', command: 'ingot.editor.toggleModalEditing', mac: 'ctrlcmd+alt+shift+v', other: 'ctrl+alt+shift+v' },
     // Refactoring (IDEA-23)
     { action: 'Rename', command: 'editor.action.rename', mac: 'shift+f6', other: 'shift+f6', when: EDITOR },
     { action: 'Refactor This', command: 'editor.action.refactor', mac: 'ctrl+t', other: 'ctrl+alt+shift+t', when: EDITOR },

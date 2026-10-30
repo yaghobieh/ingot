@@ -28,5 +28,5 @@
 @import './hooks.css';
 @import './chat-thread.css';
 @import './agent-panel.css';
-@import './vim.css';
+@import './modal-editing.css';
 @import './goal-mode.css';
