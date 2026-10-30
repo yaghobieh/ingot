@@ -66,6 +66,7 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
 
         await page.locator('#ingot-composer-more').click();
         await expect(page.locator('#ingot-composer-more-menu')).toBeVisible();
+        await expect(page.locator('#ingot-composer-more-menu #ingot-composer-mode')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-review')).toBeVisible();
         const surface = await tokenColor(page, '--ingot-surface');
         const card = await tokenColor(page, '--ingot-agent-card');
@@ -118,6 +119,7 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
         await page.locator('#ingot-chat-edit-input').fill('edited question about the picker');
         await saveShot(page, 'chat-edit-light.png');
         await page.locator('#ingot-chat-edit-submit').click();
+        await page.locator('#ingot-chat-edit-revert').click();
         await expect(page.locator('.ingot-chat-agent .ingot-md').last()).toContainText('edited answer is ready');
         await expect(page.locator('.ingot-agents-chat')).toContainText('edited question about the picker');
         await expect(page.locator('.ingot-agents-chat')).not.toContainText('beta second question');

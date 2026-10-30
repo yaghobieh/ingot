@@ -1,0 +1,51 @@
+/* IDEA-280: mode pill, mic beside send, reply reactions, queued steers, in-chat ask card, edit-and-rerun choices. Theme tokens only. */
+
+/* Mode pill sits in the composer row; its icon carries the mode color token. */
+.ingot-agents .ingot-composer-bar .ingot-mode-pill .codicon:first-child { color: var(--ingot-mode-color, var(--theia-foreground)); }
+/* The mode name stays readable at the usual panel width; only tiny panels drop to the icon. */
+.ingot-agents .ingot-composer-bar[data-width='narrow'] .ingot-mode-pill { flex: none; }
+.ingot-agents .ingot-composer-bar[data-width='narrow'] .ingot-mode-pill .ingot-pill-label { display: inline; }
+
+/* Reactions: small icon-only buttons under agent replies, muted until the reply is hovered or focused. */
+.ingot-agents .ingot-chat-agent .ingot-reply-reactions { display: flex; gap: 2px; margin-top: var(--ingot-space-1, 4px); opacity: .35; transition: opacity .12s ease; }
+.ingot-agents .ingot-chat-agent:hover .ingot-reply-reactions,
+.ingot-agents .ingot-chat-agent:focus-within .ingot-reply-reactions,
+.ingot-agents .ingot-chat-agent .ingot-reply-reactions:has(.on) { opacity: 1; }
+.ingot-agents .ingot-reply-reactions .ingot-react {
+  width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: transparent;
+  color: var(--theia-descriptionForeground); display: inline-grid; place-items: center; cursor: pointer;
+}
+.ingot-agents .ingot-reply-reactions .ingot-react .codicon { font-size: 13px; }
+.ingot-agents .ingot-reply-reactions .ingot-react:hover { color: var(--theia-foreground); background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); }
+.ingot-agents .ingot-reply-reactions .ingot-react.on,
+.ingot-agents .ingot-reply-reactions .ingot-react[aria-pressed='true'] { color: var(--theia-textLink-foreground, var(--theia-focusBorder)); background: transparent; border: 0; }
+.ingot-agents .ingot-reply-reactions .ingot-react:focus-visible { outline: 1px solid var(--theia-focusBorder); outline-offset: 1px; }
+
+/* A sent prompt is clickable: it opens the inline edit. */
+.ingot-agents .ingot-chat-user:not(:has(#ingot-chat-edit)) { cursor: pointer; }
+.ingot-agents .ingot-chat-user:not(:has(#ingot-chat-edit)):hover { border-color: var(--theia-focusBorder); }
+
+/* Queued steer: a quiet chip under the prompt until the agent reads it. */
+.ingot-queued-chip {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; margin-top: var(--ingot-space-1, 4px);
+  padding: 1px 7px; border-radius: 999px; font-size: 11px; line-height: 16px;
+  color: var(--theia-descriptionForeground);
+  background: color-mix(in srgb, var(--theia-badge-background, var(--theia-focusBorder)) 30%, transparent);
+  border: 1px solid var(--theia-widget-border, var(--theia-panel-border));
+}
+.ingot-queued-chip .codicon { font-size: 11px; }
+
+/* Ask card lives in the thread now, aligned with the messages. */
+.ingot-agents .ingot-ask.ingot-ask-card {
+  margin: 0; flex: none; flex-direction: column; flex-wrap: nowrap; align-items: stretch;
+  background: var(--ingot-surface, var(--theia-sideBar-background));
+  border-color: var(--theia-focusBorder);
+  box-shadow: inset 3px 0 0 var(--theia-focusBorder);
+}
+.ingot-ask-card .ingot-ask-head { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--theia-descriptionForeground); }
+.ingot-ask-card .ingot-ask-row { display: flex; gap: 6px; align-items: center; }
+.ingot-ask-card #ingot-ask-submit:disabled { opacity: .55; cursor: default; }
+
+/* Edit-and-rerun choices. */
+.ingot-chat-edit-choices { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.ingot-chat-edit-choices button { font-size: 12px; }

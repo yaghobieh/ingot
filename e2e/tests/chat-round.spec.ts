@@ -84,16 +84,17 @@ test.describe('IDEA-248 chat round', () => {
             await expect(page.locator('.ingot-chat-thought-text')).toContainText('walk the names first');
             await captureBoth(page, 'thinking');
 
-            await page.locator('#ingot-react-like-0').click();
-            await expect(page.locator('#ingot-react-like-0')).toHaveAttribute('aria-pressed', 'true');
-            await page.locator('#ingot-react-like-0').click();
-            await expect(page.locator('#ingot-react-like-0')).toHaveAttribute('aria-pressed', 'false');
+            await expect(page.locator('#ingot-msg-0 .ingot-reactions')).toHaveCount(0);
+            await page.locator('#ingot-react-like-1').click();
+            await expect(page.locator('#ingot-react-like-1')).toHaveAttribute('aria-pressed', 'true');
+            await page.locator('#ingot-react-like-1').click();
+            await expect(page.locator('#ingot-react-like-1')).toHaveAttribute('aria-pressed', 'false');
             await page.locator('#ingot-react-heart-1').click();
             await expect(page.locator('#ingot-react-heart-1')).toHaveAttribute('aria-pressed', 'true');
             await captureBoth(page, 'reactions');
             await page.reload();
             await expect(page.locator('#ingot-react-heart-1')).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
-            await expect(page.locator('#ingot-react-like-0')).toHaveAttribute('aria-pressed', 'false');
+            await expect(page.locator('#ingot-react-like-1')).toHaveAttribute('aria-pressed', 'false');
         } finally {
             await server.close();
         }

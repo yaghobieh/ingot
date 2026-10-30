@@ -111,7 +111,6 @@ test.describe('IDEA-77 chat redesign', () => {
         await page.locator('#ingot-agents-new').click();
         await pickModel(page, 'ollama-local');
 
-        await page.locator('#ingot-composer-more').click();
         await page.locator('#ingot-composer-mode').click();
         await expect(page.locator('#ingot-mode-menu .ingot-mode-item')).toHaveCount(5);
         await expect(page.locator('#ingot-mode-menu')).toContainText('Multi-agent');
