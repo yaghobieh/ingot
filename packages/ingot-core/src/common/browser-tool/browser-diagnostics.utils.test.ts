@@ -6,6 +6,7 @@ import {
 import { BROWSER_NET_PREFIX, BROWSER_SEL_PREFIX, BROWSER_STATUS_META } from './browser-tool.consts';
 import { BROWSER_DEFAULTS, browserNeedsCard, browserToolsOn } from './browser-settings';
 import type { BrowserConsoleEntry, PageSelection } from './browser-tool.types';
+import { builtinToolProtocol, describeAction } from '../agents/agent-actions';
 
 const PAGE = 'http://127.0.0.1:5173/';
 
@@ -101,5 +102,14 @@ describe('IDEA-289 /browser run', () => {
         expect(browserToolsOn({ ...BROWSER_DEFAULTS, enabled: false }, true)).toBe(false);
         expect(browserNeedsCard('browser_console', BROWSER_DEFAULTS)).toBe(false);
         expect(browserNeedsCard('browser_network', BROWSER_DEFAULTS)).toBe(false);
+    });
+
+    it('lists the console and network tools for the agent and on the card', () => {
+        const on = builtinToolProtocol({ terminal: true, browser: true });
+        expect(on).toContain('ingot/browser_console:');
+        expect(on).toContain('ingot/browser_network:');
+        expect(builtinToolProtocol({ terminal: true, browser: false })).not.toContain('ingot/browser_console:');
+        expect(describeAction({ server: 'ingot', tool: 'browser_console', args: { level: 'error' } })).toEqual({ kind: 'browser', label: 'Read console', detail: 'error' });
+        expect(describeAction({ server: 'ingot', tool: 'browser_network', args: {} })).toEqual({ kind: 'browser', label: 'Read failed requests', detail: '' });
     });
 });
