@@ -1,4 +1,5 @@
 import type { KeymapEntry } from './keymap.types';
+import { TEST_COMMAND_IDS } from '../testing/testing.consts';
 
 /** Ingot tool window shortcuts (IDEA-14). */
 export const TOOL_WINDOW_KEYMAP: readonly KeymapEntry[] = [
@@ -9,6 +10,7 @@ export const TOOL_WINDOW_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Debug tool window', command: 'debug:toggle', mac: 'ctrlcmd+5', other: 'alt+5' },
     { action: 'Problems tool window', command: 'problemsView:toggle', mac: 'ctrlcmd+6', other: 'alt+6' },
     { action: 'Structure tool window', command: 'outlineView:toggle', mac: 'ctrlcmd+7', other: 'alt+7' },
+    { action: 'Test Explorer tool window', command: TEST_COMMAND_IDS.toggle, mac: 'ctrlcmd+8', other: 'alt+8' },
     { action: 'Git tool window', command: 'scmView:toggle', mac: 'ctrlcmd+9', other: 'alt+9' },
     { action: 'Commit tool window', command: 'ingot.commit.toggleView', mac: 'ctrlcmd+0', other: 'alt+0' },
     { action: 'Terminal tool window', command: 'workbench.action.terminal.toggleTerminal', mac: 'alt+f12', other: 'alt+f12' },

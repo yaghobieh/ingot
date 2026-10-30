@@ -25,6 +25,12 @@ import { BROWSER_WIDGET_ID } from '../common/browser-tool/browser-tool.consts';
 import { IngotPortsWidget } from './ports/ingot-ports-widget';
 import { IngotPortsContribution } from './ports/ingot-ports-contribution';
 import { PORTS_WIDGET_ID } from './ports/ingot-ports.consts';
+import { TestStore } from './testing/test-store';
+import { TestExplorerWidget } from './testing/test-explorer-widget';
+import { TestExplorerContribution } from './testing/test-explorer-contribution';
+import { TEST_EXPLORER_WIDGET_ID } from './testing/testing.browser-consts';
+import { TEST_SERVICE_PATH } from '../common/testing/testing.consts';
+import { TestService } from '../common/testing/testing.types';
 import { AgentStore } from './agents/agent-store';
 import { CodeToolsService } from './agents/code-tools-service';
 import { MemoryStore } from './agents/memory-store';
@@ -338,6 +344,11 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotPortsWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: PORTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotPortsWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotPortsContribution);
+    bind(TestService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<TestService>(ctx.container, TEST_SERVICE_PATH)).inSingletonScope();
+    bind(TestStore).toSelf().inSingletonScope();
+    bind(TestExplorerWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: TEST_EXPLORER_WIDGET_ID, createWidget: () => ctx.container.get(TestExplorerWidget) })).inSingletonScope();
+    bindViewContribution(bind, TestExplorerContribution);
 
     bind(CodeToolsService).toSelf().inSingletonScope();
     bind(AgentStore).toSelf().inSingletonScope();

@@ -4,6 +4,7 @@ import { BROWSER_DEFAULTS, BROWSER_PREFS } from '../../common/browser-tool/brows
 import { DEFAULT_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS_CAP, WORK_LOOP_PREFS } from '../../common/agents/work-loop.consts';
 import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
 import { LIBRARY_TEMPLATE_PREF } from '../../common/agents/library-app.consts';
+import { DEFAULT_TEST_ITERATIONS, MAX_TEST_ITERATIONS_CAP, TEST_LOOP_PREFS } from '../../common/testing/testing.consts';
 
 /** IDEA-133: Settings › Tools › Agent tools (terminal, processes, browser). Also editable in settings.json. */
 export const agentToolsPreferenceSchema: PreferenceSchema = {
@@ -51,6 +52,10 @@ export const agentToolsPreferenceSchema: PreferenceSchema = {
         [LIBRARY_TEMPLATE_PREF]: {
             type: 'boolean', default: true,
             description: 'A request for a new React and Node library app uses the built-in template (create_library). Off: the agent writes, installs, builds and tests the project itself.'
+        },
+        [TEST_LOOP_PREFS.maxIterations]: {
+            type: 'number', minimum: 1, maximum: MAX_TEST_ITERATIONS_CAP, default: DEFAULT_TEST_ITERATIONS,
+            description: 'Most failing ingot/run_tests runs in one turn. After that the agent stops and explains which tests still fail.'
         },
         [WORK_LOOP_PREFS.maxToolResultChars]: {
             type: 'number', minimum: 1000, maximum: 200000, default: DEFAULT_TOOL_RESULT_CHARS,
