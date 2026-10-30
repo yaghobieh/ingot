@@ -5,7 +5,9 @@ export const IDE_FLAGS = {
     /** "Browse Marketplace" in the MCP tool window. */
     mcpMarketplace: 'mcp_marketplace',
     /** Settings sync through /v1/sync (IDEA-126). */
-    settingsSync: 'settings_sync'
+    settingsSync: 'settings_sync',
+    /** Plan entitlement gate (IDEA-271): AI agent, chat and Rex need a paid plan. Off = every AI feature is open. */
+    planGate: 'plan_gate'
 } as const;
 
 export type IdeFlag = typeof IDE_FLAGS[keyof typeof IDE_FLAGS];
@@ -13,7 +15,8 @@ export type IdeFlag = typeof IDE_FLAGS[keyof typeof IDE_FLAGS];
 export const IDE_FLAG_DEFAULTS: Readonly<Record<IdeFlag, boolean>> = {
     [IDE_FLAGS.micDictation]: true,
     [IDE_FLAGS.mcpMarketplace]: true,
-    [IDE_FLAGS.settingsSync]: true
+    [IDE_FLAGS.settingsSync]: true,
+    [IDE_FLAGS.planGate]: true
 };
 
 export const CONFIG_PATH = '/v1/config';
