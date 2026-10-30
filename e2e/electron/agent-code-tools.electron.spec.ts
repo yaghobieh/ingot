@@ -2,13 +2,17 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
-import { dismissNotifications, openIngot } from '../src/app.utils';
+import { dismissNotifications } from '../src/app.utils';
+import { launchDesktop, type DesktopApp } from '../src/electron.utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
-import { setAppearance, shot, toolBlock } from '../src/agent-tools.e2e-utils';
+import { shot, toolBlock } from '../src/agent-tools.e2e-utils';
 
-/** IDEA-259: the agent follows, renames and checks code through the TypeScript language server, shown as steps in the chat. */
+/**
+ * IDEA-259: the agent follows, renames and checks code through the TypeScript language server, shown as steps in the chat.
+ * Desktop only: in the browser build the TypeScript extension sees a web UI and runs syntax-only (no cross-file results).
+ */
 const MATH = 'export const add = (a: number, b: number): number => a + b;\n';
 const MAIN = [
     "import { zero } from './unused';",
@@ -19,7 +23,7 @@ const MAIN = [
     ''
 ].join('\n');
 const DONE = 'Renamed add to sum and checked main.ts.';
-/** The TypeScript server starts with the first .ts file, so the first call can take a while. */
+/** The TypeScript server starts with the first .ts file and loads the project, so the first call can take a while. */
 const LANGUAGE_TIMEOUT_MS = 120_000;
 
 const makeTsProject = (): string => {
@@ -34,10 +38,18 @@ const makeTsProject = (): string => {
 
 const card = (page: Page, tool: string) => page.locator(`#ingot-agents .ingot-tc-generic[data-tool="ingot/${tool}"]`).last();
 
-test.describe('IDEA-259 agent code tools', () => {
-    test.setTimeout(240_000);
+const setScheme = async (page: Page, scheme: 'light' | 'dark'): Promise<void> => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.locator('#ingot-rs-theme').click();
+    await page.locator('.quick-input-widget .monaco-list-row', { hasText: 'System' }).first().click();
+    await expect(page.locator('body')).toHaveClass(new RegExp(`ingot-${scheme}`));
+};
+
+test.describe('IDEA-259 agent code tools (desktop)', () => {
+    test.setTimeout(300_000);
     let dir: string;
     let server: FakeOllama;
+    let desktop: DesktopApp | undefined;
 
     test.beforeEach(async () => {
         dir = makeTsProject();
@@ -61,19 +73,24 @@ test.describe('IDEA-259 agent code tools', () => {
         }, { delayMs: 0 });
     });
     test.afterEach(async () => {
+        await desktop?.close();
         await server.close();
         fs.rmSync(dir, { recursive: true, force: true });
     });
 
-    test('goes to a definition, finds references, renames, organizes imports and lists problems', async ({ page }) => {
-        await openIngot(page, dir);
+    test('goes to a definition, finds references, renames, organizes imports and lists problems', async () => {
+        desktop = await launchDesktop(dir);
+        const { page } = desktop;
         await dismissNotifications(page);
-        await setAppearance(page, 'light');
+        await setScheme(page, 'light');
         await connectOllama(page, server);
-        await page.locator('#ingot-agents-new').click();
+        if (!await page.locator('#ingot-composer-input').isVisible()) {
+            await page.locator('#ingot-rs-agents').click();
+        }
         await pickModel(page, 'ollama-local');
-        await page.locator('#ingot-composer-input').fill('rename add to sum, tidy the imports of main.ts and check it');
-        await page.locator('#ingot-composer-input').press('Enter');
+        await page.locator('#ingot-composer-input').click();
+        await page.keyboard.type('rename add to sum, tidy the imports of main.ts and check it');
+        await page.keyboard.press('Enter');
         await expect(page.locator('#ingot-agents .ingot-chat-agent').last()).toContainText(DONE, { timeout: LANGUAGE_TIMEOUT_MS });
 
         // What the model got back from the language server.
@@ -86,7 +103,9 @@ test.describe('IDEA-259 agent code tools', () => {
         // Read after organize imports: the unused import is gone, so the bad line is now line 4.
         expect(result('diagnostics')).toMatch(/src\/main\.ts:4:14 error Type 'string' is not assignable to type 'number'\. \(ts 2322\)/);
 
-        // Each call is a step card with its own title, icon and target.
+        // Each call is a checklist step and a card with its own title, icon and target.
+        await expect(page.locator('#ingot-agents .ingot-step-text', { hasText: 'Find references: add · src/math.ts' })).toHaveCount(1);
+        await expect(page.locator('#ingot-agents .ingot-step-text', { hasText: 'Rename: add → sum · src/math.ts' })).toHaveCount(1);
         await expect(card(page, 'go_to_definition').locator('.ingot-tc-title')).toHaveText('Went to definition');
         await expect(card(page, 'find_references').locator('.ingot-tc-programs')).toHaveText('add · src/math.ts');
         await expect(card(page, 'find_references').locator('.codicon-references')).toHaveCount(1);
@@ -96,7 +115,7 @@ test.describe('IDEA-259 agent code tools', () => {
         await card(page, 'find_references').locator('.ingot-tc-head').click();
         await expect(card(page, 'find_references').locator('.ingot-tc-output')).toContainText('src/main.ts:2:10');
         await shot(page, 'idea-259-code-tools-light.png');
-        await setAppearance(page, 'dark');
+        await setScheme(page, 'dark');
         await shot(page, 'idea-259-code-tools-dark.png');
 
         // The edits went through the review like any agent edit; Accept all writes them.
@@ -104,6 +123,5 @@ test.describe('IDEA-259 agent code tools', () => {
         await expect.poll(() => fs.readFileSync(path.join(dir, 'src', 'math.ts'), 'utf8'), { timeout: 30_000 }).toContain('export const sum');
         await expect.poll(() => fs.readFileSync(path.join(dir, 'src', 'main.ts'), 'utf8'), { timeout: 30_000 })
             .toBe(MAIN.replace("import { zero } from './unused';\n", '').replace(/\badd\b/g, 'sum'));
-        await setAppearance(page, 'light');
     });
 });
