@@ -10,7 +10,7 @@ import { getGatewayModels } from '../../common/models/models.utils';
 import type { ProviderId, ProviderInfo } from '../../common/models/models.types';
 import { MODELS_WIDGET_ID, MODELS_WIDGET_LABEL } from './models.browser-consts';
 
-/** Settings › Models: Ingot models (signed in), optional own keys (OS keychain) / local Ollama, inline completion (IDEA-26, IDEA-101). */
+/** Settings › Models: Ingot models (signed in), optional own keys (local key file) / local Ollama, inline completion (IDEA-26, IDEA-101). */
 @injectable()
 export class IngotModelsWidget extends ReactWidget {
 
@@ -61,7 +61,7 @@ export class IngotModelsWidget extends ReactWidget {
         this.drafts.delete(provider);
         this.run(provider, async () => {
             await this.client.setKey(provider, key);
-            return 'Key saved in your OS keychain.';
+            return 'Key saved in Ingot\'s local key file.';
         });
     }
 
@@ -89,7 +89,7 @@ export class IngotModelsWidget extends ReactWidget {
                 <span><strong>Use my own API key (BYOK)</strong> / Local (Ollama)</span>
             </label>
             {this.client.byok && <>
-                <p className='ingot-models-lead'>Keys are stored in your OS keychain (macOS Keychain, Windows Credential Manager, Secret Service on Linux) — never in settings or project files — and are only sent to the provider's own API.</p>
+                <p className='ingot-models-lead'>Keys are stored in Ingot's local key file (~/.ingot/keystore.json, readable only by you) — never in settings or project files — and are only sent to the provider's own API.</p>
                 {!this.client.secureStorage && <div id='ingot-models-no-keychain' className='ingot-models-warning'>Secure storage is not available on this system, so API keys cannot be saved. Local models (Ollama) still work.</div>}
                 <div className='ingot-models-list'>
                     {PROVIDERS.filter(p => BYOK_PROVIDERS.includes(p.id)).map(p => this.renderProvider(p, overrides[p.id] ?? ''))}
@@ -141,7 +141,7 @@ export class IngotModelsWidget extends ReactWidget {
         return <section key={p.id} id={`ingot-model-${p.id}`} className='ingot-model-card'>
             <div className='ingot-model-head'>
                 <span className='ingot-model-name'>{p.label}</span>
-                <span id={`ingot-model-status-${p.id}`} className={`ingot-model-status ${configured ? 'ok' : ''}`}>{p.needsKey ? (configured ? 'Key in keychain' : 'No key') : 'Local, no key'}</span>
+                <span id={`ingot-model-status-${p.id}`} className={`ingot-model-status ${configured ? 'ok' : ''}`}>{p.needsKey ? (configured ? 'Key saved' : 'No key') : 'Local, no key'}</span>
             </div>
             {p.needsKey
                 ? <div className='ingot-models-row'>
@@ -151,7 +151,7 @@ export class IngotModelsWidget extends ReactWidget {
                         onKeyDown={e => e.key === 'Enter' && this.saveKey(p.id)} />
                     <button type='button' id={`ingot-model-save-${p.id}`} className='theia-button' disabled={!this.drafts.get(p.id)?.trim() || busy} onClick={() => this.saveKey(p.id)}>Save</button>
                     {configured && <button type='button' id={`ingot-model-remove-${p.id}`} className='theia-button secondary' disabled={busy}
-                        onClick={() => this.run(p.id, async () => { await this.client.deleteKey(p.id); return 'Key removed from your OS keychain.'; })}>Remove</button>}
+                        onClick={() => this.run(p.id, async () => { await this.client.deleteKey(p.id); return 'Key removed from Ingot\'s local key file.'; })}>Remove</button>}
                 </div>
                 : <div className='ingot-models-row'>
                     <span className='ingot-models-label'>Server URL</span>

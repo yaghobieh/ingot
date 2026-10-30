@@ -63,7 +63,7 @@ test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
         await expect(page.locator('.view-lines')).toContainText('export function subtract(a: number, b: number): number {');
     });
 
-    test('stores an API key only in the OS keychain', async ({ page }) => {
+    test('stores an API key only in the local key file', async ({ page }) => {
         await openIngot(page);
         await runCommand(page, 'Ingot: Models');
         await expect(models(page)).toBeVisible();
@@ -72,8 +72,8 @@ test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
 
         await models(page).locator('#ingot-model-key-openai').fill(FAKE_KEY);
         await models(page).locator('#ingot-model-save-openai').click();
-        await expect(models(page).locator('#ingot-model-result-openai')).toHaveText('Key saved in your OS keychain.');
-        await expect(models(page).locator('#ingot-model-status-openai')).toHaveText('Key in keychain');
+        await expect(models(page).locator('#ingot-model-result-openai')).toHaveText("Key saved in Ingot's local key file.");
+        await expect(models(page).locator('#ingot-model-status-openai')).toHaveText('Key saved');
         await expect(models(page).locator('#ingot-model-key-openai')).toHaveValue('');
         expect(await page.content()).not.toContain(FAKE_KEY);
         const configFiles = fs.readdirSync(E2E_CONFIG_DIR, { recursive: true }).map(f => path.join(E2E_CONFIG_DIR, String(f))).filter(f => fs.statSync(f).isFile());

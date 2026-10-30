@@ -2,7 +2,7 @@ import { PreferenceContribution, PreferenceSchema } from '@theia/core/lib/common
 import { interfaces } from '@theia/core/shared/inversify';
 import { DEFAULT_OLLAMA_URL, MODEL_CATALOG, MODEL_PREFERENCES } from '../../common/models/models.consts';
 
-/** Non-secret model settings. API keys are never preferences: they live in the OS keychain. */
+/** Non-secret model settings. API keys are never preferences: they live in Ingot's local key file (~/.ingot/keystore.json). */
 export const modelPreferenceSchema: PreferenceSchema = {
     properties: {
         [MODEL_PREFERENCES.byok]: { type: 'boolean', default: false, description: 'Use my own API keys (BYOK) and local models (Ollama) in addition to Ingot models.' },

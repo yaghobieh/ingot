@@ -55,7 +55,7 @@ export class IngotGlobalSettingsContribution implements CommandContribution, Jso
             const signature = keys.join(',');
             if (keys.length && signature !== this.warned) {
                 this.warned = signature;
-                this.messages.warn(`${GLOBAL_SETTINGS_FILE} has ${keys.length === 1 ? 'a setting' : 'settings'} that look${keys.length === 1 ? 's' : ''} like a secret (${keys.join(', ')}). Keys belong in the Keychain: Settings › Models & API Keys.`);
+                this.messages.warn(`${GLOBAL_SETTINGS_FILE} has ${keys.length === 1 ? 'a setting' : 'settings'} that look${keys.length === 1 ? 's' : ''} like a secret (${keys.join(', ')}). Keys belong in Ingot's key file: Settings › Models & API Keys.`);
             }
         } catch {
             // Missing or mid-edit file: nothing to check.
