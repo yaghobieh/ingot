@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { injectable } from '@theia/core/shared/inversify';
 import {
-    DISCOVERY_SKIPPED_DIRS, MAX_DISCOVERY_DEPTH, MAX_TEST_FILE_BYTES, MAX_TEST_FILES, NO_RUNNER_TEXT, RUN_OUTPUT_TAIL_CHARS, TEST_RUN_TIMEOUT_MS
+    DISCOVERY_SKIPPED_DIRS, MAX_DISCOVERY_DEPTH, MAX_TEST_FILE_BYTES, MAX_TEST_FILES, NO_RUNNER_TEXT, RUN_OUTPUT_BUFFER_CHARS, RUN_OUTPUT_TAIL_CHARS, TEST_RUN_TIMEOUT_MS
 } from '../common/testing/testing.consts';
 import type { RunnerCommand, TestDiscovery, TestFile, TestRunner, TestRunRequest, TestRunResult, TestService } from '../common/testing/testing.types';
 import { commandLine, detectRunner, discoverTests, extractJson, isTestFile, parseReport, runError, runnerCommand, scopeToRequest, summarizeRun } from '../common/testing/testing.utils';
@@ -119,7 +119,7 @@ export class IngotTestService implements TestService {
                 env: { ...process.env, ...command.env, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' }
             });
             const add = (chunk: Buffer): void => {
-                output = `${output}${chunk.toString('utf8')}`.slice(-RUN_OUTPUT_TAIL_CHARS * 4);
+                output = `${output}${chunk.toString('utf8')}`.slice(-RUN_OUTPUT_BUFFER_CHARS);
             };
             child.stdout.on('data', add);
             child.stderr.on('data', add);

@@ -53,6 +53,8 @@ export const ID_SEPARATOR = '::';
 
 export const TEST_RUN_TIMEOUT_MS = 300_000;
 export const RUN_OUTPUT_TAIL_CHARS = 4_000;
+/** Runner output kept in memory while it runs (the report file carries the results). */
+export const RUN_OUTPUT_BUFFER_CHARS = 16_000;
 export const FAILURE_MESSAGE_MAX_CHARS = 600;
 /** Failures listed in the agent's tool result. */
 export const AGENT_FAILURE_LIMIT = 10;
