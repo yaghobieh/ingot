@@ -1078,7 +1078,7 @@ export class IngotAgentsWidget extends ReactWidget {
             return undefined;
         }
         return <AskCard key={`${session.id}:${ask.question}`} question={ask.question} options={ask.options}
-            onAnswer={text => { this.stickToLatest = true; this.store.answerQuestion(session.id, text); }} />;
+            onAnswer={text => { this.resumeFollowing(); this.store.answerQuestion(session.id, text); }} />;
     }
 
     /** Plan items and run steps under the agent line, one line each. Reads sit in Explored, edits in the edited-files card. */

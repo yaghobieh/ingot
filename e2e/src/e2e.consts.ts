@@ -50,5 +50,7 @@ export const E2E_USER_SETTINGS = {
     'ingot.agent.terminal.requireApproval': true,
     'ingot.agent.browser.enabled': true,
     'ingot.agent.browser.requireApproval': true,
-    'ingot.agent.browser.approveReads': false
+    'ingot.agent.browser.approveReads': false,
+    // IDEA-281: fixtures with .cursor rules would otherwise show the import prompt in every spec; its own spec turns it on.
+    'ingot.import.cursorRules': 'never'
 } as const;

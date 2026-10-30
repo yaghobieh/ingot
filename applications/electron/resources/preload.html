@@ -1,3 +1,10 @@
+<script>
+  // IDEA-281: paint the last applied theme (cached by IngotThemeContribution) instead of guessing from the OS.
+  try {
+    var ingotBoot = JSON.parse(localStorage.getItem('ingot.appearance.boot') || 'null');
+    if (ingotBoot && (ingotBoot.kind === 'light' || ingotBoot.kind === 'dark')) { document.documentElement.setAttribute('data-ingot-boot', ingotBoot.kind); }
+  } catch (e) { /* no cache yet: follow the OS */ }
+</script>
 <style>
   .theia-preload { background: var(--ingot-launch-background, var(--theia-editor-background)); transition: opacity 180ms ease-out; }
   .theia-preload::after { content: none; }

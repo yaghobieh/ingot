@@ -18,6 +18,8 @@ import { pinProjectLabel } from '../navigator/project-label';
 import { IngotExplorerHeader } from '../navigator/explorer-header';
 import { EXPLORER_CONTAINER_ID } from '../navigator/navigator.consts';
 import { DEFAULT_LAYOUT_COMMANDS, INGOT_SHELL_COMMANDS } from './ingot-shell.consts';
+import { ShellLayoutRestorer } from '@theia/core/lib/browser/shell/shell-layout-restorer';
+import { IngotShellLayoutRestorer } from '../workbench/agents-window-layout-restorer';
 
 
 type SideArea = 'left' | 'right' | 'bottom';
@@ -57,6 +59,9 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     @inject(IngotExplorerHeader)
     protected readonly explorerHeader: IngotExplorerHeader;
 
+    @inject(ShellLayoutRestorer)
+    protected readonly layoutRestorer: ShellLayoutRestorer;
+
     @inject(IngotLayoutContribution)
     protected readonly layout: IngotLayoutContribution;
 
@@ -66,20 +71,27 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         document.body.classList.add('ingot-shell');
     }
 
-    async onDidInitializeLayout(_app: FrontendApplication): Promise<void> {
+    async onDidInitializeLayout(app: FrontendApplication): Promise<void> {
         // Electron hides the top panel on macOS (native menu); the Ingot main toolbar lives there.
         this.shell.topPanel.show();
         this.attachStripe();
         // The right edge gets Ingot's own slim stripe instead of Theia's side tabs (IDEA-61).
         this.attachRightStripe();
-        await this.agents.openView({ activate: false, reveal: true });
+        // IDEA-281: a restored layout keeps the chat and the bottom panel open or closed as the user left them;
+        // only a fresh window gets the reference layout.
+        const restorer = this.layoutRestorer instanceof IngotShellLayoutRestorer ? this.layoutRestorer : undefined;
+        const restored = !!restorer?.restored;
+        await this.agents.openView({ activate: false, reveal: !restored });
         this.rightStripe.refreshSoon();
         this.renameProjectView();
-        // The reference layout keeps the bottom panel closed; the Terminal opens from the stripe or ⌥F12.
-        this.shell.collapsePanel('bottom');
+        if (!restored) {
+            // The reference layout keeps the bottom panel closed; the Terminal opens from the stripe or ⌥F12.
+            this.shell.collapsePanel('bottom');
+        }
         // Chat on the right or at the bottom, as the user chose (IDEA-85).
-        await this.layout.start();
+        await this.layout.start(restored);
         this.rightStripe.refreshSoon();
+        restorer?.keepStored(app);
     }
 
     /** The file tree is labelled with the project name, with a fold chevron and file actions (IDEA-93). */

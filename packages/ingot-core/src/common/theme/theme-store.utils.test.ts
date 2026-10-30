@@ -2,7 +2,7 @@ import { deflateRawSync } from 'zlib';
 import { describe, expect, it } from 'vitest';
 import { readZipEntries } from './zip.utils';
 import {
-    colorThemesFromManifest, formatCount, groupThemes, loadThemeJson, parseStoreSearch, resolvePackagePath, storeSearchUrl, swatchOf, themesFromPackage
+    colorThemesFromManifest, formatCount, groupThemes, loadThemeJson, parseStoreSearch, parseUserThemes, resolvePackagePath, storeSearchUrl, swatchOf, themesFromPackage
 } from './theme-store.utils';
 
 /** Test-only zip writer (deflate) for building fake .vsix packages. */
@@ -96,5 +96,13 @@ describe('IDEA-144 theme store', () => {
         expect(grouped.dark.map(t => t.id)).toEqual(['b']);
         expect(groupThemes([{ id: 'b', label: 'Beta', uiTheme: 'vs-dark' }], 'alp').dark).toEqual([]);
         expect([formatCount(6_551_178), formatCount(12_400), formatCount(1_500), formatCount(42)]).toEqual(['6.6M', '12K', '1.5K', '42']);
+    });
+
+    it('IDEA-281: reads installed themes from ~/.ingot/themes.json or the legacy storage value', () => {
+        const theme = { id: 'vsx-acme-night', label: 'Acme Night', uiTheme: 'vs-dark', json: { colors: {} }, source: { extensionId: 'acme.night', version: '1.0.0', publisher: 'acme' } };
+        expect(parseUserThemes(JSON.stringify([theme, { id: 'broken' }]))).toEqual([theme]);
+        expect(parseUserThemes([theme])).toEqual([theme]);
+        expect(parseUserThemes('{not json')).toEqual([]);
+        expect(parseUserThemes(undefined)).toEqual([]);
     });
 });

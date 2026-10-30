@@ -8,6 +8,7 @@ import { Disposable } from '@theia/core/lib/common/disposable';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import URI from '@theia/core/lib/common/uri';
+import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog/file-dialog-service';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
@@ -15,10 +16,12 @@ import { MonacoThemingService } from '@theia/monaco/lib/browser/monaco-theming-s
 import { SETTINGS_PREFS } from '../../common/settings/settings.consts';
 import { parseVsCodeTheme, upsertTheme, USER_THEMES_STORAGE_KEY, type ImportedTheme } from '../../common/theme/theme-import.utils';
 import type { StoreInstalledTheme } from '../../common/theme/theme-store.types';
+import { USER_THEMES_FILE } from '../../common/theme/theme-store.consts';
+import { parseUserThemes } from '../../common/theme/theme-store.utils';
 import { Emitter } from '@theia/core/lib/common/event';
 import { THEME_IMPORT_COMMAND, THEME_REMOVE_COMMAND } from '../settings/settings.browser-consts';
 
-/** User color themes imported from color theme files (IDEA-35), kept in browser storage and re-registered on start. */
+/** User color themes imported from color theme files (IDEA-35) or Open VSX, kept in ~/.ingot/themes.json and re-registered on start. */
 @injectable()
 export class UserThemeContribution implements FrontendApplicationContribution, CommandContribution {
 
@@ -31,6 +34,7 @@ export class UserThemeContribution implements FrontendApplicationContribution, C
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(QuickInputService) protected readonly quickInput: QuickInputService;
+    @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
 
     protected readonly registered = new Map<string, Disposable>();
     protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -50,9 +54,26 @@ export class UserThemeContribution implements FrontendApplicationContribution, C
         registry.registerCommand(THEME_REMOVE_COMMAND, { execute: () => this.removeTheme() });
     }
 
+    /** ~/.ingot/themes.json; on first run after IDEA-281 the list kept in this project's browser storage moves there. */
     async load(): Promise<StoreInstalledTheme[]> {
-        const stored = await this.storage.getData<StoreInstalledTheme[]>(USER_THEMES_STORAGE_KEY, []);
-        return Array.isArray(stored) ? stored : [];
+        const file = await this.themesFile();
+        const text = await this.files.read(file).then(content => content.value, () => undefined);
+        if (text !== undefined) {
+            return parseUserThemes(text);
+        }
+        const legacy = parseUserThemes(await this.storage.getData<unknown>(USER_THEMES_STORAGE_KEY));
+        if (legacy.length) {
+            await this.save(legacy);
+        }
+        return legacy;
+    }
+
+    protected async save(themes: readonly StoreInstalledTheme[]): Promise<void> {
+        await this.files.write(await this.themesFile(), JSON.stringify(themes));
+    }
+
+    protected async themesFile(): Promise<URI> {
+        return new URI(await this.env.getConfigDirUri()).resolve(USER_THEMES_FILE);
     }
 
     protected register(theme: StoreInstalledTheme): void {
@@ -68,7 +89,7 @@ export class UserThemeContribution implements FrontendApplicationContribution, C
         for (const theme of themes) {
             all = upsertTheme(all, theme);
         }
-        await this.storage.setData(USER_THEMES_STORAGE_KEY, all);
+        await this.save(all);
         themes.forEach(theme => this.register(theme));
         this.onDidChangeEmitter.fire();
     }
@@ -80,7 +101,7 @@ export class UserThemeContribution implements FrontendApplicationContribution, C
         if (!removed.length) {
             return [];
         }
-        await this.storage.setData(USER_THEMES_STORAGE_KEY, all.filter(t => !removed.includes(t)));
+        await this.save(all.filter(t => !removed.includes(t)));
         const ids = removed.map(t => t.id);
         if (ids.includes(this.themes.getCurrentTheme().id) || ids.includes(this.preferences.get<string>(SETTINGS_PREFS.colorTheme) ?? '')) {
             await this.preferences.set(SETTINGS_PREFS.colorTheme, undefined, PreferenceScope.User);
@@ -105,7 +126,7 @@ export class UserThemeContribution implements FrontendApplicationContribution, C
         try {
             const content = await this.files.read(uri);
             const theme = parseVsCodeTheme(content.value, uri.path.base);
-            await this.storage.setData(USER_THEMES_STORAGE_KEY, upsertTheme(await this.load(), theme));
+            await this.save(upsertTheme(await this.load(), theme));
             this.register(theme);
             this.onDidChangeEmitter.fire();
             await this.preferences.set(SETTINGS_PREFS.colorTheme, theme.id, PreferenceScope.User);
