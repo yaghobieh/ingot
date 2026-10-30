@@ -17,6 +17,10 @@ import { autoUpdateDecision, defaultPluginsValue } from '../common/update/auto-u
 import { BAKED_ENDPOINTS_KEY } from '../common/account/account.consts';
 import { bakedEndpointEnv } from '../common/account/account-endpoints.utils';
 import { installProcessReporter } from '../common/telemetry/process-reporter';
+import { PRODUCT } from '../common/product.consts';
+
+// Before app 'ready': the macOS app menu and its About/Hide/Quit role labels read the name then.
+app.setName(PRODUCT.name);
 
 // IDEA-134: packaged apps ship the built-in language plugins in <resources>/plugins (electron-builder extraResources).
 // Set before the backend process is forked (it inherits this env); dev runs pass --plugins=local-dir:../../plugins.
