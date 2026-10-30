@@ -69,7 +69,7 @@ import { ProjectConfigService } from '../project-config/project-config-service';
 import { IngotMcpClient } from '../project-config/mcp-client';
 import { applicableRules, expandCommand, formatRules } from '../../common/project-config/project-config.utils';
 import type { ProjectCommand } from '../../common/project-config/project-config.types';
-import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
+import { cutAfterToolCalls, TOOL_CALL_FORMAT, toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
 import { MADE_WITH_PREF, withMadeWith } from '../../common/git/made-with';
@@ -902,7 +902,7 @@ export class AgentStore {
         this.github = workspace.github;
         const base = [
             AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_WORKFLOW : '', info.canEdit ? AGENT_PROTOCOL : '', info.canEdit && root ? WORK_LOOP_PROTOCOL : '',
-            root ? workspaceProtocol(workspace) : '', toolProtocol(tools),
+            root ? workspaceProtocol(workspace) : '', toolProtocol(tools) || (info.canUseTools ? TOOL_CALL_FORMAT : ''),
             info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '',
             this.memoryStore.generate ? MEMORY_PROTOCOL : '', session.parent ? '' : FOLLOW_UPS_PROTOCOL
         ].filter(Boolean).join('\n\n');
@@ -1161,7 +1161,7 @@ export class AgentStore {
                 if (!live() || !session.messages[index]) {
                     return;
                 }
-                const parsed = parseAgentOutput(text);
+                const parsed = parseAgentOutput(cutAfterToolCalls(text));
                 this.streamEdit(session, index, parsed.editing, parsed.editingContent);
                 this.writeAgentDraft(session, index, extractFollowUps(extractMemories(parsed.display).display).display);
                 if (parsed.plan.length) {
@@ -1174,7 +1174,7 @@ export class AgentStore {
                 this.poke();
             }, tools.length ? { tools } : {});
             this.running.set(session.id, stream.cancel);
-            final = await stream.done;
+            final = cutAfterToolCalls(await stream.done);
         } catch (error) {
             await this.tracker.cancelStreams(session.id);
             const gateway = decodeGatewayError(error instanceof Error ? error.message : String(error));
