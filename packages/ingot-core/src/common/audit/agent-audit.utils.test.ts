@@ -21,13 +21,15 @@ const chain = (count: number): string => {
     return `${lines.join('\n')}\n`;
 };
 
+const fakeKey = (prefix: string): string => `${prefix}${'x'.repeat(32)}`;
+
 describe('redaction', () => {
     it('removes keys, tokens and passwords from text and arguments', () => {
         expect(redact('curl -H "Authorization: Bearer abcdefghijklmnop" x')).toBe(`curl -H "Authorization: Bearer ${REDACTED}" x`);
-        expect(redact('export OPENAI=sk-proj-0123456789abcdefABCDEF')).toBe(`export OPENAI=${REDACTED}`);
+        expect(redact(`export OPENAI=${fakeKey('sk-proj-')}`)).toBe(`export OPENAI=${REDACTED}`);
         expect(redact('mysql --password=hunter2 db')).toBe(`mysql --password=${REDACTED} db`);
         expect(redact('npm test')).toBe('npm test');
-        expect(sanitizeArgs({ token: 'abc', command: 'echo ghp_0123456789abcdefghijABCDEFGHIJ', depth: 2, nested: { apiKey: 'x' } }))
+        expect(sanitizeArgs({ token: 'abc', command: `echo ${fakeKey('ghp_')}`, depth: 2, nested: { apiKey: 'x' } }))
             .toEqual({ token: REDACTED, command: `echo ${REDACTED}`, depth: 2, nested: '{"apiKey":"x"}' });
     });
 });
