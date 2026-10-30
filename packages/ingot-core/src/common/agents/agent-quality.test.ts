@@ -24,6 +24,18 @@ describe('IDEA-282 agent quality loop', () => {
         expect(nudge).toContain('complete block');
     });
 
+    it('runs a tool written as a fence named after it', () => {
+        const parsed = parseAgentOutput('### Checking\n```ingot/list_dir\n{"path": ".", "depth": 1}\n```\nthen\n```run\n{"command": "npm test", "cwd": "server"}\n```');
+        expect(parsed.toolCalls).toEqual([
+            { server: 'ingot', tool: 'list_dir', args: { path: '.', depth: 1 } },
+            { server: 'ingot', tool: 'run', args: { command: 'npm test', cwd: 'server' } }
+        ]);
+        expect(parsed.display).not.toContain('list_dir');
+        expect(parseAgentOutput('Example:\n```ts\n{ a: 1 }\n```').toolCalls).toHaveLength(0);
+        expect(parseAgentOutput('```bash\nnpm test\n```').display).toContain('npm test');
+        expect(parseAgentOutput('Reading\n```ingot/read_file\n{"path": "pack').display).toBe('Reading');
+    });
+
     it('hides the library template when it is turned off', () => {
         const off = { terminal: true, browser: true, template: false };
         expect(builtinToolEnabled('create_library', off)).toBe(false);
