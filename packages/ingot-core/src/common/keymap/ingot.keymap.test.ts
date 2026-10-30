@@ -31,6 +31,16 @@ describe('Ingot keymap', () => {
         expect(winBindings.every(b => b.when?.includes('!ingotChangesPending'))).toBe(true);
     });
 
+    it('gives Cmd+K to inline edit only when code is selected in the editor', () => {
+        for (const mac of [true, false]) {
+            const bindings = resolveKeymap(INGOT_KEYMAP, mac).filter(b => b.keybinding === (mac ? 'ctrlcmd+k' : 'ctrl+k'));
+            expect(bindings.map(b => b.command).sort()).toEqual(['ingot.commit.open', 'ingot.inlineEdit.start']);
+            expect(bindings.find(b => b.command === 'ingot.inlineEdit.start')?.when).toBe('editorTextFocus && editorHasSelection');
+            expect(bindings.find(b => b.command === 'ingot.commit.open')?.when).toBeUndefined();
+        }
+        expect(key('Show Local History', true)).toBe('ctrlcmd+alt+shift+h');
+    });
+
     it('detects a double Shift tap', () => {
         let t = 0;
         const detect = createDoubleShiftDetector(400, () => t);

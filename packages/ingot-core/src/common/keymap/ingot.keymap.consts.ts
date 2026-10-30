@@ -1,5 +1,7 @@
 import type { KeymapEntry } from './keymap.types';
 import { CHANGES_PENDING_KEY } from '../changes/changes.consts';
+import { INLINE_EDIT_COMMANDS } from '../inline-edit/inline-edit.consts';
+import { LOCAL_HISTORY_COMMANDS } from '../local-history/local-history.consts';
 
 /** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
@@ -24,6 +26,8 @@ const IN_DEBUG = 'inDebugMode';
 /** Focus is inside the Agents tool window (chat). */
 const AGENTS_FOCUS = 'ingotAgentsFocus';
 const EDITOR_NOT_REVIEWING = `${EDITOR} && ${NOT_REVIEWING}`;
+/** Code is selected in the focused editor; Theia prefers this editor-local binding over a global one on the same key. */
+const EDITOR_SELECTION = `${EDITOR} && editorHasSelection`;
 
 /**
  * Ingot default keymap (IDEA-18): "macOS" and "Windows/Linux" variants.
@@ -104,8 +108,12 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Push…', command: 'ingot.commit.push', mac: 'ctrlcmd+shift+k', other: 'ctrl+shift+k' },
     { action: 'Annotate with Git Blame', command: 'ingot.annotate.toggle', mac: 'ctrlcmd+alt+shift+b', other: 'ctrl+alt+shift+b', when: EDITOR },
     { action: 'Commit Message History', command: 'ingot.commit.messageHistory', mac: 'ctrlcmd+alt+h', other: 'ctrl+alt+h', when: 'ingotLocalChangesFocus' },
+    // Local History (IDEA-262)
+    { action: 'Show Local History', command: LOCAL_HISTORY_COMMANDS.show.id, mac: 'ctrlcmd+alt+shift+h', other: 'ctrl+alt+shift+h' },
     // Agent chat (IDEA-65)
     { action: 'Add Selection to Agent Chat', command: 'ingot.agents.addSelectionToChat', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: EDITOR },
+    // Inline edit (IDEA-262): Cmd+K with code selected; Commit keeps Cmd+K everywhere else.
+    { action: 'Edit Selection with Agent', command: INLINE_EDIT_COMMANDS.start.id, mac: 'ctrlcmd+k', other: 'ctrl+k', when: EDITOR_SELECTION },
     { action: 'Cycle Chat Mode', command: 'ingot.agents.cycleMode', mac: 'ctrlcmd+.', other: 'ctrl+.', when: AGENTS_FOCUS },
     { action: 'New Chat', command: 'ingot.agents.new', mac: 'ctrlcmd+alt+n', other: 'ctrl+alt+n', when: AGENTS_FOCUS },
     { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS }
