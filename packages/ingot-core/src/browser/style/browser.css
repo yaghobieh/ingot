@@ -178,3 +178,92 @@
     border-radius: var(--ingot-radius);
     cursor: zoom-in;
 }
+
+/* IDEA-289: Quote / Comment bar under text selected on the page. */
+.ingot-browser-selection {
+    position: absolute;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    max-width: 100%;
+    padding: 3px;
+    border: 1px solid var(--ingot-border);
+    border-radius: var(--ingot-radius);
+    background: var(--ingot-panel);
+    color: var(--ingot-text);
+    font-size: 12px;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--ingot-forge-navy) 22%, transparent);
+}
+
+.ingot-browser-selection.commenting {
+    width: 280px;
+    padding: 6px;
+}
+
+.ingot-browser-selection-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 8px;
+    border: none;
+    border-radius: var(--ingot-radius);
+    background: none;
+    color: var(--ingot-text);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.ingot-browser-selection-action:hover {
+    background: var(--ingot-selection);
+}
+
+.ingot-browser-selection-action .codicon {
+    color: var(--ingot-primary);
+}
+
+.ingot-browser-comment-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.ingot-browser-comment-quote {
+    overflow: hidden;
+    padding-left: 6px;
+    border-left: 2px solid var(--ingot-ingot-gold);
+    color: var(--ingot-text-muted);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ingot-browser-comment-input {
+    resize: none;
+    padding: 4px 6px;
+    border: 1px solid var(--ingot-border);
+    border-radius: var(--ingot-radius);
+    background: var(--ingot-surface);
+    color: var(--ingot-text);
+    font: inherit;
+    outline: none;
+}
+
+.ingot-browser-comment-input:focus {
+    border-color: var(--ingot-focus-ring);
+}
+
+.ingot-browser-comment-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.ingot-browser-comment-actions .theia-button {
+    min-width: 0;
+    margin: 0;
+    padding: 2px 10px;
+    font-size: 12px;
+}

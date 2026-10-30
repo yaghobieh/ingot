@@ -67,7 +67,8 @@ import type { CodeChange } from '../../common/changes/changes.types';
 import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
 import { ProcessStore } from '../processes/process-store';
 import { ProcessesPanel } from '../processes/processes-panel';
-import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
+import { BROWSER_COMMANDS } from '../browser-tool/browser-tool.browser-consts';
+import { BROWSER_RUN_COMMAND } from '../../common/browser-tool/browser-tool.consts';
 import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
@@ -170,7 +171,8 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected acceptSlash(item: { name: string; action?: SlashBuiltinAction }): void {
         this.slashIndex = 0;
-        if (!item.action) {
+        // IDEA-289: /browser prefixes the task typed after it, like a project command.
+        if (!item.action || item.action.kind === 'browser') {
             this.inline?.setText(`/${item.name} `);
             this.focusComposer();
             return;
@@ -203,6 +205,9 @@ export class IngotAgentsWidget extends ReactWidget {
             case 'memories':
                 this.toggleMemories();
                 return;
+            case 'browser':
+                this.inline?.setText(`/${BROWSER_RUN_COMMAND} `);
+                break;
         }
         this.update();
         this.focusComposer();

@@ -1,5 +1,6 @@
 import type { KeymapEntry } from './keymap.types';
 import { CHANGES_PENDING_KEY } from '../changes/changes.consts';
+import { BROWSER_FOCUS_KEY } from '../browser-tool/browser-tool.consts';
 
 /** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
@@ -23,6 +24,8 @@ const EDITOR = 'editorTextFocus';
 const IN_DEBUG = 'inDebugMode';
 /** Focus is inside the Agents tool window (chat). */
 const AGENTS_FOCUS = 'ingotAgentsFocus';
+/** Focus is inside the Browser panel. */
+const BROWSER_FOCUS = BROWSER_FOCUS_KEY;
 const EDITOR_NOT_REVIEWING = `${EDITOR} && ${NOT_REVIEWING}`;
 
 /**
@@ -108,7 +111,12 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Add Selection to Agent Chat', command: 'ingot.agents.addSelectionToChat', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: EDITOR },
     { action: 'Cycle Chat Mode', command: 'ingot.agents.cycleMode', mac: 'ctrlcmd+.', other: 'ctrl+.', when: AGENTS_FOCUS },
     { action: 'New Chat', command: 'ingot.agents.new', mac: 'ctrlcmd+alt+n', other: 'ctrl+alt+n', when: AGENTS_FOCUS },
-    { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS }
+    { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS },
+    // Browser panel (IDEA-289); page shortcuts reach Ingot from the web build's frame, the desktop page keeps its keys.
+    { action: 'Open Browser', command: 'ingot.browser.open', mac: 'ctrlcmd+alt+shift+w', other: 'ctrl+alt+shift+w' },
+    { action: 'Quote Page Selection in Agent Chat', command: 'ingot.browser.quoteSelection', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: BROWSER_FOCUS },
+    { action: 'Comment on Page Selection in Agent Chat', command: 'ingot.browser.commentSelection', mac: 'ctrlcmd+alt+shift+m', other: 'ctrl+alt+shift+m', when: BROWSER_FOCUS },
+    { action: 'Open Page in External Browser', command: 'ingot.browser.openExternal', mac: 'ctrlcmd+alt+shift+o', other: 'ctrl+alt+shift+o', when: BROWSER_FOCUS }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';

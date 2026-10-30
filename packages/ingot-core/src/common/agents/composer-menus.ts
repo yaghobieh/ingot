@@ -1,7 +1,7 @@
 /** IDEA-187: the composer's `/` built-in commands and `@` file mentions. */
 import type { AgentMode } from './agents.types';
 
-export type SlashBuiltinAction = { kind: 'mode'; mode: AgentMode } | { kind: 'new' } | { kind: 'compact' } | { kind: 'model' } | { kind: 'history' } | { kind: 'memories' };
+export type SlashBuiltinAction = { kind: 'mode'; mode: AgentMode } | { kind: 'new' } | { kind: 'compact' } | { kind: 'model' } | { kind: 'history' } | { kind: 'memories' } | { kind: 'browser' };
 
 export interface SlashBuiltin {
     readonly name: string;
@@ -19,7 +19,8 @@ export const SLASH_BUILTINS: readonly SlashBuiltin[] = [
     { name: 'compact', description: 'Summarize this chat to free up context', action: { kind: 'compact' } },
     { name: 'model', description: 'Pick the model', action: { kind: 'model' } },
     { name: 'history', description: 'Open chat history', action: { kind: 'history' } },
-    { name: 'memories', description: 'Manage memories', action: { kind: 'memories' } }
+    { name: 'memories', description: 'Manage memories', action: { kind: 'memories' } },
+    { name: 'browser', description: 'Let the agent use the Browser panel for this run: navigate, click, type, screenshots, console and failed requests', action: { kind: 'browser' } }
 ];
 
 /** The `@query` right before the caret, if one is being typed (start of text or after a space). */
