@@ -15,6 +15,9 @@
     --ingot-ap-badge-w: 30px;
     --ingot-ap-files-max: 336px;
     --ingot-ap-hover: color-mix(in srgb, var(--ingot-text) 6%, transparent);
+    /* Quiet base with lifted cards; the composer is a card too. */
+    --ingot-ap-card: var(--ingot-surface);
+    background: var(--ingot-bg);
 }
 
 .ingot-agents .ingot-agents-chat { padding: var(--ingot-space-3) var(--ingot-space-3) var(--ingot-space-4); gap: var(--ingot-space-3); font-size: var(--ingot-ap-font); color: var(--ingot-text); }
@@ -37,7 +40,7 @@
     padding: var(--ingot-space-2) var(--ingot-space-3);
     border-radius: var(--ingot-ap-radius);
     border: 1px solid var(--ingot-border);
-    background: var(--ingot-surface);
+    background: var(--ingot-ap-card);
     color: var(--ingot-text);
     box-shadow: none;
     font-size: var(--ingot-ap-font);
@@ -46,15 +49,13 @@
 .ingot-agents .ingot-chat-user .ingot-chat-user-avatar { display: none; }
 /* Latest prompt stays pinned. Sticky is still a containing block, so hover reactions stay on the card. */
 .ingot-agents .ingot-chat-user.ingot-chat-latest { position: sticky; top: 0; z-index: 4; }
-.ingot-agents .ingot-chat-user .ingot-reactions,
-.ingot-agents .ingot-chat-user .ingot-chat-edit { position: absolute; opacity: 0; }
-.ingot-agents .ingot-chat-user .ingot-reactions { top: var(--ingot-space-1); right: var(--ingot-space-2); margin: 0; }
+.ingot-agents .ingot-chat-user :is(.ingot-reactions, .ingot-chat-edit, .ingot-chat-revert) { position: absolute; margin: 0; opacity: 0; background: var(--ingot-ap-card); }
+.ingot-agents .ingot-chat-user .ingot-reactions { top: var(--ingot-space-1); right: var(--ingot-space-2); }
 .ingot-agents .ingot-chat-user .ingot-chat-edit { bottom: var(--ingot-space-1); right: var(--ingot-space-2); }
-.ingot-agents .ingot-chat-user:hover .ingot-reactions,
-.ingot-agents .ingot-chat-user:focus-within .ingot-reactions,
-.ingot-agents .ingot-chat-user:hover .ingot-chat-edit,
-.ingot-agents .ingot-chat-user:focus-within .ingot-chat-edit { opacity: 1; }
-.ingot-agents .ingot-chat-agent .ingot-reactions { align-self: flex-start; }
+.ingot-agents .ingot-chat-user .ingot-chat-revert { bottom: var(--ingot-space-1); right: calc(var(--ingot-space-2) + 40px); }
+.ingot-agents .ingot-chat-msg:is(:hover, :focus-within) :is(.ingot-reactions, .ingot-chat-edit, .ingot-chat-revert),
+.ingot-agents .ingot-reactions:has(.on) { opacity: 1; }
+.ingot-agents .ingot-chat-agent .ingot-reactions { align-self: flex-start; margin: 0; opacity: 0; }
 
 /* "Ingot Agent · worked for 2m 14s" */
 .ingot-agents .ingot-chat-agent-head { display: flex; align-items: center; gap: var(--ingot-space-2); margin: 0; min-width: 0; white-space: nowrap; }
@@ -99,7 +100,7 @@
 .ingot-agents .ingot-minus.zero { color: var(--ingot-text-muted); }
 
 /* Edited N files: collapsible card in the reply. */
-.ingot-edited-card { border: 1px solid var(--ingot-border); border-radius: var(--ingot-ap-radius); background: var(--ingot-surface); overflow: hidden; }
+.ingot-edited-card { border: 1px solid var(--ingot-border); border-radius: var(--ingot-ap-radius); background: var(--ingot-ap-card); overflow: hidden; }
 .ingot-edited-head {
     display: flex; align-items: center; gap: var(--ingot-space-2); width: 100%; box-sizing: border-box; height: 32px;
     padding: 0 var(--ingot-space-3); border: 0; background: transparent; color: var(--ingot-text);
@@ -142,7 +143,7 @@
 .ingot-agents .ingot-review-file .ingot-review-file-accept,
 .ingot-agents .ingot-review-file .ingot-review-file-diff {
     position: absolute; top: 2px; width: 22px; height: 19px; padding: 0; display: inline-grid; place-items: center;
-    border-radius: 4px; background: var(--ingot-surface); color: var(--ingot-text-muted); opacity: 0;
+    border-radius: 4px; background: var(--ingot-ap-card); color: var(--ingot-text-muted); opacity: 0;
 }
 .ingot-agents .ingot-review-file .ingot-review-file-accept { right: var(--ingot-space-2); }
 .ingot-agents .ingot-review-file .ingot-review-file-reject { right: calc(var(--ingot-space-2) + 24px); }
@@ -179,8 +180,8 @@
     color: var(--ingot-text); font-size: var(--ingot-ap-small);
 }
 .ingot-agents .ingot-md-code { margin: 0 0 var(--ingot-space-2); border: 1px solid var(--ingot-border); border-radius: var(--ingot-ap-radius); background: var(--ingot-editor-bg); overflow: hidden; }
-.ingot-agents .ingot-md-code-head { height: 28px; padding: 0 var(--ingot-space-1) 0 var(--ingot-space-3); background: transparent; border: 0; color: var(--ingot-text-muted); font-size: var(--ingot-ap-tiny); }
-.ingot-agents .ingot-md-code pre { margin: 0; padding: var(--ingot-space-1) var(--ingot-space-3) var(--ingot-space-3); background: transparent; font-size: var(--ingot-ap-small); line-height: 18px; }
+.ingot-agents .ingot-md-code-head { height: 26px; padding: 0 var(--ingot-space-1) 0 var(--ingot-space-3); background: transparent; border: 0; border-bottom: 1px solid var(--ingot-border); color: var(--ingot-text-muted); font-size: var(--ingot-ap-tiny); }
+.ingot-agents .ingot-md-code pre { margin: 0; padding: var(--ingot-space-2) var(--ingot-space-3) var(--ingot-space-3); background: transparent; font-size: var(--ingot-ap-small); line-height: 18px; }
 .ingot-agents .ingot-md-copy { width: 24px; height: 22px; padding: 0; justify-content: center; gap: 0; color: var(--ingot-text-muted); }
 .ingot-agents .ingot-md-copy:hover { color: var(--ingot-text); background: var(--ingot-ap-hover); }
 .ingot-agents .ingot-md-copy-label { display: none; }
@@ -188,7 +189,7 @@
 .ingot-agents .ingot-md-copy.copied .ingot-md-copy-label { display: inline; }
 
 /* Review bar above the composer: "16 files · +255 −0", Reject all, Review, Accept all. */
-.ingot-agents .ingot-review { display: flex; flex-direction: column; gap: var(--ingot-space-1); margin: 0; padding: var(--ingot-space-2) var(--ingot-space-3); border-top: 1px solid var(--ingot-border); }
+.ingot-agents .ingot-review { display: flex; flex-direction: column; gap: var(--ingot-space-1); margin: 0; padding: var(--ingot-space-2) var(--ingot-space-3); border-top: 1px solid var(--ingot-border); background: var(--ingot-toolbar); }
 .ingot-agents .ingot-review-footer { display: flex; align-items: center; gap: var(--ingot-space-2); flex-wrap: nowrap; min-height: 0; padding: 0; border: 0; overflow: hidden; }
 .ingot-agents .ingot-review-totals { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-text-muted); font-size: var(--ingot-ap-small); }
 .ingot-agents .ingot-review-footer .ingot-review-link,
