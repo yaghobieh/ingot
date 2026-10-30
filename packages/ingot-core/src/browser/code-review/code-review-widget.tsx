@@ -39,16 +39,16 @@ export class CodeReviewWidget extends ReactWidget {
     }
 
     protected renderFinding(finding: ReviewFinding): React.ReactNode {
-        return <div key={finding.id} id={`ingot-review-finding-${finding.id}`} className='ingot-review-finding' data-severity={finding.severity} role='button' tabIndex={0}
+        return <div key={finding.id} id={`ingot-cr-finding-${finding.id}`} className='ingot-cr-finding' data-severity={finding.severity} role='button' tabIndex={0}
             title={`${finding.path}:${finding.line}`} onClick={() => void this.open(finding)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void this.open(finding); } }}>
-            <span className={`ingot-review-severity ingot-review-severity-${finding.severity}`}>{SEVERITY_LABELS[finding.severity]}</span>
-            <span className='ingot-review-finding-text'>
-                <span className='ingot-review-finding-title'>{finding.title}</span>
-                {finding.detail && <span className='ingot-review-finding-detail'>{finding.detail}</span>}
+            <span className={`ingot-cr-severity ingot-cr-severity-${finding.severity}`}>{SEVERITY_LABELS[finding.severity]}</span>
+            <span className='ingot-cr-finding-text'>
+                <span className='ingot-cr-finding-title'>{finding.title}</span>
+                {finding.detail && <span className='ingot-cr-finding-detail'>{finding.detail}</span>}
             </span>
-            <span className='ingot-review-finding-line'>:{finding.line}</span>
-            <button type='button' className='ingot-review-fix' title='Ask the agent to fix this finding' aria-label={`Fix with agent: ${finding.title}`}
+            <span className='ingot-cr-finding-line'>:{finding.line}</span>
+            <button type='button' className='ingot-cr-fix' title='Ask the agent to fix this finding' aria-label={`Fix with agent: ${finding.title}`}
                 onClick={e => { e.stopPropagation(); void this.commands.executeCommand(CODE_REVIEW_COMMANDS.fix.id, finding.id); }}>
                 <span className='codicon codicon-sparkle' aria-hidden='true' /> Fix with agent
             </button>
@@ -65,7 +65,7 @@ export class CodeReviewWidget extends ReactWidget {
             <div className='ingot-code-review-toolbar'>
                 <span className='ingot-code-review-label' id='ingot-code-review-label'>{run ? run.label : 'No review yet'}</span>
                 {run?.status === 'done' && REVIEW_SEVERITIES.filter(severity => counts[severity] > 0).map(severity =>
-                    <span key={severity} className={`ingot-review-count ingot-review-severity-${severity}`} data-severity={severity}>{counts[severity]} {SEVERITY_LABELS[severity]}</span>)}
+                    <span key={severity} className={`ingot-cr-count ingot-cr-severity-${severity}`} data-severity={severity}>{counts[severity]} {SEVERITY_LABELS[severity]}</span>)}
                 <span className='ingot-flex' />
                 <button type='button' id='ingot-code-review-run' className='ingot-code-review-btn' disabled={this.store.running}
                     onClick={() => void this.commands.executeCommand(CODE_REVIEW_COMMANDS.changes.id)}><span className='codicon codicon-git-compare' aria-hidden='true' /> Review Changes</button>
@@ -84,8 +84,8 @@ export class CodeReviewWidget extends ReactWidget {
                 {run?.skippedFiles.length ? <span className='ingot-code-review-budget' title={run.skippedFiles.join('\n')}> · {run.skippedFiles.length} file(s) skipped to stay within the review budget</span> : undefined}
             </div>
             <div className='ingot-code-review-list'>
-                {[...byFile.entries()].map(([path, items]) => <div key={path} className='ingot-review-file' data-path={path}>
-                    <div className='ingot-review-file-header'><span className={fileIconClass(path)} aria-hidden='true' /><span className='ingot-review-file-path'>{path}</span><span className='ingot-dim'>{items.length}</span></div>
+                {[...byFile.entries()].map(([path, items]) => <div key={path} className='ingot-cr-file' data-path={path}>
+                    <div className='ingot-cr-file-header'><span className={fileIconClass(path)} aria-hidden='true' /><span className='ingot-cr-file-path'>{path}</span><span className='ingot-dim'>{items.length}</span></div>
                     {items.map(finding => this.renderFinding(finding))}
                 </div>)}
             </div>
