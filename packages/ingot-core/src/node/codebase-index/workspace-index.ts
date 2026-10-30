@@ -24,7 +24,7 @@ const errorText = (error: unknown): string => error instanceof Error ? error.mes
 
 /**
  * The index of one project folder: content-addressed chunk vectors (an embedding is computed once per distinct chunk
- * text and reused across files, renames and rebuilds), persisted under `.ingot/index` and kept current by a watcher.
+ * text and reused across files, renames and rebuilds), persisted under `.ingot/index` and kept current from file changes.
  */
 export class WorkspaceIndex {
     protected readonly files = new Map<string, FileEntry>();
@@ -43,9 +43,7 @@ export class WorkspaceIndex {
     protected generation = 0;
     protected queue: Promise<void> = Promise.resolve();
     protected ignored: (rel: string) => boolean = () => false;
-    protected watcher?: fs.FSWatcher;
     protected readonly changed = new Set<string>();
-    protected walkPending = false;
     protected changeTimer?: ReturnType<typeof setTimeout>;
     protected saveTimer?: ReturnType<typeof setTimeout>;
     protected disposed = false;
@@ -103,13 +101,18 @@ export class WorkspaceIndex {
         return this.enqueue(() => this.runUpdate(rels));
     }
 
-    watch(): void {
-        try {
-            this.watcher = fs.watch(this.root, { recursive: true }, (_event, filename) => this.onFsChange(filename ? String(filename).split(path.sep).join('/') : undefined));
-            this.watcher.on('error', () => this.unwatch());
-        } catch {
-            // Recursive watching is not available here: the index still updates on Rebuild.
+    /**
+     * Changed project-relative paths from the workbench file watcher (it already skips excluded folders, so the
+     * index needs no watcher of its own). Changes are batched; many at once, or a .gitignore change, walk the folder.
+     */
+    notifyChanged(rels: readonly string[]): void {
+        const wanted = rels.filter(rel => this.watchable(rel));
+        if (!wanted.length || this.disposed) {
+            return;
         }
+        wanted.forEach(rel => this.changed.add(rel));
+        clearTimeout(this.changeTimer);
+        this.changeTimer = setTimeout(() => this.flushChanges(), REINDEX_DEBOUNCE_MS);
     }
 
     async search(query: string, options: SearchOptions = {}): Promise<SearchResult> {
@@ -166,7 +169,6 @@ export class WorkspaceIndex {
 
     dispose(): void {
         this.disposed = true;
-        this.unwatch();
         clearTimeout(this.changeTimer);
         clearTimeout(this.saveTimer);
     }
@@ -196,29 +198,10 @@ export class WorkspaceIndex {
         }
     }
 
-    protected unwatch(): void {
-        this.watcher?.close();
-        this.watcher = undefined;
-    }
-
-    protected onFsChange(rel: string | undefined): void {
-        if (rel === undefined) {
-            this.walkPending = true;
-        } else if (this.watchable(rel)) {
-            this.changed.add(rel);
-        } else {
-            return;
-        }
-        clearTimeout(this.changeTimer);
-        this.changeTimer = setTimeout(() => this.flushChanges(), REINDEX_DEBOUNCE_MS);
-    }
-
     protected flushChanges(): void {
         const rels = [...this.changed];
         this.changed.clear();
-        const walk = this.walkPending || rels.length > TARGETED_UPDATE_MAX || rels.includes(GITIGNORE);
-        this.walkPending = false;
-        void (walk ? this.sync() : this.update(rels));
+        void (rels.length > TARGETED_UPDATE_MAX || rels.includes(GITIGNORE) ? this.sync() : this.update(rels));
     }
 
     protected watchable(rel: string): boolean {

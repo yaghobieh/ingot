@@ -40,7 +40,7 @@ import { IngotDebugToolsService } from './ingot-debug-tools-service';
 import { DEBUG_TOOLS_SERVICE_PATH } from '../common/debug/debug.consts';
 import { DebugToolsService } from '../common/debug/debug.types';
 
-import { IngotCodebaseIndexService } from './codebase-index/ingot-codebase-index-service';
+import { CodebaseIndexConnection, IngotCodebaseIndexService } from './codebase-index/ingot-codebase-index-service';
 import { CODEBASE_INDEX_SERVICE_PATH } from '../common/codebase-index/codebase-index.consts';
 import { CodebaseIndexService, type CodebaseIndexClient } from '../common/codebase-index/codebase-index.types';
 
@@ -112,9 +112,12 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotCodebaseIndexService).toSelf().inSingletonScope();
     bind(CodebaseIndexService).toService(IngotCodebaseIndexService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<CodebaseIndexClient>(CODEBASE_INDEX_SERVICE_PATH, client => {
-        const service = ctx.container.get(IngotCodebaseIndexService);
-        service.setClient(client);
-        client.onDidCloseConnection(() => service.removeClient(client));
-        return service;
+        const connection = new CodebaseIndexConnection(ctx.container.get(IngotCodebaseIndexService));
+        connection.setClient(client);
+        client.onDidCloseConnection(() => {
+            connection.removeClient(client);
+            connection.dispose();
+        });
+        return connection;
     })).inSingletonScope();
 });

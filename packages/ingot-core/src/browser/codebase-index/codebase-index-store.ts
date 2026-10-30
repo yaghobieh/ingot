@@ -2,6 +2,8 @@ import { inject, injectable } from '@theia/core/shared/inversify';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
+import type { FileChangesEvent } from '@theia/filesystem/lib/common/files';
 import { DEFAULT_EMBEDDING_PROVIDER, DEFAULT_OLLAMA_EMBED_MODEL, EMBEDDING_PROVIDERS, INDEX_PREFS } from '../../common/codebase-index/codebase-index.consts';
 import {
     CodebaseIndexService, type CodebaseIndexClient, type EmbeddingProviderId, type EmbeddingSettings, type IndexStatus, type SearchOptions, type SearchResult
@@ -27,6 +29,7 @@ export class CodebaseIndexStore {
     @inject(CodebaseIndexClientImpl) protected readonly client: CodebaseIndexClientImpl;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
+    @inject(FileService) protected readonly files: FileService;
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
@@ -35,6 +38,7 @@ export class CodebaseIndexStore {
 
     async start(): Promise<void> {
         this.client.onChanged(status => this.set(status));
+        this.files.onDidFilesChange(event => this.forward(event));
         this.workspace.onWorkspaceChanged(() => void this.openRoots());
         this.preferences.onPreferenceChanged(e => {
             if (Object.values(INDEX_PREFS).includes(e.preferenceName as typeof INDEX_PREFS[keyof typeof INDEX_PREFS]) || e.preferenceName === MODEL_PREFERENCES.ollamaUrl) {
@@ -64,6 +68,20 @@ export class CodebaseIndexStore {
             await this.open(root);
         }
         return this.service.search(root, query, options);
+    }
+
+    /** The workbench watcher already skips excluded folders, so the backend needs no watcher of its own. */
+    protected forward(event: FileChangesEvent): void {
+        for (const stat of this.workspace.tryGetRoots()) {
+            const root = stat.resource.path.fsPath();
+            if (!this.opened.has(root)) {
+                continue;
+            }
+            const rels = event.changes.map(change => stat.resource.relative(change.resource)?.toString()).filter((rel): rel is string => !!rel);
+            if (rels.length) {
+                this.service.changed(root, rels).catch(() => undefined);
+            }
+        }
     }
 
     protected roots(): string[] {

@@ -80,9 +80,11 @@ export interface CodebaseIndexClient {
 export const CodebaseIndexService = Symbol('IngotCodebaseIndexService');
 
 export interface CodebaseIndexService extends RpcServer<CodebaseIndexClient> {
-    /** Loads `.ingot/index`, brings it up to date in the background and watches the folder. */
+    /** Loads `.ingot/index` and brings it up to date in the background. Each window that opens a root also closes it. */
     open(root: string, settings: EmbeddingSettings): Promise<IndexStatus>;
     close(root: string): Promise<void>;
+    /** Project-relative paths the workbench file watcher saw change; they are re-indexed after a short debounce. */
+    changed(root: string, paths: readonly string[]): Promise<void>;
     status(root: string): Promise<IndexStatus | undefined>;
     /** Re-chunks every file; embeddings of unchanged chunks still come from the cache. */
     rebuild(root: string): Promise<IndexStatus>;

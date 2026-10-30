@@ -4,7 +4,8 @@ import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WorkspaceIndex } from './workspace-index';
 import { LocalEmbeddingProvider } from './embedding-providers';
-import { INDEX_DIR, INDEX_MANIFEST_FILE } from '../../common/codebase-index/codebase-index.consts';
+import { CodebaseIndexConnection, IngotCodebaseIndexService } from './ingot-codebase-index-service';
+import { DEFAULT_EMBEDDING_PROVIDER, INDEX_DIR, INDEX_MANIFEST_FILE } from '../../common/codebase-index/codebase-index.consts';
 
 /** Counts embedded texts, to prove unchanged chunks are never embedded twice. */
 class CountingProvider extends LocalEmbeddingProvider {
@@ -80,12 +81,30 @@ describe('IDEA-260 workspace index', () => {
         reloaded.dispose();
     });
 
-    it('picks up file changes through the watcher', async () => {
+    it('re-indexes changed paths reported by the file watcher, ignoring its own index files', async () => {
         const index = new WorkspaceIndex(root, provider);
         await index.sync();
-        index.watch();
+        await index.search('shipping cost by weight');
+        const before = provider.count;
         write(root, 'src/shipping.ts', 'export const shippingCost = (weightKg: number) => weightKg * 4.5;\n');
+        index.notifyChanged([`${INDEX_DIR}/${INDEX_MANIFEST_FILE}`, 'src/shipping.ts']);
         await expect.poll(async () => (await index.search('shipping cost by weight')).hits[0]?.path, { timeout: 5000 }).toBe('src/shipping.ts');
+        expect(provider.count).toBe(before + 1);
         index.dispose();
+    });
+
+    it('keeps an index open while any window has it and releases it when the last one disconnects', async () => {
+        const service = new IngotCodebaseIndexService();
+        const first = new CodebaseIndexConnection(service);
+        const second = new CodebaseIndexConnection(service);
+        const settings = { provider: DEFAULT_EMBEDDING_PROVIDER };
+        await first.open(root, settings);
+        await first.open(root, settings);
+        await second.open(root, settings);
+        first.dispose();
+        expect(service.isOpen(root)).toBe(true);
+        await second.close(root);
+        expect(service.isOpen(root)).toBe(false);
+        service.dispose();
     });
 });
