@@ -26,6 +26,16 @@ export interface ProjectRule {
     readonly scope?: string;
 }
 
+/** IDEA-295: a rule written from the User Rules settings page. */
+export interface RuleDraft {
+    readonly name: string;
+    readonly kind: RuleKind;
+    readonly description?: string;
+    /** Comma-separated globs for `auto` rules. */
+    readonly globs?: string;
+    readonly body: string;
+}
+
 /** IDEA-294: `.ingotignore` (agent + index) and `.ingotindexingignore` (index only) checks, project-relative paths. */
 export interface IgnoreRules {
     /** Hidden from agent file tools, search, the @ picker and the index. */

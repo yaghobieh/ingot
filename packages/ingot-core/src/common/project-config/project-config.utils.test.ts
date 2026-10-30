@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     applicableRules, commandFolder, commandFromFile, expandCommand, findRule, formatRuleIndex, formatRules, matchGlob, mentionableRules, mergeByName, nestedRuleScope,
-    parseFrontmatter, parseMcpJson, requestableRules, ruleFromFile, ruleKindLabel, ruleMentionItems
+    parseFrontmatter, parseMcpJson, requestableRules, ruleFromFile, ruleFileName, ruleFileText, ruleKindLabel, ruleMentionItems
 } from './project-config.utils';
 
 describe('project config', () => {
@@ -72,6 +72,18 @@ describe('IDEA-287 rule kinds and nested rules', () => {
         expect(index).toContain('- api: API handlers');
         expect(findRule([api, manual], '@Bear')).toBe(manual);
         expect(mentionableRules([ruleFromFile('.ingot/rules/z.md', 'Z', 'ingot'), manual]).map(r => r.name)).toEqual(['bear', 'z']);
+    });
+
+    it('writes rule files that load back as the chosen kind (IDEA-295)', () => {
+        expect(ruleFileName('API style!')).toBe('api-style.md');
+        expect(ruleFileName('  ')).toBeUndefined();
+        for (const kind of ['always', 'auto', 'agent', 'manual'] as const) {
+            const text = ruleFileText({ name: 'x', kind, description: 'When writing APIs', globs: 'src/**/*.ts, *.tsx', body: 'Body' });
+            const rule = ruleFromFile('.ingot/rules/x.md', text, 'ingot');
+            expect(rule.kind).toBe(kind);
+            expect(rule.body).toBe('Body');
+        }
+        expect(ruleFromFile('x.md', ruleFileText({ name: 'x', kind: 'auto', globs: 'src/**/*.ts, *.tsx', body: 'B' }), 'ingot').globs).toEqual(['src/**/*.ts', '*.tsx']);
     });
 
     it('offers rules in the @ menu, matching name or description', () => {

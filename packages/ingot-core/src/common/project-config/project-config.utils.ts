@@ -1,5 +1,5 @@
-import type { ConfigSource, McpServerConfig, ProjectCommand, ProjectRule, RuleKind } from './project-config.types';
-import { MAX_RULE_MENTIONS, RULE_MENTION_PREFIX } from './project-config.consts';
+import type { ConfigSource, McpServerConfig, ProjectCommand, ProjectRule, RuleDraft, RuleKind } from './project-config.types';
+import { MAX_RULE_MENTIONS, RULE_FILE_EXT, RULE_MENTION_PREFIX } from './project-config.consts';
 
 export interface Frontmatter {
     readonly data: Record<string, string | boolean | string[]>;
@@ -171,6 +171,23 @@ export const findRule = (rules: readonly ProjectRule[], name: string): ProjectRu
 /** IDEA-287: rules the @ menu offers; manual and agent-requested rules first since they are not applied on their own. */
 export const mentionableRules = (rules: readonly ProjectRule[]): ProjectRule[] =>
     [...rules].sort((a, b) => Number(a.kind === 'always' || a.kind === 'auto') - Number(b.kind === 'always' || b.kind === 'auto') || a.name.localeCompare(b.name));
+
+/** IDEA-295: `API style!` → `api-style.md`; undefined when nothing usable is left. */
+export const ruleFileName = (name: string): string | undefined => {
+    const slug = name.trim().toLowerCase().replace(/\.(md|mdc)$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return slug ? `${slug}${RULE_FILE_EXT}` : undefined;
+};
+
+/** IDEA-295: a rule file (Cursor-style frontmatter, then the body) that loads back as the same kind. */
+export const ruleFileText = (draft: RuleDraft): string => {
+    const quote = (v: string): string => JSON.stringify(v.trim());
+    const globs = (draft.globs ?? '').split(',').map(g => g.trim()).filter(Boolean);
+    const front = draft.kind === 'always' ? ['alwaysApply: true']
+        : draft.kind === 'auto' ? [`globs: [${globs.map(quote).join(', ')}]`, 'alwaysApply: false']
+            : draft.kind === 'agent' ? [`description: ${quote(draft.description ?? draft.name)}`, 'alwaysApply: false']
+                : ['alwaysApply: false'];
+    return `---\n${front.join('\n')}\n---\n${draft.body.trim()}\n`;
+};
 
 /** IDEA-287: `@` menu entries (`rule:<name>`) for the rules matching what was typed after `@`. */
 export const ruleMentionItems = (rules: readonly ProjectRule[], query: string): string[] => {

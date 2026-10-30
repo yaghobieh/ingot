@@ -1,0 +1,38 @@
+/* IDEA-287 / IDEA-295 / IDEA-296: rule mentions, the User Rules page, Habit cards and the Habits page. Design tokens only. */
+
+.ingot-mention-rule .codicon-law,
+.ingot-chip-rule .codicon-law { color: var(--ingot-accent); }
+
+.ingot-rules-manager { display: flex; flex-direction: column; gap: var(--ingot-space-3); font-size: 12px; }
+.ingot-rules-head { display: flex; align-items: center; gap: var(--ingot-space-2); }
+.ingot-rules-hint { margin: 0 0 var(--ingot-space-2); font-size: 11px; color: var(--ingot-text-muted); }
+.ingot-rules-row { display: flex; align-items: center; gap: var(--ingot-space-2); padding: 5px 8px; border: 1px solid var(--ingot-border); border-radius: 6px; margin-bottom: 4px; color: var(--ingot-text); }
+.ingot-rules-row .codicon-law { color: var(--ingot-accent); }
+.ingot-rules-row-head { display: flex; align-items: center; gap: var(--ingot-space-2); color: var(--ingot-text); }
+.ingot-rules-name { font-weight: 500; white-space: nowrap; }
+.ingot-rules-kind { font-size: 11px; color: var(--ingot-text-muted); white-space: nowrap; }
+.ingot-rules-desc { font-size: 11px; color: var(--ingot-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ingot-rules-edit { display: flex; flex-direction: column; gap: 6px; padding: 6px; margin-bottom: 4px; border: 1px solid var(--ingot-focus-ring); border-radius: 6px; }
+.ingot-rules-edit textarea { resize: vertical; font-family: var(--theia-code-font-family, monospace); font-size: 12px; }
+.ingot-rules-bar { display: flex; align-items: center; gap: 6px; }
+.ingot-rules-bar .ingot-input { flex: 1; height: 26px; }
+.ingot-rules-error { font-size: 11px; color: var(--ingot-danger); }
+
+.ingot-habit-cards { display: flex; flex-direction: column; gap: var(--ingot-space-2); margin: var(--ingot-space-2) 0; }
+.ingot-habit-card { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--ingot-border); border-left: 3px solid var(--ingot-accent); border-radius: 6px; background: var(--ingot-surface); color: var(--ingot-text); font-size: 12px; }
+.ingot-habit-card-head { display: flex; align-items: center; gap: 6px; }
+.ingot-habit-card-head .codicon { color: var(--ingot-accent); }
+.ingot-habit-title { font-weight: 500; }
+.ingot-habit-evidence { font-size: 11px; color: var(--ingot-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-habit-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ingot-habit-saved { font-size: 11px; color: var(--ingot-success); }
+
+.ingot-habits-manager { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.ingot-habit-row { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border: 1px solid var(--ingot-border); border-radius: 6px; color: var(--ingot-text); }
+.ingot-habit-row.off { opacity: 0.6; }
+.ingot-habit-row-head { display: flex; align-items: center; gap: var(--ingot-space-2); }
+.ingot-habit-kind { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 5px; border-radius: 4px; border: 1px solid var(--ingot-border); color: var(--ingot-text-muted); }
+.ingot-habit-count { font-size: 11px; color: var(--ingot-text-muted); white-space: nowrap; }
+.ingot-habit-status { font-size: 11px; color: var(--ingot-info); white-space: nowrap; }
+.ingot-habit-examples { margin: 0; padding-left: 18px; font-size: 11px; color: var(--ingot-text-muted); }
+.ingot-habit-examples li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

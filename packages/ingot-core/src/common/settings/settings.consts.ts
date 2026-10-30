@@ -91,6 +91,10 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
             },
             { id: 'agent-config', label: 'Rules & MCP', actions: [{ id: 'openAgentConfig', label: 'Open Rules, Commands & MCP Servers…' }] },
             {
+                id: 'user-rules', label: 'User Rules', custom: 'rules',
+                description: 'Rules agents follow. Always rules apply to every request; auto rules when matching files are in context; agent-requested rules are listed by description and read on demand; manual rules only when you @-mention them in the composer.'
+            },
+            {
                 id: 'memories', label: 'Memories', custom: 'memories',
                 description: 'Facts and preferences agents remember between chats. Project memories stay on this machine (git-ignored); global ones apply to every project.'
             },

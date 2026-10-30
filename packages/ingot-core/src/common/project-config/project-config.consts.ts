@@ -47,6 +47,15 @@ export const AGENTS_FILE = 'AGENTS.md';
 /** IDEA-287: the agent tool that returns an Agent Requested rule's body. */
 export const FETCH_RULE_TOOL = 'fetch_rule';
 
+/** IDEA-295: rule files the User Rules page writes. */
+export const RULE_FILE_EXT = '.md';
+export const RULE_KIND_LABELS: Readonly<Record<'always' | 'auto' | 'agent' | 'manual', string>> = {
+    always: 'Always',
+    auto: 'Auto attached (globs)',
+    agent: 'Agent requested (description)',
+    manual: 'Manual (@-mention only)'
+};
+
 /** IDEA-287: `@` menu entries that attach a rule rather than a file. */
 export const RULE_MENTION_PREFIX = 'rule:';
 export const MAX_RULE_MENTIONS = 6;
