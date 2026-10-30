@@ -17,6 +17,8 @@ interface HabitsManagerProps {
 interface HabitsManagerState {
     enabled?: boolean;
     list?: PlaybookList;
+    /** On/off clicks not yet written to the preferences, by habit id. */
+    toggled?: Readonly<Record<string, boolean>>;
     /** Uri of the habit file being edited, with its text. */
     editing?: { uri: string; text: string; source: Playbook['source'] };
     adding?: { scope: PlaybookScope; text: string; learned?: Habit };
@@ -44,7 +46,12 @@ export class HabitsManager extends React.Component<HabitsManagerProps, HabitsMan
     }
 
     protected refresh(): void {
-        void this.props.playbooks.list().then(list => this.setState({ list }), () => this.setState({ list: { playbooks: [], errors: [] } }));
+        void this.props.playbooks.list().then(list => this.setState({ list, toggled: undefined }), () => this.setState({ list: { playbooks: [], errors: [] }, toggled: undefined }));
+    }
+
+    protected toggle(p: Playbook, on: boolean): void {
+        this.setState(s => ({ toggled: { ...s.toggled, [p.id]: on } }));
+        void this.props.playbooks.setEnabled(p, on);
     }
 
     protected async edit(uri: string, source: Playbook['source']): Promise<void> {
@@ -83,9 +90,9 @@ export class HabitsManager extends React.Component<HabitsManagerProps, HabitsMan
         if (this.state.editing?.uri === p.uri) {
             return <React.Fragment key={p.id}>{this.renderEditor()}</React.Fragment>;
         }
-        const on = this.props.playbooks.isEnabled(p);
+        const on = this.state.toggled?.[p.id] ?? this.props.playbooks.isEnabled(p);
         return <div key={p.id} className={`ingot-playbook-row${on ? '' : ' off'}`} data-habit-id={p.id} title={p.path}>
-            <input type='checkbox' checked={on} aria-label={`Use habit ${p.name}`} onChange={e => this.props.playbooks.setEnabled(p, e.currentTarget.checked)} />
+            <input type='checkbox' checked={on} aria-label={`Use habit ${p.name}`} onChange={e => this.toggle(p, e.currentTarget.checked)} />
             <span className='codicon codicon-checklist' aria-hidden='true' />
             <span className='ingot-rules-name'>{p.name}</span>
             <span className='ingot-rules-desc'>{p.when}</span>
