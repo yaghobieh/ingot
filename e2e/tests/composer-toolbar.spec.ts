@@ -41,7 +41,7 @@ for (const scheme of ['light', 'dark'] as const) {
         const sendText = await tokenColor(page, '--ingot-primary-text');
         const surface = await tokenColor(page, '--ingot-surface');
 
-        const controls = ['#ingot-composer-attach', '#ingot-composer-more', '#ingot-composer-model', '#ingot-composer-send'];
+        const controls = ['#ingot-composer-attach', '#ingot-composer-mode', '#ingot-composer-more', '#ingot-composer-model', '#ingot-composer-send'];
         for (const id of controls) {
             const box = await page.locator(id).boundingBox();
             expect(box, id).not.toBeNull();
@@ -52,7 +52,7 @@ for (const scheme of ['light', 'dark'] as const) {
         expect(await style(page, '#ingot-composer-model', 'border-top-color')).toBe('rgba(0, 0, 0, 0)');
         expect(await style(page, '#ingot-composer-model', 'background-color')).toBe('rgba(0, 0, 0, 0)');
         expect(await style(page, '#ingot-composer-more', 'background-color')).toBe('rgba(0, 0, 0, 0)');
-        await expect(page.locator('.ingot-composer-bar #ingot-composer-mode')).toHaveCount(0);
+        await expect(page.locator('.ingot-composer-bar #ingot-composer-mode .ingot-pill-label')).toHaveText('Agent');
         await expect(page.locator('#ingot-composer-review')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
         await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
@@ -64,8 +64,7 @@ for (const scheme of ['light', 'dark'] as const) {
 
         await page.locator('#ingot-composer-more').click();
         await expect(page.locator('#ingot-composer-more-menu')).toBeVisible();
-        await expect(page.locator('#ingot-composer-mode')).toBeVisible();
-        await expect(page.locator('#ingot-composer-mode .ingot-pill-label')).toHaveText('Agent');
+        await expect(page.locator('#ingot-composer-more-menu #ingot-composer-mode')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-review')).toBeVisible();
         await expect(page.locator('#ingot-composer-more-menu')).toHaveCSS('background-color', surface);
         await saveShot(page, `composer-rex-menu-${scheme}.png`);

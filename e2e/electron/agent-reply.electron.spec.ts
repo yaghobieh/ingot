@@ -197,9 +197,7 @@ test.describe('IDEA-100 agent replies (desktop)', () => {
         if (!await composer(page).isVisible()) {
             await page.locator('#ingot-rs-agents').click();
         }
-        await page.locator('#ingot-composer-more').click();
-        await expect(page.locator('#ingot-composer-mic')).toBeVisible();
-        await page.locator('#ingot-composer-more').click();
+        await expect(page.locator('.ingot-composer-bar #ingot-composer-mic')).toBeVisible();
         await pickModel(page, 'ollama-local');
         await composer(page).click();
         await page.keyboard.type('how do branches work here');

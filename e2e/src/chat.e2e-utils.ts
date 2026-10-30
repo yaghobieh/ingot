@@ -14,9 +14,8 @@ export const pickModel = async (page: Page, id: string): Promise<void> => {
     await target.click();
 };
 
-/** Picks a chat mode in the composer's mode menu (IDEA-77). */
+/** Picks a chat mode from the composer's mode pill (IDEA-77, IDEA-280). */
 export const pickMode = async (page: Page, id: string): Promise<void> => {
-    await page.locator('#ingot-composer-more').click();
     await page.locator('#ingot-composer-mode').click();
     await page.locator(`#ingot-mode-${id}`).click();
 };

@@ -61,12 +61,12 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
 
         await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
         await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
-        await expect(page.locator('.ingot-composer-bar #ingot-composer-mode')).toHaveCount(0);
+        await expect(page.locator('.ingot-composer-bar #ingot-composer-mode')).toHaveText(/Agent/);
         await expect(page.locator('.ingot-composer-bar #ingot-composer-review')).toHaveCount(0);
 
         await page.locator('#ingot-composer-more').click();
         await expect(page.locator('#ingot-composer-more-menu')).toBeVisible();
-        await expect(page.locator('#ingot-composer-mode')).toHaveText(/Agent/);
+        await expect(page.locator('#ingot-composer-more-menu #ingot-composer-mode')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-review')).toBeVisible();
         const surface = await tokenColor(page, '--ingot-surface');
         await expect(page.locator('#ingot-composer-more-menu')).toHaveCSS('background-color', surface);
@@ -118,6 +118,7 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
         await page.locator('#ingot-chat-edit-input').fill('edited question about the picker');
         await saveShot(page, 'chat-edit-light.png');
         await page.locator('#ingot-chat-edit-submit').click();
+        await page.locator('#ingot-chat-edit-revert').click();
         await expect(page.locator('.ingot-chat-agent .ingot-md').last()).toContainText('edited answer is ready');
         await expect(page.locator('.ingot-agents-chat')).toContainText('edited question about the picker');
         await expect(page.locator('.ingot-agents-chat')).not.toContainText('beta second question');

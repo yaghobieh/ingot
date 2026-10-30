@@ -104,7 +104,7 @@ test.describe('agent panel proof', () => {
         expect(Math.abs(reject.y - accept.y)).toBeLessThan(4);
         expect(reject.height).toBeLessThan(32);
         expect(accept.x + accept.width).toBeLessThanOrEqual(card.x + card.width + 1);
-        expect(await page.locator('.ingot-chat-latest .ingot-reactions').evaluate(el => getComputedStyle(el).opacity)).toBe('0');
+        await expect(page.locator('.ingot-chat-latest .ingot-reactions')).toHaveCount(0);
         expect((await box(checklist.locator('.ingot-check-row').first())).height).toBeLessThan(36);
 
         await save(page, 'agent-panel-light.png');
