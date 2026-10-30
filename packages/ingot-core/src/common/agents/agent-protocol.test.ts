@@ -65,9 +65,9 @@ describe('agent protocol', () => {
     });
 
     it('describes the tool block format on its own for the built-in tools', () => {
-        expect(TOOL_CALL_FORMAT).toContain('<<<TOOL server/tool\n{"json": "arguments"}\n>>>END');
-        const call = parseAgentOutput(TOOL_CALL_FORMAT.replace('server/tool', 'ingot/read_file').replace('"json": "arguments"', '"path": "a.ts"'));
-        expect(call.toolCalls).toEqual([{ server: 'ingot', tool: 'read_file', args: { path: 'a.ts' } }]);
+        expect(TOOL_CALL_FORMAT).toContain('<<<TOOL ingot/run\n{"command": "npm test", "cwd": "server"}\n>>>END');
+        const call = parseAgentOutput(TOOL_CALL_FORMAT);
+        expect(call.toolCalls).toEqual([{ server: 'ingot', tool: 'run', args: { command: 'npm test', cwd: 'server' } }]);
     });
 });
 

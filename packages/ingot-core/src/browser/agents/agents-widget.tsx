@@ -591,7 +591,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     /** IDEA-267: a suggested follow-up is sent like a typed prompt, with the current IDE context. */
     protected sendFollowUp(text: string): void {
-        this.stickToLatest = true;
+        this.resumeFollowing();
         this.store.send(text, [], undefined, this.autoContext.attach);
         this.update();
     }

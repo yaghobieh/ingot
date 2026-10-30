@@ -107,7 +107,7 @@ test.describe('agent chat scrolling', () => {
         // IDEA-283: scrolling past the end of the chat never scrolls the editor area or the page behind it.
         await expect(page.locator('.ingot-agents-chat')).toHaveCSS('overscroll-behavior-y', 'contain');
         const outerScroll = (): Promise<number[]> => page.evaluate(() =>
-            [document.scrollingElement, document.querySelector('#theia-main-content-panel'), ...document.querySelectorAll('.monaco-scrollable-element')]
+            [document.scrollingElement, document.querySelector('#theia-main-content-panel'), ...Array.from(document.querySelectorAll('.monaco-scrollable-element'))]
                 .map(el => Math.round(el?.scrollTop ?? 0)));
         const outerBefore = await outerScroll();
         await page.locator('.ingot-agents-chat').hover();

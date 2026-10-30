@@ -4,7 +4,7 @@
  */
 import type { GitOperation } from '../git/git-ops';
 import type { AgentToolCall } from './agent-protocol';
-import { EDIT_CLOSE, TOOL_OPEN } from './agent-protocol';
+import { EDIT_CLOSE, TOOL_OPEN } from './agent-protocol.consts';
 import { describeTarget, toTarget } from '../browser-tool/browser-tool.utils';
 import { CREATE_LIBRARY_TOOL } from './library-app.consts';
 import { CODE_TOOLS, CODE_TOOLS_HINT } from './code-tools.consts';

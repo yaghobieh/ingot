@@ -3,9 +3,8 @@
  * whole-file blocks, which Ingot shows in the inline review. Works with every provider, no native tool calling needed.
  */
 import { BUILTIN_TOOLS } from './agent-actions';
-export const EDIT_OPEN = '<<<EDIT ';
-export const EDIT_CLOSE = '>>>END';
-export const TOOL_OPEN = '<<<TOOL ';
+import { EDIT_CLOSE, EDIT_OPEN, TOOL_OPEN } from './agent-protocol.consts';
+export { EDIT_CLOSE, EDIT_OPEN, TOOL_OPEN };
 
 export const AGENT_PROTOCOL = [
     'You can change files in the user\'s project. To change a file, output the COMPLETE new file content in a block:',
@@ -41,9 +40,6 @@ export interface AgentToolCall {
 }
 
 const toolCallFormat = (lead: string): string => [lead, `${TOOL_OPEN}server/tool`, '{"json": "arguments"}', EDIT_CLOSE].join('\n');
-
-/** How to call the built-in Ingot tools when no MCP tools are connected (the "same block format" they refer to). */
-export const TOOL_CALL_FORMAT = toolCallFormat('To call a tool, output a block and STOP; the result comes back in the next message:');
 
 /** Describes the MCP tools the agent may call with `<<<TOOL server/tool` blocks. */
 export const toolProtocol = (tools: readonly { server: string; name: string; description?: string; inputSchema?: unknown }[]): string =>

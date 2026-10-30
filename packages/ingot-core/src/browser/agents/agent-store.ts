@@ -73,7 +73,7 @@ import { ProjectConfigService } from '../project-config/project-config-service';
 import { IngotMcpClient } from '../project-config/mcp-client';
 import { applicableRules, expandCommand, formatRules } from '../../common/project-config/project-config.utils';
 import type { ProjectCommand } from '../../common/project-config/project-config.types';
-import { cutAfterToolCalls, TOOL_CALL_FORMAT, toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
+import { cutAfterToolCalls, toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
 import { MADE_WITH_PREF, withMadeWith } from '../../common/git/made-with';
