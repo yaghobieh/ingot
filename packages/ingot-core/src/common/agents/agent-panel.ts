@@ -27,16 +27,23 @@ const NONE = -1;
 /**
  * Lays out the latest turn: its first reply gets the agent line and Explored row, its last reply the checklist, and the
  * reply that made the latest edits (`editsIndex`, from the change tracker) the edited-files card. Older edits get no card.
+ * While the turn is `active` but has no reply yet, those pieces go to a reply block after the last message
+ * (index `messages.length`).
  */
-export const threadLayout = (messages: readonly Pick<AgentMessage, 'role' | 'hidden'>[], editsIndex: number | undefined): ThreadLayout => {
+export const threadLayout = (messages: readonly Pick<AgentMessage, 'role' | 'hidden'>[], editsIndex: number | undefined, active = false): ThreadLayout => {
     const leads = turnLeadIndexes(messages);
     const latestUser = latestUserIndex(messages);
     const turn = messages.map((message, index) => ({ message, index }))
         .filter(({ message, index }) => index > latestUser && message.role === 'agent' && !message.hidden)
         .map(({ index }) => index);
+    const inTurn = editsIndex !== undefined && editsIndex > latestUser;
+    if (!turn.length && (active || inTurn)) {
+        const pending = messages.length;
+        leads.add(pending);
+        return { leads, turnLead: pending, turnLast: pending, editsAt: inTurn ? pending : NONE };
+    }
     const turnLead = turn[0] ?? NONE;
     const turnLast = turn[turn.length - 1] ?? NONE;
-    const inTurn = editsIndex !== undefined && editsIndex > latestUser;
     const editsAt = !inTurn ? NONE : turn.includes(editsIndex) ? editsIndex : turnLast;
     return { leads, turnLead, turnLast, editsAt };
 };

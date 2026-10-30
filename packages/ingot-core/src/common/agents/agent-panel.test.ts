@@ -38,6 +38,13 @@ describe('agent panel', () => {
         expect(threadLayout([{ role: 'user' as const }], undefined)).toEqual({ leads: new Set(), turnLead: -1, turnLast: -1, editsAt: -1 });
     });
 
+    it('puts a running turn without a reply yet in a reply block after the last message', () => {
+        const messages = [{ role: 'user' as const }, { role: 'agent' as const }, { role: 'user' as const }, { role: 'tool' as const }];
+        expect(threadLayout(messages, undefined, true)).toEqual({ leads: new Set([1, 4]), turnLead: 4, turnLast: 4, editsAt: -1 });
+        expect(threadLayout(messages, 5, false)).toEqual({ leads: new Set([1, 4]), turnLead: 4, turnLast: 4, editsAt: 4 });
+        expect(threadLayout(messages, undefined, false).turnLead).toBe(-1);
+    });
+
     it('turns @ mentions into badged chips, files and folders, once each', () => {
         expect(mentionChips('Fix @client/src/App.tsx and look in @server/ then @client/src/App.tsx again')).toEqual([
             { path: 'client/src/App.tsx', label: 'App.tsx', badge: { label: 'TSX', tone: 'tsx' }, folder: false },
