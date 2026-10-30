@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import * as fs from 'fs';
 import * as http from 'http';
@@ -7,10 +7,13 @@ import * as os from 'os';
 import * as path from 'path';
 import { injectable } from '@theia/core/shared/inversify';
 import {
-    HANDOFF_ACTIVE, HANDOFF_CLAIM_TTL_MS, HANDOFF_MAX_BODY_BYTES, handoffDeepLink, parseResultBody, parseStatusBody, ZAPREX_HANDOFF_VERSION,
+    HANDOFF_ACTIVE, HANDOFF_CLAIM_TTL_MS, HANDOFF_MAX_BODY_BYTES, handoffDeepLink, parseResultBody, parseStatusBody, ZAPREX_HANDOFF_VERSION, ZAPREX_OPEN_LINK,
     type HandoffStatus, type HarmonyHandoff, type ZaprexDesktopInfo, type ZaprexPlatform
 } from '../common/zaprex/handoff';
 import type { ZaprexDesktopService } from '../common/zaprex/zaprex-desktop.types';
+import { ZAPREX_LAUNCH_LOG_LINE, ZAPREX_LAUNCH_TIMEOUT_MS } from '../common/zaprex/zaprex-launch.consts';
+import type { ZaprexLaunchStep } from '../common/zaprex/zaprex-launch.types';
+import { zaprexLaunchSteps } from '../common/zaprex/zaprex-launch.utils';
 
 interface Entry {
     readonly handoff: HarmonyHandoff;
@@ -22,11 +25,23 @@ interface Entry {
 const platform = (): ZaprexPlatform => process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux';
 const run = (cmd: string, args: string[]): Promise<string> => new Promise(resolve =>
     execFile(cmd, args, { timeout: 5000 }, (error, stdout) => resolve(error ? '' : String(stdout))));
+const succeeds = (cmd: string, args: readonly string[]): Promise<boolean> => new Promise(resolve =>
+    execFile(cmd, [...args], { timeout: ZAPREX_LAUNCH_TIMEOUT_MS }, error => resolve(!error)));
+const spawnDetached = (cmd: string, args: readonly string[]): Promise<boolean> => new Promise(resolve => {
+    const child = spawn(cmd, [...args], { detached: true, stdio: 'ignore' });
+    child.once('error', () => resolve(false));
+    child.once('spawn', () => {
+        child.unref();
+        resolve(true);
+    });
+});
+const tryStep = (step: ZaprexLaunchStep): Promise<boolean> =>
+    step.requires && !fs.existsSync(step.requires) ? Promise.resolve(false) : step.detached ? spawnDetached(step.cmd, step.args) : succeeds(step.cmd, step.args);
 
 /**
  * IDEA-185: loopback-only handoff server (127.0.0.1, random port, per-piece bearer token, no CORS so web pages
  * cannot use it) plus desktop app detection and deep links.
- * Test hooks: INGOT_ZAPREX_DETECT_FILE (file with "installed" / "missing"), INGOT_ZAPREX_LINK_LOG (record links instead of opening them).
+ * Test hooks: INGOT_ZAPREX_DETECT_FILE (file with "installed" / "missing"), INGOT_ZAPREX_LINK_LOG (record links and launches instead of opening them).
  */
 @injectable()
 export class IngotZaprexDesktopService implements ZaprexDesktopService {
@@ -49,6 +64,28 @@ export class IngotZaprexDesktopService implements ZaprexDesktopService {
             return { installed: !!(await run('reg', ['query', 'HKCU\\Software\\Classes\\zaprex'])).trim() || !!(await run('reg', ['query', 'HKCR\\zaprex'])).trim(), platform: p };
         }
         return { installed: !!(await run('xdg-mime', ['query', 'default', 'x-scheme-handler/zaprex'])).trim(), platform: p };
+    }
+
+    async launch(): Promise<boolean> {
+        if (process.env.INGOT_ZAPREX_LINK_LOG) {
+            const { installed } = await this.detect();
+            if (installed) {
+                fs.appendFileSync(process.env.INGOT_ZAPREX_LINK_LOG, `${ZAPREX_LAUNCH_LOG_LINE}\n`);
+            }
+            return installed;
+        }
+        const steps = zaprexLaunchSteps({ platform: platform(), home: os.homedir(), localAppData: process.env.LOCALAPPDATA, programFiles: process.env.ProgramFiles });
+        for (const step of steps) {
+            if (await tryStep(step)) {
+                return true;
+            }
+        }
+        // A registered zaprex:// handler (Windows / Linux installs without a known path) still starts the app.
+        if (platform() !== 'mac' && (await this.detect()).installed) {
+            await this.open(ZAPREX_OPEN_LINK);
+            return true;
+        }
+        return false;
     }
 
     async open(url: string): Promise<void> {
