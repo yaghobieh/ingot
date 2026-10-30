@@ -222,8 +222,9 @@ test.describe('IDEA-105 agent review (desktop)', () => {
         const sent = server.requests.at(-1)!.user;
         expect(sent).toContain('### src/a.ts');
         expect(sent).toContain('Use 3 here, not 2.');
-        // The agent's fix arrives as a new code-change block; the comment is resolved and leaves the editor.
-        await expect(page.locator('#ingot-agents .ingot-change-block')).toHaveCount(2, { timeout: 20_000 });
+        // The agent's fix arrives as a new reply with its own edited-files card; the comment resolves and leaves the editor.
+        await expect(page.locator('#ingot-agents .ingot-chat-agent .ingot-md').last()).toContainText('Fixed.', { timeout: 20_000 });
+        await expect(rows).toHaveCount(1);
         await expect(page.locator('.ingot-review-comment')).toHaveCount(0, { timeout: 10_000 });
         await page.locator('#ingot-changes-accept-all').click();
         await expect.poll(() => read('src/a.ts')).toBe(FIXED_A);

@@ -53,13 +53,13 @@ test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => 
 
         await expect(page.locator('#ingot-agents .ingot-chat-agent .ingot-md').last()).toHaveText('It sums the values.');
         await expect(page.locator('#ingot-agents .ingot-chat-user').last()).toContainText('/explain the total function');
-        // Applied rules are never auto-attached as chips (IDEA-100): they show in the collapsible "Read rules" step.
+        // Applied rules are never auto-attached as chips (IDEA-100): they are listed in the Explored row.
         await expect(page.locator('#ingot-agents .ingot-chat-user').last().locator('.ingot-chip')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-input .ingot-chip')).toHaveCount(0);
-        const read = page.locator('#ingot-agents .ingot-chat-read').last();
-        await expect(read).toContainText('Read rules');
-        await read.locator('.ingot-chat-read-label').click();
-        await expect(read.locator('.ingot-chat-read-list li').first()).toBeVisible();
+        const explored = page.locator('#ingot-chat-explored');
+        await expect(explored).toContainText('Explored');
+        await explored.locator('.ingot-chat-explored-head').click();
+        await expect(explored.locator('li[data-kind="rule"]').first()).toBeVisible();
         const request = server.requests.at(-1)!;
         expect(request.user).toContain('Explain the total function in two sentences. EXPLAIN-MARKER');
         expect(request.system).toContain('AGENTS-MARKER');

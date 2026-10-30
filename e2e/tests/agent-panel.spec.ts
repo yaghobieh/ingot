@@ -92,7 +92,8 @@ test.describe('agent panel proof', () => {
         const chat = await box(page.locator('.ingot-agents-chat'));
         const promptBox = await box(prompt);
         expect(promptBox.width).toBeGreaterThan(chat.width - 48);
-        const card = await box(page.locator('.ingot-review-card'));
+        const card = await box(page.locator('#ingot-edited-card'));
+        const bar = await box(page.locator('#ingot-review'));
         const name = await box(row.locator('.ingot-review-file-name'));
         const stats = await box(row.locator('.ingot-review-file-stats'));
         expect(stats.x + stats.width).toBeLessThanOrEqual(card.x + card.width + 1);
@@ -103,7 +104,7 @@ test.describe('agent panel proof', () => {
         const accept = await box(page.locator('#ingot-changes-accept-all'));
         expect(Math.abs(reject.y - accept.y)).toBeLessThan(4);
         expect(reject.height).toBeLessThan(32);
-        expect(accept.x + accept.width).toBeLessThanOrEqual(card.x + card.width + 1);
+        expect(accept.x + accept.width).toBeLessThanOrEqual(bar.x + bar.width + 1);
         expect(await page.locator('.ingot-chat-latest .ingot-reactions').evaluate(el => getComputedStyle(el).opacity)).toBe('0');
         expect((await box(checklist.locator('.ingot-check-row').first())).height).toBeLessThan(36);
 

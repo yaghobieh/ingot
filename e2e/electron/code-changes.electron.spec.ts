@@ -62,6 +62,14 @@ test.describe('IDEA-102 code-change blocks (desktop)', () => {
         await page.keyboard.press('Enter');
     };
 
+    /** Opens the diff of the edited file inside the "Edited N files" card (rows start collapsed). */
+    const openDiff = async (page: Page): Promise<void> => {
+        const row = page.locator('#ingot-review-files .ingot-review-file[data-path="src/cart.ts"]');
+        await expect(row).toBeVisible({ timeout: 20_000 });
+        await row.hover();
+        await row.locator('.ingot-review-file-diff').click();
+    };
+
     test('an instant reply (the whole edit in one delta) opens one editor tab, never asks to save, and clicking the block jumps to the change', async () => {
         const { page } = desktop;
         await server.close();
@@ -73,6 +81,7 @@ test.describe('IDEA-102 code-change blocks (desktop)', () => {
         }
         await pickModel(page, 'ollama-local');
         await ask(page, 'Add quantities to the cart');
+        await openDiff(page);
         const block = page.locator('#ingot-agents .ingot-change-block');
         await expect(block.locator('.ingot-change-status')).toHaveText('Review', { timeout: 15_000 });
         await page.waitForTimeout(1_500);
@@ -118,6 +127,8 @@ test.describe('IDEA-102 code-change blocks (desktop)', () => {
         await expect(page.locator('.monaco-editor .ingot-gutter-mark-live').first()).toBeVisible();
         await shot(page, '14-change-streaming.png');
 
+        // Once written, the file is a row in the edited-files card; its diff opens in place.
+        await openDiff(page);
         await expect(block.locator('.ingot-change-status')).toHaveText('Review', { timeout: 15_000 });
         await expect(block.locator('.ingot-mark-blue.ingot-mark-still')).toBeVisible();
         await expect(block.locator('.ingot-change-name')).toHaveText('cart.ts');
@@ -158,6 +169,7 @@ test.describe('IDEA-102 code-change blocks (desktop)', () => {
 
         // Ask again and keep everything with Accept All.
         await ask(page, 'Add quantities to the cart, again');
+        await openDiff(page);
         await expect(block.locator('.ingot-change-status')).toHaveText('Review', { timeout: 20_000 });
         await page.locator('#ingot-changes-accept-all').click();
         await expect(block.locator('.ingot-change-status')).toHaveText('Accepted');
