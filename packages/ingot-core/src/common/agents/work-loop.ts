@@ -6,8 +6,8 @@ import type { AgentToolCall } from './agent-protocol';
 import { scriptCommand } from '../processes/processes.utils';
 import {
     ALLOW_WEAKER_TESTS, CASE_PATTERN, CHECK_FAIL_PREFIX, CHECK_SCRIPTS, CHECKS_PASSED_PREFIX, COMMIT_BLOCKED_BRANCH, COMMIT_BLOCKED_CHECKS,
-    COMMIT_INTENT, CYPRESS_FILES, E2E_INTENT, E2E_NUDGE_PREFIX, E2E_SCRIPTS, FAILURE_LIMIT, FAILURE_MESSAGE_CHARS, FEATURE_BRANCH_PREFIXES,
-    MAX_FIX_ATTEMPTS, PLAYWRIGHT_FILES, PROTECTED_BRANCHES, SKIP_PATTERN, STOP_PREFIX, TEST_PATH, UI_PATH, WORK_LOOP_INTENT
+    COMMIT_INTENT, CUT_EDIT_PREFIX, CYPRESS_FILES, E2E_INTENT, E2E_NUDGE_PREFIX, E2E_SCRIPTS, FAILURE_LIMIT, FAILURE_MESSAGE_CHARS, FEATURE_BRANCH_PREFIXES,
+    LAYOUT_WORDS, MAX_FIX_ATTEMPTS, PLAYWRIGHT_FILES, PROTECTED_BRANCHES, SKIP_PATTERN, STOP_PREFIX, TEST_PATH, UI_PATH, WORK_LOOP_INTENT
 } from './work-loop.consts';
 import type { CheckFailure, E2eFramework, LoopSnapshot, PlannedCheck, ProjectSignals, SummaryInput } from './work-loop.types';
 
@@ -15,9 +15,15 @@ import type { CheckFailure, E2eFramework, LoopSnapshot, PlannedCheck, ProjectSig
 export const checkPassed = (result: { readonly isError: boolean; readonly movedToBackground?: boolean }): boolean =>
     !result.isError && result.movedToBackground !== true;
 
-export const wantsWorkLoop = (prompt: string): boolean => WORK_LOOP_INTENT.test(prompt);
-export const wantsCommit = (prompt: string): boolean => COMMIT_INTENT.test(prompt);
-export const wantsE2e = (prompt: string): boolean => E2E_INTENT.test(prompt);
+const intentText = (prompt: string): string => prompt.replace(LAYOUT_WORDS, ' ');
+
+export const wantsWorkLoop = (prompt: string): boolean => WORK_LOOP_INTENT.test(intentText(prompt));
+export const wantsCommit = (prompt: string): boolean => COMMIT_INTENT.test(intentText(prompt));
+export const wantsE2e = (prompt: string): boolean => E2E_INTENT.test(intentText(prompt));
+
+/** The reply hit the output limit inside an edit block, so that file was not saved. */
+export const cutEditNudge = (path: string): string =>
+    `${CUT_EDIT_PREFIX} The <<<EDIT block for ${path} never closed, so ${path} was NOT saved. Send ${path} again as one complete block, with at most a few files per reply, then continue the task.`;
 export const userAllowsWeakerTests = (prompt: string): boolean => ALLOW_WEAKER_TESTS.test(prompt);
 
 export const isTestPath = (path: string): boolean => TEST_PATH.test(path);

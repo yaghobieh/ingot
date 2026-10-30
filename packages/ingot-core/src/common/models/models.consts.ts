@@ -25,6 +25,7 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     { id: 'gemini-2-5-pro', label: 'Gemini 2.5 Pro', provider: 'gemini', model: 'gemini-2.5-pro', speed: 'balanced', cost: '$$', contextWindow: 1_000_000, thinking: true, recommended: true },
     { id: 'deepseek-v3', label: 'DeepSeek V3', provider: 'deepseek', model: 'deepseek-chat', speed: 'fast', cost: '$', contextWindow: 128_000, thinking: false, recommended: false },
     { id: 'openrouter-auto', label: 'Routed (best available)', provider: 'openrouter', model: 'openrouter/auto', speed: 'balanced', cost: '$$', contextWindow: 128_000, thinking: false, recommended: false },
+    { id: 'openrouter-haiku', label: 'Claude Haiku 5.5 (routed)', provider: 'openrouter', model: 'anthropic/claude-haiku-5.5', speed: 'fast', cost: '$', contextWindow: 1_000_000, thinking: false, recommended: false },
     { id: 'ollama-local', label: 'Qwen2.5 Coder (local)', provider: 'ollama', model: 'qwen2.5-coder', speed: 'fast', cost: 'free', contextWindow: 32_000, thinking: false, recommended: false }
 ];
 

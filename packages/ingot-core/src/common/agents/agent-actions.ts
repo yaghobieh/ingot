@@ -5,6 +5,7 @@
 import type { GitOperation } from '../git/git-ops';
 import type { AgentToolCall } from './agent-protocol';
 import { describeTarget, toTarget } from '../browser-tool/browser-tool.utils';
+import { CREATE_LIBRARY_TOOL } from './library-app.consts';
 
 export const BUILTIN_TOOL_SERVER = 'ingot';
 
@@ -247,21 +248,38 @@ export const skippedResult = (action: AgentAction, reason?: string): string =>
 export interface BuiltinToolSwitches {
     readonly terminal: boolean;
     readonly browser: boolean;
+    /** IDEA-282: the built-in library template (create_library). On unless turned off. */
+    readonly template?: boolean;
 }
 
 /** Tools that start commands (listing scripts and reading processes stay available). */
 export const COMMAND_TOOLS: readonly string[] = ['run', 'run_script'];
 
-export const builtinToolEnabled = (name: string, on: BuiltinToolSwitches): boolean =>
-    COMMAND_TOOLS.includes(name) ? on.terminal : name.startsWith('browser_') ? on.browser : true;
+export const builtinToolEnabled = (name: string, on: BuiltinToolSwitches): boolean => {
+    if (name === CREATE_LIBRARY_TOOL) {
+        return on.template !== false;
+    }
+    return COMMAND_TOOLS.includes(name) ? on.terminal : name.startsWith('browser_') ? on.browser : true;
+};
+
+const LIBRARY_TEMPLATE_STEPS = [
+    'New React and Node library: if the user asks to create one, call ingot/ask_user when the React structure (feature-folders or atomic) or the Node structure (layered or modular) or the folder path is unclear. An example folder can be passed as reactExample or nodeExample.',
+    'Then ingot/create_library. Then ingot/run npm install, npm test and npm run build with {"cwd": "<that path>"}. If tests fail, fix the files and rerun npm test, up to 3 times.',
+    'Then ingot/ask_user whether to git init on branch feature/library and make the first commit. If they agree, ingot/run those git commands with that cwd.',
+    'Last, ingot/open_workspace with the same path. Do not hand-write the project when create_library can do it.'
+];
+
+/** IDEA-282: how to build a new multi-app project by hand, step by step, until it really runs. */
+export const NEW_PROJECT_STEPS = [
+    'New project from scratch: start with a PLAN of the apps, folders and files. Write the files with <<<EDIT blocks, a few files per reply, paths relative to the open folder (e.g. server/src/app.ts).',
+    'Keep going without asking: after the files, run npm install, npm run build and npm test in each app with ingot/run {"command": "...", "cwd": "server"}. Read every failure, fix the files, and run again until all of them pass.',
+    'Pin dependency versions that work together, give each app "build" and "test" scripts that exit on their own (vitest run, not watch mode), and finish with a short summary of what runs and how.'
+];
 
 /** The system-prompt section for Ingot's built-in tools. */
 export const builtinToolProtocol = (on: BuiltinToolSwitches = { terminal: true, browser: true }): string => [
     'Ingot tools (same block format, server "ingot"):',
     ...BUILTIN_TOOLS.filter(t => builtinToolEnabled(t.name, on)).map(t => `- ${BUILTIN_TOOL_SERVER}/${t.name}: ${t.description}`),
     'If the user skips an action you get its reason as the tool result; adapt instead of retrying.',
-    'New React and Node library: if the user asks to create one, call ingot/ask_user when the React structure (feature-folders or atomic) or the Node structure (layered or modular) or the folder path is unclear. An example folder can be passed as reactExample or nodeExample.',
-    'Then ingot/create_library. Then ingot/run npm install, npm test and npm run build with {"cwd": "<that path>"}. If tests fail, fix the files and rerun npm test, up to 3 times.',
-    'Then ingot/ask_user whether to git init on branch feature/library and make the first commit. If they agree, ingot/run those git commands with that cwd.',
-    'Last, ingot/open_workspace with the same path. Do not hand-write the project when create_library can do it.'
+    ...(on.template === false ? NEW_PROJECT_STEPS : LIBRARY_TEMPLATE_STEPS)
 ].join('\n');

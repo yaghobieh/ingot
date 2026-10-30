@@ -38,6 +38,9 @@ export const WORK_LOOP_INTENT = /\b(fix|implement|ship|commit|bug|feature|playwr
 export const E2E_INTENT = /\b(feature|ui|page|screen|playwright|cypress|e2e)\b/i;
 export const COMMIT_INTENT = /\b(fix|implement|ship|commit|bug|feature)\b/i;
 export const ALLOW_WEAKER_TESTS = /\b(remove|delete|skip|weaken)\b[^.]{0,40}\btests?\b/i;
+/** A folder layout ("feature folders") or a path ("/tmp/my-e2e-app") names no feature to ship, so intent checks ignore it. */
+export const LAYOUT_WORDS = /\bfeature[- ]folders?\b|(?:^|\s)(?:\/|~\/|\.\/)\S*/gi;
+export const CUT_EDIT_PREFIX = 'Your last reply was cut off.';
 
 export const UI_PATH = /\.(tsx|jsx|vue|svelte|css|html)$/i;
 export const TEST_PATH = /\.(?:test|spec)\.(?:[cm]?[jt]sx?)$/i;
