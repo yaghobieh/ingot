@@ -88,12 +88,12 @@ npm run build:browser  # bundle the browser app
 npm run start:browser  # http://127.0.0.1:3100
 npm run build:electron # bundle the desktop app
 npm run start:electron # opens the Ingot desktop window
-npm run package:electron -- --mac --arm64   # installers in applications/electron/dist (see docs/release.md)
+npm run package:electron -- --mac --arm64   # installers in applications/electron/dist (see docs/RELEASING.md)
 npm run gate           # lint + typecheck + unit tests
 npm run e2e            # Playwright click-through tests (starts the browser app)
 ```
 
-Installers for macOS, Windows and Linux are built by the Release workflow when a `v*` tag is pushed; see [`docs/release.md`](docs/release.md).
+Installers for macOS, Windows and Linux are built by the Release workflow when a `v*` tag is pushed; see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 Re-download language plugins with `npm run download:plugins` (syntax highlighting needs them). Electron and browser builds swap native modules in the shared `node_modules`; run `npm run build:browser` again before `npm run e2e` if you built Electron last.
 

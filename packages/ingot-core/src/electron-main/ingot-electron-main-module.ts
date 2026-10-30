@@ -22,7 +22,7 @@ import { installProcessReporter } from '../common/telemetry/process-reporter';
 // Set before the backend process is forked (it inherits this env); dev runs pass --plugins=local-dir:../../plugins.
 if (app.isPackaged) {
     process.env[DEFAULT_PLUGINS_ENV] = defaultPluginsValue(process.env[DEFAULT_PLUGINS_ENV], path.join(process.resourcesPath, PACKAGED_PLUGINS_DIR));
-    // IDEA-140: release builds bake the public server and portal URLs into package.json (see docs/release.md).
+    // IDEA-140: release builds bake the public server and portal URLs into package.json (see docs/RELEASING.md).
     Object.assign(process.env, bakedEndpointEnv(readBakedEndpoints(), process.env));
 }
 
