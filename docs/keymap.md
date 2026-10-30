@@ -74,8 +74,12 @@ Any shortcut can be changed in Keymap › Edit Shortcuts.
 | Cycle Chat Mode (in Agents) | ⌘. | Ctrl+. |
 | New Chat (in Agents) | ⌥⌘N | Ctrl+Alt+N |
 | Chat History (in Agents) | ⌥⌘Y | Ctrl+Alt+Y |
+| Review Agent Changes | ⌥⇧⌘R | Ctrl+Alt+Shift+R |
+| New Thread in Git Worktree | ⌥⇧⌘W | Ctrl+Alt+Shift+W |
+| Reload All from Disk (outside Agents) | ⌥⌘Y | Ctrl+Alt+Y |
 | Project tool window | ⌘1 | Alt+1 |
 | Bookmarks / Search tool window | ⌘2 | Alt+2 |
+| Threads tool window | ⌘3 | Alt+3 |
 | Run tool window | ⌘4 | Alt+4 |
 | Debug tool window | ⌘5 | Alt+5 |
 | Problems tool window | ⌘6 | Alt+6 |

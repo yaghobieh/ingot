@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CodeChange } from './changes.types';
-import { buildHunks, changeStats, composeText, decide, hunkLines, isPending, miniDiff, restorePlan, statusOf, streamingPreview } from './changes.utils';
+import { buildHunks, changeStats, composeText, decide, hunkLines, isPending, miniDiff, rebaseChange, restorePlan, reviewAnchors, reviewBase, statusOf, streamingPreview } from './changes.utils';
 
 const OLD = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].join('\n');
 const NEW = ['a', 'B', 'c', 'd', 'e', 'f2', 'f3', 'g'].join('\n');
@@ -40,6 +40,32 @@ describe('IDEA-102 code changes', () => {
         expect([...hunkLines(c.hunks).entries()]).toEqual([['h0', { start: 1, length: 1 }], ['h1', { start: 5, length: 2 }]]);
         const longer = buildHunks('a\nb', 'x\ny\nz\na\nb\nc');
         expect([...hunkLines(longer).values()]).toEqual([{ start: 0, length: 3 }, { start: 5, length: 1 }]);
+    });
+
+    it('IDEA-268: compares the review against the old text with only accepted hunks applied', () => {
+        const c = decide(change(), ['h1'], 'accepted');
+        expect(reviewBase(c)).toBe(['a', 'b', 'c', 'd', 'e', 'f2', 'f3', 'g'].join('\n'));
+        expect(reviewBase(decide(change(), ['h0'], 'rejected'))).toBe(OLD);
+    });
+
+    it('IDEA-268: rebases pending hunks on a user edit and keeps decided ones in the base', () => {
+        const accepted = decide(change(), ['h0'], 'accepted');
+        const edited = ['a', 'B', 'c', 'd', 'e', 'f2', 'mine', 'g'].join('\n');
+        const next = rebaseChange(accepted, edited, 'r');
+        expect(next.oldText).toBe(['a', 'B', 'c', 'd', 'e', 'f', 'g'].join('\n'));
+        expect(next.hunks.map(h => [h.id, h.removed, h.added, h.state])).toEqual([['r0', ['f'], ['f2', 'mine'], 'pending']]);
+        expect(composeText(next.oldText, next.hunks)).toBe(edited);
+        expect(next.status).toBe('applied');
+        const undone = rebaseChange(accepted, next.oldText, 'r');
+        expect(undone.hunks).toEqual([]);
+        expect(undone.status).toBe('accepted');
+    });
+
+    it('IDEA-268: anchors each pending hunk on its first line in the current text', () => {
+        const c = decide(change(), ['h0'], 'rejected');
+        expect(reviewAnchors(c.hunks, 8)).toEqual([{ hunkId: 'h1', line: 6, added: 2, removed: 1 }]);
+        const deletedTail = buildHunks('a\nb\nc', 'a');
+        expect(reviewAnchors(deletedTail, 1)).toEqual([{ hunkId: 'h0', line: 1, added: 0, removed: 2 }]);
     });
 
     it('previews a streaming edit over the old file', () => {

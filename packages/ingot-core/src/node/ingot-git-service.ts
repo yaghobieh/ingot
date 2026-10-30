@@ -9,6 +9,8 @@ import { BRANCH_FORMAT, LOG_FORMAT } from '../common/git/git.consts';
 import type { GitBlameLine, GitBranch, GitCommit, GitFileChange, GitService } from '../common/git/git.types';
 import { cloneTarget, isCloneUrl } from '../common/welcome/welcome.utils';
 import { isRepoRelativePath, isValidBranchName, isValidRef, parseBlame, parseBranches, parseLog, parseNameStatus } from '../common/git/git.utils';
+import { isValidWorktreeName, worktreeBranch, worktreeFolder } from '../common/threads/threads.utils';
+import type { WorktreeCreated } from '../common/threads/threads.types';
 
 const GIT_TIMEOUT_MS = 15_000;
 const CLONE_TIMEOUT_MS = 10 * 60_000;
@@ -193,6 +195,20 @@ export class IngotGitService implements GitService {
         }
         await this.git(parent, ['clone', '--', value, target], { timeout: CLONE_TIMEOUT_MS });
         return target;
+    }
+
+    async addWorktree(root: string, name: string): Promise<WorktreeCreated> {
+        if (!isValidWorktreeName(name)) {
+            throw new Error(`Invalid worktree name "${name}".`);
+        }
+        const top = (await this.git(root, ['rev-parse', '--show-toplevel'])).trim();
+        const folder = worktreeFolder(path.normalize(top), name);
+        if (fs.existsSync(folder)) {
+            throw new Error(`${folder} already exists.`);
+        }
+        const branch = worktreeBranch(name);
+        await this.git(top, ['worktree', 'add', '-b', branch, '--', folder, 'HEAD']);
+        return { folder, branch };
     }
 
     async remote(root: string): Promise<{ url: string; commit: string; branch?: string } | undefined> {

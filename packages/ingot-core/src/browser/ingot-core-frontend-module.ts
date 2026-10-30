@@ -35,6 +35,9 @@ import { IngotAgentsContribution } from './agents/agents-contribution';
 import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding';
 import { IngotKeybindingRegistry } from './agents/text-key-guard';
 import { AGENTS_WIDGET_ID } from './agents/agents.consts';
+import { AGENT_REVIEW_WIDGET_ID, AgentReviewContribution, AgentReviewWidget } from './agent-review';
+import { THREADS_WIDGET_ID, ThreadsContribution, ThreadsService, ThreadsWidget } from './threads';
+import { DiskSyncContribution } from './disk-sync';
 import { IngotStripeWidget } from './stripe/ingot-stripe-widget';
 import { IngotExplorerHeader } from './navigator/explorer-header';
 import { IngotAccountService } from './account/account-service';
@@ -344,6 +347,18 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotAgentsWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentsWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotAgentsContribution);
+    // IDEA-268: multi-file review, parallel threads, live reload from disk
+    bind(AgentReviewWidget).toSelf().inSingletonScope();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENT_REVIEW_WIDGET_ID, createWidget: () => ctx.container.get(AgentReviewWidget) })).inSingletonScope();
+    bind(AgentReviewContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(AgentReviewContribution);
+    bind(ThreadsService).toSelf().inSingletonScope();
+    bind(ThreadsWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: THREADS_WIDGET_ID, createWidget: () => ctx.container.get(ThreadsWidget) })).inSingletonScope();
+    bindViewContribution(bind, ThreadsContribution);
+    bind(DiskSyncContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(DiskSyncContribution);
+    bind(CommandContribution).toService(DiskSyncContribution);
 
     bind(IngotAccountClient).toSelf().inSingletonScope();
     bind(AccountBackend).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<AccountBackend>(ctx.container, ACCOUNT_SERVICE_PATH, ctx.container.get(IngotAccountClient))).inSingletonScope();

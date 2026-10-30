@@ -531,6 +531,11 @@ export class AgentStore {
         return !!id && !this.cancelled.has(id) && (this.running.has(id) || this.modelLoops.has(id));
     }
 
+    /** The user stopped this chat's last run (cleared when they send again). */
+    wasStopped(id: string): boolean {
+        return this.cancelled.has(id);
+    }
+
     /** Stops a streaming agent (Stop button / Escape). */
     stop(id: string): void {
         const piece = this.items.find(s => s.id === id)?.handoff;
@@ -772,8 +777,11 @@ export class AgentStore {
         });
     }
 
-    /** Root the agent works in: its project (groups) or the first workspace root. */
-    protected rootFor(session: AgentSession): URI | undefined {
+    /** Root the agent works in: its worktree (IDEA-268), its project (groups) or the first workspace root. */
+    rootFor(session: AgentSession): URI | undefined {
+        if (session.worktree) {
+            return new URI(session.worktree.path);
+        }
         if (session.project) {
             return new URI(session.project);
         }

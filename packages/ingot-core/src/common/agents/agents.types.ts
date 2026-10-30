@@ -80,6 +80,8 @@ export interface AgentSession {
     project?: string;
     /** IDEA-266: the workspace (folder or workspace file URI) of the window the chat belongs to. */
     workspace?: string;
+    /** IDEA-268: the chat works in its own git worktree instead of the project folder. */
+    worktree?: import('../threads/threads.types').ThreadWorktree;
     /** Open as a tab in the Agents panel (closed chats stay in History). */
     open?: boolean;
     openedAt?: number;

@@ -61,6 +61,7 @@ import { CodeChangeBlock } from '../changes/code-change-block';
 import { isPending } from '../../common/changes/changes.utils';
 import { formatCountdown, reviewFileState } from '../../common/review/review';
 import { ReviewComments } from '../review/review-comments';
+import { AGENT_REVIEW_COMMANDS } from '../agent-review/agent-review.consts';
 import type { CodeChange } from '../../common/changes/changes.types';
 import { AGENT_COMMANDS, AGENT_EMPTY_MARK_SIZE, AGENT_MARK_SIZE, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
 import { RexMark } from '../brand/rex-mark';
@@ -1148,13 +1149,13 @@ export class IngotAgentsWidget extends ReactWidget {
             return undefined;
         }
         const stats = sumDiffs(pending.map(change => this.tracker.stats(change)));
-        const first = pending[0] ?? run[0];
         return <div className='ingot-review' id='ingot-review'>
             {paused && session.pause && this.renderPause(session, session.pause)}
             {pending.length > 0 && <div className='ingot-review-footer' id='ingot-changes-bar'>
                 <span className='ingot-review-totals'>{pending.length} {fileWord(pending.length)} · <span className='ingot-diff-counts'>{this.diffCounts(stats)}</span></span>
                 <button type='button' id='ingot-changes-reject-all' className='ingot-review-link' onClick={() => { this.touchReview(session); void this.tracker.decideAll('rejected', session.id); }}>{REJECT_ALL}</button>
-                <button type='button' id='ingot-review-open' className='ingot-review-link' onClick={() => { if (first) { this.touchReview(session); void this.tracker.reveal(first.id); } }}>{REVIEW_WORD}</button>
+                <button type='button' id='ingot-review-open' className='ingot-review-link' title={`Review all changes side by side${this.shortcut(AGENT_REVIEW_COMMANDS.open.id) ? ` (${this.shortcut(AGENT_REVIEW_COMMANDS.open.id)})` : ''}`}
+                    onClick={() => { this.touchReview(session); void this.commands.executeCommand(AGENT_REVIEW_COMMANDS.open.id, session.id); }}>{REVIEW_WORD}</button>
                 <button type='button' id='ingot-changes-accept-all' className='ingot-btn-primary ingot-review-accept' onClick={() => { this.touchReview(session); void this.tracker.decideAll('accepted', session.id); }}>{ACCEPT_ALL}</button>
             </div>}
             {drafts.length > 0 && <div className='ingot-review-comments-bar' id='ingot-review-comments-bar'>

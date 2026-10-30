@@ -108,7 +108,11 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Add Selection to Agent Chat', command: 'ingot.agents.addSelectionToChat', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: EDITOR },
     { action: 'Cycle Chat Mode', command: 'ingot.agents.cycleMode', mac: 'ctrlcmd+.', other: 'ctrl+.', when: AGENTS_FOCUS },
     { action: 'New Chat', command: 'ingot.agents.new', mac: 'ctrlcmd+alt+n', other: 'ctrl+alt+n', when: AGENTS_FOCUS },
-    { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS }
+    { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS },
+    // Review, threads and disk sync (IDEA-268)
+    { action: 'Review Agent Changes', command: 'ingot.agents.reviewChanges', mac: 'ctrlcmd+alt+shift+r', other: 'ctrl+alt+shift+r' },
+    { action: 'New Thread in Git Worktree', command: 'ingot.threads.newWorktree', mac: 'ctrlcmd+alt+shift+w', other: 'ctrl+alt+shift+w' },
+    { action: 'Reload All from Disk', command: 'ingot.files.reloadFromDisk', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: `!${AGENTS_FOCUS}` }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';
