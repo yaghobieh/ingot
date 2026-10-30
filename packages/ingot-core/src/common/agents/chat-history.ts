@@ -1,5 +1,6 @@
 import type { AgentSession } from './agents.types';
 import { isAgentMode } from './agent-modes';
+import { restoreGoal } from './goal';
 
 export const CHATS_STORAGE_KEY = 'ingot.chats.v1';
 export const MAX_STORED_CHATS = 100;
@@ -39,7 +40,7 @@ export const parseChats = (json: string | null | undefined): AgentSession[] => {
         }
         return value.filter((c): c is AgentSession =>
             !!c && typeof c.id === 'string' && typeof c.title === 'string' && Array.isArray(c.messages) && isAgentMode(c.mode)
-        ).map(c => ({ ...c, ask: undefined, plan: c.plan ?? [], steps: c.steps ?? [], changes: c.changes ?? [] }));
+        ).map(c => ({ ...c, ask: undefined, plan: c.plan ?? [], steps: c.steps ?? [], changes: c.changes ?? [], goal: restoreGoal(c.goal) }));
     } catch {
         return [];
     }

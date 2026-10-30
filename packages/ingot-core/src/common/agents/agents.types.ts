@@ -97,6 +97,10 @@ export interface AgentSession {
     pause?: ReviewPause;
     /** A question the agent is waiting on. Cleared when the user answers or stops. */
     ask?: { readonly question: string; readonly options?: readonly string[] };
+    /** IDEA-292: a `/goal` run: the agent keeps taking turns until its self-check passes. */
+    goal?: import('./goal.types').AgentGoal;
+    /** IDEA-292: a command or skill pinned into this chat's system prompt ("Use as mode"). */
+    customMode?: import('./custom-mode.types').CustomMode;
 }
 
 export interface ReviewPause {

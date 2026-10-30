@@ -3,6 +3,7 @@ import { RUN_DEFAULTS, RUN_PREFS } from '../../common/processes/run-settings';
 import { BROWSER_DEFAULTS, BROWSER_PREFS } from '../../common/browser-tool/browser-settings';
 import { DEFAULT_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS_CAP, WORK_LOOP_PREFS } from '../../common/agents/work-loop.consts';
 import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
+import { GOAL_DEFAULTS, GOAL_LIMITS, GOAL_PREFS } from '../../common/agents/goal.consts';
 
 /** IDEA-133: Settings › Tools › Agent tools (terminal, processes, browser). Also editable in settings.json. */
 export const agentToolsPreferenceSchema: PreferenceSchema = {
@@ -50,6 +51,14 @@ export const agentToolsPreferenceSchema: PreferenceSchema = {
         [WORK_LOOP_PREFS.maxToolResultChars]: {
             type: 'number', minimum: 1000, maximum: 200000, default: DEFAULT_TOOL_RESULT_CHARS,
             description: 'Characters of each tool result kept for the next model turn. Older text is cut.'
+        },
+        [GOAL_PREFS.maxIterations]: {
+            type: 'number', minimum: GOAL_LIMITS.minIterations, maximum: GOAL_LIMITS.maxIterations, default: GOAL_DEFAULTS.maxIterations,
+            description: '/goal: most agent turns before the goal stops, even if its done criteria are not all checked.'
+        },
+        [GOAL_PREFS.tokenBudget]: {
+            type: 'number', minimum: GOAL_LIMITS.minBudget, maximum: GOAL_LIMITS.maxBudget, default: GOAL_DEFAULTS.tokenBudget,
+            description: '/goal: estimated tokens (prompts and replies) a goal may spend before it stops.'
         }
     }
 };

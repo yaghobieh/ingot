@@ -1,0 +1,54 @@
+/* IDEA-292: /goal banner above the composer, the custom mode pill and "Use as mode" buttons. */
+.ingot-goal-banner {
+  margin: 4px 10px 6px; padding: 8px 10px 8px; border-radius: 10px;
+  border: 1px solid var(--ingot-border); background: var(--ingot-surface); color: var(--ingot-text);
+  font-size: 12px; display: flex; flex-direction: column; gap: 6px;
+}
+.ingot-goal-banner.ingot-goal-done { border-color: color-mix(in srgb, var(--ingot-success) 45%, var(--ingot-border)); }
+.ingot-goal-banner.ingot-goal-stopped { border-color: color-mix(in srgb, var(--ingot-warning) 45%, var(--ingot-border)); }
+.ingot-goal-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ingot-goal-head > .codicon { color: var(--ingot-primary); flex: none; }
+.ingot-goal-done .ingot-goal-head > .codicon { color: var(--ingot-success); }
+.ingot-goal-label { font-weight: 600; flex: none; }
+.ingot-goal-objective { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-text-muted); }
+.ingot-goal-state { flex: none; font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--ingot-panel); color: var(--ingot-text-muted); }
+.ingot-goal-running .ingot-goal-state { color: var(--ingot-primary); }
+.ingot-goal-done .ingot-goal-state { color: var(--ingot-success); }
+.ingot-goal-stopped .ingot-goal-state { color: var(--ingot-warning); }
+.ingot-goal-stop {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; cursor: pointer;
+  border-radius: 6px; border: 1px solid var(--ingot-border); background: transparent; color: var(--ingot-text); font-size: 12px;
+}
+.ingot-goal-stop:hover { border-color: var(--ingot-danger); color: var(--ingot-danger); }
+.ingot-goal-stop .codicon { font-size: 12px; }
+.ingot-goal-bar { height: 4px; border-radius: 2px; background: var(--ingot-panel); overflow: hidden; }
+.ingot-goal-bar > span { display: block; height: 100%; background: var(--ingot-primary); transition: width .3s ease; }
+.ingot-goal-done .ingot-goal-bar > span { background: var(--ingot-success); }
+.ingot-goal-stopped .ingot-goal-bar > span { background: var(--ingot-warning); }
+.ingot-goal-meta { display: flex; gap: 12px; flex-wrap: wrap; color: var(--ingot-text-muted); font-size: 11px; }
+.ingot-goal-criteria { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 96px; overflow: auto; }
+.ingot-goal-criteria li { display: flex; align-items: flex-start; gap: 6px; color: var(--ingot-text-muted); }
+.ingot-goal-criteria li .codicon { font-size: 12px; margin-top: 1px; }
+.ingot-goal-criteria li.met { color: var(--ingot-text); }
+.ingot-goal-criteria li.met .codicon { color: var(--ingot-success); }
+
+.ingot-agents .ingot-composer-bar .ingot-custom-mode-pill {
+  display: inline-flex; align-items: center; flex: none; max-width: 180px;
+  background: color-mix(in srgb, var(--ingot-accent) 14%, transparent); color: var(--ingot-text);
+}
+.ingot-agents .ingot-composer-bar .ingot-custom-mode-pill > .codicon:first-child { color: var(--ingot-accent); }
+.ingot-agents .ingot-composer-bar .ingot-custom-mode-pill .ingot-pill-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-custom-mode-pill button.codicon {
+  border: 0; background: transparent; color: var(--ingot-text-muted); padding: 0; margin-left: 2px; cursor: pointer; font-size: 11px !important;
+}
+.ingot-custom-mode-pill button.codicon:hover { color: var(--ingot-text); }
+
+.ingot-slash-use-mode,
+.ingot-mcp-use-mode {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; cursor: pointer; white-space: nowrap;
+  border-radius: 5px; border: 1px solid var(--ingot-border); background: var(--ingot-surface); color: var(--ingot-text-muted); font-size: 11px;
+}
+.ingot-slash-use-mode:hover,
+.ingot-mcp-use-mode:hover { color: var(--ingot-primary); border-color: var(--ingot-primary); }
+.ingot-slash-use-mode .codicon,
+.ingot-mcp-use-mode .codicon { font-size: 11px; }

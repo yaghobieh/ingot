@@ -2,6 +2,7 @@ import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { AbstractViewContribution, StatusBar, StatusBarAlignment } from '@theia/core/lib/browser';
 import type { CommandRegistry } from '@theia/core/lib/common';
 import { MessageService } from '@theia/core/lib/common/message-service';
+import { QuickInputService } from '@theia/core/lib/common/quick-pick-service';
 import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
 import { AgentStore } from './agent-store';
 import { ChangeTracker } from '../changes/change-tracker';
@@ -28,6 +29,7 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(StatusBar) protected readonly statusBar: StatusBar;
+    @inject(QuickInputService) protected readonly quickInput: QuickInputService;
     protected chatModelStatus = '';
 
     constructor() {
@@ -82,6 +84,29 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
             }
         });
         registry.registerCommand(AGENT_COMMANDS.demoEdit, { execute: () => this.runDemo() });
+        registry.registerCommand(AGENT_COMMANDS.useAsMode, { execute: (name?: unknown) => this.useAsMode(typeof name === 'string' ? name : undefined) });
+        registry.registerCommand(AGENT_COMMANDS.clearMode, {
+            execute: () => this.store.current && this.store.clearMode(this.store.current.id),
+            isEnabled: () => !!this.store.current?.customMode
+        });
+    }
+
+    /** IDEA-292: pins a command or skill into the current chat. Without a name, pick one. */
+    protected async useAsMode(name?: string): Promise<void> {
+        let picked = name;
+        if (!picked) {
+            await this.store.loadCommands();
+            const items = this.store.projectCommands.map(c => ({ label: c.kind === 'skill' ? c.name : `/${c.name}`, description: c.kind, detail: c.description, name: c.name }));
+            if (!items.length) {
+                this.messages.info('This project has no commands or skills yet. Add them under .ingot/commands or .ingot/skills.');
+                return;
+            }
+            picked = (await this.quickInput.showQuickPick(items, { placeholder: 'Pin a command or skill into this chat' }))?.name;
+        }
+        if (picked) {
+            const widget = await this.openView({ activate: true, reveal: true });
+            await widget.useAsMode(picked);
+        }
     }
 
     protected async runDemo(): Promise<void> {
