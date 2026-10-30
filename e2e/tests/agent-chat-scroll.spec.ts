@@ -103,5 +103,15 @@ test.describe('agent chat scrolling', () => {
         if (SHOTS_DIR) {
             await page.locator('.ingot-agents').screenshot({ path: path.join(SHOTS_DIR, 'chat-scroll-bottom-dark.png'), animations: 'disabled' });
         }
+
+        // IDEA-283: scrolling past the end of the chat never scrolls the editor area or the page behind it.
+        await expect(page.locator('.ingot-agents-chat')).toHaveCSS('overscroll-behavior-y', 'contain');
+        const outerScroll = (): Promise<number[]> => page.evaluate(() =>
+            [document.scrollingElement, document.querySelector('#theia-main-content-panel'), ...document.querySelectorAll('.monaco-scrollable-element')]
+                .map(el => Math.round(el?.scrollTop ?? 0)));
+        const outerBefore = await outerScroll();
+        await page.locator('.ingot-agents-chat').hover();
+        await page.mouse.wheel(0, 2000);
+        expect(await outerScroll()).toEqual(outerBefore);
     });
 });

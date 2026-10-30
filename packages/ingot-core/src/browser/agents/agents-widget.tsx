@@ -1627,10 +1627,8 @@ export class IngotAgentsWidget extends ReactWidget {
         this.following = false;
         this.popover = undefined;
         this.update();
-        requestAnimationFrame(() => {
-            this.node.querySelector(`#ingot-msg-${index}`)?.scrollIntoView({ block: 'start' });
-            this.onChatScroll();
-        });
+        // scrollIntoView would also scroll every scrollable ancestor, including the editor area beside the chat.
+        requestAnimationFrame(() => this.revealMessage(index));
     }
 
     protected startEdit(session: AgentSession, index: number): void {
