@@ -87,6 +87,7 @@ Any shortcut can be changed in Keymap › Edit Shortcuts.
 | Jump to editor | Escape | Escape |
 
 In the Local Changes tool window: Show Diff ⌘D, Jump to Source F4, Commit ⌘↩, Rollback ⌘⌥Z, Refresh ⌘R.
+In the editor with Tab predictions: Tab accepts the ghost text, ⌘→ (Ctrl+→) accepts the next word, Escape dismisses; while a next-edit hint is shown, Tab jumps to it and Escape hides it.
 All shortcuts can be rebound in Settings › Keymap.
 
 _Generated from `packages/ingot-core/src/common/keymap/*.keymap.consts.ts`._
