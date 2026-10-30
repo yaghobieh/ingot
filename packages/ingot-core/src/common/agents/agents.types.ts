@@ -78,6 +78,8 @@ export interface AgentSession {
     activeFile?: string;
     /** Project root URI the agent works in; set inside project groups (IDEA-52). */
     project?: string;
+    /** IDEA-268: the chat works in its own git worktree instead of the project folder. */
+    worktree?: import('../threads/threads.types').ThreadWorktree;
     /** Open as a tab in the Agents panel (closed chats stay in History). */
     open?: boolean;
     openedAt?: number;
