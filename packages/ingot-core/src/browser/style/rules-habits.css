@@ -36,3 +36,57 @@
 .ingot-habit-status { font-size: 11px; color: var(--ingot-info); white-space: nowrap; }
 .ingot-habit-examples { margin: 0; padding-left: 18px; font-size: 11px; color: var(--ingot-text-muted); }
 .ingot-habit-examples li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* IDEA-296 Habits v2: habit pill and menu, live checklist, "Save as habit", the habit editor and the playbook rows. */
+.ingot-agents-root > .ingot-habit-cards,
+.ingot-agents-root > .ingot-playbook-editor,
+.ingot-agents-root > .ingot-habit-draft-saved,
+.ingot-agents-root > .ingot-habit-pill-wrap { flex: none; margin-left: 10px; margin-right: 10px; }
+.ingot-agents-root > .ingot-playbook-editor { margin-bottom: var(--ingot-space-2); background: var(--ingot-surface); max-height: 50%; overflow: auto; }
+.ingot-habit-pill-wrap { position: relative; margin-bottom: 6px; display: flex; }
+.ingot-habit-pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 8px; border: 1px solid var(--ingot-border); border-radius: 999px; background: var(--ingot-surface); color: var(--ingot-text); font: inherit; font-size: 11px; cursor: pointer; }
+.ingot-habit-pill:hover, .ingot-habit-pill[aria-expanded='true'] { border-color: var(--ingot-accent); }
+.ingot-habit-pill:focus-visible { outline: 1px solid var(--ingot-focus-ring); }
+.ingot-habit-pill > .codicon-checklist { color: var(--ingot-accent); }
+.ingot-habit-pill > span:not(.codicon) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-habit-pill.off { color: var(--ingot-text-muted); }
+.ingot-habit-pill.off > .codicon-checklist { color: var(--ingot-text-muted); }
+.ingot-habit-pill-progress { color: var(--ingot-text-muted); font-variant-numeric: tabular-nums; }
+.ingot-habit-menu { position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 20; display: flex; flex-direction: column; min-width: 260px; max-width: 100%; max-height: 260px; overflow: auto; padding: 4px; border: 1px solid var(--ingot-border); border-radius: 6px; background: var(--ingot-panel); color: var(--ingot-text); box-shadow: 0 6px 18px color-mix(in srgb, var(--ingot-text) 18%, transparent); }
+.ingot-habit-menu-item { display: grid; grid-template-columns: 16px auto 1fr auto; align-items: center; gap: 6px; padding: 4px 6px; border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.ingot-habit-menu-item:hover, .ingot-habit-menu-item:focus-visible { background: var(--ingot-selection); outline: none; }
+.ingot-habit-menu-item.selected .codicon-check { color: var(--ingot-accent); }
+.ingot-habit-menu-name { font-weight: 500; white-space: nowrap; }
+.ingot-habit-menu-when { font-size: 11px; color: var(--ingot-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ingot-habit-menu-off { grid-template-columns: 16px 1fr; border-top: 1px solid var(--ingot-border); border-radius: 0 0 4px 4px; color: var(--ingot-text-muted); }
+.ingot-habit-menu-empty { padding: 4px 6px; font-size: 11px; }
+.ingot-habit-source { font-size: 10px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--ingot-border); color: var(--ingot-text-muted); white-space: nowrap; }
+
+.ingot-habit-checklist { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 6px; padding: 6px 8px; border: 1px solid var(--ingot-border); border-left: 3px solid var(--ingot-accent); border-radius: 6px; background: var(--ingot-surface); font-size: 12px; color: var(--ingot-text); }
+.ingot-habit-checklist-head { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.ingot-habit-checklist-head .codicon { color: var(--ingot-accent); }
+.ingot-habit-check { display: flex; gap: 6px; align-items: baseline; }
+.ingot-habit-check-mark { width: 12px; flex: none; text-align: center; color: var(--ingot-text-muted); }
+.ingot-habit-check.done { color: var(--ingot-text-muted); }
+.ingot-habit-check.done .ingot-habit-check-mark { color: var(--ingot-success); }
+.ingot-habit-criteria-head { margin-top: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ingot-text-muted); }
+
+.ingot-chat-save-habit { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; margin-right: 4px; padding: 1px 6px; border: 1px solid var(--ingot-border); border-radius: 4px; background: transparent; color: var(--ingot-text-muted); font: inherit; font-size: 11px; cursor: pointer; }
+.ingot-chat-save-habit:hover, .ingot-chat-save-habit:focus-visible { border-color: var(--ingot-accent); color: var(--ingot-text); outline: none; }
+
+.ingot-playbook-editor { display: flex; flex-direction: column; gap: 6px; padding: 8px; margin-bottom: 4px; border: 1px solid var(--ingot-focus-ring); border-radius: 6px; color: var(--ingot-text); font-size: 12px; }
+.ingot-playbook-editor textarea { resize: vertical; min-height: 120px; font-family: var(--theia-code-font-family, monospace); font-size: 12px; }
+.ingot-playbook-editor-title { font-weight: 500; }
+.ingot-playbook-editor .codicon-checklist { color: var(--ingot-accent); }
+.ingot-playbook-summary, .ingot-playbook-warning { font-size: 11px; color: var(--ingot-text-muted); }
+.ingot-habit-draft-saved { margin-bottom: 6px; }
+
+.ingot-habits-page { display: flex; flex-direction: column; gap: var(--ingot-space-3); }
+.ingot-playbooks { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.ingot-playbook-scope { display: flex; flex-direction: column; gap: 4px; margin-top: var(--ingot-space-2); }
+.ingot-playbook-scope-title { font-weight: 500; color: var(--ingot-text); }
+.ingot-playbook-row { display: flex; align-items: center; gap: var(--ingot-space-2); padding: 5px 8px; border: 1px solid var(--ingot-border); border-radius: 6px; color: var(--ingot-text); }
+.ingot-playbook-row .codicon-checklist { color: var(--ingot-accent); }
+.ingot-playbook-row.off { opacity: 0.6; }
+.ingot-playbook-error { display: flex; flex-direction: column; gap: 2px; padding: 5px 8px; border: 1px solid var(--ingot-danger); border-radius: 6px; color: var(--ingot-text); }
+.ingot-playbook-error .codicon-warning { color: var(--ingot-warning); }

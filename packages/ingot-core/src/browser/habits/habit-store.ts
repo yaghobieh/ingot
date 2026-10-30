@@ -132,6 +132,11 @@ export class HabitStore {
         return savedAs;
     }
 
+    /** IDEA-296 v2: the learned pattern was saved as a habit playbook. */
+    async markSaved(habit: Habit, savedAs: string): Promise<void> {
+        await this.update(habit, { status: 'accepted', savedAs });
+    }
+
     async dismiss(habit: Habit): Promise<void> {
         await this.update(habit, { status: 'dismissed' });
     }

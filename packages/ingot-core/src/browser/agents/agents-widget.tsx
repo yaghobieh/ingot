@@ -9,6 +9,14 @@ import type { ProjectRule } from '../../common/project-config/project-config.typ
 import { RuleMentionItem } from './rule-mention-item';
 import { HabitCards } from '../habits/habit-cards';
 import { HabitStore } from '../habits/habit-store';
+import { PlaybookService } from '../habits/playbook-service';
+import { PlaybookEditor } from '../habits/playbook-editor';
+import { HabitChecklist, HabitPill } from '../habits/habit-chat';
+import type { Habit } from '../../common/habits/habits.types';
+import type { PlaybookScope } from '../../common/habits/playbook.types';
+import { draftFromLearned, draftFromRun, runSummary } from '../../common/habits/playbook-draft.utils';
+import { playbookFileText } from '../../common/habits/playbook.utils';
+import { PLAYBOOK_SCOPE_HINTS, SAVE_RUN_LABEL } from '../../common/habits/playbook.consts';
 import { exploredItems, exploredLine, extractThought } from '../../common/agents/tool-cards';
 import { tabRunState } from '../../common/agents/chat-round';
 import { REACTION_HEART, REACTION_LIKE } from '../../common/agents/chat-round.consts';
@@ -100,6 +108,11 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(HabitStore) protected readonly habits: HabitStore;
+    @inject(PlaybookService) protected readonly playbooks: PlaybookService;
+    /** IDEA-296: a habit being drafted ("Save as habit", "Make it a habit") in the editor above the composer. */
+    protected habitDraft?: { title: string; text: string; learned?: Habit };
+    /** IDEA-296: where the last drafted habit was saved, shown until dismissed. */
+    protected habitSaved?: string;
     @inject(ContextKeyService) protected readonly contextKeys: ContextKeyService;
     @inject(KeybindingRegistry) protected readonly keybindings: KeybindingRegistry;
     @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
@@ -687,9 +700,52 @@ export class IngotAgentsWidget extends ReactWidget {
             {!this.showMemories && current && this.renderAsk(current)}
             {!this.showMemories && this.renderApproval(current)}
             {!this.showMemories && this.renderChangesBar(current)}
-            {!this.showMemories && <HabitCards store={this.habits} />}
+            {!this.showMemories && <HabitCards store={this.habits} onMakeHabit={habit => this.draftHabit('Make it a habit', playbookFileText(draftFromLearned(habit)), habit)} />}
+            {!this.showMemories && this.renderHabitDraft()}
+            {!this.showMemories && current?.habit && <HabitPill key={current.id} habit={current.habit}
+                load={() => this.playbooks.enabledPlaybooks(current.project ? new URI(current.project) : undefined)}
+                onChoose={id => void this.store.chooseHabit(current.id, id)} />}
             {this.renderComposer()}
             {empty && <div className='ingot-agents-disclaimer'>AI can make mistakes. Review generated code before you keep it.</div>}
+        </div>;
+    }
+
+    /** IDEA-296: "Save as habit" on a finished run: a habit drafted from the prompt, the steps taken and the files and commands. */
+    protected saveRunAsHabit(session: AgentSession): void {
+        const run = runSummary(session.messages, session.steps);
+        if (run) {
+            this.draftHabit('Save this run as a habit', playbookFileText(draftFromRun(run)));
+        }
+    }
+
+    protected draftHabit(title: string, text: string, learned?: Habit): void {
+        this.habitDraft = { title, text, learned };
+        this.habitSaved = undefined;
+        this.update();
+    }
+
+    protected async saveHabitDraft(text: string, scope: PlaybookScope): Promise<readonly string[]> {
+        const draft = this.habitDraft;
+        const { path, errors } = await this.playbooks.create(scope, text);
+        if (path) {
+            if (draft?.learned) {
+                await this.habits.markSaved(draft.learned, path);
+            }
+            this.habitDraft = undefined;
+            this.habitSaved = path;
+            this.update();
+        }
+        return errors;
+    }
+
+    protected renderHabitDraft(): React.ReactNode {
+        if (this.habitDraft) {
+            return <PlaybookEditor key={this.habitDraft.text} id='ingot-habit-draft' title={this.habitDraft.title} text={this.habitDraft.text} scope='project'
+                saveLabel='Save habit' hint={`Edit the steps, then save. ${PLAYBOOK_SCOPE_HINTS.project}`}
+                onSave={(text, scope) => this.saveHabitDraft(text, scope)} onCancel={() => { this.habitDraft = undefined; this.update(); }} />;
+        }
+        return this.habitSaved && <div className='ingot-habit-saved ingot-habit-draft-saved' id='ingot-habit-draft-saved' role='status'>
+            Habit saved to {this.habitSaved}. <a href='#' onClick={e => { e.preventDefault(); this.habitSaved = undefined; this.update(); }}>OK</a>
         </div>;
     }
 
@@ -923,6 +979,7 @@ export class IngotAgentsWidget extends ReactWidget {
                         {c.kind === 'memory' && <span className='codicon codicon-lightbulb' />}{c.kind === 'rule' && <span className='codicon codicon-law' />}{c.label}</span>)}</div>}
                     {m.role === 'agent' && <div className='ingot-chat-agent-head'><span className='ingot-agent-mark' aria-hidden='true'>In</span><b>{AGENT_TITLE}</b><span className='ingot-dim'>· {WORKED_FOR} {this.workedFor(session)}</span></div>}
                     {m.role === 'agent' && i === session.messages.map(message => message.role).lastIndexOf('agent') && this.renderChecklist(session)}
+                    {m.role === 'agent' && session.habit && !session.habit.off && i === session.messages.map(message => message.role).lastIndexOf('agent') && <HabitChecklist habit={session.habit} />}
                     {m.parts ? '' : m.role === 'agent'
                         ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
                             : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
@@ -944,6 +1001,9 @@ export class IngotAgentsWidget extends ReactWidget {
                             aria-pressed={!!m.reactions?.includes(REACTION_HEART)} aria-label='Heart' title='Heart'
                             onClick={() => this.store.toggleReaction(session.id, i, REACTION_HEART)}><span className='codicon codicon-heart' /></button>
                     </span>}
+                    {m.role === 'agent' && i === session.messages.map(message => message.role).lastIndexOf('agent') && !this.store.isRunning(session.id) && session.status !== 'error' && <button type='button'
+                        id='ingot-save-habit' className='ingot-chat-save-habit' title='Save what this run did as a habit (a playbook for this kind of task)'
+                        onClick={() => this.saveRunAsHabit(session)}><span className='codicon codicon-checklist' /> {SAVE_RUN_LABEL}</button>}
                     {m.role === 'user' && this.editingIndex !== i && <button type='button' className='ingot-chat-edit' id={`ingot-edit-msg-${i}`}
                         title='Edit this message and run again from here' onClick={() => this.startEdit(session, i)}>Edit</button>}
                     {(m.role === 'user' || m.role === 'agent') && this.store.canRevertTo(session.id, i) && <button type='button' className='ingot-chat-revert' id={`ingot-revert-${i}`}

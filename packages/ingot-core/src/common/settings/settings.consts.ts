@@ -95,8 +95,8 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                 description: 'Rules agents follow. Always rules apply to every request; auto rules when matching files are in context; agent-requested rules are listed by description and read on demand; manual rules only when you @-mention them in the composer.'
             },
             {
-                id: 'habits', label: 'Habits', custom: 'habits', preferences: ['ingot.habits.threshold'],
-                description: 'Ingot notices what you repeat (the same instruction in prompts, the same terminal command, agent edits you keep rejecting) and offers to save it as a rule, command or hook. Off by default; kept in .ingot/habits.json on this machine.'
+                id: 'habits', label: 'Habits', custom: 'habits', preferences: ['ingot.habits.playbooks.autoSelect', 'ingot.habits.threshold'],
+                description: 'Habits are playbooks: what to do in which scenario (for example a bug in payments: search the logs, check the service, run the tests). Project habits live in .ingot/habits (commit them to share), global ones in ~/.ingot/habits. Learned patterns are what Ingot notices you repeat; they can become a rule, command, hook or habit.'
             },
             {
                 id: 'memories', label: 'Memories', custom: 'memories',
