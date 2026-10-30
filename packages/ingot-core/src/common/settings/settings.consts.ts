@@ -78,13 +78,13 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                 preferences: [
                     'ingot.agent.terminal.enabled', 'ingot.agent.terminal.requireApproval', 'ingot.agent.terminal.foregroundTimeoutSeconds', 'ingot.agent.terminal.maxOutputChars',
                     'ingot.agent.processes.showInChat',
-                    'ingot.agent.browser.enabled', 'ingot.agent.browser.requireApproval', 'ingot.agent.browser.approveReads',
+                    'ingot.agent.browser.enabled', 'ingot.agent.browser.everyRun', 'ingot.agent.browser.requireApproval', 'ingot.agent.browser.approveReads',
                     'ingot.agent.workLoop', 'ingot.agent.maxToolRounds', 'ingot.agent.maxToolResultChars'
                 ],
                 groups: [
                     { label: 'Terminal & scripts', preferences: ['ingot.agent.terminal.enabled', 'ingot.agent.terminal.requireApproval', 'ingot.agent.terminal.foregroundTimeoutSeconds', 'ingot.agent.terminal.maxOutputChars'] },
                     { label: 'Background processes', preferences: ['ingot.agent.processes.showInChat'] },
-                    { label: 'Browser', preferences: ['ingot.agent.browser.enabled', 'ingot.agent.browser.requireApproval', 'ingot.agent.browser.approveReads'] },
+                    { label: 'Browser', preferences: ['ingot.agent.browser.enabled', 'ingot.agent.browser.everyRun', 'ingot.agent.browser.requireApproval', 'ingot.agent.browser.approveReads'] },
                     { label: 'Work loop', preferences: ['ingot.agent.workLoop', 'ingot.agent.maxToolRounds', 'ingot.agent.maxToolResultChars'] }
                 ]
             },
