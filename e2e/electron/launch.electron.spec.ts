@@ -75,16 +75,24 @@ for (const appearance of ['dark', 'light'] as const) {
             const overlay = page.locator('.theia-preload');
             await expect(overlay).toBeAttached({ timeout: APP_READY_TIMEOUT_MS });
             // While loading, the overlay is opaque and painted in the saved color: a plain window, nothing on it.
-            await expect.poll(() => overlay.evaluate(el => getComputedStyle(el).opacity === '1' && getComputedStyle(el).backgroundColor).catch(() => 'gone'),
-                { intervals: [POLL_MS] }).toBe(canvas);
+            // Read it in one go: on a fast start it is removed right after the fade.
+            const readOverlay = () => overlay.evaluate(el => {
+                const style = getComputedStyle(el);
+                return !el.isConnected || style.opacity !== '1' ? undefined : {
+                    background: style.backgroundColor,
+                    children: Array.from(el.children, c => c.tagName),
+                    text: Array.from(el.childNodes, n => n.nodeName === 'STYLE' ? '' : n.textContent ?? '').join('').trim(),
+                    after: getComputedStyle(el, '::after').content,
+                    image: style.backgroundImage,
+                    fade: parseFloat(style.transitionDuration)
+                };
+            }).catch(() => undefined);
+            let look: Awaited<ReturnType<typeof readOverlay>>;
+            await expect.poll(async () => (look = await readOverlay())?.background, { intervals: [POLL_MS] }).toBe(canvas);
             await shot(page, `launch-plain-${appearance}.png`);
-            const look = await overlay.evaluate(el => ({
-                children: Array.from(el.children, c => c.tagName),
-                text: (el as HTMLElement).innerText.trim(),
-                after: getComputedStyle(el, '::after').content,
-                image: getComputedStyle(el).backgroundImage,
-                fade: parseFloat(getComputedStyle(el).transitionDuration)
-            }));
+            if (!look) {
+                throw new Error('launch overlay was not seen');
+            }
             expect(look.children.every(tag => tag === 'STYLE')).toBe(true);
             expect(look.text).toBe('');
             expect(look.after).toBe('none');
