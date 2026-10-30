@@ -6,11 +6,11 @@ import { startFakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 
 /**
- * IDEA-188 / IDEA-248: in a narrow chat panel the inline controls stay inside the bar. Mode and the context
- * ring live in the overflow menu, so they stay clickable without crowding the text area.
+ * IDEA-188 / IDEA-248: in a narrow chat panel the inline controls stay inside the bar. The mode pill stays in the
+ * bar (icon only when narrow) and the context ring lives in the overflow menu, so nothing crowds the text area.
  */
 const BAR = '.ingot-agents .ingot-composer-bar';
-const CONTROLS = ['#ingot-composer-attach', '#ingot-composer-more', '#ingot-composer-model', '#ingot-composer-send'];
+const CONTROLS = ['#ingot-composer-attach', '#ingot-composer-mode', '#ingot-composer-more', '#ingot-composer-model', '#ingot-composer-send'];
 
 const setComposerWidth = (page: Page, width?: number): Promise<void> =>
     page.locator('.ingot-agents .ingot-composer').evaluate((el, w) => {
@@ -51,8 +51,9 @@ const openExtras = async (page: Page): Promise<void> => {
     await closePopovers(page);
     await page.locator('#ingot-composer-more').click();
     await expect(page.locator('#ingot-composer-more-menu')).toBeVisible();
-    await expect(page.locator('#ingot-composer-mode .ingot-pill-label')).toBeVisible();
     await expect(page.locator('#ingot-composer-more')).toHaveAttribute('title', /^More · Mode: Agent/);
+    const narrow = /narrow|tiny/.test(await page.locator(BAR).getAttribute('data-width') ?? '');
+    await expect(page.locator(`#ingot-composer-mode ${narrow ? '.ingot-mode-icon' : '.ingot-pill-label'}`)).toBeVisible();
 };
 
 for (const scheme of ['light', 'dark'] as const) {

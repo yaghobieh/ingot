@@ -229,7 +229,7 @@ test.describe('agent panel redesign', () => {
 
         // Review bar: "16 files · +N −0", Reject all / Review / Accept all.
         const bar = page.locator('#ingot-changes-bar');
-        await expect(bar.locator('.ingot-review-totals')).toHaveText(`16 files · +${ADDED}−0`);
+        await expect(bar.locator('.ingot-review-totals')).toHaveText(`16 files · +${ADDED} −0`);
         await expect(bar.locator('button')).toHaveText(['Reject all', 'Review', 'Accept all']);
         await expect(page.locator('#ingot-changes-accept-all')).toHaveCSS('background-color', await tokenColor(page, '--ingot-primary'));
 
