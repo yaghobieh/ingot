@@ -154,7 +154,7 @@ body.ingot-shell #theia-statusBar .ingot-status-branch { color: var(--theia-fore
 /* IDEA-266: empty-window welcome screen (centered logo + plan, three cards, recent projects). Theme colors only. */
 .ingot-welcome { background: var(--theia-editor-background); color: var(--theia-foreground); overflow: auto; }
 .ingot-welcome-page { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 32px 24px; box-sizing: border-box; }
-.ingot-welcome-column { width: 100%; max-width: 336px; display: flex; flex-direction: column; margin-top: -6vh; }
+.ingot-welcome-column { width: 100%; max-width: 360px; display: flex; flex-direction: column; margin-top: -6vh; }
 .ingot-welcome-hero { display: flex; flex-direction: column; gap: 4px; margin-bottom: 22px; }
 .ingot-welcome-brand { display: flex; align-items: center; gap: 8px; }
 .ingot-welcome-logo { width: 30px; height: 30px; flex: none; }
@@ -176,12 +176,16 @@ body.ingot-shell #theia-statusBar .ingot-status-branch { color: var(--theia-fore
 .ingot-welcome-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .ingot-welcome-project { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%; padding: 3px 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .ingot-welcome-project-name { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ingot-welcome-project-path { min-width: 0; font-size: 11px; color: var(--theia-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-welcome-card-label { white-space: nowrap; }
+/* Long paths lose their start, not the folder name at the end. */
+.ingot-welcome-project-path { min-width: 0; font-size: 11px; color: var(--theia-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
+.ingot-welcome-project-path > bdi { direction: ltr; unicode-bidi: isolate; }
 .ingot-welcome-project:hover .ingot-welcome-project-name { color: var(--theia-textLink-foreground); }
 .ingot-welcome-empty { padding: 4px 0; color: var(--theia-descriptionForeground); }
 .ingot-welcome-initials { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; font-weight: 700; font-size: 12px; color: #fff; background: linear-gradient(135deg, var(--ingot-ingot-gold), var(--ingot-ingot-gold-deep)); }
-/* A window without a folder is only the welcome screen: no tab strip over it. */
-body.ingot-no-folder #theia-main-content-panel .lm-TabBar:has(> .lm-TabBar-content > .lm-TabBar-tab:only-child[id$='ingot-welcome']) { display: none; }
+/* A window without a folder is only the welcome screen: no chat buttons and no tab strip over it. */
+body.ingot-no-folder #ingot-tb-chat, body.ingot-no-folder #ingot-tb-agents-window { display: none; }
+body.ingot-no-folder #theia-main-content-panel .lm-TabBar:has(.lm-TabBar-content > .lm-TabBar-tab:only-child[id$='ingot-welcome']) { display: none; }
 
 /* ---------- About (IDEA-16) ---------- */
 .ingot-about-header { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }

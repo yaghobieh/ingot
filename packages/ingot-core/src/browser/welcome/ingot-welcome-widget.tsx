@@ -174,7 +174,7 @@ export class IngotWelcomeWidget extends ReactWidget {
                         <li key={p.uri}>
                             <button type='button' className='ingot-welcome-project' title={p.path} onClick={() => this.openProject(p)}>
                                 <span className='ingot-welcome-project-name'>{recentProjectLabel(p)}</span>
-                                <span className='ingot-welcome-project-path'>{recentProjectLocation(p)}</span>
+                                <span className='ingot-welcome-project-path'><bdi>{recentProjectLocation(p)}</bdi></span>
                             </button>
                         </li>
                     ))}

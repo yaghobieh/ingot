@@ -35,6 +35,9 @@ export class IngotWelcomeContribution extends AbstractViewContribution<IngotWelc
         for (const area of SIDE_AREAS) {
             await this.shell.collapsePanel(area);
         }
+        // No tool window stripes either; opening a folder reloads the window with the full layout.
+        this.shell.leftPanelHandler.container.hide();
+        this.shell.rightPanelHandler.container.hide();
     }
 
     override registerCommands(registry: CommandRegistry): void {
