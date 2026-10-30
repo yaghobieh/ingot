@@ -14,6 +14,8 @@ import {
 } from '../common/processes/processes.consts';
 import { appendTail, detectPorts, finalStatus, isSafeProjectPath, packageManagerFor, parseScripts, sortProcesses, stripAnsi } from '../common/processes/processes.utils';
 import { registerClientDrop } from '../common/rpc/disconnected-client';
+import { SANDBOX_DENIED_PATTERN } from '../common/policy/agent-policy.consts';
+import { sandboxCommand } from '../common/policy/agent-policy.utils';
 
 interface Entry {
     info: ProcessInfo;
@@ -79,7 +81,8 @@ export class IngotProcessService implements ProcessService {
         }
         const max = options.maxOutput ?? PROCESS_AGENT_OUTPUT_CHARS;
         const text = entry.output.length > max ? `… (${entry.output.length - max} earlier characters cut)\n${entry.output.slice(-max)}` : entry.output;
-        return { info: entry.info, output: text, movedToBackground: !finished };
+        const sandboxDenied = !!entry.info.sandboxed && entry.info.status !== 'running' && entry.info.exitCode !== 0 && SANDBOX_DENIED_PATTERN.test(entry.output);
+        return { info: entry.info, output: text, movedToBackground: !finished, ...(sandboxDenied ? { sandboxDenied } : {}) };
     }
 
     async readText(cwd: string, relativePath: string): Promise<string | undefined> {
@@ -193,17 +196,18 @@ export class IngotProcessService implements ProcessService {
     protected spawn(options: ProcessStartOptions): Entry {
         const id = `p${nextId++}`;
         const win = process.platform === 'win32';
-        const shell = win ? { cmd: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/s', '/c', options.command] } : { cmd: process.env.SHELL || '/bin/sh', args: ['-c', options.command] };
+        const plain = win ? { cmd: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/s', '/c', options.command] } : { cmd: process.env.SHELL || '/bin/sh', args: ['-c', options.command] };
+        const shell = options.sandbox ? sandboxCommand(plain, { ...options.sandbox, writable: options.sandbox.writable.map(realDir) }, process.platform) : { ...plain, applied: false };
         const info: ProcessInfo = {
             id, command: options.command, cwd: options.cwd, origin: options.origin ?? 'agent', status: 'running',
-            background: !!options.background, startedAt: Date.now(), ports: []
+            background: !!options.background, startedAt: Date.now(), ports: [], ...(shell.applied ? { sandboxed: true } : {})
         };
         let resolveExit!: () => void;
         const entry: Entry = { info, output: '', dropped: false, stopRequested: false, exited: new Promise(r => { resolveExit = r; }) };
         this.entries.set(id, entry);
         this.prune();
         try {
-            const child = spawn(shell.cmd, shell.args, {
+            const child = spawn(shell.cmd, [...shell.args], {
                 cwd: options.cwd, env: { ...process.env, FORCE_COLOR: '0', CI: process.env.CI ?? '' }, stdio: ['ignore', 'pipe', 'pipe'], detached: !win, windowsHide: true
             });
             entry.child = child;
@@ -305,6 +309,15 @@ export class IngotProcessService implements ProcessService {
 }
 
 const delay = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms));
+
+/** The sandbox matches real paths (`/var` is `/private/var` on macOS); a folder that does not exist yet stays as given. */
+const realDir = (dir: string): string => {
+    try {
+        return fs.realpathSync(dir);
+    } catch {
+        return dir;
+    }
+};
 const nodeRequire = createRequire(__filename);
 
 const ripgrepBinary = (): string | undefined => {

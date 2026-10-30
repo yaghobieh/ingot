@@ -57,3 +57,24 @@ describe.skipIf(isWin)('IDEA-131 process service', () => {
         fs.rmSync(dir, { recursive: true, force: true });
     });
 });
+
+describe.runIf(process.platform === 'darwin')('IDEA-263 sandboxed commands', () => {
+    const service = new IngotProcessService();
+    afterEach(() => service.dispose());
+
+    it('writes inside the project but the sandbox refuses a write outside it', async () => {
+        const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-sbx-project-'));
+        const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-sbx-outside-'));
+        const sandbox = { writable: [project], network: 'allow' as const };
+        const inside = await service.run({ cwd: project, command: 'echo ok > inside.txt && cat inside.txt', sandbox });
+        expect(inside.output.trim()).toBe('ok');
+        expect(inside.info.sandboxed).toBe(true);
+        expect(inside.sandboxDenied).toBeUndefined();
+        const escaped = await service.run({ cwd: project, command: `echo nope > ${path.join(outside, 'escaped.txt')}`, sandbox });
+        expect(escaped.info.exitCode).not.toBe(0);
+        expect(escaped.sandboxDenied).toBe(true);
+        expect(fs.existsSync(path.join(outside, 'escaped.txt'))).toBe(false);
+        fs.rmSync(project, { recursive: true, force: true });
+        fs.rmSync(outside, { recursive: true, force: true });
+    });
+});
