@@ -1089,7 +1089,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected diffCounts(stats: { added: number; removed: number }): React.ReactNode {
         return <>
-            <span className={`ingot-plus${stats.added ? '' : ' zero'}`}>+{stats.added}</span>
+            <span className={`ingot-plus${stats.added ? '' : ' zero'}`}>+{stats.added}</span>{' '}
             <span className={`ingot-minus${stats.removed ? '' : ' zero'}`}>−{stats.removed}</span>
         </>;
     }
@@ -1357,6 +1357,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     aria-haspopup='menu' aria-expanded={this.popover === 'mode'}
                     title={`Mode: ${info.label}. ${info.description}${this.shortcut(AGENT_COMMANDS.cycleMode.id) ? ` (${this.shortcut(AGENT_COMMANDS.cycleMode.id)} to switch)` : ''}`}
                     onClick={() => { this.popover = this.popover === 'mode' ? undefined : 'mode'; this.update(); }}>
+                    <span className={`codicon codicon-${info.icon} ingot-mode-icon`} style={{ color: info.color }} aria-hidden='true' />
                     <span className='ingot-pill-label'>{info.label}</span><span className='codicon codicon-chevron-down ingot-pill-caret' />
                 </button>
                 {this.renderModelPill()}
