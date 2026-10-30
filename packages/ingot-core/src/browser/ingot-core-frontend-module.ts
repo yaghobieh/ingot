@@ -32,6 +32,8 @@ import { ChangeKeybindingsContribution } from './changes/change-keybindings';
 import { IngotAgentsWidget } from './agents/agents-widget';
 import { EditorCopyTracker } from './agents/editor-copy-tracker';
 import { IngotAgentsContribution } from './agents/agents-contribution';
+import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding';
+import { IngotKeybindingRegistry } from './agents/text-key-guard';
 import { AGENTS_WIDGET_ID } from './agents/agents.consts';
 import { IngotStripeWidget } from './stripe/ingot-stripe-widget';
 import { IngotExplorerHeader } from './navigator/explorer-header';
@@ -369,6 +371,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
 
     bind(IngotAboutDialog).toSelf().inSingletonScope();
     rebind(AboutDialog).toService(IngotAboutDialog);
+
+    bind(IngotKeybindingRegistry).toSelf().inSingletonScope();
+    rebind(KeybindingRegistry).toService(IngotKeybindingRegistry);
 
     bind(SettingsDialogProps).toConstantValue({ title: 'Settings' });
     bind(IngotSettingsDialog).toSelf().inSingletonScope();
