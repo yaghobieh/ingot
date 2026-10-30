@@ -1,7 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
-import { dismissNotifications, openIngot, runCommand } from '../src/app.utils';
+import { dismissNotifications, openIngot, runCommand, signOutIfSignedIn } from '../src/app.utils';
+import { signInToIngot, startProPlusServer } from '../src/account.e2e-utils';
+import type { FakeIngotServer } from '../src/fake-ingot-server';
+import { pinZaprexDesktop, unpinZaprexDesktop } from '../src/zaprex.e2e-utils';
 
 /** Optional: where to save review screenshots (outside the repo). */
 const SHOTS = process.env.INGOT_SCREENSHOT_DIR;
@@ -28,10 +31,24 @@ const shotHeader = async (page: Page, name: string): Promise<void> => {
 
 /** IDEA-173 / IDEA-179: Zaprex is its own app. The IDE has no Zaprex panel, one small T-rex in the title bar (plus the composer button, IDEA-184) that opens it. */
 test.describe('IDEA-173 Zaprex link', () => {
+    let account: FakeIngotServer;
+    test.beforeEach(async () => {
+        account = await startProPlusServer();
+        // Without the desktop app the T-rex opens the web app, even where Zaprex.app is installed.
+        pinZaprexDesktop(false);
+    });
+    test.afterEach(async ({ page }) => {
+        await signOutIfSignedIn(page).catch(() => undefined);
+        await account.close();
+        unpinZaprexDesktop();
+    });
+
     test('the title bar shows the one Zaprex T-rex (not in the agent header), which opens the Zaprex app', async ({ page, context }) => {
         await context.route('https://zaprex.dev/**', route => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Zaprex</title>' }));
         await openIngot(page);
         await dismissNotifications(page);
+        // The Zaprex app is a PRO+ feature.
+        await signInToIngot(page);
         const logo = page.locator('#ingot-tb-zaprex');
         await expect(logo).toBeVisible();
         // The title bar has the one T-rex.

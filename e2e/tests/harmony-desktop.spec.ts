@@ -1,11 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
-import { dismissNotifications, openIngot } from '../src/app.utils';
+import { dismissNotifications, openIngot, signOutIfSignedIn } from '../src/app.utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { makeToolsProject } from '../src/agent-tools.e2e-utils';
+import { signInToIngot, startProPlusServer } from '../src/account.e2e-utils';
+import type { FakeIngotServer } from '../src/fake-ingot-server';
 import { ZAPREX_DETECT_FILE, ZAPREX_LINK_LOG } from '../src/e2e.consts';
 
 /**
@@ -34,8 +36,10 @@ test.describe('IDEA-185 Zaprex desktop handoff', () => {
     test.setTimeout(150_000);
     let dir: string;
     let server: FakeOllama;
+    let account: FakeIngotServer | undefined;
 
     const prepare = async (installed: boolean): Promise<void> => {
+        account = await startProPlusServer();
         dir = makeToolsProject('ingot-handoff-');
         fs.mkdirSync(path.join(dir, 'src'));
         fs.mkdirSync(path.dirname(ZAPREX_DETECT_FILE), { recursive: true });
@@ -43,7 +47,9 @@ test.describe('IDEA-185 Zaprex desktop handoff', () => {
         fs.rmSync(ZAPREX_LINK_LOG, { force: true });
         server = await startFakeOllama((_system, user) => user.includes('You are Zaprex') ? 'Zaprex ran here.' : LEAD, { delayMs: 60, chunkSize: 24 });
     };
-    test.afterEach(async () => {
+    test.afterEach(async ({ page }) => {
+        await signOutIfSignedIn(page).catch(() => undefined);
+        await account?.close();
         await server?.close();
         fs.rmSync(ZAPREX_DETECT_FILE, { force: true });
         fs.rmSync(dir, { recursive: true, force: true });
@@ -52,6 +58,8 @@ test.describe('IDEA-185 Zaprex desktop handoff', () => {
     const start = async (page: Page, scheme: 'light' | 'dark'): Promise<void> => {
         await openIngot(page, dir);
         await dismissNotifications(page);
+        // The T-rex the offer sits under is a PRO+ feature.
+        await signInToIngot(page);
         await setScheme(page, scheme);
         await connectOllama(page, server);
         await page.locator('#ingot-agents-new').click();

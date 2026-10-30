@@ -9,6 +9,7 @@ import { ACCOUNT_PREFERENCES, AVATAR_CACHE_KEY, AVATAR_CACHE_MAX_BYTES, DEFAULT_
 import type { AvatarCache } from '../../common/account/avatar.types';
 import { avatarSource, isImageDataUrl, needsAvatarRefresh, parseAvatarCache, safeAvatarUrl } from '../../common/account/avatar.utils';
 import { isLoopbackUrl } from '../../common/account/gateway.utils';
+import { isProPlusPlan } from '../../common/account/plan.utils';
 import { IngotAccountClient } from './account-client';
 
 /** The signed-in Ingot account as the UI sees it (IDEA-92, IDEA-101). Tokens stay on the backend / keychain. */
@@ -116,6 +117,11 @@ export class IngotAccountService {
 
     get signedIn(): boolean {
         return this.current.signedIn;
+    }
+
+    /** The signed-in session is on the PRO+ plan (the Zaprex app is a PRO+ feature). */
+    get proPlus(): boolean {
+        return this.current.signedIn && isProPlusPlan(this.current.user?.plan);
     }
 
     /** Name and email for the avatar (kept for the stripe and menus). */

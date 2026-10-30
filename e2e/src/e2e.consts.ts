@@ -40,6 +40,8 @@ export const LEFT_PANEL = '#theia-left-side-panel';
 /** Fake ingot-server + portal for the account / gateway e2e (IDEA-101); the browser app is started pointing at it. */
 export const FAKE_INGOT_PORT = Number(process.env.INGOT_FAKE_SERVER_PORT ?? 3398);
 export const FAKE_INGOT_URL = `http://127.0.0.1:${FAKE_INGOT_PORT}`;
+/** The plan that unlocks the Zaprex app entry (title bar T-rex). */
+export const PRO_PLUS_PLAN = 'pro+';
 /** e2e user settings: BYOK / Local models on, so specs can use the fake Ollama and key-based models. */
 export const E2E_USER_SETTINGS = {
     'ingot.models.byok': true,

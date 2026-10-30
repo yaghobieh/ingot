@@ -59,7 +59,8 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
         await pickModel(page, 'ollama-local');
 
         await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
-        await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
+        // Signed out: the Zaprex app entry is PRO+ only.
+        await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0);
         await expect(page.locator('.ingot-composer-bar #ingot-composer-mode')).toHaveText(/Agent/);
         await expect(page.locator('.ingot-composer-bar #ingot-composer-review')).toHaveCount(0);
 

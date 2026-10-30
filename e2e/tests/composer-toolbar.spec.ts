@@ -56,7 +56,8 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(page.locator('.ingot-composer-bar #ingot-composer-mode .ingot-pill-label')).toHaveText('Agent');
         await expect(page.locator('#ingot-composer-review')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
-        await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
+        // Signed out: the Zaprex app entry is PRO+ only.
+        await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0);
 
         expect(await style(page, '#ingot-composer-model', 'color')).toBe(await tokenColor(page, '--ingot-agent-text-2'));
         await expect(page.locator('.ingot-agents .ingot-composer')).toHaveCSS('background-color', card);

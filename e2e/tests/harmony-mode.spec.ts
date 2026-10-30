@@ -1,11 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
-import { dismissNotifications, openIngot } from '../src/app.utils';
+import { dismissNotifications, openIngot, signOutIfSignedIn } from '../src/app.utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { makeToolsProject } from '../src/agent-tools.e2e-utils';
+import { signInToIngot, startProPlusServer } from '../src/account.e2e-utils';
+import type { FakeIngotServer } from '../src/fake-ingot-server';
+import { pinZaprexDesktop, unpinZaprexDesktop } from '../src/zaprex.e2e-utils';
 
 /** IDEA-180 Harmony mode: on a heavy run Zaprex offers ONE scoped piece under the T-rex; Accept runs it with a file lock. */
 const SHOTS = process.env.INGOT_SCREENSHOT_DIR;
@@ -32,21 +35,30 @@ test.describe('IDEA-180 Harmony mode', () => {
     test.setTimeout(150_000);
     let dir: string;
     let server: FakeOllama;
+    let account: FakeIngotServer;
 
     test.beforeEach(async () => {
+        account = await startProPlusServer();
+        // The piece runs here in Ingot, even where the Zaprex desktop app is installed.
+        pinZaprexDesktop(false);
         dir = makeToolsProject('ingot-harmony-');
         fs.mkdirSync(path.join(dir, 'src'));
         // Slow stream so the offer can be accepted while the lead agent is still writing.
         server = await startFakeOllama((_system, user) => user.includes('You are Zaprex') ? ZAPREX : LEAD, { delayMs: 60, chunkSize: 24 });
     });
-    test.afterEach(async () => {
+    test.afterEach(async ({ page }) => {
+        await signOutIfSignedIn(page).catch(() => undefined);
+        await account.close();
         await server.close();
+        unpinZaprexDesktop();
         fs.rmSync(dir, { recursive: true, force: true });
     });
 
     const start = async (page: Page, scheme: 'light' | 'dark'): Promise<void> => {
         await openIngot(page, dir);
         await dismissNotifications(page);
+        // The T-rex the offer sits under is a PRO+ feature.
+        await signInToIngot(page);
         await setScheme(page, scheme);
         await connectOllama(page, server);
         await page.locator('#ingot-agents-new').click();
@@ -113,7 +125,7 @@ test.describe('IDEA-180 Harmony mode', () => {
         await expect(bubble).toHaveCount(0);
         await expect(page.locator('#ingot-tb-zaprex')).not.toHaveClass(/thinking/);
         // No lock without a piece: the lead agent writes the tests itself.
-        await expect(page.locator('#ingot-agents .ingot-chat-agent').last()).toContainText('LEAD-TEST');
+        await expect.poll(() => fs.readFileSync(path.join(dir, 'src', 'export.test.ts'), 'utf8')).toContain('LEAD-TEST');
         await expect(page.locator('#ingot-agents')).not.toContainText('to Zaprex');
     });
 });

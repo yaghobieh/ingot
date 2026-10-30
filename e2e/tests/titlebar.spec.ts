@@ -1,13 +1,26 @@
 import * as path from 'path';
 import { expect, test } from '@playwright/test';
-import { dismissNotifications, openIngot } from '../src/app.utils';
+import { dismissNotifications, openIngot, signOutIfSignedIn } from '../src/app.utils';
+import { signInToIngot, startProPlusServer } from '../src/account.e2e-utils';
+import type { FakeIngotServer } from '../src/fake-ingot-server';
 import { SHELL_SELECTOR } from '../src/e2e.consts';
 
 /** IDEA-118: title bar right — bottom panel and chat icons, the Zaprex T-rex (IDEA-179), then the Agents Window pill. */
 test.describe('IDEA-118 title bar window actions', () => {
+    let account: FakeIngotServer;
+    test.beforeEach(async () => {
+        account = await startProPlusServer();
+    });
+    test.afterEach(async ({ page }) => {
+        await signOutIfSignedIn(page).catch(() => undefined);
+        await account.close();
+    });
+
     test('icons sit left of the Agents Window pill and toggle their panels', async ({ page }) => {
         await openIngot(page);
         await dismissNotifications(page);
+        // The T-rex shows on PRO+ only.
+        await signInToIngot(page);
         const ids = ['#ingot-tb-panel', '#ingot-tb-chat', '#ingot-tb-zaprex', '#ingot-tb-agents-window'];
         const boxes = [];
         for (const id of ids) {

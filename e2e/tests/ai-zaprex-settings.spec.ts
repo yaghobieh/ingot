@@ -3,7 +3,9 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
-import { actUntilVisible, dismissNotifications, openIngot } from '../src/app.utils';
+import { actUntilVisible, dismissNotifications, openIngot, signOutIfSignedIn } from '../src/app.utils';
+import { signInToIngot, startProPlusServer } from '../src/account.e2e-utils';
+import type { FakeIngotServer } from '../src/fake-ingot-server';
 import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
 
 /**
@@ -40,6 +42,15 @@ const KEYS = [
 ];
 const GROUPS = ['Agent defaults', 'Harmony mode', 'Subagents & Zaprex', 'Commits', 'Agent git hooks'];
 
+let account: FakeIngotServer;
+test.beforeEach(async () => {
+    account = await startProPlusServer();
+});
+test.afterEach(async ({ page }) => {
+    await signOutIfSignedIn(page).catch(() => undefined);
+    await account.close();
+});
+
 for (const scheme of ['light', 'dark'] as const) {
     test(`IDEA-182 AI & Zaprex settings (${scheme})`, async ({ page }) => {
         test.setTimeout(120_000);
@@ -48,6 +59,8 @@ for (const scheme of ['light', 'dark'] as const) {
             await openIngot(page, repo);
             await setAppearance(page, scheme);
             await dismissNotifications(page);
+            // The T-rex shows on PRO+ only.
+            await signInToIngot(page);
             await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
             await actUntilVisible(() => page.keyboard.press('Control+k'), page.locator('#ingot-commit-message'));
             await expect(page.locator('#ingot-commit-ai')).toBeVisible();

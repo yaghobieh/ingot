@@ -3,6 +3,7 @@ import { FAKE_INGOT_PORT } from './e2e.consts';
 
 const STREAM_DELAY_MS = 20;
 const ALLOWANCE = 1_000_000;
+const FAKE_DEFAULT_PLAN = 'pro';
 
 export interface FakeIngotServer {
     readonly url: string;
@@ -13,6 +14,8 @@ export interface FakeIngotServer {
     usedTokens: number;
     /** IDEA-124 controls: `/api/me` role, 403 account_blocked on every authed call, models dropped from /v1/models. */
     role: 'user' | 'admin';
+    /** `user.plan` in status and /api/me (default `pro`; `pro+` unlocks the Zaprex app). */
+    plan: string;
     /** IDEA-143: `user.avatarUrl` in status and /api/me ('' = no photo, initials). */
     avatarUrl: string;
     blocked: boolean;
@@ -61,14 +64,14 @@ const send = (res: http.ServerResponse, status: number, body: unknown): void => 
  */
 export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<FakeIngotServer> => {
     const state: FakeIngotServer = {
-        url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', avatarUrl: '', blocked: false, disabledModels: new Set(), chatErrors: [],
+        url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', plan: FAKE_DEFAULT_PLAN, avatarUrl: '', blocked: false, disabledModels: new Set(), chatErrors: [],
         flags: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined,
         close: async () => undefined
     };
     const access = 'ingot_at_e2e_access';
     const status = () => ({
-        user: { id: 'u1', email: 'test@ingot.dev', name: 'Test User', avatarUrl: state.avatarUrl, plan: 'pro' },
-        balance: { plan: 'pro', period: { start: '', end: '' }, tokens: { allowance: ALLOWANCE, granted: 0, used: state.usedTokens, remaining: ALLOWANCE - state.usedTokens }, spend: { budgetUsd: null, usedUsd: 0, remainingUsd: null }, byModel: [] },
+        user: { id: 'u1', email: 'test@ingot.dev', name: 'Test User', avatarUrl: state.avatarUrl, plan: state.plan },
+        balance: { plan: state.plan, period: { start: '', end: '' }, tokens: { allowance: ALLOWANCE, granted: 0, used: state.usedTokens, remaining: ALLOWANCE - state.usedTokens }, spend: { budgetUsd: null, usedUsd: 0, remainingUsd: null }, byModel: [] },
         activity: []
     });
     let seq = 0;
