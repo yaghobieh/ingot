@@ -8,6 +8,7 @@ import { MonacoWorkspace } from '@theia/monaco/lib/browser/monaco-workspace';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { ChangeTracker } from '../changes/change-tracker';
 import type { AgentEditEvent } from '../../common/changes/changes.types';
+import { isPending } from '../../common/changes/changes.utils';
 import { INLINE_EDIT_SESSION_PREFIX } from '../../common/inline-edit/inline-edit.consts';
 import {
     HISTORY_LABELS, LOCAL_HISTORY_DIR, LOCAL_HISTORY_GITIGNORE, LOCAL_HISTORY_INDEX, MAX_HISTORY_ENTRIES, MAX_SNAPSHOT_CHARS
@@ -50,7 +51,13 @@ export class LocalHistoryService implements FrontendApplicationContribution {
                 this.baselines.set(model.uri, model.getText());
             }
         });
-        this.monacoWorkspace.onDidSaveTextDocument(model => void this.record(new URI(model.uri), model.getText(), 'save'));
+        this.monacoWorkspace.onDidCloseTextDocument(model => this.baselines.delete(model.uri));
+        this.monacoWorkspace.onDidSaveTextDocument(model => {
+            // Auto-save also writes an agent proposal still in review; its version is recorded once it is decided.
+            if (!this.tracker.changes.some(c => c.uri === model.uri && isPending(c))) {
+                void this.record(new URI(model.uri), model.getText(), 'save');
+            }
+        });
         this.tracker.onDidEdit(event => void this.recordAgentEdit(event));
     }
 
