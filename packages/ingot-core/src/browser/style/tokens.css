@@ -46,6 +46,30 @@
   --ingot-editor-bg: #FFFFFF;
   --ingot-editor-line-highlight: #F3F5F9;
   --ingot-editor-gutter: #9AA0AB;
+  /* Agent panel (docs: .ingot-tmp/agent-panel-mock.html): one role per token, same structure in light and dark. */
+  --ingot-agent-bg: #FFFFFF;
+  --ingot-agent-card: #F7F8FA;
+  --ingot-agent-bar: #F7F8FA;
+  --ingot-agent-code-bg: #F2F3F5;
+  --ingot-agent-border: #EBECF0;
+  --ingot-agent-border-strong: #C9CCD6;
+  --ingot-agent-hover: #EDEEF1;
+  --ingot-agent-text: #1E1F22;
+  --ingot-agent-text-2: #6C707E;
+  --ingot-agent-text-3: #818594;
+  --ingot-agent-accent: #3574F0;
+  --ingot-agent-accent-hover: #2B63D9;
+  --ingot-agent-accent-text: #FFFFFF;
+  --ingot-agent-success: #208A3C;
+  --ingot-agent-danger: #DB3B4B;
+  --ingot-agent-shadow: rgba(30, 31, 34, 0.14);
+  --ingot-agent-badge-ink: #FFFFFF;
+  --ingot-agent-badge-ts: #3574F0;
+  --ingot-agent-badge-tsx: #1A8BA3;
+  --ingot-agent-badge-json: #B07D0A;
+  --ingot-agent-badge-html: #D2603A;
+  --ingot-agent-badge-css: #8A5CD1;
+  --ingot-agent-badge-file: #6C707E;
 }
 
 /* Dark tokens follow the active dark theme (Theia sets body.theia-dark), not only an explicit data-theme. */
@@ -77,4 +101,27 @@ body.ingot-dark {
   --ingot-badge-html: #EC7D55;
   --ingot-badge-css: #A88BEB;
   --ingot-badge-ink: #11151F;
+  --ingot-agent-bg: #1E1F22;
+  --ingot-agent-card: #2B2D30;
+  --ingot-agent-bar: #25262A;
+  --ingot-agent-code-bg: #16171A;
+  --ingot-agent-border: #393B40;
+  --ingot-agent-border-strong: #4E5157;
+  --ingot-agent-hover: #2E3035;
+  --ingot-agent-text: #DFE1E5;
+  --ingot-agent-text-2: #9DA0A8;
+  --ingot-agent-text-3: #868A91;
+  --ingot-agent-accent: #3574F0;
+  --ingot-agent-accent-hover: #548AF7;
+  --ingot-agent-accent-text: #FFFFFF;
+  --ingot-agent-success: #5FB865;
+  --ingot-agent-danger: #F75464;
+  --ingot-agent-shadow: rgba(0, 0, 0, 0.45);
+  --ingot-agent-badge-ink: #1E1F22;
+  --ingot-agent-badge-ts: #6AA3F0;
+  --ingot-agent-badge-tsx: #5CC6E0;
+  --ingot-agent-badge-json: #E8B84B;
+  --ingot-agent-badge-html: #F08A5D;
+  --ingot-agent-badge-css: #B18CF0;
+  --ingot-agent-badge-file: #9DA0A8;
 }

@@ -1,232 +1,349 @@
 /*
- * Agent side panel: prompt card, "Ingot Agent · worked for" line, one-line checklist, Explored row, edited-files card,
- * reply with code blocks, review bar and composer. Design tokens only; loaded last so it wins over older layers.
+ * Agent side panel, sized to the reference mock: 40px header with the accent underline and 28px icon buttons, a 13px
+ * thread with 14px gaps, the prompt card, "Ingot Agent · worked for", the checklist, the "Edited N files" card with
+ * 24px rows and 30px type badges, the reply with its code block, the 46px review bar and the composer card.
+ * Agent tokens only (light and dark live in tokens.css); loaded last so it wins over older layers.
  */
 
 .ingot-agents {
     --ingot-ap-font: 13px;
     --ingot-ap-small: 12px;
     --ingot-ap-tiny: 11px;
-    --ingot-ap-line: 20px;
+    --ingot-ap-micro: 9px;
+    --ingot-ap-line: 1.5;
+    --ingot-ap-mono: var(--theia-code-font-family, 'JetBrains Mono', monospace);
+    --ingot-ap-header: 40px;
+    --ingot-ap-tab: 39px;
+    --ingot-ap-underline: 2px;
+    --ingot-ap-icon-button: 28px;
     --ingot-ap-row: 24px;
-    --ingot-ap-file-row: 23px;
-    --ingot-ap-radius: 8px;
-    --ingot-ap-control: 28px;
     --ingot-ap-badge-w: 30px;
-    --ingot-ap-files-max: 336px;
-    --ingot-ap-hover: color-mix(in srgb, var(--ingot-text) 6%, transparent);
-    /* Quiet base with lifted cards; the composer is a card too. */
-    --ingot-ap-card: var(--ingot-surface);
-    background: var(--ingot-bg);
-}
-
-.ingot-agents .ingot-agents-chat { padding: var(--ingot-space-3) var(--ingot-space-3) var(--ingot-space-4); gap: var(--ingot-space-3); font-size: var(--ingot-ap-font); color: var(--ingot-text); }
-.ingot-agents .ingot-chat-msg { line-height: var(--ingot-ap-line); }
-.ingot-agents .ingot-chat-agent { display: flex; flex-direction: column; gap: var(--ingot-space-2); color: var(--ingot-text); }
-.ingot-agents .ingot-chat-agent > .ingot-md > :last-child { margin-bottom: 0; }
-
-/* Prompt card: full width, quiet surface, no avatar bubble. */
-.ingot-agents .ingot-chat-user,
-.ingot-agents .ingot-chat-msg.ingot-chat-latest {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    align-self: stretch;
-    width: 100%;
-    max-width: none;
-    box-sizing: border-box;
-    margin: 0;
-    padding: var(--ingot-space-2) var(--ingot-space-3);
-    border-radius: var(--ingot-ap-radius);
-    border: 1px solid var(--ingot-border);
-    background: var(--ingot-ap-card);
-    color: var(--ingot-text);
-    box-shadow: none;
+    --ingot-ap-badge-h: 14px;
+    --ingot-ap-files-max: 354px;
+    --ingot-ap-edited-head: 34px;
+    --ingot-ap-code-head: 28px;
+    --ingot-ap-copy: 24px;
+    --ingot-ap-bar: 46px;
+    --ingot-ap-control: 28px;
+    --ingot-ap-pill: 26px;
+    --ingot-ap-chip: 22px;
+    --ingot-ap-send: 30px;
+    --ingot-ap-radius: 8px;
+    --ingot-ap-radius-sm: 6px;
+    --ingot-ap-radius-xs: 4px;
+    --ingot-ap-radius-badge: 3px;
+    --ingot-ap-radius-composer: 10px;
+    --ingot-ap-gap: 14px;
+    --ingot-ap-mark-gap: 10px;
+    background: var(--ingot-agent-bg);
+    color: var(--ingot-agent-text);
     font-size: var(--ingot-ap-font);
     line-height: var(--ingot-ap-line);
 }
+
+.ingot-agents .ingot-agents-root { background: var(--ingot-agent-bg); overflow: hidden; }
+.ingot-agent-icon { flex: none; display: block; }
+
+/* Header: one title tab with the accent underline, then New / History / More. */
+.ingot-agents .ingot-agents-header {
+    position: relative; display: flex; align-items: flex-end; gap: 8px; flex: none;
+    height: var(--ingot-ap-header); box-sizing: content-box; padding: 0 6px 0 12px; min-height: 0;
+    border-bottom: 1px solid var(--ingot-agent-border); background: var(--ingot-agent-bg);
+}
+.ingot-agents .ingot-chat-tabs-wrap { flex: 1; min-width: 0; height: var(--ingot-ap-tab); display: flex; align-items: stretch; }
+.ingot-agents .ingot-chat-tabs { flex: 1; min-width: 0; height: 100%; display: flex; align-items: stretch; gap: 12px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.ingot-agents .ingot-chat-tab {
+    position: relative; flex: none; display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 260px; height: 100%;
+    box-sizing: border-box; padding: 0 0 var(--ingot-ap-underline); margin: 0; border: 0; box-shadow: none;
+    border-radius: 0; background: transparent; color: var(--ingot-agent-text-2); font-size: var(--ingot-ap-font); font-weight: 500;
+}
+.ingot-agents .ingot-chat-tab::after { left: 0; right: 0; height: var(--ingot-ap-underline); border-radius: 0; }
+.ingot-agents .ingot-chat-tab:only-child { flex: 1 1 auto; max-width: none; }
+.ingot-agents .ingot-chat-tab.active { background: transparent; color: var(--ingot-agent-text); box-shadow: none; }
+.ingot-agents .ingot-chat-tab.active:not(.context-warn, .context-full)::after { background: var(--ingot-agent-accent); }
+.ingot-agents .ingot-chat-tab:hover { background: transparent; color: var(--ingot-agent-text); }
+.ingot-agents .ingot-chat-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.ingot-agents .ingot-tab-done { flex: none; display: inline-flex; color: var(--ingot-agent-success); }
+.ingot-agents .ingot-chat-tab-close { opacity: 0; }
+.ingot-agents .ingot-chat-tab:is(:hover, :focus-within) .ingot-chat-tab-close,
+.ingot-agents .ingot-chat-tab-close:focus-visible { opacity: 1; }
+.ingot-agents .ingot-agents-header-actions { display: flex; gap: 2px; padding-bottom: 6px; flex: none; }
+.ingot-agents .ingot-agents-icon-button,
+.ingot-agents .ingot-composer-bar .ingot-composer-attach,
+.ingot-agents .ingot-composer-bar .ingot-composer-more {
+    display: flex; align-items: center; justify-content: center; flex: none;
+    width: var(--ingot-ap-icon-button); height: var(--ingot-ap-icon-button); min-width: 0; padding: 0; margin: 0;
+    border: 0; border-radius: var(--ingot-ap-radius-sm); background: transparent; color: var(--ingot-agent-text-2); cursor: pointer;
+}
+.ingot-agents .ingot-agents-icon-button:is(:hover, .active),
+.ingot-agents .ingot-composer-bar :is(.ingot-composer-attach, .ingot-composer-more):is(:hover, .active) { background: var(--ingot-agent-hover); color: var(--ingot-agent-text); }
+.ingot-agents .ingot-agents-icon-button:focus-visible { outline: 1px solid var(--ingot-agent-accent); outline-offset: -1px; }
+.ingot-agents .ingot-agents-header-menu {
+    position: absolute; top: calc(var(--ingot-ap-header) - 4px); right: 6px; min-width: 160px; z-index: 30;
+    background: var(--ingot-agent-card); border: 1px solid var(--ingot-agent-border); border-radius: var(--ingot-ap-radius);
+    box-shadow: 0 6px 20px var(--ingot-agent-shadow); padding: 4px;
+}
+
+/* Thread: the list scrolls on its own; the review bar and composer below never move. */
+.ingot-agents .ingot-agents-chat-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.ingot-agents .ingot-agents-chat {
+    flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-anchor: none; display: block;
+    padding: 16px 14px 8px; box-sizing: border-box; font-size: var(--ingot-ap-font); line-height: var(--ingot-ap-line); color: var(--ingot-agent-text);
+}
+.ingot-agents .ingot-agents-thread { display: flex; flex-direction: column; gap: var(--ingot-ap-gap); min-height: 0; }
+.ingot-agents .ingot-agents-composer-stack,
+.ingot-agents .ingot-composer-stack,
+.ingot-agents .ingot-review { flex: none; }
+
+.ingot-agents .ingot-chat-msg { margin: 0; padding: 0; line-height: var(--ingot-ap-line); background: transparent; border: 0; box-shadow: none; }
+.ingot-agents .ingot-chat-agent { position: relative; display: flex; flex-direction: column; gap: var(--ingot-ap-gap); color: var(--ingot-agent-text); }
+.ingot-agents .ingot-chat-agent > .ingot-md > :last-child { margin-bottom: 0; }
+
+/* Prompt card. */
+.ingot-agents .ingot-chat-user,
+.ingot-agents .ingot-chat-msg.ingot-chat-latest {
+    position: relative; display: block; align-self: stretch; width: 100%; max-width: none; box-sizing: border-box; margin: 0;
+    padding: 10px 12px; border-radius: var(--ingot-ap-radius); border: 1px solid var(--ingot-agent-border);
+    background: var(--ingot-agent-card); color: var(--ingot-agent-text); box-shadow: none;
+    font-size: var(--ingot-ap-font); line-height: var(--ingot-ap-line); white-space: pre-wrap;
+}
 .ingot-agents .ingot-chat-user .ingot-chat-user-avatar { display: none; }
-/* Latest prompt stays pinned. Sticky is still a containing block, so hover reactions stay on the card. */
 .ingot-agents .ingot-chat-user.ingot-chat-latest { position: sticky; top: 0; z-index: 4; }
-.ingot-agents .ingot-chat-user :is(.ingot-reactions, .ingot-chat-edit, .ingot-chat-revert) { position: absolute; margin: 0; opacity: 0; background: var(--ingot-ap-card); }
-.ingot-agents .ingot-chat-user .ingot-reactions { top: var(--ingot-space-1); right: var(--ingot-space-2); }
-.ingot-agents .ingot-chat-user .ingot-chat-edit { bottom: var(--ingot-space-1); right: var(--ingot-space-2); }
-.ingot-agents .ingot-chat-user .ingot-chat-revert { bottom: var(--ingot-space-1); right: calc(var(--ingot-space-2) + 40px); }
+/* Reactions, Edit and Revert float on hover and take no room in the layout. */
+.ingot-agents .ingot-chat-msg :is(.ingot-reactions, .ingot-chat-edit, .ingot-chat-revert) {
+    position: absolute; margin: 0; opacity: 0; z-index: 2;
+    background: var(--ingot-agent-card); border-radius: var(--ingot-ap-radius-sm);
+}
+.ingot-agents .ingot-chat-user .ingot-reactions { top: 4px; right: 8px; }
+.ingot-agents .ingot-chat-user .ingot-chat-edit { bottom: 4px; right: 8px; }
+.ingot-agents .ingot-chat-user .ingot-chat-revert { bottom: 4px; right: 48px; }
+.ingot-agents .ingot-chat-agent > .ingot-reactions { top: 0; right: 0; }
+.ingot-agents .ingot-chat-agent > .ingot-chat-revert { top: 0; right: 56px; }
 .ingot-agents .ingot-chat-msg:is(:hover, :focus-within) :is(.ingot-reactions, .ingot-chat-edit, .ingot-chat-revert),
 .ingot-agents .ingot-reactions:has(.on) { opacity: 1; }
-.ingot-agents .ingot-chat-agent .ingot-reactions { align-self: flex-start; margin: 0; opacity: 0; }
 
-/* "Ingot Agent · worked for 2m 14s" */
-.ingot-agents .ingot-chat-agent-head { display: flex; align-items: center; gap: var(--ingot-space-2); margin: 0; min-width: 0; white-space: nowrap; }
+/* "Ingot Agent · worked for 2m 14s" with the Rex glyph. */
+.ingot-agents .ingot-chat-agent-head { display: flex; align-items: center; gap: 8px; height: 20px; margin: 0; min-width: 0; white-space: nowrap; }
 .ingot-agents .ingot-chat-agent-head b { font-weight: 600; }
-.ingot-agents .ingot-chat-agent-head .ingot-dim { color: var(--ingot-text-muted); font-size: var(--ingot-ap-small); overflow: hidden; text-overflow: ellipsis; }
+.ingot-agents .ingot-chat-agent-head .ingot-dim { color: var(--ingot-agent-text-3); font-size: var(--ingot-ap-small); overflow: hidden; text-overflow: ellipsis; }
+.ingot-agents .ingot-agent-mark { flex: none; background: transparent; }
 
-/* Checklist: one line per step, check icons, no boxes. */
-.ingot-agents .ingot-checklist { display: flex; flex-direction: column; gap: 0; margin: 0; }
+/* Checklist. */
+.ingot-agents .ingot-checklist { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0 0 0 2px; border: 0; background: transparent; }
 .ingot-agents .ingot-checklist .ingot-check-row {
-    display: flex; align-items: center; gap: var(--ingot-space-2); min-width: 0; height: var(--ingot-ap-row);
-    border: 0; background: transparent; padding: 0; color: var(--ingot-text); font-size: var(--ingot-ap-font); line-height: var(--ingot-ap-row);
+    display: flex; align-items: center; gap: var(--ingot-ap-mark-gap); min-width: 0; height: auto;
+    margin: 0; padding: 0; border: 0; background: transparent; color: var(--ingot-agent-text-2);
+    font-size: var(--ingot-ap-font); line-height: var(--ingot-ap-line);
 }
-.ingot-agents .ingot-checklist .ingot-plan-mark { flex: none; width: 16px; font-size: 14px; color: var(--ingot-text-muted); }
-.ingot-agents .ingot-checklist .ingot-plan-done .ingot-plan-mark { color: var(--ingot-success); }
-.ingot-agents .ingot-checklist .ingot-plan-active .ingot-plan-mark { color: var(--ingot-primary); }
-.ingot-agents .ingot-checklist .ingot-plan-todo { color: var(--ingot-text-muted); }
+.ingot-agents .ingot-checklist .ingot-plan-mark { flex: none; display: inline-flex; width: 14px; font-size: 14px; color: var(--ingot-agent-text-3); }
+.ingot-agents .ingot-checklist .ingot-plan-done .ingot-plan-mark { color: var(--ingot-agent-success); }
+.ingot-agents .ingot-checklist .ingot-plan-active .ingot-plan-mark { color: var(--ingot-agent-accent); }
+.ingot-agents .ingot-checklist .ingot-plan-active { color: var(--ingot-agent-text); }
 .ingot-agents .ingot-checklist .ingot-step-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* "Explored N files": one quiet row; the list opens under it. */
-.ingot-agents .ingot-chat-explored { margin: 0; font-size: var(--ingot-ap-small); color: var(--ingot-text-muted); opacity: 1; }
-.ingot-agents .ingot-chat-explored-head { height: 20px; color: var(--ingot-text-muted); }
-.ingot-agents .ingot-chat-explored-head:hover { background: var(--ingot-ap-hover); color: var(--ingot-text); }
-.ingot-agents .ingot-chat-explored-verb { color: var(--ingot-text); opacity: 1; font-weight: 500; }
-.ingot-agents .ingot-chat-explored-list { list-style: none; margin: var(--ingot-space-1) 0 0; padding: 0 0 0 var(--ingot-space-2); border-left: 1px solid var(--ingot-border); }
+/* "Explored N files". */
+.ingot-agents .ingot-chat-explored { margin: 0; font-size: var(--ingot-ap-small); color: var(--ingot-agent-text-3); opacity: 1; }
+.ingot-agents .ingot-chat-explored-head { height: 20px; padding: 0; border: 0; background: transparent; color: var(--ingot-agent-text-3); }
+.ingot-agents .ingot-chat-explored-head:hover { color: var(--ingot-agent-text); }
+.ingot-agents .ingot-chat-explored-verb { color: var(--ingot-agent-text-2); opacity: 1; font-weight: 500; }
+.ingot-agents .ingot-chat-explored-list { list-style: none; margin: 4px 0 0; padding: 0 0 0 8px; border-left: 1px solid var(--ingot-agent-border); }
 .ingot-agents .ingot-chat-explored-list li { display: flex; align-items: center; gap: 6px; height: 20px; min-width: 0; white-space: nowrap; }
 .ingot-agents .ingot-chat-explored-list .codicon { font-size: 12px; }
-.ingot-agents .ingot-chat-explored-list li[data-kind='rule'] .codicon { color: var(--ingot-accent); }
+.ingot-agents .ingot-chat-explored-list li[data-kind='rule'] .codicon { color: var(--ingot-agent-accent); }
 .ingot-chat-explored-open { all: unset; cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
-.ingot-chat-explored-open:hover { color: var(--ingot-text); text-decoration: underline; }
-.ingot-chat-explored-open:focus-visible { outline: 1px solid var(--ingot-focus-ring); }
+.ingot-chat-explored-open:hover { color: var(--ingot-agent-text); text-decoration: underline; }
+.ingot-chat-explored-open:focus-visible { outline: 1px solid var(--ingot-agent-accent); }
 
-/* +N / −N: green and red, zero stays muted. */
-.ingot-agents .ingot-diff-counts { display: inline-flex; justify-content: flex-end; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ingot-agents .ingot-plus { color: var(--ingot-success); }
-.ingot-agents .ingot-minus { color: var(--ingot-danger); }
-.ingot-agents .ingot-plus.zero,
-.ingot-agents .ingot-minus.zero { color: var(--ingot-text-muted); }
+/* +N / −N in JetBrains Mono: green when lines were added, muted zero. */
+.ingot-agents .ingot-diff-counts { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap; font: 500 var(--ingot-ap-tiny) var(--ingot-ap-mono); }
+.ingot-agents .ingot-plus { color: var(--ingot-agent-success); }
+.ingot-agents .ingot-minus { color: var(--ingot-agent-danger); }
+.ingot-agents :is(.ingot-plus, .ingot-minus).zero { color: var(--ingot-agent-text-3); }
 
-/* Edited N files: collapsible card in the reply. */
-.ingot-edited-card { border: 1px solid var(--ingot-border); border-radius: var(--ingot-ap-radius); background: var(--ingot-ap-card); overflow: hidden; }
-.ingot-edited-head {
-    display: flex; align-items: center; gap: var(--ingot-space-2); width: 100%; box-sizing: border-box; height: 32px;
-    padding: 0 var(--ingot-space-3); border: 0; background: transparent; color: var(--ingot-text);
-    font: inherit; font-size: var(--ingot-ap-small); font-weight: 600; cursor: pointer; text-align: left;
+/* Edited N files. */
+.ingot-agents .ingot-edited-card { flex: none; border: 1px solid var(--ingot-agent-border); border-radius: var(--ingot-ap-radius); background: var(--ingot-agent-card); overflow: hidden; }
+.ingot-agents .ingot-edited-head {
+    display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; height: var(--ingot-ap-edited-head);
+    padding: 0 10px; border: 0; border-bottom: 1px solid var(--ingot-agent-border); background: transparent; color: var(--ingot-agent-text);
+    font: inherit; font-size: var(--ingot-ap-small); font-weight: 600; line-height: var(--ingot-ap-line); cursor: pointer; text-align: left;
 }
-.ingot-edited-head:hover { background: var(--ingot-ap-hover); }
-.ingot-edited-head:focus-visible { outline: 1px solid var(--ingot-focus-ring); outline-offset: -1px; }
-.ingot-edited-head .codicon { font-size: 12px; color: var(--ingot-text-muted); }
-.ingot-edited-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ingot-edited-title .ingot-dim { color: var(--ingot-text-muted); font-weight: 400; }
-.ingot-edited-total { flex: none; font-weight: 500; }
+.ingot-agents .ingot-edited-head[aria-expanded='false'] { border-bottom-color: transparent; }
+.ingot-agents .ingot-edited-head > .ingot-agent-icon { color: var(--ingot-agent-text-2); }
+.ingot-agents .ingot-edited-head:hover { background: var(--ingot-agent-hover); }
+.ingot-agents .ingot-edited-head:focus-visible { outline: 1px solid var(--ingot-agent-accent); outline-offset: -1px; }
+.ingot-agents .ingot-edited-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-agents .ingot-edited-title .ingot-dim { color: var(--ingot-agent-text-3); font-weight: 400; }
+.ingot-agents .ingot-edited-total { flex: none; }
 
-.ingot-agents .ingot-review-files {
-    height: auto; max-height: var(--ingot-ap-files-max); overflow-y: auto; overflow-anchor: none;
-    border-top: 1px solid var(--ingot-border); padding: var(--ingot-space-1) 0;
-}
+.ingot-agents .ingot-review-files { height: auto; max-height: var(--ingot-ap-files-max); overflow-y: auto; overflow-anchor: none; border: 0; padding: 4px 0; box-sizing: border-box; }
 .ingot-agents .ingot-review-file {
-    position: relative; display: flex; align-items: center; flex-wrap: nowrap; gap: var(--ingot-space-2);
-    height: var(--ingot-ap-file-row); min-height: 0; padding: 0 var(--ingot-space-3); overflow: hidden;
-    font-size: var(--ingot-ap-small); line-height: var(--ingot-ap-file-row); cursor: pointer; border-radius: 0;
+    position: relative; display: flex; align-items: center; flex-wrap: nowrap; gap: 8px; box-sizing: border-box;
+    height: var(--ingot-ap-row); min-height: 0; padding: 0 10px; margin: 0; overflow: hidden; border: 0; border-radius: 0;
+    background: transparent; font-size: var(--ingot-ap-small); line-height: var(--ingot-ap-line); cursor: pointer;
 }
-.ingot-agents .ingot-review-file:hover { background: var(--ingot-ap-hover); }
-.ingot-agents .ingot-review-file:focus-visible { outline: 1px solid var(--ingot-focus-ring); outline-offset: -1px; }
-.ingot-agents .ingot-review-file-name { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-text); }
-.ingot-agents .ingot-review-file-dir { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-text-muted); font-size: var(--ingot-ap-tiny); }
-.ingot-agents .ingot-review-file-stats { flex: none; width: auto; min-width: 64px; }
-.ingot-agents .ingot-review-file.rejected .ingot-review-file-name { text-decoration: line-through; color: var(--ingot-text-muted); }
-.ingot-agents .ingot-review-file-state {
-    flex: none; display: inline-grid; place-items: center; width: 14px; height: 14px; margin-right: calc(-1 * var(--ingot-space-1));
-    background: transparent; color: var(--ingot-text-muted); font-size: inherit; border-radius: 0; overflow: visible;
-}
+.ingot-agents .ingot-review-file:hover { background: var(--ingot-agent-hover); }
+.ingot-agents .ingot-review-file:focus-visible { outline: 1px solid var(--ingot-agent-accent); outline-offset: -1px; }
+.ingot-agents .ingot-review-file-name { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-agent-text); font-weight: 500; }
+.ingot-agents .ingot-review-file-dir { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-agent-text-3); font-size: var(--ingot-ap-tiny); }
+.ingot-agents .ingot-review-file-stats { flex: none; width: auto; min-width: 0; }
+.ingot-agents .ingot-review-file-stats .ingot-minus,
+.ingot-agents .ingot-edited-total .ingot-minus { display: inline-block; text-align: right; }
+.ingot-agents .ingot-review-file-stats .ingot-minus { width: 16px; }
+.ingot-agents .ingot-review-file.rejected .ingot-review-file-name { text-decoration: line-through; color: var(--ingot-agent-text-3); }
+.ingot-agents .ingot-review-file-state { flex: none; display: inline-grid; place-items: center; width: 14px; height: 14px; color: var(--ingot-agent-text-3); background: transparent; }
 .ingot-agents .ingot-review-file-state .codicon { font-size: 12px; }
-.ingot-agents .ingot-review-file-state.accepted { color: var(--ingot-success); background: transparent; }
-.ingot-agents .ingot-review-file-state.rejected { color: var(--ingot-danger); background: transparent; }
-.ingot-agents .ingot-review-file-state.pending,
-.ingot-agents .ingot-review-file-state.applied { background: transparent; }
+.ingot-agents .ingot-review-file-state.accepted { color: var(--ingot-agent-success); }
+.ingot-agents .ingot-review-file-state.rejected { color: var(--ingot-agent-danger); }
+/* Pending and applied files show no mark, so the counts sit flush right as in the reference. */
+.ingot-agents .ingot-review-file-state:is(.pending, .applied) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .ingot-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-/* Per-file Reject / Accept appear on hover, over the counts. */
-.ingot-agents .ingot-review-file .ingot-review-file-reject,
-.ingot-agents .ingot-review-file .ingot-review-file-accept,
-.ingot-agents .ingot-review-file .ingot-review-file-diff {
-    position: absolute; top: 2px; width: 22px; height: 19px; padding: 0; display: inline-grid; place-items: center;
-    border-radius: 4px; background: var(--ingot-ap-card); color: var(--ingot-text-muted); opacity: 0;
+.ingot-agents .ingot-review-file :is(.ingot-review-file-reject, .ingot-review-file-accept, .ingot-review-file-diff) {
+    position: absolute; top: 2px; width: 22px; height: 20px; min-width: 0; padding: 0; display: inline-grid; place-items: center;
+    border: 0; border-radius: var(--ingot-ap-radius-xs); background: var(--ingot-agent-card); color: var(--ingot-agent-text-2); opacity: 0;
 }
-.ingot-agents .ingot-review-file .ingot-review-file-accept { right: var(--ingot-space-2); }
-.ingot-agents .ingot-review-file .ingot-review-file-reject { right: calc(var(--ingot-space-2) + 24px); }
-.ingot-agents .ingot-review-file .ingot-review-file-diff { right: var(--ingot-space-2); }
-.ingot-agents .ingot-review-file .ingot-review-file-diff.with-actions { right: calc(var(--ingot-space-2) + 48px); }
-.ingot-agents .ingot-review-file:hover :is(.ingot-review-file-reject, .ingot-review-file-accept, .ingot-review-file-diff),
-.ingot-agents .ingot-review-file:focus-within :is(.ingot-review-file-reject, .ingot-review-file-accept, .ingot-review-file-diff),
+.ingot-agents .ingot-review-file .ingot-review-file-accept { right: 8px; }
+.ingot-agents .ingot-review-file .ingot-review-file-reject { right: 32px; }
+.ingot-agents .ingot-review-file .ingot-review-file-diff { right: 8px; }
+.ingot-agents .ingot-review-file .ingot-review-file-diff.with-actions { right: 56px; }
+.ingot-agents .ingot-review-file:is(:hover, :focus-within) :is(.ingot-review-file-reject, .ingot-review-file-accept, .ingot-review-file-diff),
 .ingot-agents .ingot-review-file.open .ingot-review-file-diff { opacity: 1; }
-.ingot-agents .ingot-review-file .ingot-review-file-diff[aria-expanded='true'] { color: var(--ingot-primary); }
-.ingot-agents .ingot-review-files .ingot-change-block { margin: var(--ingot-space-1) 0 var(--ingot-space-2); border-left: 0; border-right: 0; border-radius: 0; }
-.ingot-agents .ingot-review-file .ingot-review-file-accept:hover { color: var(--ingot-success); background: var(--ingot-selection); }
-.ingot-agents .ingot-review-file .ingot-review-file-reject:hover { color: var(--ingot-danger); background: var(--ingot-selection); }
+.ingot-agents .ingot-review-file .ingot-review-file-diff[aria-expanded='true'] { color: var(--ingot-agent-accent); }
+.ingot-agents .ingot-review-file .ingot-review-file-accept:hover { color: var(--ingot-agent-success); background: var(--ingot-agent-hover); }
+.ingot-agents .ingot-review-file .ingot-review-file-reject:hover { color: var(--ingot-agent-danger); background: var(--ingot-agent-hover); }
+.ingot-agents .ingot-review-files .ingot-change-block { margin: 4px 0 8px; border-left: 0; border-right: 0; border-radius: 0; }
 
-/* File-type badges: one token per type, readable ink in light and dark. */
-.ingot-file-badge,
-.ingot-chip-badge {
-    flex: none; box-sizing: border-box; min-width: var(--ingot-ap-badge-w); height: 15px; padding: 0 3px; border-radius: 3px;
-    font-family: var(--theia-code-font-family, monospace); font-size: 9px; font-weight: 700; line-height: 15px; letter-spacing: .02em;
-    text-align: center; color: var(--ingot-badge-ink); background: var(--ingot-badge-file);
+/* File-type badges: 30px wide, JetBrains Mono 9px, one token per type. */
+.ingot-file-badge {
+    flex: none; box-sizing: border-box; width: var(--ingot-ap-badge-w); min-width: var(--ingot-ap-badge-w); height: var(--ingot-ap-badge-h); padding: 0;
+    border-radius: var(--ingot-ap-radius-badge); text-align: center; letter-spacing: 0;
+    font: 600 var(--ingot-ap-micro)/var(--ingot-ap-badge-h) var(--theia-code-font-family, 'JetBrains Mono', monospace);
+    color: var(--ingot-agent-badge-ink); background: var(--ingot-agent-badge-file);
 }
-.ingot-file-badge-ts, .ingot-file-badge-js { background: var(--ingot-badge-ts); }
-.ingot-file-badge-tsx, .ingot-file-badge-jsx { background: var(--ingot-badge-tsx); }
-.ingot-file-badge-json { background: var(--ingot-badge-json); }
-.ingot-file-badge-html { background: var(--ingot-badge-html); }
-.ingot-file-badge-css { background: var(--ingot-badge-css); }
-.ingot-file-badge-md, .ingot-file-badge-file { background: var(--ingot-badge-file); }
-.ingot-file-badge-dir { background: var(--ingot-badge-dir); }
+.ingot-file-badge:is(.ingot-file-badge-ts, .ingot-file-badge-js) { background: var(--ingot-agent-badge-ts); }
+.ingot-file-badge:is(.ingot-file-badge-tsx, .ingot-file-badge-jsx) { background: var(--ingot-agent-badge-tsx); }
+.ingot-file-badge.ingot-file-badge-json { background: var(--ingot-agent-badge-json); }
+.ingot-file-badge.ingot-file-badge-html { background: var(--ingot-agent-badge-html); }
+.ingot-file-badge.ingot-file-badge-css { background: var(--ingot-agent-badge-css); }
+.ingot-file-badge.ingot-file-badge-dir { background: var(--ingot-agent-badge-json); }
 
-/* Reply text and code blocks. */
-.ingot-agents .ingot-chat-agent .ingot-md { font-size: var(--ingot-ap-font); line-height: var(--ingot-ap-line); }
-.ingot-agents .ingot-md p { margin: 0 0 var(--ingot-space-2); }
+/* Reply text, inline code and code blocks. */
+.ingot-agents .ingot-chat-agent .ingot-md { display: flex; flex-direction: column; gap: 10px; font-size: var(--ingot-ap-font); line-height: var(--ingot-ap-line); }
+.ingot-agents .ingot-md :is(p, ul, ol, .ingot-md-code) { margin: 0; }
 .ingot-agents .ingot-md :not(pre) > code {
-    padding: 1px 5px; border-radius: 4px; border: 1px solid var(--ingot-border); background: var(--ingot-panel);
-    color: var(--ingot-text); font-size: var(--ingot-ap-small);
+    padding: 0 5px; border-radius: var(--ingot-ap-radius-xs); border: 1px solid var(--ingot-agent-border); background: var(--ingot-agent-card);
+    color: var(--ingot-agent-text); font: var(--ingot-ap-small) var(--ingot-ap-mono);
 }
-.ingot-agents .ingot-md-code { margin: 0 0 var(--ingot-space-2); border: 1px solid var(--ingot-border); border-radius: var(--ingot-ap-radius); background: var(--ingot-editor-bg); overflow: hidden; }
-.ingot-agents .ingot-md-code-head { height: 26px; padding: 0 var(--ingot-space-1) 0 var(--ingot-space-3); background: transparent; border: 0; border-bottom: 1px solid var(--ingot-border); color: var(--ingot-text-muted); font-size: var(--ingot-ap-tiny); }
-.ingot-agents .ingot-md-code pre { margin: 0; padding: var(--ingot-space-2) var(--ingot-space-3) var(--ingot-space-3); background: transparent; font-size: var(--ingot-ap-small); line-height: 18px; }
-.ingot-agents .ingot-md-copy { width: 24px; height: 22px; padding: 0; justify-content: center; gap: 0; color: var(--ingot-text-muted); }
-.ingot-agents .ingot-md-copy:hover { color: var(--ingot-text); background: var(--ingot-ap-hover); }
+.ingot-agents .ingot-md-code { border: 1px solid var(--ingot-agent-border); border-radius: var(--ingot-ap-radius); background: var(--ingot-agent-code-bg); overflow: hidden; }
+.ingot-agents .ingot-md-code-head {
+    display: flex; align-items: center; height: var(--ingot-ap-code-head); box-sizing: content-box; padding: 0 6px 0 12px; margin: 0;
+    background: transparent; border: 0; border-bottom: 1px solid var(--ingot-agent-border); color: var(--ingot-agent-text-3); font-size: var(--ingot-ap-tiny); line-height: var(--ingot-ap-line);
+}
+.ingot-agents .ingot-md-code-lang { flex: 1; text-transform: none; font: inherit; color: inherit; }
+.ingot-agents .ingot-md-code pre { margin: 0; padding: 8px 12px; background: transparent; border: 0; }
+.ingot-agents .ingot-md-code pre,
+.ingot-agents .ingot-md-code pre code { font: var(--ingot-ap-small)/1.6 var(--ingot-ap-mono); color: var(--ingot-agent-text); background: transparent; }
+.ingot-agents .ingot-md-copy {
+    display: flex; align-items: center; justify-content: center; gap: 0; width: var(--ingot-ap-copy); height: var(--ingot-ap-copy); min-width: 0;
+    padding: 0; border: 0; border-radius: var(--ingot-ap-radius-sm); background: transparent; color: var(--ingot-agent-text-2); cursor: pointer;
+}
+.ingot-agents .ingot-md-copy:hover { color: var(--ingot-agent-text); background: var(--ingot-agent-hover); }
 .ingot-agents .ingot-md-copy-label { display: none; }
-.ingot-agents .ingot-md-copy.copied { width: auto; padding: 0 var(--ingot-space-2); gap: var(--ingot-space-1); color: var(--ingot-success); }
+.ingot-agents .ingot-md-copy.copied { width: auto; padding: 0 8px; gap: 4px; color: var(--ingot-agent-success); }
 .ingot-agents .ingot-md-copy.copied .ingot-md-copy-label { display: inline; }
 
-/* Review bar above the composer: "16 files · +255 −0", Reject all, Review, Accept all. */
-.ingot-agents .ingot-review { display: flex; flex-direction: column; gap: var(--ingot-space-1); margin: 0; padding: var(--ingot-space-2) var(--ingot-space-3); border-top: 1px solid var(--ingot-border); background: var(--ingot-toolbar); }
-.ingot-agents .ingot-review-footer { display: flex; align-items: center; gap: var(--ingot-space-2); flex-wrap: nowrap; min-height: 0; padding: 0; border: 0; overflow: hidden; }
-.ingot-agents .ingot-review-totals { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-text-muted); font-size: var(--ingot-ap-small); }
-.ingot-agents .ingot-review-footer .ingot-review-link,
-.ingot-agents .ingot-review-footer .ingot-review-accept {
-    flex: none; height: var(--ingot-ap-control); padding: 0 var(--ingot-space-3); border-radius: 6px; white-space: nowrap;
-    font-size: var(--ingot-ap-small); font-weight: 500; line-height: 1;
+/* "Jump to latest": a pill over the bottom of the list, never in the flow, so nothing is cut off. */
+.ingot-agents .ingot-jump-bar {
+    position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 6; display: flex; gap: 6px;
+    margin: 0; padding: 0; border: 0; background: transparent; pointer-events: none;
 }
-.ingot-agents .ingot-review-footer .ingot-review-link { border: 1px solid var(--ingot-border); background: transparent; color: var(--ingot-text); }
-.ingot-agents .ingot-review-footer .ingot-review-link:hover { background: var(--ingot-ap-hover); }
-.ingot-agents .ingot-review-footer .ingot-review-accept { border: 1px solid var(--ingot-primary); background: var(--ingot-primary); color: var(--ingot-primary-text); font-weight: 600; }
-.ingot-agents .ingot-review-footer .ingot-review-accept:hover { background: var(--ingot-primary-hover); border-color: var(--ingot-primary-hover); }
-.ingot-agents .ingot-review-footer .ingot-changes-nav { display: none; }
-.ingot-agents .ingot-review-footer button:focus-visible { outline: 2px solid var(--ingot-focus-ring); outline-offset: 1px; }
+.ingot-agents .ingot-jump-bar > * { pointer-events: auto; }
+.ingot-agents .ingot-jump-btn {
+    height: 26px; padding: 0 12px; border: 1px solid var(--ingot-agent-border-strong); border-radius: 13px;
+    background: var(--ingot-agent-card); color: var(--ingot-agent-text); font-size: var(--ingot-ap-small); font-weight: 500;
+    box-shadow: 0 4px 14px var(--ingot-agent-shadow); cursor: pointer;
+}
+.ingot-agents .ingot-jump-btn:hover { background: var(--ingot-agent-hover); }
 
-/* Composer: context chips, input, then attach / mode / model / send. */
-.ingot-agents-root > .ingot-composer-stack { margin: 0 var(--ingot-space-3) var(--ingot-space-3); }
+/* Review bar: "16 files · +255 −0", Reject all, Review, Accept all. */
+.ingot-agents .ingot-review { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; border: 0; border-top: 1px solid var(--ingot-agent-border); background: var(--ingot-agent-bar); }
+.ingot-agents .ingot-review-footer {
+    display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; height: var(--ingot-ap-bar); box-sizing: border-box; min-height: 0;
+    padding: 0 12px; border: 0; background: transparent; overflow: hidden;
+}
+.ingot-agents .ingot-review-totals { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-agent-text-2); font-size: var(--ingot-ap-small); }
+.ingot-agents .ingot-review-totals .ingot-diff-counts { display: inline; font: inherit; }
+.ingot-agents .ingot-review-totals .ingot-minus.zero { color: inherit; }
+.ingot-agents .ingot-review-footer :is(.ingot-review-link, .ingot-review-accept) {
+    flex: none; height: var(--ingot-ap-control); min-width: 0; box-sizing: border-box; padding: 0 10px; border-radius: var(--ingot-ap-radius-sm);
+    white-space: nowrap; font-family: inherit; font-size: var(--ingot-ap-small); font-weight: 400; line-height: normal; box-shadow: none;
+}
+.ingot-agents .ingot-review-footer .ingot-review-link { border: 1px solid var(--ingot-agent-border-strong); background: transparent; color: var(--ingot-agent-text); }
+.ingot-agents .ingot-review-footer .ingot-review-link:hover { background: var(--ingot-agent-hover); }
+.ingot-agents .ingot-review-footer .ingot-review-accept { padding: 0 12px; border: 0; background: var(--ingot-agent-accent); color: var(--ingot-agent-accent-text); font-weight: 600; }
+.ingot-agents .ingot-review-footer .ingot-review-accept:hover { background: var(--ingot-agent-accent-hover); }
+.ingot-agents .ingot-review-footer .ingot-changes-nav { display: none; }
+.ingot-agents .ingot-review-footer button:focus-visible { outline: 2px solid var(--ingot-agent-accent); outline-offset: 1px; }
+
+/* Composer card: chips, input, then attach / Agent / model / send. */
+.ingot-agents .ingot-agents-root > .ingot-composer-stack { margin: 0 12px 12px; padding: 0; }
+.ingot-agents .ingot-agents-chat-wrap + .ingot-composer-stack,
+.ingot-agents .ingot-agents-root > :not(.ingot-review) + .ingot-composer-stack { margin-top: 12px; }
 .ingot-agents .ingot-review + .ingot-composer-stack { margin-top: 0; }
 .ingot-agents .ingot-composer-stack .ingot-composer,
-.ingot-agents .ingot-composer-stack .ingot-composer:focus-within { border-radius: 10px; padding: var(--ingot-space-2) var(--ingot-space-2) var(--ingot-space-2) var(--ingot-space-3); }
-.ingot-agents .ingot-composer-input { font-size: var(--ingot-ap-font); line-height: var(--ingot-ap-line); }
-.ingot-agents .ingot-composer-input.empty::before { color: var(--ingot-text-muted); }
-.ingot-composer-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 var(--ingot-space-2) calc(-1 * var(--ingot-space-1)); }
-.ingot-context-chip {
-    display: inline-flex; align-items: center; gap: 6px; height: 24px; max-width: 100%; box-sizing: border-box; padding: 0 var(--ingot-space-2) 0 var(--ingot-space-1);
-    border: 1px solid var(--ingot-border); border-radius: 6px; background: var(--ingot-panel); color: var(--ingot-text);
-    font: inherit; font-size: var(--ingot-ap-small); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.ingot-agents .ingot-composer-stack .ingot-composer:focus-within {
+    display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; padding: 10px;
+    border: 1px solid var(--ingot-agent-border-strong) !important; border-radius: var(--ingot-ap-radius-composer);
+    background: var(--ingot-agent-card) !important; box-shadow: none !important;
 }
-.ingot-context-chip:hover { border-color: var(--ingot-focus-ring); }
-.ingot-context-chip:focus-visible { outline: 2px solid var(--ingot-focus-ring); outline-offset: 1px; }
-.ingot-chip-badge { min-width: 0; padding: 0 4px; background: transparent; }
-.ingot-chip-badge-ts, .ingot-chip-badge-js { color: var(--ingot-badge-ts); }
-.ingot-chip-badge-tsx, .ingot-chip-badge-jsx { color: var(--ingot-badge-tsx); }
-.ingot-chip-badge-json, .ingot-chip-badge-dir { color: var(--ingot-badge-json); }
-.ingot-chip-badge-html { color: var(--ingot-badge-html); }
-.ingot-chip-badge-css { color: var(--ingot-badge-css); }
-.ingot-chip-badge-md, .ingot-chip-badge-file { color: var(--ingot-text-muted); }
+.ingot-agents .ingot-composer-stack .ingot-composer:focus-within { border-color: var(--ingot-agent-accent) !important; }
+.ingot-agents .ingot-composer-input {
+    min-height: 40px; margin: 0; padding: 0; font-size: var(--ingot-ap-font); line-height: var(--ingot-ap-line); color: var(--ingot-agent-text); background: transparent;
+}
+.ingot-agents .ingot-composer-input.empty::before { color: var(--ingot-agent-text-3); }
+.ingot-agents .ingot-composer-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 24px; margin: 0; padding: 0; }
+.ingot-agents .ingot-context-chip {
+    display: inline-flex; align-items: center; gap: 5px; height: var(--ingot-ap-chip); max-width: 100%; box-sizing: content-box; padding: 0 8px;
+    border: 1px solid var(--ingot-agent-border); border-radius: 11px; background: var(--ingot-agent-bg); color: var(--ingot-agent-text);
+    font: inherit; font-size: var(--ingot-ap-tiny); line-height: var(--ingot-ap-line); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ingot-agents .ingot-context-chip:hover { border-color: var(--ingot-agent-border-strong); }
+.ingot-agents .ingot-context-chip:focus-visible { outline: 2px solid var(--ingot-agent-accent); outline-offset: 1px; }
+.ingot-agents .ingot-chip-badge {
+    flex: none; min-width: 0; height: auto; padding: 0; border-radius: 0; background: transparent; letter-spacing: 0;
+    font: 600 var(--ingot-ap-micro) var(--ingot-ap-mono); color: var(--ingot-agent-text-2);
+}
+.ingot-agents .ingot-chip-badge:is(.ingot-chip-badge-ts, .ingot-chip-badge-js) { color: var(--ingot-agent-badge-ts); }
+.ingot-agents .ingot-chip-badge:is(.ingot-chip-badge-tsx, .ingot-chip-badge-jsx) { color: var(--ingot-agent-badge-tsx); }
+.ingot-agents .ingot-chip-badge:is(.ingot-chip-badge-json, .ingot-chip-badge-dir) { color: var(--ingot-agent-badge-json); }
+.ingot-agents .ingot-chip-badge.ingot-chip-badge-html { color: var(--ingot-agent-badge-html); }
+.ingot-agents .ingot-chip-badge.ingot-chip-badge-css { color: var(--ingot-agent-badge-css); }
 
+.ingot-agents .ingot-composer .ingot-composer-bar { display: flex; align-items: center; gap: 6px; min-height: 0; height: auto; margin: 0; padding: 0; border: 0; }
+.ingot-agents .ingot-composer-bar .ingot-composer-more { opacity: 0; transition: opacity .12s ease; }
+.ingot-agents .ingot-composer:is(:hover, :focus-within) .ingot-composer-more,
+.ingot-agents .ingot-composer-bar .ingot-composer-more:is(.active, :focus-visible) { opacity: 1; }
+.ingot-agents .ingot-composer-bar .ingot-pill,
+.ingot-agents .ingot-composer-bar .ingot-pill:focus {
+    display: flex; align-items: center; gap: 4px; height: var(--ingot-ap-pill); min-width: 0; box-sizing: border-box; padding: 0 8px;
+    border: 1px solid transparent !important; border-radius: var(--ingot-ap-radius-sm); background: transparent; box-shadow: none !important;
+    color: var(--ingot-agent-text-2); font-family: inherit; font-size: var(--ingot-ap-small); font-weight: 400; line-height: normal;
+}
+.ingot-agents .ingot-composer-bar .ingot-pill:is(:hover, [aria-expanded='true']) { background: var(--ingot-agent-hover); color: var(--ingot-agent-text); }
 .ingot-agents .ingot-composer-bar .ingot-mode-pill,
 .ingot-agents .ingot-composer-bar .ingot-mode-pill:focus {
-    border: 1px solid var(--ingot-border) !important; background: var(--ingot-panel); color: var(--ingot-text); font-weight: 600;
+    border-color: var(--ingot-agent-border) !important; background: var(--ingot-agent-bg); color: var(--ingot-agent-text); font-weight: 500;
 }
-.ingot-agents .ingot-composer-bar .ingot-mode-pill:hover,
-.ingot-agents .ingot-composer-bar .ingot-mode-pill[aria-expanded='true'] { background: var(--ingot-selection); border-color: var(--ingot-border) !important; }
+.ingot-agents .ingot-composer-bar .ingot-mode-pill:is(:hover, [aria-expanded='true']) { background: var(--ingot-agent-hover); border-color: var(--ingot-agent-border-strong) !important; }
 .ingot-agents .ingot-composer-bar .ingot-mode-pill .ingot-mode-icon { display: none; }
 .ingot-agents .ingot-composer-bar:is([data-width='narrow'], [data-width='tiny']) .ingot-mode-pill .ingot-mode-icon { display: inline-block; }
+.ingot-agents .ingot-composer-bar .ingot-pill .ingot-pill-caret { margin: 0; opacity: 1; color: var(--ingot-agent-text-2); }
+.ingot-agents .ingot-composer-bar .ingot-pill-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-agents .ingot-composer .ingot-composer-bar .ingot-composer-send {
+    display: flex; align-items: center; justify-content: center; flex: none; width: var(--ingot-ap-send); height: var(--ingot-ap-send); min-width: 0;
+    padding: 0; border: 0; border-radius: var(--ingot-ap-radius); background: var(--ingot-agent-accent) !important; color: var(--ingot-agent-accent-text) !important; opacity: 1;
+}
+.ingot-agents .ingot-composer .ingot-composer-bar .ingot-composer-send:not(:disabled):hover { background: var(--ingot-agent-accent-hover) !important; }
+.ingot-agents .ingot-composer .ingot-composer-bar .ingot-composer-send:disabled { opacity: 1; cursor: default; }
+
+/* Empty chat: the Rex glyph over the title. */
+.ingot-agents .ingot-agents-empty-mark { margin: 0 auto 8px; }

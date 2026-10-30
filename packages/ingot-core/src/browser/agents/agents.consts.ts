@@ -1,7 +1,9 @@
 export const AGENTS_WIDGET_ID = 'ingot-agents';
 export const AGENTS_WIDGET_LABEL = 'Agents';
 /** The Rex </> glyph before "Ingot Agent" in a reply and on subagent rows. */
-export const AGENT_MARK_SIZE = 18;
+export const AGENT_MARK_SIZE = 20;
+/** The larger Rex glyph above the empty-chat title. */
+export const AGENT_EMPTY_MARK_SIZE = 40;
 export const SUBAGENT_MARK_SIZE = 16;
 /** Status bar item naming the active chat's model (IDEA-104). */
 export const CHAT_MODEL_STATUS_ID = 'ingot-chat-model-status';
