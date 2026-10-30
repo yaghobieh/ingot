@@ -86,6 +86,8 @@ import { runToolSettings, type RunToolSettings } from '../../common/processes/ru
 import { AgentActionsService, type AgentActionResult } from '../../common/agents/agent-actions-service';
 import { GitService } from '../../common/git/git.types';
 import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
+import { applyTextEdits, findSymbolPosition, formatDiagnostics, formatLocations, isCodeEditTool, isCodeTool, parseNewName, parseSymbolTarget, severityFilter } from '../../common/agents/code-tools';
+import { CodeToolsService, type CodeEditResult } from './code-tools-service';
 
 let nextId = 1;
 const newChatId = (): string => `chat-${Date.now().toString(36)}-${nextId++}`;
@@ -148,6 +150,7 @@ export class AgentStore {
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
     @inject(TerminalService) protected readonly terminals: TerminalService;
+    @inject(CodeToolsService) protected readonly codeTools: CodeToolsService;
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
 
@@ -1546,6 +1549,9 @@ export class AgentStore {
             if (!root || !rootPath) {
                 return { text: 'Open a project first.', isError: true };
             }
+            if (isCodeTool(call.tool)) {
+                return await this.runCodeTool(session, call, root);
+            }
             switch (call.tool) {
                 case 'git': {
                     if (call.args.op === 'log') {
@@ -1603,6 +1609,99 @@ export class AgentStore {
         } catch (error) {
             return { text: error instanceof Error ? error.message : String(error), isError: true };
         }
+    }
+
+    /** IDEA-259: language-server tools. Rename and organize imports become reviewable edits like any agent edit. */
+    protected async runCodeTool(session: AgentSession, call: AgentToolCall, root: URI): Promise<AgentActionResult> {
+        const str = (v: unknown): string => typeof v === 'string' ? v.trim() : '';
+        const fileUri = (path: string): URI | undefined => {
+            const uri = this.safeUri(root, path);
+            return uri && uri !== root ? uri : undefined;
+        };
+        if (isCodeEditTool(call.tool) && !modeInfo(session.mode).canEdit) {
+            return { text: `${modeInfo(session.mode).label} mode does not change files; switch to Agent to ${call.tool === 'rename_symbol' ? 'rename' : 'organize imports'}.`, isError: true };
+        }
+        if (call.tool === 'diagnostics') {
+            const path = str(call.args.path);
+            const uri = path ? fileUri(path) : undefined;
+            if (path && !uri) {
+                return { text: `"${path}" is not a file path inside the project.`, isError: true };
+            }
+            const wanted = severityFilter(call.args.severity);
+            const found = (await this.codeTools.diagnostics(root, uri)).filter(d => wanted(d.severity));
+            return { text: formatDiagnostics(found, path || 'the project (files the language servers have checked)'), isError: false };
+        }
+        if (call.tool === 'organize_imports') {
+            const path = str(call.args.path);
+            const uri = fileUri(path);
+            if (!uri) {
+                return { text: `"${path}" is not a file path inside the project.`, isError: true };
+            }
+            const result = await this.codeTools.organizeImportsEdits(uri);
+            return result.ranCommand
+                ? { text: `Organized imports in ${path} (the language server saved the file).`, isError: false }
+                : this.applyCodeEdits(session, root, result, `Organized imports in ${path}`, `Imports in ${path} are already organized.`);
+        }
+        const target = parseSymbolTarget(call.args);
+        if ('error' in target) {
+            return { text: target.error, isError: true };
+        }
+        const uri = fileUri(target.path);
+        if (!uri) {
+            return { text: `"${target.path}" is not a file path inside the project.`, isError: true };
+        }
+        const text = await this.codeTools.text(uri).catch(() => undefined);
+        if (text === undefined) {
+            return { text: `No file "${target.path}". Use ingot/glob to find it.`, isError: true };
+        }
+        const at = findSymbolPosition(text, target);
+        if (!at) {
+            return { text: `"${target.symbol ?? `line ${target.line}`}" is not in ${target.path}${target.symbol && target.line ? ` near line ${target.line}` : ''}.`, isError: true };
+        }
+        const where = `${target.path}:${at.line}:${at.column}`;
+        switch (call.tool) {
+            case 'go_to_definition': return { text: `${where}\n${formatLocations('definitions', await this.codeTools.definitions(root, uri, at))}`, isError: false };
+            case 'find_references': return { text: `${where}\n${formatLocations('references', await this.codeTools.references(root, uri, at))}`, isError: false };
+            default: {
+                const newName = parseNewName(call.args);
+                if (typeof newName !== 'string') {
+                    return { text: newName.error, isError: true };
+                }
+                const result = await this.codeTools.renameEdits(uri, at, newName);
+                return this.applyCodeEdits(session, root, result, `Renamed ${target.symbol ?? where} to ${newName}`, 'The language server returned no edits.');
+            }
+        }
+    }
+
+    /** Text edits from a language server, applied per file through the review (Accept / Reject) like any agent edit. */
+    protected async applyCodeEdits(session: AgentSession, root: URI, result: CodeEditResult, summary: string, empty: string): Promise<AgentActionResult> {
+        const edits: AgentEdit[] = [];
+        const outside: string[] = [];
+        for (const [key, fileEdits] of result.edits) {
+            const uri = new URI(key);
+            const path = root.relative(uri)?.toString();
+            if (!path) {
+                outside.push(uri.path.fsPath());
+                continue;
+            }
+            const before = await this.codeTools.text(uri);
+            const after = applyTextEdits(before, fileEdits);
+            if (after !== before) {
+                edits.push({ path, content: after });
+            }
+        }
+        if (!edits.length) {
+            return { text: outside.length ? `Refused: every edit was outside the project (${outside.join(', ')}).` : empty, isError: outside.length > 0 };
+        }
+        await this.applyEdits(session, edits, root);
+        return {
+            text: [
+                `${summary} in ${edits.length} file(s): ${edits.map(edit => edit.path).join(', ')}. The edits wait for the user's Accept or Reject.`,
+                ...(outside.length ? [`Skipped files outside the project: ${outside.join(', ')}.`] : []),
+                ...(result.skipped.length ? [`Not applied: ${result.skipped.join(', ')}.`] : [])
+            ].join('\n'),
+            isError: false
+        };
     }
 
     /** IDEA-130: the agent's browser tools, run in the Ingot browser panel (they wait while the user has control). */
