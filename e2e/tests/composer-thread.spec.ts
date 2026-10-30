@@ -82,9 +82,9 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
         const latest = page.locator('.ingot-chat-latest');
         await expect(latest).toContainText('beta second question');
         await expect(page.locator('.ingot-chat-user', { hasText: 'alpha first question' })).not.toHaveClass(/ingot-chat-latest/);
-        const accent = await tokenColor(page, '--theia-focusBorder');
-        const shadow = await latest.evaluate(el => getComputedStyle(el).boxShadow);
-        expect(shadow).toContain(accent.replace(/^rgba?\(/, '').replace(/\).*$/, ''));
+        // The latest prompt is the quiet prompt card: surface fill and a 1px border, no accent bar.
+        expect(await latest.evaluate(el => getComputedStyle(el).boxShadow)).toBe('none');
+        await expect(latest).toHaveCSS('background-color', surface);
         expect(await latest.evaluate(el => getComputedStyle(el).borderTopWidth)).toBe('1px');
         await saveShot(page, 'chat-latest-light.png');
 

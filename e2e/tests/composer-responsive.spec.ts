@@ -89,7 +89,6 @@ for (const scheme of ['light', 'dark'] as const) {
                 await shot(page, `composer-${cls}-context-${scheme}.png`);
                 await page.mouse.click(5, 5);
                 await expect(page.locator('#ingot-context-popover')).toBeHidden();
-                await page.locator('#ingot-composer-more').click();
                 await page.locator('#ingot-composer-mode').click();
                 await expect(page.locator('#ingot-mode-menu')).toBeVisible();
                 await page.mouse.click(5, 5);

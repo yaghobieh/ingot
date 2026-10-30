@@ -196,11 +196,11 @@ test.describe('IDEA-248 chat round', () => {
                 if (await approve.isVisible().catch(() => false)) {
                     await approve.click();
                 }
-                if (await page.locator('.ingot-change-name').isVisible().catch(() => false)) {
+                if (await page.locator('#ingot-review-files .ingot-review-file').isVisible().catch(() => false)) {
                     break;
                 }
             }
-            const file = page.locator('.ingot-change-file');
+            const file = page.locator('#ingot-review-files .ingot-review-file-name');
             await expect(file).toContainText('note.txt');
             await file.click();
             await expect(page.locator('.ingot-tc, .ingot-agents')).toContainText('node -e');
