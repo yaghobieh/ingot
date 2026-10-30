@@ -29,6 +29,7 @@
     "e2e": "npm run test -w e2e",
     "e2e:electron": "npm run build:electron && npm run test:electron -w e2e",
     "secret-scan": "node scripts/secret-scan.mjs",
+    "eval:agent": "node scripts/agent-eval.mjs",
     "brand:electron-dev": "node scripts/brand-electron-dev.mjs",
     "brand:app-icon": "node scripts/build-app-icon.mjs",
     "brand:file-icons": "node scripts/build-file-icons.mjs",
