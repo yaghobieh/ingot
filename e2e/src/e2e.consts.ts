@@ -45,6 +45,9 @@ export const FAKE_INGOT_PORT = Number(process.env.INGOT_FAKE_SERVER_PORT ?? 3398
 export const FAKE_INGOT_URL = `http://127.0.0.1:${FAKE_INGOT_PORT}`;
 /** The plan that unlocks the Zaprex app entry (title bar T-rex). */
 export const PRO_PLUS_PLAN = 'pro+';
+/** IDEA-270: fake Slack MCP server; the app's Slack connection points here instead of mcp.slack.com. */
+export const FAKE_SLACK_PORT = Number(process.env.INGOT_FAKE_SLACK_PORT ?? 3397);
+export const FAKE_SLACK_MCP_URL = `http://127.0.0.1:${FAKE_SLACK_PORT}/mcp`;
 /** e2e user settings: BYOK / Local models on, so specs can use the fake Ollama and key-based models. */
 export const E2E_USER_SETTINGS = {
     'ingot.models.byok': true,

@@ -1419,7 +1419,7 @@ export class AgentStore {
                     this.changed();
                     continue;
                 }
-                const always = choice.decision === 'always' && !card.once;
+                const always = choice.decision === 'always' && !card.once && !card.alwaysAsk;
                 if (always && rootPath) {
                     await (card.command ? this.setAlwaysRunCommand(rootPath, card.command, true) : this.setAlwaysRun(rootPath, card.kind, true));
                 }

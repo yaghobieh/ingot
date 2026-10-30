@@ -9,6 +9,7 @@ import { describeTarget, toTarget } from '../browser-tool/browser-tool.utils';
 import { CREATE_LIBRARY_TOOL } from './library-app.consts';
 import { CODE_TOOLS, CODE_TOOLS_HINT } from './code-tools.consts';
 import { isCodeTool } from './code-tools';
+import { isSlackPostTool, slackPostAction } from '../slack';
 
 export const BUILTIN_TOOL_SERVER = 'ingot';
 /** One "Always Run" entry covers every run_tests call (files and filters change between iterations). */
@@ -43,6 +44,8 @@ export interface AgentAction {
     readonly command?: string;
     /** IDEA-263: approve this one call only; the card has no "Always Run" (leaving the sandbox). */
     readonly once?: boolean;
+    /** IDEA-270: always shows the card (no "Always Run"), e.g. posting to Slack. */
+    readonly alwaysAsk?: boolean;
 }
 
 export interface PendingApproval extends AgentAction {
@@ -110,6 +113,9 @@ const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
  * `currentBranch` fills "Git push: <branch> → <remote>" when the call does not name a branch.
  */
 export const describeAction = (call: AgentToolCall, currentBranch?: string): AgentAction | undefined => {
+    if (call.server !== BUILTIN_TOOL_SERVER && isSlackPostTool(call.server, call.tool)) {
+        return slackPostAction(call);
+    }
     if (call.server !== BUILTIN_TOOL_SERVER) {
         const args = Object.values(call.args).filter(v => typeof v === 'string' || typeof v === 'number').join(' ');
         return { kind: 'mcp', label: `${call.server}: ${call.tool}`, detail: args };
@@ -165,6 +171,9 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
 
 /** Whether an action waits for the card, given the settings. */
 export const needsApproval = (action: AgentAction, project: string, alwaysRun: AlwaysRunMap, gitRequireApproval: boolean, commands: AlwaysRunCommands = {}): boolean => {
+    if (action.alwaysAsk) {
+        return true;
+    }
     if (action.kind === 'git' && !gitRequireApproval) {
         return false;
     }

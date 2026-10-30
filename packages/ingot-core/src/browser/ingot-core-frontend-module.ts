@@ -116,6 +116,7 @@ import { ReviewComments } from './review/review-comments';
 import { IngotLayoutContribution } from './layout/layout-contribution';
 import { ProjectConfigService } from './project-config/project-config-service';
 import { IngotMcpClient } from './project-config/mcp-client';
+import { SlackConnectionService } from './slack';
 import { IngotAgentConfigWidget } from './project-config/agent-config-widget';
 import { IngotAgentConfigContribution } from './project-config/agent-config-contribution';
 import { AGENT_CONFIG_WIDGET_ID } from './project-config/project-config.browser-consts';
@@ -308,6 +309,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     }
     bind(McpService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<McpService>(ctx.container, MCP_SERVICE_PATH)).inSingletonScope();
     bind(IngotMcpClient).toSelf().inSingletonScope();
+    bind(SlackConnectionService).toSelf().inSingletonScope();
     bind(IngotAgentConfigWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENT_CONFIG_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentConfigWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotAgentConfigContribution);

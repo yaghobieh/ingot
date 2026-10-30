@@ -6,6 +6,7 @@ import { CommandService } from '@theia/core/lib/common/command';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { OpenerService, open } from '@theia/core/lib/browser/opener-service';
+import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import URI from '@theia/core/lib/common/uri';
 import type { ConfigSource, McpServerConfig, ProjectConfig } from '../../common/project-config/project-config.types';
 import { CONFIG_DIRS, HOOKS_DIR, SUBAGENTS_DIR } from '../../common/project-config/project-config.consts';
@@ -20,6 +21,8 @@ import { IngotFeatureFlags } from '../config/feature-flags';
 import { IDE_FLAGS } from '../../common/config/remote-config.consts';
 import { ProjectConfigService } from '../project-config/project-config-service';
 import { MCP_WIDGET_ID } from './tool-windows.consts';
+import { SlackConnectionCard, SlackConnectionService } from '../slack';
+import { SLACK_APPS_URL, SLACK_SERVER_NAME, SLACK_TEXT } from '../../common/slack';
 
 type ScopeFilter = 'all' | McpScope;
 interface AddForm { entry: McpCatalogEntry; name: string; scope: McpScope; values: Record<string, string>; error?: string; busy?: boolean }
@@ -48,8 +51,11 @@ export class IngotMcpWidget extends ReactWidget {
     @inject(FileService) protected readonly files: FileService;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(OpenerService) protected readonly opener: OpenerService;
+    @inject(SlackConnectionService) protected readonly slack: SlackConnectionService;
+    @inject(WindowService) protected readonly windows: WindowService;
 
     protected query = '';
+    protected slackConnectRequest = 0;
     protected tab: CustomizeTab = 'mcps';
     protected scope: ScopeFilter = 'all';
     protected showAllAttention = false;
@@ -191,6 +197,8 @@ export class IngotMcpWidget extends ReactWidget {
         const disabled = servers.filter(s => group(s) === 'available');
         const shownAttention = this.showAllAttention ? attention : attention.slice(0, ATTENTION_PREVIEW);
         return <>
+            {matchesQuery(this.query, SLACK_TEXT.title, SLACK_TEXT.description) && <SlackConnectionCard service={this.slack} connectRequest={this.slackConnectRequest}
+                onOpenApps={() => this.windows.openNewWindow(SLACK_APPS_URL, { external: true })} />}
             <div className='ingot-mcp-toolbar'>
                 <button type='button' id='ingot-mcp-add-server' className='ingot-mcp-secondary' onClick={() => this.openServerDialog()}><span className='codicon codicon-add' /> Add MCP Server</button>
             </div>
@@ -432,6 +440,13 @@ export class IngotMcpWidget extends ReactWidget {
     }
 
     protected startAdd(entry: McpCatalogEntry): void {
+        if (entry.id === SLACK_SERVER_NAME) {
+            this.tab = 'mcps';
+            this.marketplace = false;
+            this.slackConnectRequest++;
+            this.update();
+            return;
+        }
         this.set('addForm', { entry, name: entry.id, scope: 'user', values: {} });
     }
 
