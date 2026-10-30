@@ -28,3 +28,5 @@
 @import './hooks.css';
 @import './chat-thread.css';
 @import './agent-panel.css';
+@import './artifacts.css';
+@import './agent-manager.css';
