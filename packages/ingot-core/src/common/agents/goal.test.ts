@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GOAL_DEFAULTS, GOAL_LIMITS } from './goal.consts';
-import { applyGoalCheck, createGoal, decideGoal, goalLimits, goalProgress, goalProtocol, parseGoalCheck, parseGoalCommand, restoreGoal } from './goal';
+import { applyGoalCheck, createGoal, decideGoal, goalLimits, goalProgress, goalProtocol, parseGoalCheck, parseGoalCommand, restoreGoal, stripGoalCheck } from './goal';
 
 const limits = { maxIterations: 3, tokenBudget: 1_000 };
 
@@ -33,6 +33,11 @@ describe('goal self-check', () => {
             verdict: 'continue'
         });
         expect(parseGoalCheck('no block here')).toEqual({ criteria: [] });
+    });
+
+    it('hides the check block from the shown reply', () => {
+        expect(stripGoalCheck('Done the work.\n\nGOAL CHECK:\n- [x] a\nGOAL: DONE')).toBe('Done the work.');
+        expect(stripGoalCheck('No block.')).toBe('No block.');
     });
 
     it('is done only when the reply says DONE and every box is checked', () => {

@@ -64,6 +64,13 @@ export const parseGoalCheck = (reply: string): GoalCheck => {
     return { criteria, ...(verdict ? { verdict } : {}) };
 };
 
+/** The reply without its trailing `GOAL CHECK` block; the goal banner shows the criteria instead. */
+export const stripGoalCheck = (reply: string): string => {
+    const heads = [...reply.matchAll(GOAL_CHECK_PATTERN)];
+    const last = heads[heads.length - 1];
+    return last?.index === undefined ? reply : reply.slice(0, last.index).trimEnd();
+};
+
 /** One finished turn: the self-check replaces the criteria (when it has any) and the iteration count goes up. */
 export const applyGoalCheck = (goal: AgentGoal, check: GoalCheck, tokens: number): AgentGoal => ({
     ...goal,

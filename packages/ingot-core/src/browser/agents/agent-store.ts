@@ -87,7 +87,7 @@ import { AgentActionsService, type AgentActionResult } from '../../common/agents
 import { GitService } from '../../common/git/git.types';
 import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
 import { GOAL_BUDGET_TEXT, GOAL_DONE_TEXT, GOAL_PREFS, GOAL_STOPPED_TEXT, GOAL_USAGE } from '../../common/agents/goal.consts';
-import { applyGoalCheck, createGoal, decideGoal, goalLimits, goalProtocol, parseGoalCheck, parseGoalCommand } from '../../common/agents/goal';
+import { applyGoalCheck, createGoal, decideGoal, goalLimits, goalProtocol, parseGoalCheck, parseGoalCommand, stripGoalCheck } from '../../common/agents/goal';
 import type { GoalStopReason } from '../../common/agents/goal.types';
 import { customModeFrom, customModePrompt, findModeCommand } from '../../common/agents/custom-mode';
 import type { CustomMode } from '../../common/agents/custom-mode.types';
@@ -1126,6 +1126,10 @@ export class AgentStore {
         this.changed();
     }
 
+    protected goalDisplay(session: AgentSession, text: string): string {
+        return session.goal ? stripGoalCheck(text) : text;
+    }
+
     protected endGoal(session: AgentSession, reason: GoalStopReason, message: string): void {
         if (session.goal?.state !== 'running') {
             return;
@@ -1246,7 +1250,7 @@ export class AgentStore {
                 }
                 const parsed = parseAgentOutput(text);
                 this.streamEdit(session, index, parsed.editing, parsed.editingContent);
-                this.writeAgentDraft(session, index, extractMemories(parsed.display).display);
+                this.writeAgentDraft(session, index, this.goalDisplay(session, extractMemories(parsed.display).display));
                 if (parsed.plan.length) {
                     session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
                     this.considerHarmony(session, parsed.edits.length);
@@ -1287,7 +1291,9 @@ export class AgentStore {
             session.goal = { ...session.goal, tokensUsed: session.goal.tokensUsed + spent };
         }
         const parsed = parseAgentOutput(final);
-        const { display, memories } = extractMemories(parsed.display);
+        const extracted = extractMemories(parsed.display);
+        const memories = extracted.memories;
+        const display = this.goalDisplay(session, extracted.display);
         // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
         this.writeAgentDraft(session, index, display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)'), {
             expanded: final,
