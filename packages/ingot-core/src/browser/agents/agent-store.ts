@@ -66,6 +66,9 @@ import { FETCH_RULE_TOOL } from '../../common/project-config/project-config.cons
 import { AgentEventHooks } from '../hooks/agent-event-hooks';
 import type { AgentHookEvent, AgentHookOutcome } from '../../common/hooks/agent-hooks.types';
 import { hookBlockedText, hookOutcomeText } from '../../common/hooks/agent-hooks.utils';
+import { HabitRunner } from '../habits/habit-runner';
+import { HABIT_TICKED_REPLY, USE_HABIT_TOOL } from '../../common/habits/playbook.consts';
+import { stripHabitMarks } from '../../common/habits/playbook.utils';
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
@@ -152,6 +155,7 @@ export class AgentStore {
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
     @inject(AgentEventHooks) protected readonly eventHooks: AgentEventHooks;
+    @inject(HabitRunner) protected readonly habitRunner: HabitRunner;
     /** IDEA-287: the rules loaded for a chat's last turn, for ingot/fetch_rule. */
     protected readonly sessionRules = new Map<string, readonly ProjectRule[]>();
     protected readonly onDidSendEmitter = new Emitter<{ session: AgentSession; prompt: string }>();
@@ -894,13 +898,17 @@ export class AgentStore {
         this.github = workspace.github;
         const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
         const rulesText = [formatRules(rules), info.canUseTools ? formatRuleIndex(requestableRules(config.rules), `${BUILTIN_TOOL_SERVER}/${FETCH_RULE_TOOL}`) : ''].filter(Boolean).join('\n\n');
+        const habitText = await this.habitRunner.prepare(session, {
+            root, prompt: lastUser?.m.text ?? '', attachments: prompt, canUseTools: info.canUseTools,
+            files: [...new Set([...context.paths, ...(activePath ? [activePath] : []), ...(lastUser?.m.chips ?? []).map(c => c.path).filter(Boolean)])]
+        });
         const memoriesText = formatMemories(memories);
-        const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
+        const system = [base, rulesText, habitText, memoriesText, context.text].filter(Boolean).join('\n\n');
         const model = findModel(this.resolveModel(session.model));
         session.context = {
             files: context.paths, rules: rules.map(r => r.name), memories: memories.map(m => ({ id: m.id, text: m.text })),
             usage: contextUsage({
-                system: estimateTokens(base), rules: estimateTokens(rulesText), files: estimateTokens(context.text), memories: estimateTokens(memoriesText),
+                system: estimateTokens(base), rules: estimateTokens(rulesText) + estimateTokens(habitText), files: estimateTokens(context.text), memories: estimateTokens(memoriesText),
                 history: estimateTokens(this.historyFor(session).map(m => m.content).join('\n'))
             }, model?.contextWindow ?? DEFAULT_CONTEXT_WINDOW)
         };
@@ -1020,6 +1028,8 @@ export class AgentStore {
                         return;
                     }
                     continue;
+                } else if (!pending && info.canUseTools && round < rounds && this.nudgeHabitDone(session)) {
+                    continue;
                 } else if (!applied && !parsed.toolCalls.length && round < rounds && (this.nudgeLibraryFix(session) || this.nudgeLibrary(session, prompt))) {
                     continue;
                 } else if (!applied && session.mode === 'multi' && parsed.plan.length) {
@@ -1064,6 +1074,29 @@ export class AgentStore {
                 void this.runEventHook(session, 'stop', { status: session.status === 'error' ? 'error' : this.cancelled.has(session.id) ? 'aborted' : 'completed' });
             }
         }
+    }
+
+    /** IDEA-296: one more round to verify the active habit's open done criteria before the run ends. */
+    protected nudgeHabitDone(session: AgentSession): boolean {
+        const nudge = this.habitRunner.doneNudge(session);
+        if (nudge) {
+            session.messages.push({ role: 'user', text: nudge, hidden: true });
+        }
+        return !!nudge;
+    }
+
+    /** IDEA-296: the user picked a habit in the pill (or turned it off); a running turn sees it on its next round. */
+    async chooseHabit(sessionId: string, id: string | undefined): Promise<void> {
+        const session = this.items.find(s => s.id === sessionId);
+        if (!session) {
+            return;
+        }
+        const note = await this.habitRunner.choose(session, this.rootFor(session), id);
+        if (note && this.isRunning(session.id)) {
+            session.messages.push({ role: 'user', text: note, hidden: true });
+        }
+        session.updatedAt = Date.now();
+        this.changed();
     }
 
     /** IDEA-287: project files the agent read or edited in this chat (nested rules apply to them). */
@@ -1150,6 +1183,7 @@ export class AgentStore {
         try {
             const tools = modeInfo(session.mode).canUseTools
                 ? BUILTIN_TOOLS.filter(tool => builtinToolEnabled(tool.name, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }))
+                    .filter(tool => this.habitRunner.allows(session, BUILTIN_TOOL_SERVER, tool.name))
                     .map(tool => ({ name: tool.name, description: tool.description }))
                 : [];
             const stream = this.models.stream(this.resolveModel(session.model), [{ role: 'system', content: system }, ...history], text => {
@@ -1158,7 +1192,7 @@ export class AgentStore {
                 }
                 const parsed = parseAgentOutput(text);
                 this.streamEdit(session, index, parsed.editing, parsed.editingContent);
-                this.writeAgentDraft(session, index, extractMemories(parsed.display).display);
+                this.writeAgentDraft(session, index, stripHabitMarks(extractMemories(parsed.display).display));
                 if (parsed.plan.length) {
                     session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
                     this.considerHarmony(session, parsed.edits.length);
@@ -1195,9 +1229,13 @@ export class AgentStore {
         }
         this.flushPoke();
         const parsed = parseAgentOutput(final);
-        const { display, memories } = extractMemories(parsed.display);
+        const extracted = extractMemories(parsed.display);
+        const display = stripHabitMarks(extracted.display);
+        const memories = extracted.memories;
+        this.habitRunner.consume(session, final);
         // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
-        this.writeAgentDraft(session, index, display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)'), {
+        const empty = extracted.display.trim() ? HABIT_TICKED_REPLY : '(empty reply)';
+        this.writeAgentDraft(session, index, display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : empty), {
             expanded: final,
             // IDEA-186: a silent round of project reads shows only in the Explored row.
             ...(!display && !parsed.edits.length && parsed.toolCalls.length && parsed.toolCalls.every(c => c.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(c.tool)) ? { hidden: true } : {})
@@ -1247,6 +1285,15 @@ export class AgentStore {
             if (isRemoteCodeFetch(call) && !userAskedForRemote(asked)) {
                 session.messages.push({
                     role: 'tool', from: target, text: REMOTE_BLOCKED,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                });
+                this.changed();
+                continue;
+            }
+            const refused = this.habitRunner.refuse(session, call);
+            if (refused) {
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: ${refused}`,
                     tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
                 });
                 this.changed();
@@ -1332,6 +1379,7 @@ export class AgentStore {
                 : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(session, this.withMadeWithTrailer(session, call), root, hooksRan) : this.mcp.callTool(call.server, call.tool, call.args))
                 .catch((error: unknown) => ({ text: error instanceof Error ? error.message : String(error), isError: true }));
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
+            this.habitRunner.afterTool(session, call, !!result.isError);
             const done: AgentMessage = {
                 role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}),
                 tool: { ...tool, state: result.isError ? 'error' : 'done', endedAt: Date.now() }
@@ -1645,6 +1693,7 @@ export class AgentStore {
                 }
                 case 'read_file': return await this.readFileTool(root, str(call.args.path), Number(call.args.start) || 1, Number(call.args.end) || undefined);
                 case FETCH_RULE_TOOL: return this.fetchRuleTool(session, str(call.args.name));
+                case USE_HABIT_TOOL: return this.habitRunner.use(session, str(call.args.name));
                 case 'list_dir': return await this.listDirTool(root, str(call.args.path), Math.min(3, Math.max(1, Number(call.args.depth) || 1)));
                 case 'glob': return await this.globTool(root, str(call.args.pattern), str(call.args.path));
                 case 'grep': return await this.grepTool(root, str(call.args.pattern), str(call.args.path), str(call.args.glob), call.args.regex === true);

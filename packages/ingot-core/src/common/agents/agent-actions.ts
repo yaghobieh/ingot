@@ -59,6 +59,7 @@ export const BUILTIN_TOOLS = [
     { name: 'browser_back', description: 'Go back one page. No arguments.' },
     { name: 'browser_screenshot', description: 'Take a screenshot of the browser panel (shown to the user; sent to you when the model reads images). No arguments.' },
     { name: 'fetch_rule', description: 'Read the full text of a project rule from "Available rules". Arguments: {"name": "api-style"}. Runs at once.' },
+    { name: 'use_habit', description: 'Follow a habit (a team playbook) from "Habits": returns its steps, tool limits and done criteria. Arguments: {"name": "Payments bug"}. Runs at once.' },
     { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' },
     { name: 'ask_user', description: 'Ask the user a clarifying question and wait for the answer before continuing. Arguments: {"question": "…", "options"?: ["a", "b"]}. The user can also type their own answer. Runs at once and pauses the run.' },
     { name: 'create_library', description: 'Create a new React + Vite client and Node + Express server for a library (books, authors, members, loans, borrow and return) in a new empty folder. Arguments: {"path": "/absolute/or/relative", "react": "feature-folders" | "atomic", "node": "layered" | "modular", "reactExample"?: "/path/to/example", "nodeExample"?: "/path/to/example"}. Named presets or an example folder. If the layout is unclear, call ask_user first. Runs at once; each file shows up for Accept or Reject.' },
@@ -129,7 +130,7 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
         }
         case 'scripts': case 'processes': case 'process_output': return undefined;
         // IDEA-186: read-only project tools run at once.
-        case 'read_file': case 'list_dir': case 'glob': case 'grep': case 'ask_user': case 'create_library': case 'fetch_rule': return undefined;
+        case 'read_file': case 'list_dir': case 'glob': case 'grep': case 'ask_user': case 'create_library': case 'fetch_rule': case 'use_habit': return undefined;
         case 'open_workspace': return { kind: 'terminal', label: 'Open folder', detail: str(a.path), command: str(a.path) };
         case 'process_stop': return { kind: 'terminal', label: 'Stop process', detail: str(a.id) };
         case 'web_search': return { kind: 'web', label: 'Search web', detail: str(a.query) };

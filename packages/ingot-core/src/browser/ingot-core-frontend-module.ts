@@ -123,6 +123,8 @@ import { InitAgentsContribution } from './project-config/init-agents-contributio
 import { UserRulesService } from './project-config/user-rules-service';
 import { HabitStore } from './habits/habit-store';
 import { HabitsContribution } from './habits/habits-contribution';
+import { PlaybookService } from './habits/playbook-service';
+import { HabitRunner } from './habits/habit-runner';
 import { habitsPreferenceSchema } from './habits/habits-preferences';
 import { AgentHooksGate } from './hooks/hooks-contribution';
 import { hooksPreferenceSchema } from './hooks/hooks-preferences';
@@ -240,6 +242,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(InitAgentsContribution).toSelf().inSingletonScope();
     bind(UserRulesService).toSelf().inSingletonScope();
     bind(HabitStore).toSelf().inSingletonScope();
+    bind(PlaybookService).toSelf().inSingletonScope();
+    bind(HabitRunner).toSelf().inSingletonScope();
     bind(HabitsContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(HabitsContribution);
     bind(CommandContribution).toService(HabitsContribution);

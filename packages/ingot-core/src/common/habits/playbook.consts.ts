@@ -42,6 +42,8 @@ export const TERMINAL_ERROR_LINE = /\b(error|exception|failed|failure|fatal|trac
 export const HABIT_MARK_LINE = /^[ \t]*HABIT-(STEP|DONE):[ \t]*([\d,\s]+?)[ \t]*$/gim;
 /** Done-criteria reminders per turn before the agent may finish anyway. */
 export const MAX_DONE_NUDGES = 1;
+/** Shown for a reply that only ticked habit steps or criteria. */
+export const HABIT_TICKED_REPLY = 'Checked off the habit.';
 
 /** "Save this run as a habit" drafts. */
 export const MAX_DRAFT_STEPS = 10;
