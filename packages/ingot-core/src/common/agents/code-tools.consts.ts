@@ -54,6 +54,10 @@ export const PROVIDER_POLL_MS = 250;
 /** How long diagnostics for a just-opened file may take, and the quiet time after the last update. */
 export const DIAGNOSTICS_WAIT_MS = 15_000;
 export const DIAGNOSTICS_SETTLE_MS = 800;
+/** Servers check a file at least this long after an edit (TypeScript: 300 ms), so sooner reports are stale. */
+export const DIAGNOSTICS_DELAY_MS = 300;
+/** The first report of a language: its server may still be starting and loading the project. */
+export const LANGUAGE_WARMUP_MS = 60_000;
 /** Monaco's `CodeActionTriggerType.Invoke` (a const enum, so not importable at runtime). */
 export const CODE_ACTION_INVOKE = 1;
 

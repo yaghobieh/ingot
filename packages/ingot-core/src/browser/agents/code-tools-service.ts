@@ -1,6 +1,7 @@
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import URI from '@theia/core/lib/common/uri';
 import type { Reference } from '@theia/core/lib/common/reference';
+import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { ProblemManager } from '@theia/markers/lib/browser/problem/problem-manager';
 import type { MonacoEditorModel } from '@theia/monaco/lib/browser/monaco-editor-model';
@@ -21,7 +22,7 @@ import { ICommandService } from '@theia/monaco-editor-core/esm/vs/platform/comma
 import { Progress } from '@theia/monaco-editor-core/esm/vs/platform/progress/common/progress';
 import { previewLine, severityOf } from '../../common/agents/code-tools';
 import {
-    CODE_ACTION_INVOKE, DIAGNOSTICS_SETTLE_MS, DIAGNOSTICS_WAIT_MS, NO_PROVIDER, PROVIDER_POLL_MS, PROVIDER_WAIT_MS
+    CODE_ACTION_INVOKE, DIAGNOSTICS_DELAY_MS, DIAGNOSTICS_SETTLE_MS, DIAGNOSTICS_WAIT_MS, LANGUAGE_WARMUP_MS, NO_PROVIDER, PROVIDER_POLL_MS, PROVIDER_WAIT_MS
 } from '../../common/agents/code-tools.consts';
 import type { CodeDiagnostic, CodeLocation, CodePosition, CodeTextEdit } from '../../common/agents/code-tools.types';
 
@@ -45,16 +46,45 @@ export class CodeToolsService {
     @inject(MonacoTextModelService) protected readonly textModels: MonacoTextModelService;
     @inject(FileService) protected readonly files: FileService;
     @inject(ProblemManager) protected readonly problems: ProblemManager;
+    @inject(EditorManager) protected readonly editors: EditorManager;
     /** Model version of each file when a language server last reported on it (an empty report is still a report). */
     protected readonly reported = new Map<string, number | undefined>();
+    /** Languages whose server has reported (or that had their one long wait). */
+    protected readonly warmLanguages = new Set<string>();
+    /** When each model's text last changed. */
+    protected readonly changedAt = new Map<string, number>();
 
     @postConstruct()
     protected init(): void {
-        this.problems.onDidChangeMarkers(uri => this.reported.set(uri.toString(), this.versionOf(uri)));
+        const watch = (model: monaco.editor.ITextModel): void => {
+            model.onDidChangeContent(() => this.changedAt.set(model.uri.toString(), Date.now()));
+        };
+        monaco.editor.getModels().forEach(watch);
+        monaco.editor.onDidCreateModel(watch);
+        this.problems.onDidChangeMarkers(uri => {
+            if (this.isStale(uri)) {
+                return;
+            }
+            const model = this.modelOf(uri);
+            this.reported.set(uri.toString(), model?.getVersionId());
+            if (model) {
+                this.warmLanguages.add(model.getLanguageId());
+            }
+        });
+    }
+
+    /** Servers wait a moment after an edit before checking: a report sooner than that is for the text before it. */
+    protected isStale(uri: URI): boolean {
+        const model = this.modelOf(uri);
+        return !!model && Date.now() - (this.changedAt.get(model.uri.toString()) ?? 0) < DIAGNOSTICS_DELAY_MS;
+    }
+
+    protected modelOf(uri: URI): monaco.editor.ITextModel | null {
+        return monaco.editor.getModel(monaco.Uri.parse(uri.toString()));
     }
 
     protected versionOf(uri: URI): number | undefined {
-        return monaco.editor.getModel(monaco.Uri.parse(uri.toString()))?.getVersionId();
+        return this.modelOf(uri)?.getVersionId();
     }
 
     protected get features(): ILanguageFeaturesService {
@@ -63,28 +93,30 @@ export class CodeToolsService {
 
     /** The file's current text (the editor buffer when it is open). */
     async text(uri: URI): Promise<string> {
-        return this.withModel(uri, model => Promise.resolve(model.getValue()));
+        const reference = await this.textModels.createModelReference(uri);
+        try {
+            return reference.object.textEditorModel.getValue();
+        } finally {
+            reference.dispose();
+        }
     }
 
     async definitions(root: URI, uri: URI, at: CodePosition): Promise<CodeLocation[]> {
-        return this.withModel(uri, async model => {
-            await this.waitForProvider(this.features.definitionProvider, model);
+        return this.query(uri, this.features.definitionProvider, async model => {
             const links = await getDefinitionsAtPosition(this.features.definitionProvider, model, new Position(at.line, at.column), false, CancellationToken.None);
             return this.locations(root, links);
         });
     }
 
     async references(root: URI, uri: URI, at: CodePosition): Promise<CodeLocation[]> {
-        return this.withModel(uri, async model => {
-            await this.waitForProvider(this.features.referenceProvider, model);
+        return this.query(uri, this.features.referenceProvider, async model => {
             const links = await getReferencesAtPosition(this.features.referenceProvider, model, new Position(at.line, at.column), false, false, CancellationToken.None);
             return this.locations(root, links);
         });
     }
 
     async renameEdits(uri: URI, at: CodePosition, newName: string): Promise<CodeEditResult> {
-        return this.withModel(uri, async model => {
-            await this.waitForProvider(this.features.renameProvider, model);
+        return this.query(uri, this.features.renameProvider, async model => {
             const edit = await rename(this.features.renameProvider, model, new Position(at.line, at.column), newName);
             if (edit.rejectReason) {
                 throw new Error(edit.rejectReason);
@@ -94,8 +126,7 @@ export class CodeToolsService {
     }
 
     async organizeImportsEdits(uri: URI): Promise<CodeEditResult> {
-        return this.withModel(uri, async model => {
-            await this.waitForProvider(this.features.codeActionProvider, model);
+        return this.query(uri, this.features.codeActionProvider, async model => {
             const set = await getCodeActions(this.features.codeActionProvider, model, model.getFullModelRange(), {
                 type: CODE_ACTION_INVOKE as CodeActionTriggerType,
                 triggerAction: CodeActionTriggerSource.OrganizeImports,
@@ -123,20 +154,20 @@ export class CodeToolsService {
 
     /** Problems for one file (opened and checked first) or for every file under the root. */
     async diagnostics(root: URI, uri?: URI): Promise<CodeDiagnostic[]> {
-        if (uri) {
-            const reference = await this.textModels.createModelReference(uri);
-            try {
-                const key = uri.toString();
-                // Wait for a report unless the last one is for the text the buffer has now.
-                if (!this.reported.has(key) || this.reported.get(key) !== this.versionOf(uri)) {
-                    await this.waitForMarkers(uri, DIAGNOSTICS_WAIT_MS);
-                }
-                return this.markers(root, uri);
-            } finally {
-                reference.dispose();
-            }
+        if (!uri) {
+            return this.markers(root);
         }
-        return this.markers(root);
+        return this.withModel(uri, async model => {
+            const key = uri.toString();
+            if (!this.reported.has(key) || this.reported.get(key) !== model.getVersionId()) {
+                // Language servers (TypeScript) only check files open in an editor: open it in the background.
+                await this.editors.open(uri, { mode: 'open' });
+                const language = model.getLanguageId();
+                await this.waitForMarkers(uri, this.warmLanguages.has(language) ? DIAGNOSTICS_WAIT_MS : LANGUAGE_WARMUP_MS);
+                this.warmLanguages.add(language);
+            }
+            return this.markers(root, uri);
+        });
     }
 
     protected markers(root: URI, uri?: URI): CodeDiagnostic[] {
@@ -153,9 +184,9 @@ export class CodeToolsService {
         });
     }
 
-    /** The next diagnostics update for the file (up to `limitMs`), then a quiet moment (syntax and semantic checks come apart). */
-    protected waitForMarkers(uri: URI, limitMs: number): Promise<void> {
-        const key = uri.toString();
+    /** The next diagnostics update for the file (or any file), up to `limitMs`, then a quiet moment (syntax and semantic checks come apart). */
+    protected waitForMarkers(uri: URI | undefined, limitMs: number): Promise<void> {
+        const key = uri?.toString();
         return new Promise(resolve => {
             let settle: ReturnType<typeof setTimeout> | undefined;
             const done = (): void => {
@@ -166,11 +197,29 @@ export class CodeToolsService {
             };
             const limit = setTimeout(done, limitMs);
             const listener = this.problems.onDidChangeMarkers(changed => {
-                if (changed.toString() === key) {
+                if ((key === undefined || changed.toString() === key) && !this.isStale(changed)) {
                     clearTimeout(settle);
                     settle = setTimeout(done, DIAGNOSTICS_SETTLE_MS);
                 }
             });
+        });
+    }
+
+    /**
+     * Asks the file's language server. The first time for a language the request only starts the server loading the
+     * project (until then it may answer from syntax alone, e.g. TypeScript resolves a definition to the import line), so
+     * it is asked again once the server has reported something.
+     */
+    protected query<T>(uri: URI, registry: LanguageFeatureRegistry<unknown>, run: (model: ITextModel) => Promise<T>): Promise<T> {
+        return this.withModel(uri, async model => {
+            await this.waitForProvider(registry, model);
+            const language = model.getLanguageId();
+            if (!this.warmLanguages.has(language)) {
+                await run(model).catch(() => undefined);
+                await this.waitForMarkers(undefined, LANGUAGE_WARMUP_MS);
+                this.warmLanguages.add(language);
+            }
+            return run(model);
         });
     }
 
