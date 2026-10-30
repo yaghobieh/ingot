@@ -1,9 +1,9 @@
 import { parse, printParseErrorCode, type ParseError } from 'jsonc-parser';
-import { BUILTIN_TOOL_SERVER } from '../agents/agent-actions';
+import { BUILTIN_TOOL_SERVER, type AgentAction } from '../agents/agent-actions';
 import type { AgentToolCall } from '../agents/agent-protocol';
 import { globMatcher } from '../agents/workspace-tools';
 import {
-    BUILTIN_READ_ONLY, COMMAND_SEPARATORS, DEFAULT_POLICY, LOCAL_HOSTS, POLICY_FILE, POLICY_REASON, SAFE_OUTSIDE_PREFIXES, SANDBOX_EXEC,
+    BUILTIN_READ_ONLY, COMMAND_SEPARATORS, DEFAULT_POLICY, LOCAL_HOSTS, POLICY_FILE, POLICY_REASON, SAFE_OUTSIDE_PREFIXES, SANDBOX_CARD, SANDBOX_EXEC,
     SANDBOX_HOME_CACHES, SANDBOX_TEMP_DIRS, WEB_SEARCH_HOST
 } from './agent-policy.consts';
 import type {
@@ -354,18 +354,24 @@ export const checkWrite = (policy: AgentPolicy, path: string): PolicyDecision =>
 
 const WRITE_TOOLS: readonly string[] = ['run', 'delete'];
 
+const invalid = (load: Omit<PolicyLoad, 'exists'>): PolicyDecision => ({ verdict: 'deny', reason: `${POLICY_REASON.invalid} (${load.errors[0]})` });
+
+/** An agent edit or new file: refused while the policy file is broken, else per `paths`. */
+export const checkEdit = (load: Omit<PolicyLoad, 'exists'>, path: string): PolicyDecision =>
+    load.errors.length ? invalid(load) : checkWrite(load.policy, path);
+
 /** The policy's verdict on one built-in tool call. MCP tools and reads are left to the approval settings. */
 export const checkToolCall = (load: Omit<PolicyLoad, 'exists'>, call: AgentToolCall, context: PolicyContext): PolicyDecision => {
     if (call.server !== BUILTIN_TOOL_SERVER) {
         return DEFAULT;
     }
     if (load.errors.length && WRITE_TOOLS.includes(call.tool)) {
-        return { verdict: 'deny', reason: `${POLICY_FILE} ${POLICY_REASON.invalid} (${load.errors[0]})` };
+        return invalid(load);
     }
     const str = (value: unknown): string => typeof value === 'string' ? value : '';
     switch (call.tool) {
         case 'run': return checkCommand(load.policy, str(call.args.command), context);
-        case 'delete': return checkWrite(load.policy, str(call.args.path));
+        case 'delete': return checkEdit(load, str(call.args.path));
         case 'web_fetch': case 'browser_open': return checkUrl(load.policy, str(call.args.url));
         case 'web_search': return checkHost(load.policy, WEB_SEARCH_HOST);
         default: return DEFAULT;
@@ -410,6 +416,16 @@ export const sandboxCommand = (shell: ShellCommand, spec: SandboxSpec, platform:
     platform === 'darwin'
         ? { cmd: SANDBOX_EXEC, args: ['-p', sandboxProfile(spec), shell.cmd, ...shell.args], applied: true }
         : { ...shell, applied: false };
+
+/** The tool result the agent gets for a call the policy refused. */
+export const policyBlockedText = (reason: string | undefined): string =>
+    `Blocked by ${POLICY_FILE}: it ${reason ?? POLICY_REASON.deniedCommand}. Do not retry this; ask the user to change the policy if it is really needed.`;
+
+/** The card for a command that reaches outside the project: it runs once, without the sandbox, if the user agrees. */
+export const outsideApproval = (action: AgentAction): AgentAction => ({ ...action, label: SANDBOX_CARD.outside, once: true });
+
+/** The card after the sandbox refused a write: run the same command again without the sandbox? */
+export const sandboxRetryApproval = (command: string): AgentAction => ({ kind: 'terminal', label: SANDBOX_CARD.retry, detail: command, command, once: true });
 
 const countLabel = (count: number, word: string): string => `${count} ${word}`;
 

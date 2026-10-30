@@ -39,12 +39,23 @@ export const SANDBOX_DENIED_PATTERN = /operation not permitted|EPERM\b/i;
 export const COMMAND_SEPARATORS = ['&&', '||', ';', '|', '\n'] as const;
 
 export const POLICY_REASON = {
-    invalid: 'is not valid JSON, so the agent is limited to read-only tools until it is fixed',
+    invalid: 'has errors, so the agent can only read until it is fixed',
     deniedCommand: 'denies the command',
     notWritable: 'does not let the agent write',
     readOnly: 'keeps this path read-only',
     deniedHost: 'blocks the host',
     outside: 'reaches outside the project'
+} as const;
+
+/** Approval card labels for the restricted mode (these cards have no "Always Run"). */
+export const SANDBOX_CARD = {
+    outside: 'Run outside the project',
+    retry: 'Sandbox blocked it, run unrestricted'
+} as const;
+
+export const SANDBOX_TEXT = {
+    blocked: 'The sandbox refused a write outside the project.',
+    notApproved: 'Blocked by the Ingot sandbox: the command tried to write outside the project and the user did not approve running it unrestricted. Do not retry it; keep the work inside the project.'
 } as const;
 
 export const POLICY_TEMPLATE: AgentPolicy = {

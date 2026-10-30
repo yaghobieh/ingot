@@ -86,6 +86,13 @@ import { runToolSettings, type RunToolSettings } from '../../common/processes/ru
 import { AgentActionsService, type AgentActionResult } from '../../common/agents/agent-actions-service';
 import { GitService } from '../../common/git/git.types';
 import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
+import { AgentPolicyService } from '../policy/agent-policy-service';
+import { AgentAuditLog } from '../policy/agent-audit-log';
+import { POLICY_FILE, SANDBOX_TEXT } from '../../common/policy/agent-policy.consts';
+import type { PolicyDecision, SandboxSpec } from '../../common/policy/agent-policy.types';
+import { checkEdit, checkToolCall, outsideApproval, policyBlockedText, sandboxRetryApproval, sandboxSpec } from '../../common/policy/agent-policy.utils';
+import type { AuditDecision, AuditEntryInput } from '../../common/audit/agent-audit.types';
+import { toolSummary } from '../../common/audit/agent-audit.utils';
 
 let nextId = 1;
 const newChatId = (): string => `chat-${Date.now().toString(36)}-${nextId++}`;
@@ -148,6 +155,8 @@ export class AgentStore {
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
     @inject(TerminalService) protected readonly terminals: TerminalService;
+    @inject(AgentPolicyService) protected readonly policy: AgentPolicyService;
+    @inject(AgentAuditLog) protected readonly audit: AgentAuditLog;
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
 
@@ -1172,10 +1181,13 @@ export class AgentStore {
     protected async runTools(session: AgentSession, calls: readonly AgentToolCall[]): Promise<boolean> {
         const root = this.rootFor(session);
         const rootPath = root?.path.fsPath();
+        const policy = await this.policy.load(rootPath);
         for (const raw of calls) {
+            const startedAt = Date.now();
             const resolved = await this.resolveCall(raw, rootPath);
             if ('error' in resolved) {
                 session.messages.push({ role: 'tool', from: `${raw.server}/${raw.tool}`, text: `Error: ${resolved.error}` });
+                this.recordTool(session, raw, rootPath, { decision: 'auto', outcome: 'error', output: resolved.error, startedAt });
                 this.changed();
                 continue;
             }
@@ -1186,6 +1198,7 @@ export class AgentStore {
                 const options = Array.isArray(call.args.options) ? call.args.options.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
                 if (!question) {
                     session.messages.push({ role: 'tool', from: target, text: 'Error: a question is required.' });
+                    this.recordTool(session, call, rootPath, { decision: 'auto', outcome: 'error', output: 'A question is required.', startedAt });
                     this.changed();
                     continue;
                 }
@@ -1193,6 +1206,7 @@ export class AgentStore {
                 if (answer === undefined || this.cancelled.has(session.id)) {
                     session.ask = undefined;
                     session.messages.push({ role: 'system', text: ASK_STOPPED });
+                    this.recordTool(session, call, rootPath, { decision: 'stopped', outcome: 'skipped', startedAt });
                     this.changed();
                     return false;
                 }
@@ -1200,6 +1214,7 @@ export class AgentStore {
                     role: 'tool', from: target, text: answer,
                     tool: { server: call.server, tool: call.tool, args: call.args, state: 'done', startedAt: Date.now(), endedAt: Date.now() }
                 });
+                this.recordTool(session, call, rootPath, { decision: 'auto', outcome: 'ok', output: answer, startedAt });
                 this.changed();
                 continue;
             }
@@ -1209,9 +1224,27 @@ export class AgentStore {
                     role: 'tool', from: target, text: REMOTE_BLOCKED,
                     tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
                 });
+                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: REMOTE_BLOCKED, startedAt });
                 this.changed();
                 continue;
             }
+            // IDEA-263: `.ingot/policy.json` decides first: denied calls never reach the card; allowed ones skip it.
+            const isRun = call.server === BUILTIN_TOOL_SERVER && call.tool === 'run';
+            const runCwd = isRun && rootPath ? this.resolveRunCwd(rootPath, typeof call.args.cwd === 'string' ? call.args.cwd : '') : undefined;
+            const context = rootPath ? await this.policy.context(rootPath, runCwd) : undefined;
+            const verdict: PolicyDecision = context ? checkToolCall(policy, call, context) : { verdict: 'default' };
+            if (verdict.verdict === 'deny') {
+                const text = policyBlockedText(verdict.reason);
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: ${text}`,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt, endedAt: Date.now() }
+                });
+                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: `${POLICY_FILE} ${verdict.reason ?? ''}`.trim(), startedAt });
+                this.changed();
+                continue;
+            }
+            const outside = verdict.verdict === 'ask';
+            let decision: AuditDecision = verdict.verdict === 'allow' ? 'allowed' : 'auto';
             const isGit = call.server === BUILTIN_TOOL_SERVER && call.tool === 'git';
             const branch = isGit && rootPath && call.args.op === 'push' && !call.args.branch
                 ? (await this.git.run(rootPath, { kind: 'currentBranch' }).catch(() => ({ output: '' }))).output.trim() || undefined : undefined;
@@ -1225,19 +1258,25 @@ export class AgentStore {
             // IDEA-133: a tool turned off in Settings › Agent tools is refused at once, without a card.
             const turnedOff = call.server === BUILTIN_TOOL_SERVER
                 && !builtinToolEnabled(call.tool, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled });
-            if (action && !turnedOff && requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)) {
-                const choice = await this.askApproval(session, action);
+            const card = action && outside ? outsideApproval(action) : action;
+            const asks = !!card && !turnedOff && (outside || (verdict.verdict !== 'allow' && requireRun && needsApproval(card, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)));
+            if (card && asks) {
+                const choice = await this.askApproval(session, card);
                 if (choice.stopped) {
+                    this.recordTool(session, call, rootPath, { decision: 'stopped', outcome: 'skipped', reason: verdict.reason, startedAt });
                     return false;
                 }
                 if (choice.decision === 'skip') {
-                    session.messages.push({ role: 'tool', from: target, text: skippedResult(action, choice.reason) });
+                    session.messages.push({ role: 'tool', from: target, text: skippedResult(card, choice.reason) });
+                    this.recordTool(session, call, rootPath, { decision: 'skipped', outcome: 'skipped', reason: choice.reason ?? verdict.reason, startedAt });
                     this.changed();
                     continue;
                 }
-                if (choice.decision === 'always' && rootPath) {
-                    await (action.command ? this.setAlwaysRunCommand(rootPath, action.command, true) : this.setAlwaysRun(rootPath, action.kind, true));
+                const always = choice.decision === 'always' && !card.once;
+                if (always && rootPath) {
+                    await (card.command ? this.setAlwaysRunCommand(rootPath, card.command, true) : this.setAlwaysRun(rootPath, card.kind, true));
                 }
+                decision = always ? 'always' : 'approved';
             }
             // IDEA-178: an agent commit / push goes through the `.ingot/hooks.json` steps first, shown as tool cards.
             // IDEA-248: a commit on master, main or release/*, or before green checks, is refused.
@@ -1249,6 +1288,7 @@ export class AgentStore {
                 if (blocked) {
                     loop.commitBlocked = true;
                     session.messages.push({ role: 'tool', from: target, text: `Error: ${blocked}` });
+                    this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: blocked, startedAt });
                     this.changed();
                     continue;
                 }
@@ -1263,10 +1303,9 @@ export class AgentStore {
                 if (!run.passed) {
                     const failed = run.results.filter(r => r.state === 'failed').map(r => `"${r.step.name}"`);
                     this.loopOf(session).commitBlocked = true;
-                    session.messages.push({
-                        role: 'tool', from: target,
-                        text: `Error: blocked by .ingot hooks (${hookStage}${failed.length ? `: ${failed.join(', ')} failed` : ''}${run.errors.length ? `; ${run.errors.join(' ')}` : ''}). Fix the problem, then try the ${call.args.op} again.`
-                    });
+                    const reason = `blocked by .ingot hooks (${hookStage}${failed.length ? `: ${failed.join(', ')} failed` : ''}${run.errors.length ? `; ${run.errors.join(' ')}` : ''})`;
+                    session.messages.push({ role: 'tool', from: target, text: `Error: ${reason}. Fix the problem, then try the ${call.args.op} again.` });
+                    this.recordTool(session, call, rootPath, { decision, outcome: 'blocked', reason, startedAt });
                     this.changed();
                     continue;
                 }
@@ -1280,9 +1319,30 @@ export class AgentStore {
             const tool: ToolCallInfo = { server: call.server, tool: call.tool, args: call.args, state: 'running', startedAt: Date.now() };
             const at = session.messages.push({ role: 'tool', from: target, text: '', tool }) - 1;
             this.changed();
-            const result: AgentActionResult & { images?: ImageChip[] } = await (isBrowser ? this.runBrowser(session, call)
-                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(session, this.withMadeWithTrailer(session, call), root, hooksRan) : this.mcp.callTool(call.server, call.tool, call.args))
+            const execute = (box?: SandboxSpec): Promise<AgentActionResult & { images?: ImageChip[] }> => (isBrowser ? this.runBrowser(session, call)
+                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(session, this.withMadeWithTrailer(session, call), root, hooksRan, box) : this.mcp.callTool(call.server, call.tool, call.args))
                 .catch((error: unknown) => ({ text: error instanceof Error ? error.message : String(error), isError: true }));
+            // IDEA-263: restricted mode runs commands in the OS sandbox; one the user approved to leave the project runs without it.
+            const box = isRun && context && !outside ? sandboxSpec(policy.policy, context) : undefined;
+            let result = await execute(box);
+            let recorded = false;
+            let stoppedOnCard = false;
+            if (result.sandboxDenied) {
+                this.recordTool(session, call, rootPath, { decision, outcome: 'blocked', reason: SANDBOX_TEXT.blocked, output: result.text, sandboxed: true, startedAt });
+                recorded = true;
+                const choice = await this.askApproval(session, sandboxRetryApproval(typeof call.args.command === 'string' ? call.args.command : ''));
+                stoppedOnCard = !!choice.stopped;
+                if (!choice.stopped && choice.decision !== 'skip') {
+                    result = await execute(undefined);
+                    decision = 'approved';
+                    recorded = false;
+                } else {
+                    result = { text: `${result.text}\n${SANDBOX_TEXT.notApproved}`, isError: true };
+                }
+            }
+            if (!recorded) {
+                this.recordTool(session, call, rootPath, { decision, outcome: result.isError ? 'error' : 'ok', output: result.text, sandboxed: result.sandboxed, startedAt });
+            }
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
             const done: AgentMessage = {
                 role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}),
@@ -1292,6 +1352,10 @@ export class AgentStore {
                 session.messages[at] = done;
             } else {
                 session.messages.push(done);
+            }
+            if (stoppedOnCard) {
+                this.changed();
+                return false;
             }
             if (isGit && call.args.op === 'commit' && !result.isError && rootPath && this.loopOf(session).wants) {
                 const loop = this.loopOf(session);
@@ -1303,6 +1367,19 @@ export class AgentStore {
             this.changed();
         }
         return true;
+    }
+
+    /** IDEA-263: one audit log line per agent tool call (what, when, the decision and the result). */
+    protected recordTool(
+        session: AgentSession, call: AgentToolCall, project: string | undefined,
+        entry: Pick<AuditEntryInput, 'decision' | 'outcome' | 'reason' | 'output' | 'sandboxed'> & { readonly startedAt?: number; readonly summary?: string }
+    ): void {
+        const { startedAt, summary, ...rest } = entry;
+        this.audit.record({
+            sessionId: session.id, chat: session.title, ...(project ? { project } : {}),
+            tool: `${call.server}/${call.tool}`, summary: summary ?? toolSummary(call), args: call.args,
+            ...rest, ...(startedAt ? { durationMs: Date.now() - startedAt } : {})
+        });
     }
 
     /** IDEA-186: GitHub owner/repo of the open project (from its git remote), for GitHub tool calls. */
@@ -1533,7 +1610,7 @@ export class AgentStore {
     }
 
     /** Ingot's built-in agent tools (IDEA-109): git, terminal command, web search / fetch, file delete. */
-    protected async runBuiltin(session: AgentSession, call: AgentToolCall, root: URI | undefined, hooksRan = false): Promise<AgentActionResult> {
+    protected async runBuiltin(session: AgentSession, call: AgentToolCall, root: URI | undefined, hooksRan = false, sandbox?: SandboxSpec): Promise<AgentActionResult> {
         const rootPath = root?.path.fsPath();
         const str = (v: unknown): string => typeof v === 'string' ? v : '';
         try {
@@ -1567,7 +1644,7 @@ export class AgentStore {
                         return { text: `Refusing to run "${command}" outside the open project.`, isError: true };
                     }
                     const timeout = this.isCreatedApp(cwd) && libraryCommandNeedsTime(command) ? LIBRARY_COMMAND_TIMEOUT_SECONDS : undefined;
-                    return await this.runCommand(cwd, command, call.args.background === true, undefined, timeout);
+                    return await this.runCommand(cwd, command, call.args.background === true, undefined, timeout, sandbox);
                 }
                 case 'scripts': {
                     const found = await this.processes.service.scripts(rootPath);
@@ -1653,7 +1730,9 @@ export class AgentStore {
     }
 
     /** IDEA-131: a command in the foreground (waits, then moves to the background after the timeout) or in the background. */
-    protected async runCommand(cwd: string, command: string, background: boolean, onOutput?: (text: string) => void, timeoutSecondsArg?: number): Promise<AgentActionResult> {
+    protected async runCommand(
+        cwd: string, command: string, background: boolean, onOutput?: (text: string) => void, timeoutSecondsArg?: number, sandbox?: SandboxSpec
+    ): Promise<AgentActionResult> {
         if (!command.trim()) {
             return { text: 'No command given.', isError: true };
         }
@@ -1663,10 +1742,13 @@ export class AgentStore {
         }
         const service = this.processes.service;
         if (background) {
-            const info = await service.start({ cwd, command, background: true, origin: 'agent' });
+            const info = await service.start({ cwd, command, background: true, origin: 'agent', ...(sandbox ? { sandbox } : {}) });
             const out = await service.output(info.id, settings.maxOutputChars);
             const state = info.status === 'running' ? `Running in the background as ${info.id}${info.ports.length ? ` on port ${info.ports.join(', ')}` : ''}.` : `Exited with code ${info.exitCode ?? '?'}.`;
-            return { text: `${state} Read more output with ingot/process_output, stop it with ingot/process_stop.\n${out?.text.trimEnd() ?? ''}`.trim(), isError: info.status === 'failed' };
+            return {
+                text: `${state} Read more output with ingot/process_output, stop it with ingot/process_stop.\n${out?.text.trimEnd() ?? ''}`.trim(), isError: info.status === 'failed',
+                ...(info.sandboxed ? { sandboxed: true } : {})
+            };
         }
         const startedAt = Date.now();
         const poll = onOutput ? setInterval(() => {
@@ -1683,11 +1765,14 @@ export class AgentStore {
         }, OUTPUT_POLL_MS) : undefined;
         try {
             const timeoutSeconds = timeoutSecondsArg ?? settings.foregroundTimeoutSeconds;
-            const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: timeoutSeconds * 1000, maxOutput: settings.maxOutputChars });
+            const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: timeoutSeconds * 1000, maxOutput: settings.maxOutputChars, ...(sandbox ? { sandbox } : {}) });
             const status = result.movedToBackground
                 ? `Still running after ${timeoutSeconds}s: moved to the background as ${result.info.id}${result.info.ports.length ? ` (port ${result.info.ports.join(', ')})` : ''}. Use ingot/process_output or ingot/process_stop.`
                 : result.info.status === 'stopped' ? 'Stopped.' : `Exit code ${result.info.exitCode ?? '?'}.`;
-            return { text: `${result.output.trimEnd()}\n${status}`.trim(), isError: result.movedToBackground || result.info.status !== 'exited', movedToBackground: result.movedToBackground };
+            return {
+                text: `${result.output.trimEnd()}\n${status}`.trim(), isError: result.movedToBackground || result.info.status !== 'exited', movedToBackground: result.movedToBackground,
+                ...(result.info.sandboxed ? { sandboxed: true } : {}), ...(result.sandboxDenied ? { sandboxDenied: true } : {})
+            };
         } finally {
             if (poll) {
                 clearInterval(poll);
@@ -2089,12 +2174,24 @@ export class AgentStore {
         const ids: string[] = [];
         // IDEA-105: many files pause for review at checkpoints of `reviewPauseThreshold` files.
         const batches = checkpoints(edits, review.pauseThreshold);
+        const rootPath = root?.path.fsPath();
+        const policy = await this.policy.load(rootPath);
+        const editCall = (path: string): AgentToolCall => ({ server: BUILTIN_TOOL_SERVER, tool: 'edit', args: { path } });
         let applied = 0;
         for (const [b, batch] of batches.entries()) {
             for (const edit of batch) {
                 applied++;
                 if (!root || !isSafeRelativePath(edit.path)) {
                     session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": agents can only change files inside the project.` });
+                    this.recordTool(session, editCall(edit.path), rootPath, { decision: 'denied', outcome: 'blocked', summary: `Edit ${edit.path}`, reason: 'outside the project' });
+                    continue;
+                }
+                // IDEA-263: `paths.writable` / `paths.readOnly` in `.ingot/policy.json`.
+                const write = checkEdit(policy, edit.path);
+                if (write.verdict === 'deny') {
+                    session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": ${POLICY_FILE} ${write.reason}.` });
+                    this.recordTool(session, editCall(edit.path), rootPath, { decision: 'denied', outcome: 'blocked', summary: `Edit ${edit.path}`, reason: `${POLICY_FILE} ${write.reason}` });
+                    await this.tracker.cancelStream(session.id, edit.path);
                     continue;
                 }
                 const locked = this.lockedFor(session, edit.path);
@@ -2113,6 +2210,9 @@ export class AgentStore {
                 const change = await this.tracker.finalize(origin, edit.path, root.resolve(edit.path), edit.content);
                 this.loopOf(session).edits.push(edit.path);
                 const stats = this.tracker.stats(change);
+                this.recordTool(session, editCall(edit.path), rootPath, {
+                    decision: 'auto', outcome: 'ok', summary: `Edit ${edit.path} (+${stats.added} −${stats.removed})`, ...(review.autoAccept ? { output: 'Accepted automatically.' } : {})
+                });
                 session.steps = [...session.steps, { kind: 'edit', target: edit.path, done: true, added: stats.added, removed: stats.removed }];
                 ids.push(change.id);
                 if (review.autoAccept) {

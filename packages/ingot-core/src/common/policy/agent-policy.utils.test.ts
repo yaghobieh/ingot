@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_POLICY, SANDBOX_EXEC } from './agent-policy.consts';
 import type { AgentPolicy } from './agent-policy.types';
 import {
-    checkCommand, checkHost, checkToolCall, checkWrite, matchesCommand, matchesHost, outsideReferences, parsePolicy, sandboxCommand, sandboxProfile,
-    sandboxSpec, splitCommand, tokenize
+    checkCommand, checkEdit, checkHost, checkToolCall, checkWrite, matchesCommand, matchesHost, outsideApproval, outsideReferences, parsePolicy, policyBlockedText,
+    sandboxCommand, sandboxProfile, sandboxRetryApproval, sandboxSpec, splitCommand, tokenize
 } from './agent-policy.utils';
 
 const ROOT = '/work/app';
@@ -139,6 +139,20 @@ describe('checkToolCall', () => {
         const broken = { policy: DEFAULT_POLICY, errors: ['bad'] };
         expect(checkToolCall(broken, { server: 'ingot', tool: 'run', args: { command: 'ls' } }, ctx).verdict).toBe('deny');
         expect(checkToolCall(broken, { server: 'ingot', tool: 'read_file', args: { path: 'a' } }, ctx).verdict).toBe('default');
+    });
+});
+
+describe('approval cards and results', () => {
+    it('refuses edits while the policy is broken and words the refusal for the agent', () => {
+        expect(checkEdit({ policy: DEFAULT_POLICY, errors: ['bad'] }, 'src/a.ts').verdict).toBe('deny');
+        expect(checkEdit({ policy: DEFAULT_POLICY, errors: [] }, 'src/a.ts').verdict).toBe('default');
+        expect(policyBlockedText('denies the command (commands.deny "sudo")')).toMatch(/^Blocked by \.ingot\/policy\.json: it denies the command/);
+    });
+
+    it('makes the sandbox cards one-time approvals', () => {
+        const action = { kind: 'terminal' as const, label: 'Run command', detail: 'cat ~/x', command: 'cat ~/x' };
+        expect(outsideApproval(action)).toEqual({ ...action, label: 'Run outside the project', once: true });
+        expect(sandboxRetryApproval('npm i -g x')).toMatchObject({ kind: 'terminal', command: 'npm i -g x', once: true });
     });
 });
 

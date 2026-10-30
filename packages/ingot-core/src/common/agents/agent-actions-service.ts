@@ -7,6 +7,10 @@ export interface AgentActionResult {
     readonly isError: boolean;
     /** The command was still running when the wait ended. A check in this state did not pass. */
     readonly movedToBackground?: boolean;
+    /** IDEA-263: the command ran in the OS sandbox. */
+    readonly sandboxed?: boolean;
+    /** IDEA-263: the sandbox refused a write outside the project. */
+    readonly sandboxDenied?: boolean;
 }
 
 export interface AgentActionsService {

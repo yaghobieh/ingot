@@ -35,6 +35,8 @@ export interface AgentAction {
     readonly detail: string;
     /** IDEA-131: terminal commands are remembered one by one for "Always Run". */
     readonly command?: string;
+    /** IDEA-263: approve this one call only; the card has no "Always Run" (leaving the sandbox). */
+    readonly once?: boolean;
 }
 
 export interface PendingApproval extends AgentAction {
