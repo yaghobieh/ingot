@@ -40,6 +40,6 @@ export const REVIEW_WORD = 'Review';
 export const REJECT_ALL = 'Reject all';
 export const ACCEPT_ALL = 'Accept all';
 export const FILE_BADGE_LABELS = {
-    ts: 'TS', tsx: 'TSX', js: 'JS', jsx: 'JSX', json: 'JSON', html: 'HTML', css: 'CSS', md: 'MD', file: 'FILE'
+    ts: 'TS', tsx: 'TSX', js: 'JS', jsx: 'JSX', json: 'JSON', html: 'HTML', css: 'CSS', md: 'MD', file: 'FILE', dir: 'DIR'
 } as const;
 export const MAX_TITLE_LENGTH = 48;

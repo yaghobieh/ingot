@@ -35,6 +35,8 @@ import type { NodeStructure, ReactStructure } from '../../common/agents/library-
 import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
 import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
+import { parseFolderMentions } from '../../common/agents/agent-panel';
+import { FOLDER_LISTING_LIMIT } from '../../common/agents/agent-panel.consts';
 import {
     GREP_MAX_FILE_BYTES, GREP_MAX_FILES, GREP_MAX_MATCHES, GLOB_MAX_PATHS, compileGitignore, githubRepoFromRemote, globMatcher, grepMatcher,
     answerFromFiles, answerFromProject, asksAboutOpenProject, FILE_ANSWER_PATHS, fileQuestionGlob, globPaths, isPromptEcho, isTextCandidate, isWorkspaceTool, LIST_MAX_ENTRIES, numberLines, parseRgFiles, parseRgMatches,
@@ -772,6 +774,13 @@ export class AgentStore {
         if (root) {
             for (const mention of parseMentions(prompt).filter(isSafeRelativePath)) {
                 await add(root.resolve(mention));
+            }
+            for (const folder of parseFolderMentions(prompt).filter(path => isSafeRelativePath(path.slice(0, -1)))) {
+                const stat = await this.files.resolve(root.resolve(folder.slice(0, -1))).catch(() => undefined);
+                if (stat?.isDirectory) {
+                    const names = (stat.children ?? []).slice(0, FOLDER_LISTING_LIMIT).map(child => `${child.name}${child.isDirectory ? '/' : ''}`);
+                    files.push({ path: folder, content: names.join('\n') });
+                }
             }
         }
         let text = files.length ? `Project files for context:\n\n${formatContextFiles(files)}` : '';

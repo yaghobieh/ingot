@@ -75,8 +75,11 @@ const BADGE_BY_EXT: Readonly<Record<string, FileBadgeTone>> = {
     ts: 'ts', tsx: 'tsx', js: 'js', jsx: 'jsx', json: 'json', html: 'html', htm: 'html', css: 'css', scss: 'css', md: 'md'
 };
 
-/** Colored file-type badge for an edited-file row. */
+/** Colored file-type badge for an edited-file row or a context chip; a path ending in `/` is a folder. */
 export const fileBadge = (name: string): { readonly label: string; readonly tone: FileBadgeTone } => {
+    if (name.endsWith('/')) {
+        return { label: FILE_BADGE_LABELS.dir, tone: 'dir' };
+    }
     const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
     const tone = BADGE_BY_EXT[ext] ?? 'file';
     return { label: FILE_BADGE_LABELS[tone], tone };

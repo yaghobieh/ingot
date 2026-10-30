@@ -172,34 +172,44 @@ export const toolCard = (info: ToolCallInfo, text: string, builtinServer = 'ingo
     return { kind: 'generic', title, detail, output: text.replace(/^Error: /, '') };
 };
 
-/** Read and search steps for the Explored list. The same file read twice (a recovered shell read, then the tool) is one row. */
+const RULES_PREFIX = 'rules:';
+const readTargets = (target: string): string[] => target.replace(RULES_PREFIX, '').split(',').map(s => s.trim()).filter(Boolean);
+
+/**
+ * Read, rule and search steps for the Explored list. A comma-joined read is one row per file; the same file read
+ * twice (a recovered shell read, then the tool) is one row. Rules are `kind: 'rule'`.
+ */
 export const exploredItems = (steps: readonly { kind: string; target: string }[]): { kind: string; target: string }[] => {
     const seen = new Set<string>();
     const items: { kind: string; target: string }[] = [];
+    const add = (kind: string, target: string): void => {
+        const key = `${kind}\u0000${target}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            items.push({ kind, target });
+        }
+    };
     for (const step of steps) {
-        if (!((step.kind === 'read' && !step.target.startsWith('rules:')) || step.kind === 'search')) {
-            continue;
+        if (step.kind === 'search') {
+            add(step.kind, step.target);
+        } else if (step.kind === 'read') {
+            const kind = step.target.startsWith(RULES_PREFIX) ? 'rule' : 'read';
+            readTargets(step.target).forEach(target => add(kind, target));
         }
-        const key = `${step.kind}\u0000${step.target}`;
-        if (seen.has(key)) {
-            continue;
-        }
-        seen.add(key);
-        items.push({ kind: step.kind, target: step.target });
     }
-    const rank = (item: { kind: string; target: string }): number => item.kind === 'search' ? 2 : item.target.endsWith('/') ? 0 : 1;
+    const rank = (item: { kind: string; target: string }): number => item.kind === 'search' ? 3 : item.kind === 'rule' ? 2 : item.target.endsWith('/') ? 0 : 1;
     return items.sort((a, b) => rank(a) - rank(b));
 };
 
-/** "Explored 3 files, 2 searches" from the run's read / search steps (past tense once the run is over). */
+/** "Explored 3 files, 2 searches" from the run's read / rule / search steps (past tense once the run is over). */
 export const exploredLine = (steps: readonly { kind: string; target: string }[], running: boolean): string | undefined => {
     const files = new Set<string>();
     const folders = new Set<string>();
     let searches = 0;
     for (const step of steps) {
-        if (step.kind === 'read' && !step.target.startsWith('rules:')) {
-            // IDEA-186: a target ending in "/" is a listed folder.
-            step.target.split(',').map(s => s.trim()).filter(Boolean).forEach(f => (f.endsWith('/') ? folders : files).add(f));
+        if (step.kind === 'read') {
+            // IDEA-186: a target ending in "/" is a listed folder. Rules count as files read.
+            readTargets(step.target).forEach(f => (f.endsWith('/') ? folders : files).add(f));
         } else if (step.kind === 'search' || (step.kind === 'run' && /\/(?:web_search|search|search_code|grep)/.test(step.target))) {
             searches++;
         }
