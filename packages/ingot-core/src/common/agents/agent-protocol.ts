@@ -71,8 +71,8 @@ const CALLS_TAG_RE = /<\/?(?:antml:)?function_calls>/g;
 const PARTIAL_CALL_RE = /<(?:antml:)?(?:function_calls|invoke|tool_call)\b[\s\S]*$/;
 const TOOL_JSON_RE = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/gi;
 const FENCED_TOOL_RE = /```(?:tool|json)\s*\n([\s\S]*?)```/gi;
-const INLINE_TOOL_RE = /^[ \t]*(?:ingot\/)?(read_file|list_dir|glob|grep|run|git)\s+(\{[\s\S]*?\})\s*$/gm;
-const KNOWN_INLINE_TOOLS = new Set(['read_file', 'list_dir', 'glob', 'grep', 'run', 'git']);
+const INLINE_TOOL_RE = /^[ \t]*(?:ingot\/)?(read_file|list_dir|glob|grep|codebase_search|run|git)\s+(\{[\s\S]*?\})\s*$/gm;
+const KNOWN_INLINE_TOOLS = new Set(['read_file', 'list_dir', 'glob', 'grep', 'codebase_search', 'run', 'git']);
 /** IDEA-282: a fence named after the tool, e.g. ```ingot/list_dir or ```run, holding the JSON arguments. */
 const NAMED_FENCE_RE = /```([\w-]+\/[\w-]+|[a-z_]+)[ \t]*\n(\{[\s\S]*?\})\s*```/g;
 const NAMED_FENCE_OPEN = /```(?:tool|json|[\w-]+\/[\w-]+|[a-z_]+)[ \t]*\n/g;

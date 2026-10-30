@@ -7,12 +7,14 @@ import type { AgentToolCall } from './agent-protocol';
 import { BUILTIN_TOOL_SERVER } from './agent-actions';
 import { isLibraryPrompt } from './library-app';
 import { isActionRequest } from './task-intent';
+import { INDEX_DIR } from '../codebase-index/codebase-index.consts';
 
 export const WORKSPACE_TOOLS = [
     { name: 'list_dir', description: 'List a folder of the open project. Arguments: {"path"?: "src", "depth"?: 1..3}. Skips .gitignore and dependency folders. Runs at once.' },
     { name: 'read_file', description: 'Read a file of the open project with line numbers. Arguments: {"path": "package.json", "start"?: 1, "end"?: 200}. Runs at once.' },
     { name: 'glob', description: 'Find files by name in the open project. Arguments: {"pattern": "**/*.test.ts", "path"?: "src"}. Respects .gitignore. Runs at once.' },
-    { name: 'grep', description: 'Search the open project\'s files for text or a regex (ripgrep). Arguments: {"pattern": "useCart", "path"?: "src", "glob"?: "*.ts", "regex"?: false}. Respects .gitignore. Runs at once.' }
+    { name: 'grep', description: 'Search the open project\'s files for text or a regex (ripgrep). Arguments: {"pattern": "useCart", "path"?: "src", "glob"?: "*.ts", "regex"?: false}. Respects .gitignore. Runs at once.' },
+    { name: 'codebase_search', description: 'Find code by meaning in the open project\'s local index (IDEA-260). Arguments: {"query": "where are prices rounded", "path"?: "src", "limit"?: 1..20}. Returns ranked snippets with path and line range; open more with read_file. Runs at once.' }
 ] as const;
 export type WorkspaceToolName = typeof WORKSPACE_TOOLS[number]['name'];
 export const WORKSPACE_TOOL_NAMES: readonly string[] = WORKSPACE_TOOLS.map(t => t.name);
@@ -55,6 +57,7 @@ export const workspaceProtocol = (info: WorkspaceInfo): string => [
         : 'The open workspace folder is the source of truth for this project\'s code.',
     'For ANY question about this project or its code ("what do you know about…", "how does … work", "learn the code"), explore it with',
     'ingot/list_dir, ingot/glob, ingot/grep and ingot/read_file FIRST, then answer from what you read. Do not answer from memory and do not use remote tools for it.',
+    'For "where / how is X done" questions without an exact name, start with ingot/codebase_search: it returns the best snippets, which costs fewer tokens than reading whole files.',
     info.github
         ? `Use GitHub tools only when the user asks about the remote repository (pull requests, issues, other branches on GitHub). This project's repository is ${info.github.owner}/${info.github.repo} (owner "${info.github.owner}", repo "${info.github.repo}", from its git remote); use exactly those, never guess.`
         : 'This project has no GitHub remote: do not call GitHub tools for it.',
@@ -339,8 +342,10 @@ export interface RgQuery {
 /** Arguments for ripgrep. Gitignore is on by default; hidden files are included so `.ingot` is visible, `.git` is not. */
 export const rgArgs = (query: RgQuery): string[] => {
     const args = ['--color', 'never', '--hidden', '--glob', '!.git/**', '--glob', '!**/node_modules/**', '--max-filesize', '512K'];
+    // The last matching glob wins in ripgrep, so the index folder is excluded after the caller's glob.
+    const noIndex = ['--glob', `!${INDEX_DIR}/**`];
     if (query.files) {
-        args.push('--files', '--glob', query.glob?.trim() || '*', '--glob', '!.git/**');
+        args.push('--files', '--glob', query.glob?.trim() || '*', '--glob', '!.git/**', ...noIndex);
         if (query.path?.trim()) {
             args.push(query.path.trim());
         }
@@ -353,7 +358,7 @@ export const rgArgs = (query: RgQuery): string[] => {
     if (query.glob?.trim()) {
         args.push('--glob', query.glob.trim());
     }
-    args.push('--', query.pattern ?? '', query.path?.trim() || '.');
+    args.push(...noIndex, '--', query.pattern ?? '', query.path?.trim() || '.');
     return args;
 };
 

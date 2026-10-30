@@ -23,6 +23,8 @@ coverage/
 
 # os / editor
 .ingot-tmp/
+# IDEA-260: local codebase index (vectors, manifest)
+.ingot/index/
 .DS_Store
 *.log
 .idea/

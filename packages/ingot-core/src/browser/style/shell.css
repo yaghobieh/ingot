@@ -134,6 +134,10 @@ body.ingot-shell #theia-statusBar { font-size: 12px; border-top: 0; background: 
 body.ingot-shell #theia-statusBar .element { padding: 0 6px; }
 body.ingot-shell #theia-statusBar .ingot-status-agents { color: var(--ingot-ingot-gold); }
 body.ingot-shell #theia-statusBar .ingot-status-branch { color: var(--theia-foreground); }
+/* IDEA-260: codebase index state. */
+body.ingot-shell #theia-statusBar .ingot-status-index { color: var(--ingot-text-muted); }
+body.ingot-shell #theia-statusBar .ingot-status-index-ready { color: var(--ingot-success); }
+body.ingot-shell #theia-statusBar .ingot-status-index-error { color: var(--ingot-danger); }
 
 /* ---------- Ports tool window ---------- */
 .ingot-ports { background: var(--theia-panel-background); color: var(--theia-foreground); overflow: auto; }

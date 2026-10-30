@@ -44,6 +44,9 @@ import { DebugToolsService } from '../common/debug/debug.types';
 import { IngotTestService } from './ingot-test-service';
 import { TEST_SERVICE_PATH } from '../common/testing/testing.consts';
 import { TestService } from '../common/testing/testing.types';
+import { CodebaseIndexConnection, IngotCodebaseIndexService } from './codebase-index/ingot-codebase-index-service';
+import { CODEBASE_INDEX_SERVICE_PATH } from '../common/codebase-index/codebase-index.consts';
+import { CodebaseIndexService, type CodebaseIndexClient } from '../common/codebase-index/codebase-index.types';
 
 import { BackendApplicationContribution } from '@theia/core/lib/node/backend-application';
 import { IngotAccountBackend } from './account/ingot-account-backend';
@@ -113,4 +116,15 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotTestService).toSelf().inSingletonScope();
     bind(TestService).toService(IngotTestService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(TEST_SERVICE_PATH, () => ctx.container.get<TestService>(TestService))).inSingletonScope();
+    bind(IngotCodebaseIndexService).toSelf().inSingletonScope();
+    bind(CodebaseIndexService).toService(IngotCodebaseIndexService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<CodebaseIndexClient>(CODEBASE_INDEX_SERVICE_PATH, client => {
+        const connection = new CodebaseIndexConnection(ctx.container.get(IngotCodebaseIndexService));
+        connection.setClient(client);
+        client.onDidCloseConnection(() => {
+            connection.removeClient(client);
+            connection.dispose();
+        });
+        return connection;
+    })).inSingletonScope();
 });

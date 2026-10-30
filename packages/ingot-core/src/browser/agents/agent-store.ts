@@ -104,6 +104,9 @@ import { GitService } from '../../common/git/git.types';
 import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
 import { applyTextEdits, codeToolStep, findSymbolPosition, formatDiagnostics, formatLocations, isCodeEditTool, isCodeTool, parseNewName, parseSymbolTarget, severityFilter } from '../../common/agents/code-tools';
 import { CodeToolsService, type CodeEditResult } from './code-tools-service';
+import { CodebaseIndexStore } from '../codebase-index/codebase-index-store';
+import { CODEBASE_SEARCH_TOOL, INDEX_DIR } from '../../common/codebase-index/codebase-index.consts';
+import { formatSearchResult } from '../../common/codebase-index/codebase-index.utils';
 
 let nextId = 1;
 const newChatId = (): string => `chat-${Date.now().toString(36)}-${nextId++}`;
@@ -174,6 +177,7 @@ export class AgentStore {
     @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
     @inject(TerminalService) protected readonly terminals: TerminalService;
     @inject(CodeToolsService) protected readonly codeTools: CodeToolsService;
+    @inject(CodebaseIndexStore) protected readonly codebaseIndex: CodebaseIndexStore;
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
 
@@ -1468,7 +1472,9 @@ export class AgentStore {
 
     protected workspaceStep(call: AgentToolCall): AgentSession['steps'][number] {
         const s = (v: unknown): string => typeof v === 'string' ? v : '';
-        return call.tool === 'grep' || call.tool === 'glob'
+        return call.tool === CODEBASE_SEARCH_TOOL
+            ? { kind: 'search', target: s(call.args.query), done: true }
+            : call.tool === 'grep' || call.tool === 'glob'
             ? { kind: 'search', target: s(call.args.pattern), done: true }
             : call.tool === 'list_dir'
                 ? { kind: 'read', target: `${(s(call.args.path) || '.').replace(/\/+$/, '')}/`, done: true }
@@ -1610,7 +1616,7 @@ export class AgentStore {
                 }
                 const rel = root.relative(entry.resource)?.toString() ?? entry.name;
                 if (entry.isDirectory) {
-                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot') && !ignored(rel)) {
+                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot') && rel !== INDEX_DIR && !ignored(rel)) {
                         await visit(entry.resource);
                     }
                     continue;
@@ -1656,7 +1662,7 @@ export class AgentStore {
                     continue;
                 }
                 if (entry.isDirectory) {
-                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot')) {
+                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot') && rel !== INDEX_DIR) {
                         await visit(entry.resource);
                     }
                     continue;
@@ -1675,6 +1681,21 @@ export class AgentStore {
         };
         await visit(base);
         return { text: hits.length ? `${hits.length}${hits.length >= GREP_MAX_MATCHES ? '+' : ''} match(es) for "${pattern}" in ${scanned} file(s):\n${hits.join('\n')}` : `No matches for "${pattern}" (${scanned} file(s) searched).`, isError: false };
+    }
+
+    /** IDEA-260: ranked snippets from the local codebase index. */
+    protected async codebaseSearchTool(rootPath: string, query: string, path: string, limit: unknown): Promise<AgentActionResult> {
+        if (!query.trim()) {
+            return { text: 'No query given.', isError: true };
+        }
+        if (!this.codebaseIndex.enabled) {
+            return { text: 'The codebase index is turned off in Settings. Use ingot/grep instead.', isError: true };
+        }
+        if (path && !isSafeRelativePath(path.replace(/\/+$/, ''))) {
+            return { text: `"${path}" is not inside the project.`, isError: true };
+        }
+        const result = await this.codebaseIndex.search(rootPath, query, { path, ...(limit !== undefined ? { limit: Number(limit) } : {}) });
+        return { text: formatSearchResult(result), isError: Boolean(result.error) };
     }
 
     /** Ingot's built-in agent tools (IDEA-109): git, terminal command, web search / fetch, file delete. */
@@ -1708,6 +1729,7 @@ export class AgentStore {
                 case 'list_dir': return await this.listDirTool(root, str(call.args.path), Math.min(3, Math.max(1, Number(call.args.depth) || 1)));
                 case 'glob': return await this.globTool(root, str(call.args.pattern), str(call.args.path));
                 case 'grep': return await this.grepTool(root, str(call.args.pattern), str(call.args.path), str(call.args.glob), call.args.regex === true);
+                case CODEBASE_SEARCH_TOOL: return await this.codebaseSearchTool(rootPath, str(call.args.query), str(call.args.path), call.args.limit);
                 case 'run': {
                     const command = str(call.args.command);
                     const cwd = this.resolveRunCwd(rootPath, str(call.args.cwd));
