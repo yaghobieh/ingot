@@ -11,9 +11,9 @@ import type {
     DiscoveredTest, ExplorerFile, ExplorerTest, ProjectManifest, RunnerCommand, TestLoopStep, TestResult, TestRunner, TestRunRequest,
     TestRunResult, TestState
 } from './testing.types';
+import { stripAnsi } from '../processes/processes.utils';
 
 const MS_PER_SECOND = 1000;
-const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
 
 export const testId = (file: string, suites: readonly string[], title: string): string => `${file}${ID_SEPARATOR}${[...suites, title].join(' ')}`;
 
@@ -174,7 +174,7 @@ export const relativeTo = (root: string, path: string): string => {
     return full.startsWith(`${base}/`) ? full.slice(base.length + 1) : full.replace(/^\.\//, '');
 };
 
-const clean = (text: string): string => text.replace(ANSI, '').trim().slice(0, FAILURE_MESSAGE_MAX_CHARS);
+const clean = (text: string): string => stripAnsi(text).trim().slice(0, FAILURE_MESSAGE_MAX_CHARS);
 
 /** The first `<file>:<line>` in a stack that points into the test file. */
 export const lineFromStack = (message: string, file: string): number | undefined => {
