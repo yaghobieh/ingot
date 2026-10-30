@@ -42,7 +42,7 @@ interface ToolbarButtonProps {
     readonly className?: string;
 }
 
-/** Monochrome Ingot mark drawn on the accent logo square. */
+/** The Rex </> glyph of the app icon, no tile behind it. */
 const LOGO_GLYPH = <RexMark size={TOOLBAR_LOGO_SIZE} />;
 
 const ToolbarButton = ({ id, icon, title, onClick, label, dropdown, className }: ToolbarButtonProps): React.ReactElement => (

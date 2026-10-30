@@ -19,13 +19,14 @@ export class IngotElectronMainApplication extends ElectronMainApplication {
 
     /**
      * No splash window: the main window opens at once as a plain window in the last theme background (restored from
-     * the saved window state; the Ingot canvas on first launch) and the workbench fades in when ready.
+     * the saved window state; the Ingot canvas on first launch) and the workbench fades in when ready. Windows opened
+     * later in the session start in the current theme background.
      */
     protected override getDefaultOptions(): TheiaBrowserWindowOptions {
         const options = super.getDefaultOptions();
         return {
             ...options,
-            backgroundColor: launchBackground(undefined, nativeTheme.shouldUseDarkColors),
+            backgroundColor: launchBackground(this.customBackgroundColor, nativeTheme.shouldUseDarkColors),
             webPreferences: { ...options.webPreferences, webviewTag: true }
         };
     }
