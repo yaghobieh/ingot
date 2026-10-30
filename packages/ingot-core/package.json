@@ -64,6 +64,9 @@
     },
     {
       "frontendElectron": "lib/electron-browser/ingot-workbench-electron-module"
+    },
+    {
+      "frontend": "lib/browser/sandbox/sandbox-frontend-module"
     }
   ]
 }

@@ -204,7 +204,7 @@ export class IngotProcessService implements ProcessService {
         this.prune();
         try {
             const child = spawn(shell.cmd, shell.args, {
-                cwd: options.cwd, env: { ...process.env, FORCE_COLOR: '0', CI: process.env.CI ?? '' }, stdio: ['ignore', 'pipe', 'pipe'], detached: !win, windowsHide: true
+                cwd: options.cwd, env: { ...process.env, FORCE_COLOR: '0', CI: process.env.CI ?? '', ...options.env }, stdio: ['ignore', 'pipe', 'pipe'], detached: !win, windowsHide: true
             });
             entry.child = child;
             this.update(entry, { pid: child.pid });

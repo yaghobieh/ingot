@@ -26,6 +26,8 @@ export interface ProcessStartOptions {
     readonly command: string;
     readonly origin?: ProcessOrigin;
     readonly background?: boolean;
+    /** IDEA-288: extra environment, e.g. the proxy settings that keep a sandboxed command off the network. */
+    readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface ForegroundOptions extends ProcessStartOptions {
