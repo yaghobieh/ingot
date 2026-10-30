@@ -9,7 +9,7 @@ import { connectOllama } from '../src/models.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
 
-const TOKEN = 'xoxp-e2e-slack-token';
+const TOKEN = 'xoxp-e2e-fake';
 const GLOBAL_MCP = path.join(E2E_CONFIG_DIR, 'mcp.json');
 const SETTINGS = path.join(E2E_CONFIG_DIR, 'settings.json');
 const SECRET_KEY = 'mcp:slack:header:Authorization';
