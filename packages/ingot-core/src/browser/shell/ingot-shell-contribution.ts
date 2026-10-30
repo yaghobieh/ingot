@@ -11,6 +11,7 @@ import { IngotStripeWidget } from '../stripe/ingot-stripe-widget';
 import { IngotRightStripeWidget } from '../tool-windows/right-stripe-widget';
 import { IngotAgentsContribution } from '../agents/agents-contribution';
 import { IngotLayoutContribution } from '../layout/layout-contribution';
+import { isAgentsWindow } from '../workbench/agents-window';
 import { WidgetManager } from '@theia/core/lib/browser/widget-manager';
 import { ViewContainer } from '@theia/core/lib/browser/view-container';
 import { IngotProjectTabsWidget } from '../groups/project-tabs-widget';
@@ -81,7 +82,11 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         // only a fresh window gets the reference layout.
         const restorer = this.layoutRestorer instanceof IngotShellLayoutRestorer ? this.layoutRestorer : undefined;
         const restored = !!restorer?.restored;
-        await this.agents.openView({ activate: false, reveal: !restored });
+        await this.workspace.ready;
+        // IDEA-266: a window without a folder shows only the welcome screen; the agent chat comes with the folder.
+        if (this.workspace.opened || isAgentsWindow()) {
+            await this.agents.openView({ activate: false, reveal: !restored });
+        }
         this.rightStripe.refreshSoon();
         this.renameProjectView();
         if (!restored) {

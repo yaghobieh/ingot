@@ -154,45 +154,41 @@ body.ingot-shell #theia-statusBar .ingot-status-branch { color: var(--theia-fore
 .ingot-ports-error { color: var(--ingot-danger); }
 
 /* ---------- Welcome (IDEA-15) ---------- */
-/* IDEA-165: new-window welcome page (one centered column, brand blue primary, gold accents). */
+/* IDEA-266: empty-window welcome screen (centered logo + plan, three cards, recent projects). Theme colors only. */
 .ingot-welcome { background: var(--theia-editor-background); color: var(--theia-foreground); overflow: auto; }
-.ingot-welcome-page { display: flex; justify-content: center; min-height: 100%; padding: 36px 24px 28px; box-sizing: border-box; }
-.ingot-welcome-column { width: 100%; max-width: 420px; display: flex; flex-direction: column; }
-.ingot-welcome-hero { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 24px; }
-.ingot-welcome-logo { width: 64px; height: 64px; }
-.ingot-welcome-title { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: .2px; }
-.ingot-welcome-buttons { display: flex; flex-direction: column; gap: 10px; }
-.ingot-welcome-btn { display: flex; align-items: center; justify-content: center; gap: 8px; height: 38px; border-radius: 6px; border: 1px solid transparent; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
-.ingot-welcome-btn.primary { background: var(--ingot-forge-blue); color: #fff; }
-.ingot-welcome-btn.primary:hover { background: color-mix(in srgb, var(--ingot-forge-blue) 86%, #fff); }
-.ingot-welcome-btn.secondary { background: var(--theia-sideBar-background); color: var(--theia-foreground); border-color: var(--theia-panel-border); }
-.ingot-welcome-btn.secondary:hover { border-color: var(--ingot-ingot-gold); }
-.ingot-welcome-btn:disabled { opacity: .7; cursor: default; }
-.ingot-welcome-btn:focus-visible, .ingot-welcome-project:focus-visible, .ingot-welcome-install:focus-visible { outline: 1px solid var(--theia-focusBorder); outline-offset: 2px; }
-.ingot-welcome-link, .ingot-welcome-more { align-self: center; border: 0; background: transparent; color: var(--theia-descriptionForeground); font: inherit; font-size: 12px; padding: 4px 8px; cursor: pointer; }
-.ingot-welcome-link:hover, .ingot-welcome-more:hover { color: var(--ingot-ingot-gold); }
-.ingot-welcome-block { margin-top: 22px; display: flex; flex-direction: column; }
-.ingot-welcome-block h2 { font-size: 13px; font-weight: 600; margin: 0 0 10px; }
-.ingot-welcome-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.ingot-welcome-project { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px 10px; border: 1px solid var(--theia-panel-border); border-radius: 6px; background: var(--theia-sideBar-background); color: inherit; font: inherit; text-align: left; cursor: pointer; box-sizing: border-box; }
-.ingot-welcome-project:hover { border-color: var(--ingot-ingot-gold); }
-.ingot-welcome-project-name { font-size: 13px; }
-.ingot-welcome-kind { color: var(--theia-descriptionForeground); }
-.ingot-welcome-project-path { font-size: 12px; color: var(--theia-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ingot-welcome-empty { padding: 8px 0; color: var(--theia-descriptionForeground); font-size: 12px; }
-.ingot-welcome-more { margin-top: 6px; }
-.ingot-welcome-ext { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--theia-panel-border); border-radius: 6px; background: var(--theia-sideBar-background); }
-.ingot-welcome-ext-icon { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 5px; font-size: 16px; color: var(--ingot-ingot-gold); object-fit: contain; }
-.ingot-welcome-ext-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.ingot-welcome-ext-name { font-size: 13px; }
-.ingot-welcome-ext-desc { font-size: 12px; color: var(--theia-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ingot-welcome-install { flex: none; height: 24px; padding: 0 10px; border-radius: 4px; border: 1px solid var(--theia-panel-border); background: var(--theia-editor-background); color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
-.ingot-welcome-install:hover:not(:disabled) { border-color: var(--ingot-forge-blue); color: var(--ingot-forge-blue); }
-.ingot-welcome-install:disabled { opacity: .7; cursor: default; }
-.ingot-welcome-themes { display: flex; justify-content: center; gap: 4px; margin-top: 18px; }
-.ingot-welcome-theme { border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--theia-descriptionForeground); font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer; }
+.ingot-welcome-page { display: flex; align-items: center; justify-content: center; min-height: 100%; padding: 32px 24px; box-sizing: border-box; }
+.ingot-welcome-column { width: 100%; max-width: 360px; display: flex; flex-direction: column; margin-top: -6vh; }
+.ingot-welcome-hero { display: flex; flex-direction: column; gap: 4px; margin-bottom: 22px; }
+.ingot-welcome-brand { display: flex; align-items: center; gap: 8px; }
+.ingot-welcome-logo { width: 30px; height: 30px; flex: none; }
+.ingot-welcome-title { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.ingot-welcome-plan { padding-left: 38px; font-size: 12px; color: var(--theia-descriptionForeground); }
+.ingot-welcome-link { border: 0; padding: 0; background: transparent; font: inherit; color: var(--theia-textLink-foreground); cursor: pointer; }
+.ingot-welcome-link:hover { color: var(--theia-textLink-activeForeground); text-decoration: underline; }
+.ingot-welcome-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ingot-welcome-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 10px; border: 1px solid transparent; border-radius: 6px; background: color-mix(in srgb, var(--theia-foreground) 6%, transparent); color: var(--theia-foreground); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.ingot-welcome-card:hover:not(:disabled) { background: color-mix(in srgb, var(--theia-foreground) 11%, transparent); }
+.ingot-welcome-card:disabled { opacity: .7; cursor: default; }
+.ingot-welcome-card .codicon { font-size: 14px; color: var(--theia-descriptionForeground); }
+.ingot-welcome-card:focus-visible, .ingot-welcome-project:focus-visible, .ingot-welcome-link:focus-visible { outline: 1px solid var(--theia-focusBorder); outline-offset: 2px; }
+.ingot-welcome-recent { margin-top: 24px; display: flex; flex-direction: column; font-size: 12px; }
+.ingot-welcome-recent-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; color: var(--theia-descriptionForeground); font-size: 11px; }
+.ingot-welcome-recent-head h2 { margin: 0; font: inherit; }
+.ingot-welcome-recent-head .ingot-welcome-link { color: var(--theia-descriptionForeground); }
+.ingot-welcome-recent-head .ingot-welcome-link:hover { color: var(--theia-foreground); }
+.ingot-welcome-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ingot-welcome-project { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%; padding: 3px 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ingot-welcome-project-name { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-welcome-card-label { white-space: nowrap; }
+/* Long paths lose their start, not the folder name at the end. */
+.ingot-welcome-project-path { min-width: 0; font-size: 11px; color: var(--theia-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
+.ingot-welcome-project-path > bdi { direction: ltr; unicode-bidi: isolate; }
+.ingot-welcome-project:hover .ingot-welcome-project-name { color: var(--theia-textLink-foreground); }
+.ingot-welcome-empty { padding: 4px 0; color: var(--theia-descriptionForeground); }
 .ingot-welcome-initials { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; font-weight: 700; font-size: 12px; color: #fff; background: linear-gradient(135deg, var(--ingot-ingot-gold), var(--ingot-ingot-gold-deep)); }
-.ingot-welcome-theme.active { border-color: var(--ingot-ingot-gold); color: var(--theia-foreground); }
+/* A window without a folder is only the welcome screen: no chat buttons and no tab strip over it. */
+body.ingot-no-folder #ingot-tb-chat, body.ingot-no-folder #ingot-tb-agents-window { display: none; }
+body.ingot-no-folder #theia-main-content-panel .lm-TabBar:has(.lm-TabBar-content > .lm-TabBar-tab:only-child[id$='ingot-welcome']) { display: none; }
 
 /* ---------- About (IDEA-16) ---------- */
 .ingot-about-header { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }
