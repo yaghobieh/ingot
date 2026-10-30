@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectStack, orderedScripts, packageSignals, scaffoldAgentsMd } from './init-agents.utils';
+import { detectStack, orderedScripts, packageManagerOf, packageSignals, scaffoldAgentsMd } from './init-agents.utils';
 
 describe('IDEA-295 /init scaffolds AGENTS.md', () => {
     const pkg = packageSignals(JSON.stringify({
@@ -7,6 +7,12 @@ describe('IDEA-295 /init scaffolds AGENTS.md', () => {
         scripts: { postinstall: 'x', lint: 'eslint .', build: 'tsc', test: 'vitest run', dev: 'vite' },
         dependencies: { react: '^19' }, devDependencies: { typescript: '~5', vitest: '^2' }
     }))!;
+
+    it('detects the package manager from the lockfile', () => {
+        expect(packageManagerOf(['package.json', 'pnpm-lock.yaml', 'package-lock.json'])).toBe('pnpm');
+        expect(packageManagerOf(['package-lock.json'])).toBe('npm');
+        expect(packageManagerOf(['README.md'])).toBeUndefined();
+    });
 
     it('reads package.json and detects the stack', () => {
         expect(pkg).toMatchObject({ name: 'shop', description: 'A small shop.', workspaces: ['packages/*'] });

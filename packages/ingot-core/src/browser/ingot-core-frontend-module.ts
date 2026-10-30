@@ -119,6 +119,7 @@ import { IngotDiffWidget } from './commit/ingot-diff-widget';
 import { AiCommitService } from './commit/ai-commit-service';
 import { AgentHooksService } from './hooks/agent-hooks-service';
 import { AgentEventHooks } from './hooks/agent-event-hooks';
+import { InitAgentsContribution } from './project-config/init-agents-contribution';
 import { AgentHooksGate } from './hooks/hooks-contribution';
 import { hooksPreferenceSchema } from './hooks/hooks-preferences';
 import { CommitWindow } from './commit/commit-window';
@@ -231,6 +232,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(AiCommitService).toSelf().inSingletonScope();
     bind(AgentHooksService).toSelf().inSingletonScope();
     bind(AgentEventHooks).toSelf().inSingletonScope();
+    bind(InitAgentsContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(InitAgentsContribution);
     bind(AgentHooksGate).toSelf().inSingletonScope();
     bind(CommandContribution).toService(AgentHooksGate);
     bind(PreferenceContribution).toConstantValue({ schema: hooksPreferenceSchema });

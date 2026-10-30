@@ -477,13 +477,13 @@ export class AgentStore {
             prompt: asked, wants: this.workLoopOn() && wantsWorkLoop(asked), edits: [], checks: [], fixAttempts: 0,
             e2eNudged: false, commitNudged: false, commitBlocked: false, committed: false, verifiedEdits: 0, required: []
         });
-        if (asked) {
-            this.onDidSendEmitter.fire({ session, prompt: composed?.text ?? asked });
-        }
         if (this.commandHandlers.some(handle => handle(session, prompt.trim()))) {
             session.updatedAt = Date.now();
             this.changed();
             return session;
+        }
+        if (asked) {
+            this.onDidSendEmitter.fire({ session, prompt: composed?.text ?? asked });
         }
         if (this.flags.forceUpdate) {
             session.messages.push({ role: 'system', text: UPDATE_TEXT.chatBlocked });

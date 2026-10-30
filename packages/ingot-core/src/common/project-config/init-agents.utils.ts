@@ -1,4 +1,4 @@
-import { FOLDER_ROLES, MAX_FOLDERS, MAX_SCRIPTS, SCRIPT_ORDER, STACK_DEPENDENCIES, STACK_FILES } from './init-agents.consts';
+import { FOLDER_ROLES, LOCKFILE_MANAGERS, MAX_FOLDERS, MAX_SCRIPTS, SCRIPT_ORDER, STACK_DEPENDENCIES, STACK_FILES } from './init-agents.consts';
 import type { RepoSignals } from './init-agents.types';
 
 /** Languages, frameworks and tools the repo uses, from its dependencies and root marker files. */
@@ -17,6 +17,10 @@ export const detectStack = (signals: Pick<RepoSignals, 'dependencies' | 'files'>
 
 const runScript = (manager: string, script: string): string =>
     manager === 'npm' ? (script === 'test' || script === 'start' ? `npm ${script}` : `npm run ${script}`) : `${manager} ${script}`;
+
+/** Package manager from the root lockfile; undefined without one. */
+export const packageManagerOf = (files: readonly string[]): string | undefined =>
+    LOCKFILE_MANAGERS.find(l => files.includes(l.file))?.manager;
 
 /** Most-used scripts first, then the rest in file order. */
 export const orderedScripts = (scripts: Readonly<Record<string, string>>): [string, string][] => {

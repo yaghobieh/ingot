@@ -209,6 +209,9 @@ export class IngotAgentsWidget extends ReactWidget {
             case 'memories':
                 this.toggleMemories();
                 return;
+            case 'prompt':
+                this.store.send(action.prompt);
+                break;
         }
         this.update();
         this.focusComposer();

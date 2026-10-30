@@ -58,4 +58,16 @@ export const FOLDER_ROLES: Readonly<Record<string, string>> = {
 /** Scripts listed first (the ones agents run most). */
 export const SCRIPT_ORDER = ['dev', 'start', 'build', 'test', 'lint', 'typecheck', 'gate', 'e2e', 'format'] as const;
 export const MAX_SCRIPTS = 14;
+
+/** Package manager from the lockfile at the root (first match wins). */
+export const LOCKFILE_MANAGERS: readonly { readonly file: string; readonly manager: string }[] = [
+    { file: 'pnpm-lock.yaml', manager: 'pnpm' },
+    { file: 'yarn.lock', manager: 'yarn' },
+    { file: 'bun.lockb', manager: 'bun' },
+    { file: 'bun.lock', manager: 'bun' },
+    { file: 'package-lock.json', manager: 'npm' }
+];
+
+/** Folders `/init` leaves out of the layout. */
+export const INIT_SKIPPED_FOLDERS: readonly string[] = ['node_modules', 'dist', 'build', 'out', 'lib-cov', 'coverage', '.git', '.next', '.turbo', '.cache', 'target', '.venv', '.idea', '.vscode', '.ingot-tmp'];
 export const MAX_FOLDERS = 16;
