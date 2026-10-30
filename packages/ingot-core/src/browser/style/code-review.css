@@ -1,0 +1,91 @@
+/* IDEA-293: the Review panel (AI code review findings). */
+.ingot-code-review { background: var(--ingot-bg); color: var(--ingot-text); font-size: 13px; outline: none; }
+.ingot-code-review-root { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.ingot-code-review-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--ingot-space-2);
+    padding: var(--ingot-space-1) var(--ingot-space-2);
+    border-bottom: 1px solid var(--ingot-border);
+    background: var(--ingot-toolbar);
+    flex: none;
+}
+.ingot-code-review-label { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-code-review-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ingot-space-1);
+    height: 22px;
+    padding: 0 var(--ingot-space-2);
+    border: 1px solid var(--ingot-border);
+    border-radius: 5px;
+    background: var(--ingot-surface);
+    color: var(--ingot-text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.ingot-code-review-btn:hover:not(:disabled) { background: var(--ingot-selection); }
+.ingot-code-review-btn:disabled, .ingot-code-review-icon:disabled { opacity: .5; cursor: default; }
+.ingot-code-review-icon { width: 22px; height: 22px; border: 0; border-radius: 5px; background: transparent; color: var(--ingot-text-muted); cursor: pointer; }
+.ingot-code-review-icon:hover:not(:disabled) { background: var(--ingot-selection); color: var(--ingot-text); }
+.ingot-code-review-status { padding: 6px var(--ingot-space-3); color: var(--ingot-text-muted); font-size: 12px; flex: none; }
+.ingot-code-review-error { color: var(--ingot-danger); }
+.ingot-code-review-budget { color: var(--ingot-warning); }
+.ingot-code-review-list { overflow: auto; flex: 1; min-height: 0; padding-bottom: var(--ingot-space-2); }
+.ingot-review-file-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: var(--ingot-space-1) var(--ingot-space-3);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    background: var(--ingot-bg);
+}
+.ingot-review-file-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-review-finding {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--ingot-space-2);
+    padding: 5px var(--ingot-space-3) 5px 28px;
+    cursor: pointer;
+    outline: none;
+}
+.ingot-review-finding:hover, .ingot-review-finding:focus-visible { background: var(--ingot-selection); }
+.ingot-review-finding-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.ingot-review-finding-title { color: var(--ingot-text); }
+.ingot-review-finding-detail { color: var(--ingot-text-muted); font-size: 12px; line-height: 1.4; }
+.ingot-review-finding-line { color: var(--ingot-text-muted); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.ingot-review-severity, .ingot-review-count {
+    flex: none;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    color: var(--ingot-sev);
+    background: color-mix(in srgb, var(--ingot-sev) 14%, transparent);
+}
+.ingot-review-severity { min-width: 52px; text-align: center; }
+.ingot-review-severity-critical { --ingot-sev: var(--ingot-danger); }
+.ingot-review-severity-high { --ingot-sev: var(--ingot-accent); }
+.ingot-review-severity-medium { --ingot-sev: var(--ingot-warning); }
+.ingot-review-severity-low { --ingot-sev: var(--ingot-info); }
+.ingot-review-fix {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ingot-space-1);
+    height: 22px;
+    padding: 0 var(--ingot-space-2);
+    border: 0;
+    border-radius: 5px;
+    background: var(--ingot-primary);
+    color: var(--ingot-primary-text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    opacity: .85;
+}
+.ingot-review-fix:hover { background: var(--ingot-primary-hover); opacity: 1; }
