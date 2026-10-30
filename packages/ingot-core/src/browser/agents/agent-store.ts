@@ -1235,7 +1235,7 @@ export class AgentStore {
                     this.changed();
                     continue;
                 }
-                if (choice.decision === 'always' && rootPath) {
+                if (choice.decision === 'always' && rootPath && !action.alwaysAsk) {
                     await (action.command ? this.setAlwaysRunCommand(rootPath, action.command, true) : this.setAlwaysRun(rootPath, action.kind, true));
                 }
             }
