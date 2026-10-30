@@ -1,8 +1,12 @@
 import { Emitter, type Event } from '@theia/core/lib/common/event';
-import type { BrowserScreenshot } from '../../common/browser-tool/browser-tool.types';
-import { BROWSER_LOAD_TIMEOUT_MS, BROWSER_PARTITION, BROWSER_SETTLE_MS } from '../../common/browser-tool/browser-tool.consts';
-import { proxyUrl, unproxyUrl } from '../../common/browser-tool/browser-tool.utils';
-import { serializeScript, type PageScript } from './page-scripts';
+import type { BrowserConsoleEntry, BrowserNetworkError, BrowserScreenshot, PageSelection } from '../../common/browser-tool/browser-tool.types';
+import {
+    BROWSER_LOAD_TIMEOUT_MS, BROWSER_LOG_LIMIT, BROWSER_NET_PREFIX, BROWSER_PARTITION, BROWSER_SEL_PREFIX, BROWSER_SETTLE_MS, BROWSER_STATUS_META,
+    HTTP_ERROR_MIN, LOAD_ABORTED_CODE, SELECTION_DEBOUNCE_MS
+} from '../../common/browser-tool/browser-tool.consts';
+import { consoleLevel, parseObserverMessage, proxyUrl, pushCapped, unproxyUrl } from '../../common/browser-tool/browser-tool.utils';
+import { failedAssets, installObserver, readSelection, serializeScript, type PageScript, type SelectionReport } from './page-scripts';
+import { PAGE_NATIVE_KEY_CODES } from './browser-tool.browser-consts';
 
 export interface BrowserNavigation {
     readonly url: string;
@@ -16,7 +20,12 @@ export interface BrowserEngine {
     /** Real pages with scripts (desktop) or a static, proxied render (web build). */
     readonly kind: 'webview' | 'frame';
     readonly onDidNavigate: Event<BrowserNavigation>;
+    /** IDEA-289: the user selected text on the page (undefined: the selection was cleared). */
+    readonly onDidSelect: Event<PageSelection | undefined>;
     readonly current: BrowserNavigation;
+    /** IDEA-289: console messages and failed requests of the current page (cleared on each new page). */
+    readonly consoleEntries: readonly BrowserConsoleEntry[];
+    readonly networkErrors: readonly BrowserNetworkError[];
     navigate(url: string): Promise<void>;
     back(): Promise<void>;
     forward(): Promise<void>;
@@ -45,11 +54,35 @@ interface WebviewTag extends HTMLElement {
     capturePage(): Promise<{ toDataURL(): string; getSize(): { width: number; height: number } }>;
 }
 
+/** The webview events Ingot reads (Electron puts the fields on the DOM event). */
+interface ConsoleMessageEvent extends globalThis.Event {
+    readonly level: number | string;
+    readonly message: string;
+    readonly line?: number;
+    readonly sourceId?: string;
+}
+
+interface NavigateEvent extends globalThis.Event {
+    readonly url: string;
+    readonly httpResponseCode?: number;
+}
+
+interface FailLoadEvent extends globalThis.Event {
+    readonly errorCode: number;
+    readonly errorDescription: string;
+    readonly validatedURL: string;
+    readonly isMainFrame: boolean;
+}
+
 abstract class BaseEngine {
     protected readonly onDidNavigateEmitter = new Emitter<BrowserNavigation>();
     readonly onDidNavigate = this.onDidNavigateEmitter.event;
+    protected readonly onDidSelectEmitter = new Emitter<PageSelection | undefined>();
+    readonly onDidSelect = this.onDidSelectEmitter.event;
     protected state: BrowserNavigation = { url: 'about:blank', title: '', loading: false };
     protected loadWaiters: (() => void)[] = [];
+    readonly consoleEntries: BrowserConsoleEntry[] = [];
+    readonly networkErrors: BrowserNetworkError[] = [];
 
     get current(): BrowserNavigation {
         return this.state;
@@ -67,8 +100,24 @@ abstract class BaseEngine {
         return Promise.race([new Promise<void>(resolve => this.loadWaiters.push(resolve)), delay(BROWSER_LOAD_TIMEOUT_MS)]).then(() => delay(BROWSER_SETTLE_MS));
     }
 
+    /** A new page: its logs start empty and any selection is gone. */
+    protected newPage(): void {
+        this.consoleEntries.splice(0);
+        this.networkErrors.splice(0);
+        this.onDidSelectEmitter.fire(undefined);
+    }
+
+    protected addNetworkError(entry: Omit<BrowserNetworkError, 'at'>): void {
+        pushCapped(this.networkErrors, { ...entry, at: Date.now() }, BROWSER_LOG_LIMIT);
+    }
+
+    protected select(report: SelectionReport): void {
+        this.onDidSelectEmitter.fire(report.text ? { text: report.text, url: this.state.url, title: this.state.title, ...(report.rect ? { rect: report.rect } : {}) } : undefined);
+    }
+
     dispose(): void {
         this.onDidNavigateEmitter.dispose();
+        this.onDidSelectEmitter.dispose();
     }
 }
 
@@ -96,10 +145,52 @@ export class WebviewEngine extends BaseEngine implements BrowserEngine {
         };
         this.element.addEventListener('did-start-loading', () => sync(true));
         this.element.addEventListener('did-stop-loading', () => sync(false));
-        this.element.addEventListener('did-fail-load', () => sync(false));
-        this.element.addEventListener('did-navigate', () => sync(this.element.isLoading()));
+        this.element.addEventListener('did-fail-load', e => {
+            this.failed(e as FailLoadEvent);
+            sync(false);
+        });
+        this.element.addEventListener('did-navigate', e => {
+            this.navigated(e as NavigateEvent);
+            sync(this.element.isLoading());
+        });
         this.element.addEventListener('did-navigate-in-page', () => sync(this.element.isLoading()));
         this.element.addEventListener('page-title-updated', () => sync(this.element.isLoading()));
+        this.element.addEventListener('console-message', e => this.consoleMessage(e as ConsoleMessageEvent));
+        this.element.addEventListener('dom-ready', () => void this.observe());
+    }
+
+    protected navigated(event: NavigateEvent): void {
+        this.newPage();
+        if (event.httpResponseCode && event.httpResponseCode >= HTTP_ERROR_MIN) {
+            this.addNetworkError({ kind: 'document', url: event.url, status: event.httpResponseCode });
+        }
+    }
+
+    protected failed(event: FailLoadEvent): void {
+        if (event.errorCode !== LOAD_ABORTED_CODE) {
+            this.addNetworkError({ kind: event.isMainFrame ? 'document' : 'resource', url: event.validatedURL, error: event.errorDescription || String(event.errorCode) });
+        }
+    }
+
+    protected consoleMessage(event: ConsoleMessageEvent): void {
+        const observed = parseObserverMessage(event.message);
+        if (observed?.kind === 'net') {
+            this.addNetworkError(observed.entry);
+        } else if (observed?.kind === 'sel') {
+            this.select(observed.selection ?? { text: '' });
+        } else if (!observed) {
+            pushCapped(this.consoleEntries, {
+                level: consoleLevel(event.level), text: event.message, at: Date.now(),
+                ...(event.sourceId ? { source: event.sourceId } : {}), ...(event.line ? { line: event.line } : {})
+            }, BROWSER_LOG_LIMIT);
+        }
+    }
+
+    protected async observe(): Promise<void> {
+        if (this.element.getURL() === 'about:blank') {
+            return;
+        }
+        await this.run(installObserver, { netPrefix: BROWSER_NET_PREFIX, selPrefix: BROWSER_SEL_PREFIX, debounceMs: SELECTION_DEBOUNCE_MS, minStatus: HTTP_ERROR_MIN }).catch(() => undefined);
     }
 
     async navigate(url: string): Promise<void> {
@@ -152,6 +243,7 @@ export class FrameEngine extends BaseEngine implements BrowserEngine {
     readonly element: HTMLIFrameElement;
     protected history: string[] = [];
     protected index = -1;
+    protected selectionTimer?: ReturnType<typeof setTimeout>;
 
     constructor() {
         super();
@@ -162,10 +254,53 @@ export class FrameEngine extends BaseEngine implements BrowserEngine {
         this.element.addEventListener('load', () => {
             const doc = this.element.contentDocument;
             const href = this.element.contentWindow?.location.href ?? 'about:blank';
+            const url = href === 'about:blank' ? href : unproxyUrl(href);
             doc?.addEventListener('click', e => this.interceptClick(e), true);
             doc?.addEventListener('submit', e => e.preventDefault(), true);
-            this.setState({ url: href === 'about:blank' ? href : unproxyUrl(href), title: doc?.title ?? '', loading: false });
+            if (doc && url !== 'about:blank') {
+                this.watch(doc, url);
+            }
+            this.setState({ url, title: doc?.title ?? '', loading: false });
         });
+    }
+
+    /** IDEA-289: the proxy's status mark, assets that failed, and the user's selection. */
+    protected watch(doc: Document, url: string): void {
+        const status = Number(doc.querySelector(`meta[name="${BROWSER_STATUS_META}"]`)?.getAttribute('content'));
+        if (status >= HTTP_ERROR_MIN) {
+            this.addNetworkError({ kind: 'document', url, status });
+        }
+        failedAssets(doc, {}).forEach(asset => this.addNetworkError({ kind: 'resource', url: asset }));
+        doc.addEventListener('error', e => {
+            const el = e.target as (Element & { currentSrc?: string; src?: string; href?: string }) | null;
+            const asset = el?.currentSrc || el?.src || el?.href;
+            if (asset) {
+                this.addNetworkError({ kind: 'resource', url: String(asset) });
+            }
+        }, true);
+        const selection = (): void => {
+            clearTimeout(this.selectionTimer);
+            this.selectionTimer = setTimeout(() => this.select(readSelection(doc, {})), SELECTION_DEBOUNCE_MS);
+        };
+        doc.addEventListener('mouseup', selection, true);
+        doc.addEventListener('keyup', selection, true);
+        doc.defaultView?.addEventListener('scroll', selection, true);
+        doc.addEventListener('keydown', e => this.forwardShortcut(e), true);
+    }
+
+    /** Keys pressed in the frame never reach Ingot; Ctrl / Cmd / Alt chords are replayed on the panel so Ingot shortcuts work (copy, paste, undo stay native). */
+    protected forwardShortcut(event: KeyboardEvent): void {
+        const chord = event.ctrlKey || event.metaKey || event.altKey;
+        if (!chord || (!event.altKey && PAGE_NATIVE_KEY_CODES.includes(event.code))) {
+            return;
+        }
+        const replay = new KeyboardEvent('keydown', {
+            key: event.key, code: event.code, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey, bubbles: true, cancelable: true
+        });
+        this.element.dispatchEvent(replay);
+        if (replay.defaultPrevented) {
+            event.preventDefault();
+        }
     }
 
     /** The user's own clicks on links (Take control) load through the proxy too. */
@@ -185,6 +320,7 @@ export class FrameEngine extends BaseEngine implements BrowserEngine {
 
     protected async load(url: string): Promise<void> {
         const loaded = this.waitForLoad();
+        this.newPage();
         this.setState({ url, loading: true });
         this.element.src = url === 'about:blank' ? url : proxyUrl(url);
         await loaded;

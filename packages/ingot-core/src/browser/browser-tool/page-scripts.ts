@@ -162,5 +162,117 @@ export const scrollPage: PageScript<{ direction: 'up' | 'down' | 'top' | 'bottom
     return { ok: true, message: `Scrolled ${args.direction}.` };
 };
 
+export interface SelectionReport {
+    readonly text: string;
+    readonly rect?: { left: number; top: number; bottom: number; width: number };
+}
+
+/** IDEA-289: the selected text and its box in the page's viewport (the web build's frame calls it after mouseup / keyup). */
+export const readSelection: PageScript<Record<string, never>, SelectionReport> = doc => {
+    const win = doc.defaultView as any;
+    const sel = win && win.getSelection ? win.getSelection() : null;
+    const text = sel ? String(sel.toString()).trim() : '';
+    if (!text || !sel.rangeCount) {
+        return { text: '' };
+    }
+    const r = sel.getRangeAt(0).getBoundingClientRect();
+    return { text, rect: { left: r.left, top: r.top, bottom: r.bottom, width: r.width } };
+};
+
+export interface ObserverArgs {
+    readonly netPrefix: string;
+    readonly selPrefix: string;
+    readonly debounceMs: number;
+    readonly minStatus: number;
+}
+
+/**
+ * IDEA-289: installed in desktop pages on dom-ready. Reports failed assets, fetch and XHR calls (HTTP errors and no
+ * response) and the user's text selection as prefixed `console.debug` lines, which the panel reads from the webview's
+ * console-message event and never shows as page logs. Runs once per document.
+ */
+export const installObserver: PageScript<ObserverArgs, boolean> = (doc, args) => {
+    const win = doc.defaultView as any;
+    if (!win || win.__ingotObserver) {
+        return false;
+    }
+    win.__ingotObserver = true;
+    const debug = win.console.debug.bind(win.console);
+    const abs = (url: any): string => { try { return new win.URL(String(url), doc.baseURI).href; } catch { return String(url); } };
+    const report = (entry: Record<string, unknown>): void => { try { debug(args.netPrefix + JSON.stringify(entry)); } catch { /* page replaced console */ } };
+    const statusOf = (url: string): number | undefined => {
+        const entries = win.performance && win.performance.getEntriesByName ? win.performance.getEntriesByName(url) : [];
+        const last = entries[entries.length - 1];
+        return last && last.responseStatus ? last.responseStatus : undefined;
+    };
+    doc.addEventListener('error', (event: any) => {
+        const el = event.target;
+        const url = el && el !== win && (el.currentSrc || el.src || el.href);
+        if (url) {
+            report({ kind: 'resource', url: String(url), status: statusOf(String(url)) });
+        }
+    }, true);
+    const fetchFn = win.fetch;
+    if (typeof fetchFn === 'function') {
+        win.fetch = function (this: any, ...params: any[]) {
+            const [input, init] = params;
+            const url = abs(input && typeof input === 'object' && input.url ? input.url : input);
+            const method = String((init && init.method) || (input && typeof input === 'object' && input.method) || 'GET');
+            return fetchFn.apply(this, params).then((res: any) => {
+                if (res.status >= args.minStatus) {
+                    report({ kind: 'fetch', url: res.url || url, method, status: res.status });
+                }
+                return res;
+            }, (error: any) => {
+                report({ kind: 'fetch', url, method, error: String((error && error.message) || error) });
+                throw error;
+            });
+        };
+    }
+    const xhr = win.XMLHttpRequest && win.XMLHttpRequest.prototype;
+    if (xhr) {
+        const open = xhr.open;
+        const send = xhr.send;
+        xhr.open = function (this: any, ...params: any[]) {
+            this.__ingot = { method: String(params[0]), url: abs(params[1]) };
+            return open.apply(this, params);
+        };
+        xhr.send = function (this: any, ...params: any[]) {
+            const info = this.__ingot;
+            if (info) {
+                this.addEventListener('loadend', () => {
+                    if (this.status >= args.minStatus) {
+                        report({ kind: 'xhr', ...info, status: this.status });
+                    } else if (this.status === 0) {
+                        report({ kind: 'xhr', ...info, error: 'no response' });
+                    }
+                });
+            }
+            return send.apply(this, params);
+        };
+    }
+    let timer: any;
+    const selection = (): void => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+            const sel = win.getSelection();
+            const text = sel ? String(sel.toString()).trim() : '';
+            const r = text && sel.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : undefined;
+            debug(args.selPrefix + JSON.stringify({ text, rect: r ? { left: r.left, top: r.top, bottom: r.bottom, width: r.width } : undefined }));
+        }, args.debounceMs);
+    };
+    doc.addEventListener('mouseup', selection, true);
+    doc.addEventListener('keyup', selection, true);
+    win.addEventListener('scroll', selection, true);
+    return true;
+};
+
+/** IDEA-289: assets that already failed when the web build's frame finished loading (their error events fired earlier). */
+export const failedAssets: PageScript<Record<string, never>, string[]> = doc => {
+    const images = (Array.from(doc.images) as any[]).filter(img => img.complete && img.naturalWidth === 0 && (img.currentSrc || img.src)).map(img => String(img.currentSrc || img.src));
+    const sheets = (Array.from(doc.querySelectorAll('link[rel~="stylesheet"][href]')) as any[]).filter(link => !link.sheet).map(link => String(link.href));
+    return [...images, ...sheets];
+};
+
 /** Source for the desktop engine: `(fn)(document, args)`. */
 export const serializeScript = <A, R>(script: PageScript<A, R>, args: A): string => `(${script.toString()})(document, ${JSON.stringify(args)})`;
