@@ -8,6 +8,19 @@ const isObject = (value: unknown): value is Json => !!value && typeof value === 
 const str = (value: unknown): string => typeof value === 'string' ? value : '';
 const num = (value: unknown): number => typeof value === 'number' && Number.isFinite(value) ? value : 0;
 
+/** ~/.ingot/themes.json (or the legacy storage value) → the installed themes; anything malformed is dropped. */
+export function parseUserThemes(value: unknown): StoreInstalledTheme[] {
+    let list = value;
+    if (typeof value === 'string') {
+        try {
+            list = JSON.parse(value);
+        } catch {
+            return [];
+        }
+    }
+    return Array.isArray(list) ? list.filter((t): t is StoreInstalledTheme => isObject(t) && !!str(t.id) && !!str(t.label) && !!str(t.uiTheme) && isObject(t.json)) : [];
+}
+
 /** Open VSX search response → color theme extensions (icon-only theme packs are left out). */
 export function parseStoreSearch(json: unknown): StoreThemeExtension[] {
     const list = isObject(json) && Array.isArray(json.extensions) ? json.extensions : [];
