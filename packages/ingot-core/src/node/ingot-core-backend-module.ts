@@ -3,7 +3,8 @@ import { installDisconnectedBufferGuard } from './disconnected-client-guard';
 
 installDisconnectedBufferGuard();
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
-import { DEV_FILE_KEYSTORE_ENV, DevFileKeyStoreService } from './dev-file-key-store';
+import { DevFileKeyStoreService } from './dev-file-key-store';
+import { DEV_FILE_KEYSTORE_ENV } from '../common/launch/keychain.consts';
 import { IngotEditorImportService } from './editor-import-backend';
 import { EDITOR_IMPORT_SERVICE_PATH, EditorImportService } from '../common/import/editor-import.types';
 import { ConnectionHandler, RpcConnectionHandler } from '@theia/core/lib/common/messaging';

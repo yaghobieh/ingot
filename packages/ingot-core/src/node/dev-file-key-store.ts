@@ -2,9 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { injectable } from '@theia/core/shared/inversify';
 import type { KeyStoreService } from '@theia/core/lib/common/key-store';
-
-/** Env var that switches a dev build (the local preview) to the file key store. Never set for release builds. */
-export const DEV_FILE_KEYSTORE_ENV = 'INGOT_DEV_FILE_KEYSTORE';
+import { DEV_FILE_KEYSTORE_ENV } from '../common/launch/keychain.consts';
 
 type Store = Record<string, Record<string, string>>;
 
