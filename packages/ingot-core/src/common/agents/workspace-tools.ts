@@ -340,9 +340,11 @@ export interface RgQuery {
 
 /** Arguments for ripgrep. Gitignore is on by default; hidden files are included so `.ingot` is visible, `.git` is not. */
 export const rgArgs = (query: RgQuery): string[] => {
-    const args = ['--color', 'never', '--hidden', '--glob', '!.git/**', '--glob', '!**/node_modules/**', '--glob', `!${INDEX_DIR}/**`, '--max-filesize', '512K'];
+    const args = ['--color', 'never', '--hidden', '--glob', '!.git/**', '--glob', '!**/node_modules/**', '--max-filesize', '512K'];
+    // The last matching glob wins in ripgrep, so the index folder is excluded after the caller's glob.
+    const noIndex = ['--glob', `!${INDEX_DIR}/**`];
     if (query.files) {
-        args.push('--files', '--glob', query.glob?.trim() || '*', '--glob', '!.git/**');
+        args.push('--files', '--glob', query.glob?.trim() || '*', '--glob', '!.git/**', ...noIndex);
         if (query.path?.trim()) {
             args.push(query.path.trim());
         }
@@ -355,7 +357,7 @@ export const rgArgs = (query: RgQuery): string[] => {
     if (query.glob?.trim()) {
         args.push('--glob', query.glob.trim());
     }
-    args.push('--', query.pattern ?? '', query.path?.trim() || '.');
+    args.push(...noIndex, '--', query.pattern ?? '', query.path?.trim() || '.');
     return args;
 };
 
