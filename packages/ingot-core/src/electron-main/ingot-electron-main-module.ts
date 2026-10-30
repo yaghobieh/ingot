@@ -7,8 +7,13 @@ import { IngotElectronMainApplication } from './ingot-electron-main-application'
 import { IngotElectronMainContribution } from './ingot-electron-main-contribution';
 import { IngotDeepLinkContribution } from './ingot-deep-link-contribution';
 import { IngotAutoUpdateContribution } from './ingot-auto-update-contribution';
-import { DEFAULT_PLUGINS_ENV, PACKAGED_PLUGINS_DIR } from '../common/update/auto-update.consts';
-import { defaultPluginsValue } from '../common/update/auto-update.utils';
+import { ElectronConnectionHandler } from '@theia/core/lib/electron-main/messaging/electron-connection-handler';
+import { RpcConnectionHandler } from '@theia/core/lib/common/messaging/proxy-factory';
+import { IngotUpdateController } from './update/ingot-update-controller';
+import { createUpdateDriver } from './update/electron-update-driver';
+import { DEFAULT_PLUGINS_ENV, INGOT_UPDATER_PATH, PACKAGED_PLUGINS_DIR } from '../common/update/auto-update.consts';
+import type { IngotUpdaterClient } from '../common/update/auto-update.types';
+import { autoUpdateDecision, defaultPluginsValue } from '../common/update/auto-update.utils';
 import { BAKED_ENDPOINTS_KEY } from '../common/account/account.consts';
 import { bakedEndpointEnv } from '../common/account/account-endpoints.utils';
 import { installProcessReporter } from '../common/telemetry/process-reporter';
@@ -41,6 +46,17 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(ElectronMainApplicationContribution).toService(IngotElectronMainContribution);
     bind(IngotDeepLinkContribution).toSelf().inSingletonScope();
     bind(ElectronMainApplicationContribution).toService(IngotDeepLinkContribution);
+    // IDEA-269: one updater for the app; every window talks to it over Electron IPC.
+    bind(IngotUpdateController).toDynamicValue(() => {
+        const env = { isPackaged: app.isPackaged, platform: process.platform, version: app.getVersion(), env: process.env };
+        return new IngotUpdateController(autoUpdateDecision(env), env.version, createUpdateDriver);
+    }).inSingletonScope();
+    bind(ElectronConnectionHandler).toDynamicValue(context => new RpcConnectionHandler<IngotUpdaterClient>(INGOT_UPDATER_PATH, client => {
+        const controller = context.container.get(IngotUpdateController);
+        controller.addClient(client);
+        client.onDidCloseConnection(() => controller.removeClient(client));
+        return controller;
+    })).inSingletonScope();
     bind(IngotAutoUpdateContribution).toSelf().inSingletonScope();
     bind(ElectronMainApplicationContribution).toService(IngotAutoUpdateContribution);
 });
