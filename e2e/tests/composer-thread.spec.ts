@@ -39,6 +39,8 @@ const pinchThread = async (page: Page): Promise<void> => {
         node.style.flex = 'none';
         node.style.height = '140px';
     });
+    // The thread settles at the bottom of the smaller list before the reader scrolls up.
+    await expect.poll(() => page.locator('.ingot-agents-chat').evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThanOrEqual(2);
     await page.locator('.ingot-agents-chat').evaluate(el => {
         el.scrollTop = 0;
         el.dispatchEvent(new Event('scroll'));

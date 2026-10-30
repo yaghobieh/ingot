@@ -671,8 +671,8 @@ export class IngotAgentsWidget extends ReactWidget {
             {this.showMemories
                 ? <div className='ingot-agents-chat ingot-agents-memories-pane'><MemoriesManager store={this.memoryStore} onClose={() => this.toggleMemories()} /></div>
                 : <div className='ingot-agents-chat-wrap'>
-                    <div className='ingot-agents-chat' ref={el => this.bindChat(el)}>{current && current.messages.length
-                        ? <div className='ingot-agents-thread' ref={el => this.bindThread(el)}>{this.renderSession(current)}</div>
+                    <div className='ingot-agents-chat' ref={this.chatRef}>{current && current.messages.length
+                        ? <div className='ingot-agents-thread' ref={this.threadRef}>{this.renderSession(current)}</div>
                         : <div className='ingot-agents-empty-state' id='ingot-agents-empty-state'>
                             <RexMark className='ingot-agent-mark ingot-agents-empty-mark' size={AGENT_EMPTY_MARK_SIZE} />
                             <div className='ingot-agents-empty-title'>{PRODUCT.name}</div>
@@ -1457,6 +1457,10 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         this.refreshJump();
     }
+
+    /** Stable refs: an inline ref runs again on every render and would rebuild the resize observer each time. */
+    protected readonly chatRef = (el: HTMLDivElement | null): void => this.bindChat(el);
+    protected readonly threadRef = (el: HTMLDivElement | null): void => this.bindThread(el);
 
     protected bindChat(el: HTMLDivElement | null): void {
         if (this.chatScroll === el) {
