@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { dismissNotifications } from '../src/app.utils';
+import { BUILTIN_PLUGINS_ENV } from '../src/e2e.consts';
 import { launchDesktop, type DesktopApp } from '../src/electron.utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
@@ -23,8 +24,9 @@ const MAIN = [
     ''
 ].join('\n');
 const DONE = 'Renamed add to sum and checked main.ts.';
-/** The TypeScript server starts with the first .ts file and loads the project, so the first call can take a while. */
-const LANGUAGE_TIMEOUT_MS = 120_000;
+/** The TypeScript server starts with the first .ts file and loads the project, so the first call can take up to a minute. */
+const LANGUAGE_TIMEOUT_MS = 180_000;
+const SHOT_SIZE = { width: 1440, height: 1000 };
 
 const makeTsProject = (): string => {
     const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-code-tools-')));
@@ -79,8 +81,7 @@ test.describe('IDEA-259 agent code tools (desktop)', () => {
     });
 
     test('goes to a definition, finds references, renames, organizes imports and lists problems', async () => {
-        desktop = await launchDesktop(dir);
-        const { page } = desktop;
+        desktop = await launchDesktop(dir, BUILTIN_PLUGINS_ENV);        const { page } = desktop;
         await dismissNotifications(page);
         await setScheme(page, 'light');
         await connectOllama(page, server);
@@ -114,6 +115,8 @@ test.describe('IDEA-259 agent code tools (desktop)', () => {
         await expect(card(page, 'diagnostics').locator('.ingot-tc-status.ok')).toHaveCount(1);
         await card(page, 'find_references').locator('.ingot-tc-head').click();
         await expect(card(page, 'find_references').locator('.ingot-tc-output')).toContainText('src/main.ts:2:10');
+        await desktop.app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setSize(size.width, size.height), SHOT_SIZE);
+        await card(page, 'go_to_definition').scrollIntoViewIfNeeded();
         await shot(page, 'idea-259-code-tools-light.png');
         await setScheme(page, 'dark');
         await shot(page, 'idea-259-code-tools-dark.png');
