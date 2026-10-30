@@ -20,6 +20,12 @@
   --ingot-forge-blue: #3B6FD9;
   --ingot-forge-navy: #1B2647;
   --ingot-caret-ink: #1C2440;
+  /* Rex </> glyph, same art as assets/brand/app-icon.svg: gradient fill, navy edge, soft blue glow. */
+  --ingot-rex-light: #8DB2FF;
+  --ingot-rex-mid: var(--ingot-forge-blue);
+  --ingot-rex-deep: #2A4FB0;
+  --ingot-rex-glow: #5E8FFF;
+  --ingot-rex-edge: var(--ingot-forge-navy);
   --ingot-bg: #F7F8FA;
   --ingot-surface: #FFFFFF;
   --ingot-panel: #EEF0F4;
