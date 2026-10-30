@@ -4,6 +4,13 @@
  */
 export type ConfigSource = 'ingot' | 'legacy' | 'external' | 'agents' | 'global' | 'global-imported';
 
+/**
+ * IDEA-287: how a rule is applied, as in Cursor. `always`: every turn. `auto`: when a file in context matches its globs.
+ * `agent`: listed by name and description; the agent reads it with `ingot/fetch_rule` when relevant. `manual`: only
+ * when the user @-mentions it.
+ */
+export type RuleKind = 'always' | 'auto' | 'agent' | 'manual';
+
 export interface ProjectRule {
     readonly name: string;
     readonly path: string;
@@ -11,9 +18,20 @@ export interface ProjectRule {
     readonly description?: string;
     readonly globs: readonly string[];
     readonly alwaysApply: boolean;
+    readonly kind: RuleKind;
     readonly body: string;
     /** Absolute file URI (for open / delete). */
     readonly uri?: string;
+    /** IDEA-287: project-relative folder of a nested rule (`packages/web`); it only applies to files under it. */
+    readonly scope?: string;
+}
+
+/** IDEA-294: `.ingotignore` (agent + index) and `.ingotindexingignore` (index only) checks, project-relative paths. */
+export interface IgnoreRules {
+    /** Hidden from agent file tools, search, the @ picker and the index. */
+    readonly agent: (path: string) => boolean;
+    /** Kept out of the codebase index (quick open); agents may still read it. */
+    readonly index: (path: string) => boolean;
 }
 
 export interface ProjectCommand {

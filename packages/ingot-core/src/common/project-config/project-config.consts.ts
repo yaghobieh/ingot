@@ -37,6 +37,21 @@ export const MCP_FILE = 'mcp.json';
 export const AGENTS_FILES = ['AGENTS.md', '.cursorrules'] as const;
 export const RULE_EXTENSIONS = ['.md', '.mdc'] as const;
 
+/** IDEA-287: nested rule files found anywhere in the project (`packages/web/.ingot/rules/x.md`, `packages/web/AGENTS.md`). */
+export const NESTED_RULE_GLOBS = ['**/AGENTS.md', '**/.ingot/rules/**/*.md', '**/.ingot/rules/**/*.mdc', '**/.cursor/rules/**/*.md', '**/.cursor/rules/**/*.mdc'] as const;
+export const NESTED_RULES_TTL_MS = 10_000;
+/** Folder depth the nested-rule walk goes when ripgrep is not available. */
+export const NESTED_RULES_MAX_DEPTH = 6;
+export const NESTED_RULES_MAX_FILES = 200;
+export const AGENTS_FILE = 'AGENTS.md';
+/** IDEA-287: the agent tool that returns an Agent Requested rule's body. */
+export const FETCH_RULE_TOOL = 'fetch_rule';
+
+/** IDEA-294: hidden from agents, search, the @ picker and the index (gitignore syntax). `.ingot*` first, then Cursor's. */
+export const AGENT_IGNORE_FILES = ['.ingotignore', '.cursorignore'] as const;
+/** IDEA-294: kept out of the codebase index only. */
+export const INDEX_IGNORE_FILES = ['.ingotindexingignore', '.cursorindexingignore'] as const;
+
 export const MCP_SERVICE_PATH = '/services/ingot/mcp';
 export const MCP_REQUEST_TIMEOUT_MS = 15_000;
 export const MCP_PROTOCOL_VERSION = '2025-06-18';

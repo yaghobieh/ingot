@@ -9,7 +9,7 @@ import { OpenerService, open } from '@theia/core/lib/browser/opener-service';
 import URI from '@theia/core/lib/common/uri';
 import type { ConfigSource, McpServerConfig, ProjectConfig } from '../../common/project-config/project-config.types';
 import { CONFIG_DIRS, HOOKS_DIR, SUBAGENTS_DIR } from '../../common/project-config/project-config.consts';
-import { scopeLabel, slugify } from '../../common/project-config/project-config.utils';
+import { ruleKindLabel, scopeLabel, slugify } from '../../common/project-config/project-config.utils';
 import {
     ATTENTION_PREVIEW, CUSTOMIZE_TABS, EMPTY_SERVER_FORM, MCP_CATALOG, MCP_CATEGORIES, catalogEntryFor, groupByCategory, catalogToConfig, configToForm, customToConfig, isValidServerName,
     matchesQuery, newItemFile, rowGroup, rowSummary,
@@ -489,7 +489,7 @@ export class IngotMcpWidget extends ReactWidget {
             return this.plainFiles;
         }
         if (kind === 'rule') {
-            return (this.config?.rules ?? []).map(r => ({ key: r.path, name: r.name, detail: r.path, source: r.source, uri: r.uri, extra: r.alwaysApply ? 'always' : r.globs.join(', ') }));
+            return (this.config?.rules ?? []).map(r => ({ key: r.path, name: r.name, detail: r.path, source: r.source, uri: r.uri, extra: ruleKindLabel(r) }));
         }
         return (this.config?.commands ?? []).filter(c => c.kind === kind).map(c => ({ key: c.path, name: kind === 'command' ? `/${c.name}` : c.name, detail: c.description ?? c.path, source: c.source, uri: c.uri }));
     }
