@@ -6,12 +6,14 @@
   --ingot-space-4: 16px;
   --ingot-count-width: 5.5rem;
   --ingot-badge-ts: var(--ingot-primary);
-  --ingot-badge-tsx: var(--ingot-info);
-  --ingot-badge-json: var(--ingot-warning);
-  --ingot-badge-html: var(--ingot-accent);
+  --ingot-badge-tsx: #13849A;
+  --ingot-badge-json: #A97F0E;
+  --ingot-badge-html: #C8552E;
   --ingot-badge-css: #7C5CBF;
   --ingot-badge-md: var(--ingot-text-muted);
   --ingot-badge-file: var(--ingot-text-muted);
+  --ingot-badge-dir: var(--ingot-badge-json);
+  --ingot-badge-ink: #FFFFFF;
   --ingot-ingot-gold: #D9A04E;
   --ingot-ingot-gold-deep: #B9772A;
   --ingot-ingot-gold-light: #F3D29A;
@@ -64,4 +66,9 @@ body.ingot-dark {
   --ingot-editor-bg: #1E2027;
   --ingot-editor-line-highlight: #262932;
   --ingot-editor-gutter: #5E6673;
+  --ingot-badge-tsx: #4FC1D6;
+  --ingot-badge-json: #E2C04A;
+  --ingot-badge-html: #EC7D55;
+  --ingot-badge-css: #A88BEB;
+  --ingot-badge-ink: #11151F;
 }
