@@ -873,9 +873,12 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         if (m.role === 'tool' && m.tool) {
             const key = `${session.id}:tool:${i}`;
-            return <ToolCardView key={i} info={m.tool} text={m.text} from={m.from} expanded={this.expandedSteps.has(key)}
-                onToggle={() => { if (!this.expandedSteps.delete(key)) { this.expandedSteps.add(key); } this.update(); }}
-                openLink={url => this.windows.openNewWindow(url, { external: true })} />;
+            return <React.Fragment key={i}>
+                <ToolCardView info={m.tool} text={m.text} from={m.from} expanded={this.expandedSteps.has(key)}
+                    onToggle={() => { if (!this.expandedSteps.delete(key)) { this.expandedSteps.add(key); } this.update(); }}
+                    openLink={url => this.windows.openNewWindow(url, { external: true })} />
+                {this.renderToolImages(m)}
+            </React.Fragment>;
         }
         const thought = m.role === 'agent' && !m.parts ? extractThought(m.text) : undefined;
         if (thought?.thought !== undefined) {
@@ -889,6 +892,14 @@ export class IngotAgentsWidget extends ReactWidget {
             </React.Fragment>;
         }
         return this.renderMessageBody(session, m, i);
+    }
+
+    /** IDEA-130 / IDEA-289: screenshots a tool returned (browser_screenshot), as thumbnails that open in the lightbox. */
+    protected renderToolImages(m: AgentSession['messages'][number]): React.ReactNode {
+        const images = (m.images ?? []).filter(img => img.data);
+        return images.length > 0 && <div className='ingot-chat-tool-images'>{images.map(img =>
+            <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
+                onClick={() => { this.lightbox = img; this.update(); }} />)}</div>;
     }
 
     protected renderMessageBody(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
@@ -911,9 +922,7 @@ export class IngotAgentsWidget extends ReactWidget {
                         ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
                             : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
                         : this.editingIndex === i ? this.renderEditForm(session, i) : m.text}
-                    {m.role === 'tool' && !!m.images?.length && <div className='ingot-chat-tool-images'>{m.images.filter(img => img.data).map(img =>
-                        <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
-                            onClick={() => { this.lightbox = img; this.update(); }} />)}</div>}
+                    {m.role === 'tool' && this.renderToolImages(m)}
                     {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && !this.tracker.forMessage(session.id, i).length && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
                     {m.role === 'agent' && this.tracker.forMessage(session.id, i).map(change => <CodeChangeBlock key={change.id} change={change}
                         expanded={!this.collapsedChanges.has(change.id)}

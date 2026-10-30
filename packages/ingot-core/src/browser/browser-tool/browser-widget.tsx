@@ -39,6 +39,14 @@ export class IngotBrowserWidget extends ReactWidget {
         this.focusKey = this.contextKeys.createKey<boolean>(BROWSER_FOCUS_KEY, false);
         this.node.addEventListener('focusin', () => this.focusKey?.set(true));
         this.node.addEventListener('focusout', e => { if (!this.node.contains(e.relatedTarget as Node | null)) { this.focusKey?.set(false); } });
+        // Shortcuts replayed from the page frame: mark the panel focused before Ingot's keybindings (document capture) see them.
+        const markFocus = (e: KeyboardEvent): void => {
+            if (this.node.contains(e.target as Node | null)) {
+                this.focusKey?.set(true);
+            }
+        };
+        window.addEventListener('keydown', markFocus, true);
+        this.toDispose.push({ dispose: () => window.removeEventListener('keydown', markFocus, true) });
         this.toDispose.push(this.controller.onDidChange(() => {
             if (!this.editing) {
                 this.address = this.displayUrl;
