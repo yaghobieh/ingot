@@ -59,11 +59,6 @@
 
 /* "Ingot Agent · worked for 2m 14s" */
 .ingot-agents .ingot-chat-agent-head { display: flex; align-items: center; gap: var(--ingot-space-2); margin: 0; min-width: 0; white-space: nowrap; }
-.ingot-agent-mark {
-    display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: 4px;
-    background: var(--ingot-ingot-gold); color: var(--ingot-caret-ink);
-}
-.ingot-agent-mark svg { width: 12px; height: 12px; fill: currentColor; }
 .ingot-agents .ingot-chat-agent-head b { font-weight: 600; }
 .ingot-agents .ingot-chat-agent-head .ingot-dim { color: var(--ingot-text-muted); font-size: var(--ingot-ap-small); overflow: hidden; text-overflow: ellipsis; }
 

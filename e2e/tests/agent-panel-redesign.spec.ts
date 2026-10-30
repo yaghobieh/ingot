@@ -173,6 +173,12 @@ test.describe('agent panel redesign', () => {
         await expect(head).toHaveCount(1);
         await expect(head).toContainText('Ingot Agent');
         await expect(head).toContainText(/worked for \d+(m \d+)?s/);
+        // The Rex </> glyph alone, no colored box behind it.
+        const mark = head.locator('svg.ingot-rex-mark.ingot-agent-mark');
+        await expect(mark).toBeVisible();
+        await expect(mark).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+        await expect(mark.locator('path')).not.toHaveCount(0);
+        await expect(mark.locator('rect')).toHaveCount(0);
 
         // Reads and rules fold into one Explored row; no per-read boxes.
         await expect(page.locator('.ingot-chat-read')).toHaveCount(0);

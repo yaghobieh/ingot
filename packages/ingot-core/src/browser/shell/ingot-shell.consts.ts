@@ -8,6 +8,8 @@ export const INGOT_SHELL_COMMANDS = {
 } as const satisfies Record<string, Command>;
 
 export const MAIN_TOOLBAR_ID = 'ingot-main-toolbar';
+/** The Rex </> glyph that opens the main menu, without a tile behind it. */
+export const TOOLBAR_LOGO_SIZE = 18;
 export const MAIN_TOOLBAR_CLASS = 'ingot-main-toolbar';
 
 /** Commands the main toolbar buttons run (resolved lazily so missing ones are disabled). */

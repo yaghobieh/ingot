@@ -1,6 +1,8 @@
 import * as React from '@theia/core/shared/react';
 import type { AgentSession } from '../../common/agents/agents.types';
 import { subagentInfo, subagentsSummary, type SubagentInfo, type SubagentsView } from '../../common/agents/subagents';
+import { RexMark } from '../brand/rex-mark';
+import { SUBAGENT_MARK_SIZE } from './agents.consts';
 
 /**
  * IDEA-181: a chat's subagents (Multi-agent subtasks and Zaprex Harmony pieces) in a compact strip above the
@@ -23,7 +25,7 @@ const STATE_LABEL: Record<SubagentInfo['state'], string> = { running: 'Running',
 
 const Who = ({ who }: { who: SubagentInfo['who'] }): React.ReactElement => who === 'zaprex'
     ? <span className='ingot-sa-who ingot-sa-zaprex ingot-zaprex-link-icon' title='Zaprex' aria-label='Zaprex' />
-    : <span className='ingot-sa-who ingot-sa-ingot' title='Ingot agent' aria-label='Ingot agent'>&lt;/&gt;</span>;
+    : <span className='ingot-sa-who ingot-sa-ingot' title='Ingot agent'><RexMark size={SUBAGENT_MARK_SIZE} label='Ingot agent' /></span>;
 
 const Progress = ({ info }: { info: SubagentInfo }): React.ReactElement =>
     <span className={`ingot-sa-progress ${info.state}${info.progress === undefined ? ' indeterminate' : ''}`} role='progressbar'

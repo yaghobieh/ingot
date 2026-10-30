@@ -63,7 +63,8 @@ import { isPending } from '../../common/changes/changes.utils';
 import { formatCountdown, reviewFileState } from '../../common/review/review';
 import { ReviewComments } from '../review/review-comments';
 import type { CodeChange } from '../../common/changes/changes.types';
-import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
+import { AGENT_COMMANDS, AGENT_MARK_SIZE, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
+import { RexMark } from '../brand/rex-mark';
 import { ProcessStore } from '../processes/process-store';
 import { ProcessesPanel } from '../processes/processes-panel';
 import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
@@ -900,7 +901,7 @@ export class IngotAgentsWidget extends ReactWidget {
         const explored = latest ? exploredLine(session.steps, this.store.isRunning(session.id)) : undefined;
         return <>
             {layout.leads.has(i) && <div className='ingot-chat-agent-head'>
-                <span className='ingot-agent-mark' aria-hidden='true'><svg viewBox='0 0 16 16'><path d='M5 4h6l1 2.5H4zM4 7.5h8l1.5 4.5h-11z' /></svg></span>
+                <RexMark className='ingot-agent-mark' size={AGENT_MARK_SIZE} />
                 <b>{AGENT_TITLE}</b>
                 {latest && <span className='ingot-dim'>· {WORKED_FOR} {this.workedFor(session)}</span>}
             </div>}

@@ -4,6 +4,7 @@ import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import type { Message } from '@theia/core/shared/@lumino/messaging';
 import { BROWSER_WIDGET_ID, BROWSER_WIDGET_LABEL } from '../../common/browser-tool/browser-tool.consts';
 import { BrowserController } from './browser-controller';
+import { RexMark } from '../brand/rex-mark';
 
 /**
  * IDEA-130: the Ingot browser panel. Back / forward / reload, an address bar, and Take control / Give back control.
@@ -83,7 +84,7 @@ export class IngotBrowserWidget extends ReactWidget {
             {(user || c.agentDriving) && <div className={`ingot-browser-banner ${user ? 'user' : 'agent'}`} id='ingot-browser-banner' role='status'>
                 {user
                     ? <><span className='codicon codicon-account' />{c.agentWaiting ? 'You have control. The agent is waiting for you.' : 'You have control of the browser.'}</>
-                    : <><span className='ingot-browser-agent-mark' aria-hidden='true'>&lt;/&gt;</span>The agent is using the browser.</>}
+                    : <><RexMark className='ingot-browser-agent-mark' />The agent is using the browser.</>}
             </div>}
             <div className='ingot-browser-host' ref={el => this.attachHost(el)}>
                 {c.agentDriving && <div className='ingot-browser-overlay' id='ingot-browser-overlay' onClick={() => c.takeControl()} title='Click to take control' />}

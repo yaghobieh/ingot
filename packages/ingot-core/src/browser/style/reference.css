@@ -1,9 +1,9 @@
 /* Reference look (docs/design/ide-reference.png): calm chrome, Ingot accent, default Theia chrome hidden. */
 
-/* Top bar: accent logo square that also opens the main menu. */
-.ingot-tb-logo { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin: 0 8px 0 2px; padding: 0; border: 0; border-radius: 6px; background: var(--ingot-primary); color: #fff; cursor: default; }
+/* Top bar: the transparent Rex </> glyph, which also opens the main menu. */
+.ingot-tb-logo { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: 0 6px 0 2px; padding: 0; border: 0; border-radius: 6px; background: transparent; cursor: default; }
 button.ingot-tb-logo { cursor: pointer; }
-button.ingot-tb-logo:hover { background: var(--ingot-primary-hover); }
+button.ingot-tb-logo:hover { background: var(--theia-toolbar-hoverBackground, var(--theia-list-hoverBackground)); }
 .ingot-tb-agents { background: var(--ingot-primary); color: #fff; }
 .ingot-tb-agents:hover { background: var(--ingot-primary-hover); }
 #ingot-tb-theme .codicon { font-size: 14px; opacity: .8; }

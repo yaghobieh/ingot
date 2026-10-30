@@ -29,7 +29,8 @@ import { toRecentProjects } from '../../common/welcome/welcome.utils';
 import type { RecentProject } from '../../common/welcome/welcome.types';
 import { projectDisplayName } from '../../common/workspace/workspace.utils';
 import { PROJECT_POPUP_ACTIONS, PROJECT_POPUP_RECENT_LIMIT } from './ingot-shell.consts';
-import { MAIN_TOOLBAR_CLASS, MAIN_TOOLBAR_ID, NO_PROJECT_LABEL, NO_VCS_LABEL, RUN_CONFIGURATION_LABEL, TOOLBAR_COMMANDS } from './ingot-shell.consts';
+import { MAIN_TOOLBAR_CLASS, MAIN_TOOLBAR_ID, NO_PROJECT_LABEL, NO_VCS_LABEL, RUN_CONFIGURATION_LABEL, TOOLBAR_COMMANDS, TOOLBAR_LOGO_SIZE } from './ingot-shell.consts';
+import { RexMark } from '../brand/rex-mark';
 
 interface ToolbarButtonProps {
     readonly id: string;
@@ -42,10 +43,7 @@ interface ToolbarButtonProps {
 }
 
 /** Monochrome Ingot mark drawn on the accent logo square. */
-const LOGO_GLYPH = <svg viewBox='0 0 256 256' width='14' height='14' aria-hidden='true'>
-    <polygon points='88,76 168,76 186,110 70,110' fill='currentColor' opacity='.75' />
-    <polygon points='70,110 186,110 210,190 46,190' fill='currentColor' />
-</svg>;
+const LOGO_GLYPH = <RexMark size={TOOLBAR_LOGO_SIZE} />;
 
 const ToolbarButton = ({ id, icon, title, onClick, label, dropdown, className }: ToolbarButtonProps): React.ReactElement => (
     <button id={id} type='button' className={`ingot-tb-button ${label ? 'ingot-tb-widget' : ''} ${className ?? ''}`} title={title} aria-label={title} onClick={onClick}>
