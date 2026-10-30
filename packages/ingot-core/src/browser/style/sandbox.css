@@ -5,8 +5,10 @@
 .ingot-agents .ingot-composer-bar:is([data-width='narrow'], [data-width='tiny']) .ingot-sandbox-pill .ingot-pill-label { display: none; }
 .ingot-agents .ingot-composer-bar[data-width='tiny'] .ingot-sandbox-pill .ingot-pill-caret { display: none; }
 
-.ingot-composer-bar .ingot-popover.ingot-sandbox-menu { left: 0; right: auto; width: 100%; max-width: 320px; box-sizing: border-box; }
-.ingot-sandbox-menu { width: 300px; }
+/* Anchored to the composer bar (like the model picker), so an icon-only pill still gets a full-width menu. */
+.ingot-pill-anchor:has(> #ingot-composer-sandbox) { position: static; }
+.ingot-composer-bar .ingot-popover.ingot-sandbox-menu { left: auto; right: 0; width: 100%; max-width: 320px; box-sizing: border-box; }
+.ingot-sandbox-menu { width: 300px; max-height: min(70vh, 560px); overflow-y: auto; display: flex; flex-direction: column; }
 .ingot-sandbox-heading {
     padding: 6px 8px 2px;
     font-size: 11px;
