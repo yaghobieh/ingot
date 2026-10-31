@@ -216,6 +216,8 @@ export class AgentStore {
     protected readonly modelLoops = new Set<string>();
     /** Work outside a model round or tool call (plan check, wrap-up), named on the chat's live status line. */
     protected readonly phases = new Map<string, LivePhase>();
+    /** Tool names of the round that is running, so the status line can say "Reading 3 files…" from the first read. */
+    protected readonly roundCalls = new Map<string, readonly string[]>();
     /** Answers waiting on ingot/ask_user. Undefined means the user stopped. */
     protected readonly answers = new Map<string, (text: string | undefined) => void>();
     /** Messages typed while a run is in progress, delivered on the next round. */
@@ -759,6 +761,10 @@ export class AgentStore {
 
     livePhase(id: string): LivePhase | undefined {
         return this.phases.get(id);
+    }
+
+    plannedTools(id: string): readonly string[] {
+        return this.roundCalls.get(id) ?? [];
     }
 
     protected setPhase(id: string, phase: LivePhase | undefined): void {
@@ -2160,7 +2166,8 @@ export class AgentStore {
 
     /** Runs tools unless the user stopped or sent a newer message. False means the loop should return. */
     protected async finishTools(session: AgentSession, generation: number, calls: readonly AgentToolCall[]): Promise<boolean> {
-        const ran = await this.runTools(session, calls);
+        this.roundCalls.set(session.id, calls.map(call => call.tool));
+        const ran = await this.runTools(session, calls).finally(() => this.roundCalls.delete(session.id));
         if (this.stale(session.id, generation)) {
             return false;
         }
@@ -2209,8 +2216,10 @@ export class AgentStore {
                     session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
                     this.considerHarmony(session, parsed.edits.length);
                 }
-                session.status = parsed.editing ? 'editing' : 'thinking';
-                session.activeFile = parsed.editing ?? parsed.edits[parsed.edits.length - 1]?.path;
+                // The path is only whole once its header line ended (then the content starts, even if empty).
+                const editing = parsed.editingContent === undefined ? undefined : parsed.editing;
+                session.status = editing ? 'editing' : 'thinking';
+                session.activeFile = editing ?? parsed.edits[parsed.edits.length - 1]?.path;
                 session.updatedAt = Date.now();
                 this.poke();
             }, { maxTokens: AGENT_MAX_TOKENS, ...(tools.length ? { tools } : {}) });
