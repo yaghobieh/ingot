@@ -142,8 +142,8 @@ describe('secrets policy (IDEA-325)', () => {
     });
 
     it('redacts built-in secrets, policy patterns and .env values', () => {
-        const env = parseEnvFile('# comment\nSTRIPE_KEY="sk_live_abcdef123456"\nexport DB_URL=postgres://u:p4ssw0rd@db/x # note\nSHORT=abc\n');
-        expect(env).toEqual({ STRIPE_KEY: 'sk_live_abcdef123456', DB_URL: 'postgres://u:p4ssw0rd@db/x', SHORT: 'abc' });
+        const env = parseEnvFile('# comment\nSTRIPE_KEY="sk_live_abcdef123456"\nexport DB_URL=postgres://u:pw@db/x # note\nSHORT=abc\n');
+        expect(env).toEqual({ STRIPE_KEY: 'sk_live_abcdef123456', DB_URL: 'postgres://u:pw@db/x', SHORT: 'abc' });
         const literals = redactionLiterals(policy, [{ path: '.env', text: 'STRIPE_KEY="sk_live_abcdef123456"\nSHORT=abc\n' }]);
         expect(literals).toEqual(['sk_live_abcdef123456']);
         const { text, count } = redactText('key sk_live_abcdef123456 token acme_1a2b3c4d auth Bearer abcdefghijkl gh ghp_abcdefghijklmnopqrstuvwxyz', redactionPatterns(policy), literals);
