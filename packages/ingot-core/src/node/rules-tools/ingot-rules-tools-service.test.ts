@@ -121,6 +121,36 @@ describe('IngotRulesToolsService rule tests', () => {
     });
 });
 
+describe('IngotRulesToolsService prune and rule hits', () => {
+    it('flags dead globs, applies only the chosen rules', async () => {
+        write('.ingot/rules/vue.md', '---\nglobs: src/**/*.vue\n---\nUse script setup.\n');
+        write('.ingot/rules/mixed.md', '---\nglobs:\n  - src/**/*.vue\n  - lib/**/*.ts\n---\nMixed.\n');
+        write('lib/a.ts', 'export {};\n');
+        const plan = await service().planPrune(root, 90);
+        expect(plan.candidates.map(c => [c.path, c.action]).sort()).toEqual([
+            ['.ingot/rules/mixed.md', 'remove-globs'], ['.ingot/rules/react.md', 'delete'], ['.ingot/rules/vue.md', 'delete']
+        ]);
+        const after = await service().applyPrune(root, 90, ['.ingot/rules/vue.md', '.ingot/rules/mixed.md']);
+        expect(fs.existsSync(path.join(root, '.ingot/rules/vue.md'))).toBe(false);
+        expect(read('.ingot/rules/mixed.md')).toContain('- lib/**/*.ts');
+        expect(read('.ingot/rules/mixed.md')).not.toContain('.vue');
+        expect(after.candidates.map(c => c.path)).toEqual(['.ingot/rules/react.md']);
+    });
+
+    it('records hits for project rules only, without losing concurrent turns', async () => {
+        const tools = service();
+        await Promise.all([
+            tools.recordRuleHits(root, ['.ingot/rules/style.md', 'AGENTS.md']),
+            tools.recordRuleHits(root, ['.ingot/rules/style.md', '.ingot/rules/react.md'])
+        ]);
+        const log = JSON.parse(read('.ingot/.state/rule-hits.json'));
+        expect(log.rules['.ingot/rules/style.md'].hits).toBe(2);
+        expect(log.rules['.ingot/rules/react.md'].hits).toBe(1);
+        expect(log.rules['AGENTS.md']).toBeUndefined();
+        expect(read('.ingot/.state/.gitignore')).toBe('*\n');
+    });
+});
+
 describe('rules-project', () => {
     it('never writes outside the project', () => {
         expect(() => applyWrites(root, [{ path: '../escape.md', content: 'x' }])).toThrow('outside the project');

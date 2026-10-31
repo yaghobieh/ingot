@@ -4,15 +4,15 @@ import { inject, injectable } from '@theia/core/shared/inversify';
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
 import {
     clampCostCap, DEFAULT_MAX_TOKENS, exportWrites, isMockModel, loadRules, loadRuleTests, mockCaller, OPENROUTER_BASE_URL, openRouterCaller,
-    planExport, resolvePrice, runRuleTests
+    parseHitLog, planExport, planPrune, pruneEdits, recordHits, resolvePrice, RULE_HITS_FILE, RULES_DIR, runRuleTests, serializeHitLog
 } from '../../common/rules-kit';
-import type { ExportPlan, ExportTarget, RuleTestReport } from '../../common/rules-kit';
+import type { ExportPlan, ExportTarget, PrunePlan, RuleTestReport } from '../../common/rules-kit';
 import { DEFAULT_KEYCHAIN_SERVICE } from '../../common/models/models.consts';
 import {
     NO_KEY_MESSAGE, OPENROUTER_BASE_URL_ENV, OPENROUTER_KEY_ACCOUNT, OPENROUTER_KEY_ENV, TEST_REPORT_FILE
 } from '../../common/rules-tools/rules-tools.consts';
 import type { RuleTestListing, RuleTestRequest, RulesToolsService } from '../../common/rules-tools/rules-tools.types';
-import { applyWrites, openProject, writeState } from './rules-project';
+import { applyWrites, gitAddedAt, openProject, writeState } from './rules-project';
 
 /** IDEA-319/320/323: the `ingot export` / `rules test` / `rules prune` engine for the IDE, on the project folder on disk. */
 @injectable()
@@ -21,6 +21,8 @@ export class IngotRulesToolsService implements RulesToolsService {
     @inject(KeyStoreService) protected readonly keyStore: KeyStoreService;
 
     protected readonly keychainService = process.env.INGOT_KEYCHAIN_SERVICE || DEFAULT_KEYCHAIN_SERVICE;
+    /** Hit writes per project, one at a time so concurrent agent turns never lose counts. */
+    protected readonly hitWrites = new Map<string, Promise<void>>();
 
     protected checkRoot(root: string): void {
         if (!root || !fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
@@ -92,5 +94,38 @@ export class IngotRulesToolsService implements RulesToolsService {
         });
         writeState(root, TEST_REPORT_FILE, `${JSON.stringify({ ...report, ranAt: new Date().toISOString() }, undefined, 2)}\n`);
         return report;
+    }
+
+    protected prunePlan(root: string, days: number): PrunePlan {
+        const project = openProject(root);
+        return planPrune(project, { days, now: new Date(), hits: parseHitLog(project.read(RULE_HITS_FILE)), addedAt: gitAddedAt(root, RULES_DIR) });
+    }
+
+    async planPrune(root: string, days: number): Promise<PrunePlan> {
+        this.checkRoot(root);
+        return this.prunePlan(root, days);
+    }
+
+    async applyPrune(root: string, days: number, only: readonly string[]): Promise<PrunePlan> {
+        this.checkRoot(root);
+        if (only.length) {
+            applyWrites(root, pruneEdits(openProject(root), this.prunePlan(root, days), only));
+        }
+        return this.prunePlan(root, days);
+    }
+
+    async recordRuleHits(root: string, paths: readonly string[]): Promise<void> {
+        const rules = paths.filter(file => file.startsWith(RULES_DIR));
+        if (!rules.length || !root || !fs.existsSync(path.join(root, RULES_DIR))) {
+            return;
+        }
+        const previous = this.hitWrites.get(root) ?? Promise.resolve();
+        const next = previous.then(() => {
+            const file = path.join(root, RULE_HITS_FILE);
+            const current = fs.existsSync(file) ? parseHitLog(fs.readFileSync(file, 'utf8')) : undefined;
+            writeState(root, RULE_HITS_FILE, serializeHitLog(recordHits(current, rules, new Date())));
+        }).catch(() => undefined);
+        this.hitWrites.set(root, next);
+        await next;
     }
 }

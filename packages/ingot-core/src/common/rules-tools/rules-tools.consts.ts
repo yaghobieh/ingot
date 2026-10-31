@@ -5,7 +5,8 @@ export const RULES_TOOLS_SERVICE_PATH = '/services/ingot/rules-tools';
 
 export const RULES_TOOLS_COMMANDS = {
     export: { id: 'ingot.rules.export', label: 'Export Rules to Other Tools…', category: 'Rules' } as Command,
-    test: { id: 'ingot.rules.test', label: 'Test Rules…', category: 'Rules' } as Command
+    test: { id: 'ingot.rules.test', label: 'Test Rules…', category: 'Rules' } as Command,
+    prune: { id: 'ingot.rules.prune', label: 'Prune Stale Rules…', category: 'Rules' } as Command
 };
 
 export const EXPORT_ACTION_LABELS = { create: 'New', update: 'Update', delete: 'Delete', unchanged: 'Up to date', skipped: 'Skipped' } as const;
@@ -24,3 +25,5 @@ export const MOCK_MODEL_LABEL = 'Mock (free, offline)';
 export const COST_STEP_USD = 0.01;
 export const CAP_DIGITS = 2;
 export const NO_KEY_MESSAGE = 'No OpenRouter key. Add one on the Models page (OpenRouter), or use the free mock model.';
+export const PRUNE_MIN_DAYS = 1;
+export const PRUNE_MAX_DAYS = 3650;

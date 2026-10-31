@@ -1,4 +1,6 @@
-import { inject, injectable } from '@theia/core/shared/inversify';
+import { inject, injectable, optional } from '@theia/core/shared/inversify';
+import { RulesToolsService } from '../../common/rules-tools/rules-tools.types';
+import type { ProjectRule } from '../../common/project-config/project-config.types';
 import { IngotModelClient } from '../models/model-client';
 import { ZaprexLauncher } from './zaprex-launcher';
 import { ZaprexDesktopService } from '../../common/zaprex/zaprex-desktop.types';
@@ -148,6 +150,7 @@ export class AgentStore {
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
     @inject(TerminalService) protected readonly terminals: TerminalService;
+    @inject(RulesToolsService) @optional() protected readonly rulesTools?: RulesToolsService;
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
 
@@ -848,6 +851,14 @@ export class AgentStore {
         return generation;
     }
 
+    /** IDEA-323: which `.ingot/rules` agents actually use, for `ingot rules prune`; best effort, never blocks the turn. */
+    protected recordRuleHits(root: URI | undefined, rules: readonly ProjectRule[]): void {
+        const paths = rules.filter(rule => rule.source === 'ingot').map(rule => rule.path);
+        if (root && paths.length && this.rulesTools) {
+            this.rulesTools.recordRuleHits(root.path.fsPath(), paths).catch(() => undefined);
+        }
+    }
+
     protected async runModel(session: AgentSession, generation = this.generationFor(session.id)): Promise<void> {
         this.enterLoop(session.id);
         try {
@@ -871,6 +882,7 @@ export class AgentStore {
         const active = this.editors.currentEditor?.editor.uri;
         const activePath = active && root?.isEqualOrParent(active) ? root.relative(active)?.toString() : undefined;
         const rules = applicableRules(config.rules, activePath ? [...context.paths, activePath] : context.paths);
+        this.recordRuleHits(root, rules);
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);

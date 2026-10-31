@@ -1,4 +1,4 @@
-import type { ExportPlan, ExportTarget, RuleTestReport } from '../rules-kit';
+import type { ExportPlan, ExportTarget, PrunePlan, RuleTestReport } from '../rules-kit';
 
 export const RulesToolsService = Symbol('RulesToolsService');
 
@@ -34,4 +34,9 @@ export interface RulesToolsService {
     applyExport(root: string, targets?: readonly ExportTarget[], force?: boolean): Promise<ExportPlan>;
     listRuleTests(root: string): Promise<RuleTestListing>;
     runRuleTests(root: string, request: RuleTestRequest): Promise<RuleTestReport>;
+    planPrune(root: string, days: number): Promise<PrunePlan>;
+    /** Applies the chosen candidates (rule paths), then returns the fresh plan. */
+    applyPrune(root: string, days: number, only: readonly string[]): Promise<PrunePlan>;
+    /** Counts one agent turn for each project rule path that was in its context (`.ingot/.state/rule-hits.json`). */
+    recordRuleHits(root: string, paths: readonly string[]): Promise<void>;
 }
