@@ -9,7 +9,8 @@ export const GROUP_FIXTURE = path.join(FIXTURES_DIR, 'fullstack.ingot-group');
 export const CONFIG_PROJECT = path.join(FIXTURES_DIR, 'config-project');
 /** Override when several checkouts run e2e at once so their keychain entries never collide. */
 export const E2E_KEYCHAIN_SERVICE = process.env.INGOT_E2E_KEYCHAIN_SERVICE ?? 'dev.ingot.ide.e2e';
-export const E2E_CONFIG_DIR = path.resolve(__dirname, '..', '.ingot-e2e-config');
+/** Override (with INGOT_PORT) when two runs share a checkout, so their settings and caches never collide. */
+export const E2E_CONFIG_DIR = process.env.INGOT_E2E_CONFIG_DIR ?? path.resolve(__dirname, '..', '.ingot-e2e-config');
 /** Stand-in for the OS keychain. Kept outside the app config dir so config scans never see secrets. */
 export const E2E_KEYSTORE_FILE = process.env.INGOT_DEV_FILE_KEYSTORE ?? path.resolve(__dirname, '..', '.ingot-e2e-keystore', 'keystore.json');
 /** Chromium switch: Electron's own encryption skips the macOS login keychain, so e2e never shows a keychain prompt. */
