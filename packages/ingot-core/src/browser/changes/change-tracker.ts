@@ -12,7 +12,7 @@ import type { MonacoEditorModel } from '@theia/monaco/lib/browser/monaco-editor-
 import { MonacoTextModelService } from '@theia/monaco/lib/browser/monaco-text-model-service';
 import * as monaco from '@theia/monaco-editor-core';
 import { CHANGES_PENDING_KEY, STREAM_APPLY_MS } from '../../common/changes/changes.consts';
-import type { ChangeHunk, Checkpoint, CodeChange, HunkState } from '../../common/changes/changes.types';
+import type { ChangeHunk, Checkpoint, CodeChange, HunkState, RejectedHunksEvent } from '../../common/changes/changes.types';
 import { buildHunks, changeStats, composeText, decide, hunkLines, isPending, streamingPreview } from '../../common/changes/changes.utils';
 import { ACCEPT_EDIT_KEY_LABEL, REJECT_EDIT_KEY_LABEL } from './changes.browser-consts';
 import { formatCountdown } from '../../common/review/review';
@@ -66,6 +66,9 @@ export class ChangeTracker {
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
+    protected readonly onDidRejectHunksEmitter = new Emitter<RejectedHunksEvent>();
+    /** IDEA-328: hunks the user rejected (one event per decision), for learned rules. */
+    readonly onDidRejectHunks: Event<RejectedHunksEvent> = this.onDidRejectHunksEmitter.event;
 
     protected items: CodeChange[] = [];
     protected checkpointList: Checkpoint[] = [];
@@ -238,7 +241,11 @@ export class ChangeTracker {
             return;
         }
         const next = decide(change, hunkIds, state);
+        const rejected = state === 'rejected' ? change.hunks.filter(h => h.state === 'pending' && (hunkIds === 'all' || hunkIds.includes(h.id))) : [];
         this.replace(next);
+        if (rejected.length) {
+            this.onDidRejectHunksEmitter.fire({ sessionId: change.sessionId, path: change.path, hunks: rejected });
+        }
         if (!isPending(next)) {
             await this.settle(next);
         } else {

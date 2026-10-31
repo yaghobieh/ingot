@@ -1,4 +1,5 @@
 import type { ConfigSource, McpServerConfig, ProjectCommand, ProjectRule } from './project-config.types';
+import { stripExportBlock } from '../rules-kit';
 
 export interface Frontmatter {
     readonly data: Record<string, string | boolean | string[]>;
@@ -47,7 +48,8 @@ const asList = (value: string | boolean | string[] | undefined): string[] =>
 
 /** A rule file. Without globs or `alwaysApply: false` a rule always applies (like AGENTS.md); with globs it applies to matching files. */
 export const ruleFromFile = (path: string, text: string, source: ConfigSource): ProjectRule => {
-    const { data, body } = parseFrontmatter(text);
+    // IDEA-319: AGENTS.md's `ingot export` block repeats `.ingot/rules`, which are loaded on their own.
+    const { data, body } = parseFrontmatter(source === 'agents' ? stripExportBlock(text) : text);
     const globs = asList(data.globs);
     const alwaysApply = data.alwaysApply === true || (data.alwaysApply === undefined && globs.length === 0);
     return {

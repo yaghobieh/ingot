@@ -16,6 +16,9 @@ describe('project config', () => {
         expect(applicableRules([scoped], ['README.md'])).toEqual([]);
         expect(applicableRules([scoped], ['src/a/b.ts'])).toEqual([scoped]);
         expect(ruleFromFile('AGENTS.md', 'Hi', 'agents').name).toBe('AGENTS.md');
+        const exported = '# Shop\n\nRun tests.\n\n<!-- ingot:export:begin - generated -->\n### style\nBe brief.\n<!-- ingot:export:end -->\n';
+        expect(ruleFromFile('AGENTS.md', exported, 'agents').body).toBe('# Shop\n\nRun tests.');
+        expect(ruleFromFile('.ingot/rules/x.md', exported, 'ingot').body).toContain('Be brief.');
     });
 
     it('matches globs', () => {
