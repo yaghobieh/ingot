@@ -8,6 +8,7 @@ import { AUDIT_LOG_COMMAND_ID } from '../audit/agent-audit.consts';
 import { BROWSER_FOCUS_KEY } from '../browser-tool/browser-tool.consts';
 import { DECISION_COMMANDS } from '../decisions/decisions.consts';
 import { FROZEN_COMMANDS } from '../frozen/frozen.consts';
+import { LANGUAGE_COMMANDS } from '../languages/languages.consts';
 
 /** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
@@ -106,6 +107,10 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     // Tests (IDEA-261)
     { action: 'Run All Tests', command: TEST_COMMAND_IDS.runAll, mac: 'ctrl+shift+r', other: 'ctrl+shift+f10' },
     { action: 'Rerun Failed Tests', command: TEST_COMMAND_IDS.rerunFailed, mac: 'ctrl+alt+shift+r', other: 'ctrl+alt+shift+f10' },
+    // Languages (IDEA-313)
+    { action: 'Run Current File', command: LANGUAGE_COMMANDS.runFile.id, mac: 'ctrlcmd+alt+f10', other: 'ctrl+alt+shift+f9' },
+    { action: 'Build Project', command: LANGUAGE_COMMANDS.build.id, mac: 'ctrlcmd+f9', other: 'ctrl+f9' },
+    { action: 'Languages and Toolchains', command: LANGUAGE_COMMANDS.open.id, mac: 'ctrlcmd+alt+shift+l', other: 'ctrl+alt+shift+l' },
     // Debugger (IDEA-138)
     { action: 'Run/Debug Configurations', command: 'ingot.debug.selectConfiguration', mac: 'ctrl+alt+r', other: 'alt+shift+f10' },
     { action: 'Toggle Line Breakpoint', command: 'editor.debug.action.toggleBreakpoint', mac: 'ctrlcmd+f8', other: 'ctrl+f8', when: EDITOR },

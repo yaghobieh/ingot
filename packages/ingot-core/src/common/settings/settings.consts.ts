@@ -1,3 +1,4 @@
+import { LANGUAGE_PREFS, LANGUAGE_TEXT, LANGUAGES_SETTINGS_PAGE } from '../languages/languages.consts';
 import type { SettingsPage } from './settings.types';
 
 export const SETTINGS_PREFS = {
@@ -37,6 +38,10 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
     },
     { id: 'account', label: 'Account', icon: 'account', custom: 'account', preferences: ['ingot.account.syncSettings'], description: 'Your Ingot account on this device.' },
     { id: 'plugins', label: 'Plugins', icon: 'extensions', actions: [{ id: 'openPlugins', label: 'Open Marketplace…' }], description: 'Install themes and extensions from Open VSX.' },
+    {
+        id: LANGUAGES_SETTINGS_PAGE, label: 'Languages & Frameworks', icon: 'code', custom: 'languages',
+        preferences: [LANGUAGE_PREFS.toolchainPrompts], description: LANGUAGE_TEXT.pageDescription
+    },
     { id: 'vcs', label: 'Version Control', icon: 'source-control', preferences: ['scm.defaultViewMode', 'git.autofetch', 'git.confirmSync'] },
     {
         id: 'tools', label: 'Tools', icon: 'tools', children: [

@@ -54,6 +54,9 @@ import { DebugToolsService } from '../common/debug/debug.types';
 import { IngotTestService } from './ingot-test-service';
 import { TEST_SERVICE_PATH } from '../common/testing/testing.consts';
 import { TestService } from '../common/testing/testing.types';
+import { IngotToolchainService } from './languages/ingot-toolchain-service';
+import { TOOLCHAIN_SERVICE_PATH } from '../common/languages/languages.consts';
+import { ToolchainService } from '../common/languages/languages.types';
 import { CodebaseIndexConnection, IngotCodebaseIndexService } from './codebase-index/ingot-codebase-index-service';
 import { CODEBASE_INDEX_SERVICE_PATH } from '../common/codebase-index/codebase-index.consts';
 import { CodebaseIndexService, type CodebaseIndexClient } from '../common/codebase-index/codebase-index.types';
@@ -134,6 +137,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotTestService).toSelf().inSingletonScope();
     bind(TestService).toService(IngotTestService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(TEST_SERVICE_PATH, () => ctx.container.get<TestService>(TestService))).inSingletonScope();
+    bind(IngotToolchainService).toSelf().inSingletonScope();
+    bind(ToolchainService).toService(IngotToolchainService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(TOOLCHAIN_SERVICE_PATH, () => ctx.container.get<ToolchainService>(ToolchainService))).inSingletonScope();
     bind(IngotCodebaseIndexService).toSelf().inSingletonScope();
     bind(CodebaseIndexService).toService(IngotCodebaseIndexService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<CodebaseIndexClient>(CODEBASE_INDEX_SERVICE_PATH, client => {

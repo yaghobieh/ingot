@@ -1,0 +1,42 @@
+/* IDEA-313: Settings › Languages & Frameworks. */
+.ingot-languages { padding: var(--ingot-space-2) var(--ingot-space-3); }
+.ingot-languages-summary { display: flex; align-items: center; gap: var(--ingot-space-2); margin: var(--ingot-space-1) 0 var(--ingot-space-2); color: var(--ingot-text-muted); }
+.ingot-languages .ingot-flex { flex: 1; }
+
+.ingot-languages-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ingot-languages-table th { font-weight: 500; color: var(--ingot-text-muted); text-align: center; padding: 4px 2px; border-bottom: 1px solid var(--ingot-border); white-space: nowrap; }
+.ingot-languages-table th.ingot-lang-name { text-align: left; }
+.ingot-lang-feature-head { max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
+.ingot-lang-row { cursor: pointer; }
+.ingot-lang-row:hover, .ingot-lang-row:focus-visible { background: var(--ingot-selection); outline: none; }
+.ingot-lang-row td { padding: 4px 2px; border-bottom: 1px solid var(--ingot-border); }
+.ingot-lang-name { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ingot-lang-label { color: var(--ingot-text); }
+.ingot-lang-level { font-size: 11px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--ingot-border); color: var(--ingot-text-muted); }
+.ingot-lang-level-ready { color: var(--ingot-success); border-color: var(--ingot-success); }
+.ingot-lang-level-needs-toolchain { color: var(--ingot-warning); border-color: var(--ingot-warning); }
+.ingot-lang-feature { text-align: center; }
+
+.ingot-lang-ready { color: var(--ingot-success); }
+.ingot-lang-needs-toolchain { color: var(--ingot-warning); }
+.ingot-lang-missing-extension { color: var(--ingot-danger); }
+.ingot-lang-on-demand { color: var(--ingot-info); }
+.ingot-lang-unsupported, .ingot-lang-na { color: var(--ingot-text-muted); }
+
+.ingot-lang-details td { padding: var(--ingot-space-2) var(--ingot-space-3); border-bottom: 1px solid var(--ingot-border); background: var(--ingot-surface); }
+.ingot-lang-detail-body { display: flex; flex-direction: column; gap: 6px; }
+.ingot-lang-extension { display: flex; align-items: center; gap: var(--ingot-space-2); }
+.ingot-lang-extension a { color: var(--ingot-accent); text-decoration: none; }
+.ingot-lang-extension a:hover { text-decoration: underline; }
+.ingot-lang-licence { font-size: 11px; padding: 0 6px; border-radius: 8px; background: var(--ingot-panel); color: var(--ingot-text-muted); }
+.ingot-lang-note b { font-weight: 500; color: var(--ingot-text); }
+
+.ingot-toolchains { display: flex; flex-direction: column; gap: 2px; margin-bottom: var(--ingot-space-2); }
+.ingot-toolchain { display: flex; align-items: center; gap: var(--ingot-space-2); padding: 3px 4px; border-radius: 5px; font-size: 12px; }
+.ingot-toolchain:hover { background: var(--ingot-selection); }
+.ingot-toolchain.found .codicon:first-child { color: var(--ingot-success); }
+.ingot-toolchain.missing .codicon:first-child { color: var(--ingot-warning); }
+.ingot-toolchain-label { min-width: 160px; color: var(--ingot-text); }
+.ingot-toolchain-status { min-width: 110px; color: var(--ingot-text-muted); }
+.ingot-toolchain-command { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-text-muted); }
+.ingot-languages-legend { display: flex; flex-wrap: wrap; gap: var(--ingot-space-3); font-size: 11px; }

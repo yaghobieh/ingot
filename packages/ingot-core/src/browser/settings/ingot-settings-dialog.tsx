@@ -7,6 +7,10 @@ import { CommandService } from '@theia/core/lib/common/command';
 import { PreferenceSchemaService, PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { ThemeService } from '@theia/core/lib/browser/theming';
 import { IconThemeService } from '@theia/core/lib/browser/icon-theme-service';
+import { ClipboardService } from '@theia/core/lib/browser/clipboard-service';
+import { WindowService } from '@theia/core/lib/browser/window/window-service';
+import { isOSX, isWindows } from '@theia/core/lib/common/os';
+import { guidePlatform } from '../../common/debug/debug.utils';
 import { SETTINGS_PREFS, SETTINGS_TREE } from '../../common/settings/settings.consts';
 import type { SettingInfo, SettingsAction, SettingsPage } from '../../common/settings/settings.types';
 import { coerceSetting, flattenPages, searchPages, settingLabel, visiblePreferences } from '../../common/settings/settings.utils';
@@ -29,6 +33,8 @@ import { PlaybookService } from '../habits/playbook-service';
 import { IngotAccountService } from '../account/account-service';
 import { AccountAvatar } from '../account/account-avatar';
 import { SETTINGS_ACCOUNT_TEXT } from '../account/account.consts';
+import { LanguageSupportStore } from '../languages/language-support-store';
+import { LanguagesManager } from '../languages/languages-manager';
 import { INLINE_ACTIONS, SETTINGS_ACTION_COMMANDS, SettingsDialogProps, settingDomId } from './settings.browser-consts';
 
 interface Option { readonly value: string; readonly label: string }
@@ -50,6 +56,9 @@ export class IngotSettingsDialog extends ReactDialog<void> {
     @inject(FrozenStore) protected readonly frozenStore: FrozenStore;
     @inject(LearnedHabitStore) protected readonly learnedStore: LearnedHabitStore;
     @inject(IngotAccountService) protected readonly accounts: IngotAccountService;
+    @inject(LanguageSupportStore) protected readonly languages: LanguageSupportStore;
+    @inject(ClipboardService) protected readonly clipboard: ClipboardService;
+    @inject(WindowService) protected readonly windows: WindowService;
 
     protected query = '';
     protected selected = 'appearance';
@@ -88,6 +97,10 @@ export class IngotSettingsDialog extends ReactDialog<void> {
     /** Opens fresh (pending edits from a cancelled session are dropped), optionally on a page. */
     async show(pageId?: string): Promise<void> {
         if (this.isAttached) {
+            if (pageId) {
+                this.selected = pageId;
+                this.update();
+            }
             this.activate();
             return;
         }
@@ -240,6 +253,8 @@ export class IngotSettingsDialog extends ReactDialog<void> {
             {page.custom === 'habits' && <HabitsManager store={this.habitStore} playbooks={this.playbookService} learned={this.learnedStore} modelLabel={id => findModel(id)?.label ?? id} />}
             {page.custom === 'decisions' && <DecisionsManager ledger={this.decisionLedger} />}
             {page.custom === 'frozen' && <FrozenManager store={this.frozenStore} runCommand={id => { this.close(); void this.commands.executeCommand(id); }} />}
+            {page.custom === 'languages' && <LanguagesManager store={this.languages} platform={guidePlatform(isOSX ? 'mac' : isWindows ? 'windows' : 'linux')}
+                copy={text => this.clipboard.writeText(text)} openUrl={url => this.windows.openNewWindow(url, { external: true })} />}
             {page.custom === 'memories' && <section className='ingot-settings-card ingot-settings-memories'><MemoriesManager store={this.memoryStore} /></section>}
             {this.groupsFor(page, keys).map(group => <section key={group.label} className='ingot-settings-card'>
                 <h3 className='ingot-settings-card-title'>{group.label}</h3>
