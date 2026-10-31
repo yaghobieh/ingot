@@ -9,9 +9,11 @@ import { pickModel } from '../src/chat.e2e-utils';
 import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
 
 /**
- * The agent's "working" state: "Getting it done…" with a bright band sweeping across it every 1.5 s, in light and
- * dark. "Thinking…" stands in for it while a thought streams. Reduced motion shows plain text.
+ * The agent's "working" state: the live status line ("Getting it done…", then "Typing…" as the reply streams) with a
+ * bright band sweeping across it every 1.5 s, in light and dark. The thought's own "Thinking…" row stands in for it
+ * while a thought streams. Reduced motion shows plain text. The steps themselves are in `agent-live-status.spec.ts`.
  */
+const LIVE_LINE = /^(Getting it done|Thinking|Typing)…$/;
 const THOUGHT = 'Look at the cart module first, then check how totals are rounded before changing anything. '.repeat(2);
 const ANSWER = 'The cart total now rounds once at the end, so the sum of the lines matches the total shown at checkout. '.repeat(3);
 const STREAM = { chunkSize: 4, delayMs: 90 };
@@ -54,7 +56,7 @@ test.describe('Agent working state shimmer', () => {
         fs.rmSync(dir, { recursive: true, force: true });
     });
 
-    test('"Getting it done…" shimmers in light and dark, gives way to Thinking…, and stops for reduced motion', async ({ page }) => {
+    test('the working line shimmers in light and dark, gives way to the Thinking… row, and stops for reduced motion', async ({ page }) => {
         await openIngot(page, dir);
         await openSettingsPage(page, 'appearance');
         const appearance = await page.locator('#ingot-setting-ingot-appearance').inputValue();
@@ -72,7 +74,7 @@ test.describe('Agent working state shimmer', () => {
             // Light: muted text with a near-white band sliding across it, 1.5 s per sweep, forever.
             await composer.fill('fix the cart total rounding');
             await composer.press('Enter');
-            await expect(text).toHaveText('Getting it done…');
+            await expect(text).toHaveText(LIVE_LINE);
             await expect(text).toHaveCSS('animation-name', 'ingot-shimmer-sweep');
             await expect(text).toHaveCSS('animation-duration', '1.5s');
             await expect(text).toHaveCSS('animation-iteration-count', 'infinite');
@@ -91,7 +93,7 @@ test.describe('Agent working state shimmer', () => {
             await setAppearance(page, 'dark');
             await composer.fill('and the tax line');
             await composer.press('Enter');
-            await expect(text).toHaveText('Getting it done…');
+            await expect(text).toHaveText(LIVE_LINE);
             await expect(text).toHaveCSS('animation-name', 'ingot-shimmer-sweep');
             const dark = await shimmerColors(text);
             expect(dark.glint).toBeGreaterThan(dark.base);
@@ -106,7 +108,8 @@ test.describe('Agent working state shimmer', () => {
             await expect(thinking).toHaveCSS('animation-name', 'ingot-shimmer-sweep');
             await expect(working).toHaveCount(0);
             await shot(page, 'agent-thinking-dark.png');
-            await expect(text).toHaveText('Getting it done…', { timeout: 30_000 });
+            // The thought closed and the answer streams.
+            await expect(text).toHaveText('Typing…', { timeout: 30_000 });
             await expect(working).toHaveCount(0, { timeout: 60_000 });
 
             // The same "Thinking…" row in light.
@@ -116,14 +119,14 @@ test.describe('Agent working state shimmer', () => {
             await expect(thinking).toHaveClass(/ingot-shimmer/);
             await expect(thinking).toHaveCSS('animation-name', 'ingot-shimmer-sweep');
             await shot(page, 'agent-thinking-light.png');
-            await expect(text).toHaveText('Getting it done…', { timeout: 30_000 });
+            await expect(text).toHaveText('Typing…', { timeout: 30_000 });
             await expect(working).toHaveCount(0, { timeout: 60_000 });
 
             // Reduced motion: no sweep, plain muted text.
             await page.emulateMedia({ reducedMotion: 'reduce' });
             await composer.fill('one more pass');
             await composer.press('Enter');
-            await expect(text).toHaveText('Getting it done…');
+            await expect(text).toHaveText(LIVE_LINE);
             await expect(text).toHaveCSS('animation-name', 'none');
             await expect(text).toHaveCSS('background-image', 'none');
             await expect(text).not.toHaveCSS('color', 'rgba(0, 0, 0, 0)');

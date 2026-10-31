@@ -9,6 +9,8 @@ export interface FakeOllamaOptions {
     readonly chunkSize?: number;
     /** Delay between deltas in ms (default 25). */
     readonly delayMs?: number;
+    /** Wait before the first delta in ms, like a model that takes a moment to start (default 0). */
+    readonly firstDelayMs?: number;
 }
 
 export interface FakeOllama {
@@ -23,7 +25,7 @@ export interface FakeOllama {
  * (UI → backend gateway → HTTP) without any API key or network access.
  */
 export const startFakeOllama = async (reply: (system: string, user: string) => string, options: FakeOllamaOptions = {}): Promise<FakeOllama> => {
-    const { chunkSize = STREAM_CHUNK_CHARS, delayMs = STREAM_DELAY_MS } = options;
+    const { chunkSize = STREAM_CHUNK_CHARS, delayMs = STREAM_DELAY_MS, firstDelayMs = 0 } = options;
     const requests: FakeOllama['requests'] = [];
     const server = http.createServer((req, res) => {
         let raw = '';
@@ -48,7 +50,7 @@ export const startFakeOllama = async (reply: (system: string, user: string) => s
                         res.end(`${JSON.stringify({ model: body.model, done: true })}\n`);
                     }
                 };
-                tick();
+                setTimeout(tick, firstDelayMs);
                 return;
             }
             res.writeHead(req.url === '/api/chat' ? 200 : 404, { 'content-type': 'application/json' });
