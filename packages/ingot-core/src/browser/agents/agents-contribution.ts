@@ -14,6 +14,7 @@ import { findModel } from '../../common/models/models.utils';
 import { AGENT_TRACE_GLOBAL } from '../../common/agents/agents.consts';
 import { agentTrace } from '../../common/agents/agent-trace';
 import type { AgentTrace } from '../../common/agents/agent-trace.types';
+import { IngotPlanService } from '../plan/plan-service';
 
 /** Demo transformation: annotate the first function-like line so the review UI can be tried without a model. */
 const demoEdit = (text: string): string => {
@@ -33,6 +34,7 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(StatusBar) protected readonly statusBar: StatusBar;
     @inject(QuickInputService) protected readonly quickInput: QuickInputService;
+    @inject(IngotPlanService) protected readonly plan: IngotPlanService;
     protected chatModelStatus = '';
 
     constructor() {
@@ -42,6 +44,7 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
     @postConstruct()
     protected initStatus(): void {
         this.store.onDidChange(() => this.updateChatModelStatus());
+        this.plan.onDidChange(() => this.updateChatModelStatus());
         this.updateChatModelStatus();
         (window as unknown as Record<string, unknown>)[AGENT_TRACE_GLOBAL] = (): AgentTrace | undefined => {
             const session = this.store.current;
@@ -51,6 +54,11 @@ export class IngotAgentsContribution extends AbstractViewContribution<IngotAgent
 
     /** IDEA-104: the status bar names the active chat's model, and follows every chat switch or model pick. */
     protected updateChatModelStatus(): void {
+        if (!this.plan.can('chat')) {
+            this.chatModelStatus = '';
+            this.statusBar.removeElement(CHAT_MODEL_STATUS_ID);
+            return;
+        }
         const session = this.store.current;
         const chosen = session?.model ?? AUTO_MODEL_ID;
         const resolved = this.store.resolveModel(chosen);

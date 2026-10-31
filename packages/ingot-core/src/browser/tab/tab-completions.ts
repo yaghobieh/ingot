@@ -4,6 +4,7 @@ import URI from '@theia/core/lib/common/uri';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { IngotModelClient } from '../models/model-client';
+import { IngotPlanService } from '../plan/plan-service';
 import {
     TAB_DEFAULT_DEBOUNCE_MS, TAB_DEFAULT_DEV_MODEL, TAB_DEV_CATALOG_MODEL, TAB_FEATURE, TAB_MAX_OUTPUT_TOKENS, TAB_PREFERENCES, TAB_PREFIX_LINES,
     TAB_RECENT_EDITS_MAX, TAB_SUFFIX_LINES, TAB_TEMPERATURE
@@ -42,6 +43,7 @@ export class IngotTabCompletions implements monaco.languages.InlineCompletionsPr
     @inject(IngotTabIgnore) protected readonly ignore: IngotTabIgnore;
     @inject(IngotTabUsage) protected readonly usage: IngotTabUsage;
     @inject(IngotTabNextEdit) protected readonly nextEdit: IngotTabNextEdit;
+    @inject(IngotPlanService) protected readonly plan: IngotPlanService;
 
     protected readonly recentEdits = new Map<string, TabRecentEdit[]>();
     lastOutcome?: TabOutcome;
@@ -56,7 +58,7 @@ export class IngotTabCompletions implements monaco.languages.InlineCompletionsPr
     }
 
     get enabled(): boolean {
-        return this.preferences.get<boolean>(TAB_PREFERENCES.enabled, true);
+        return this.plan.can('inlineCompletions') && this.preferences.get<boolean>(TAB_PREFERENCES.enabled, true);
     }
 
     /** Ingot gateway (or the picked BYOK model); OpenRouter directly when the dev fallback is on and has a key. */
