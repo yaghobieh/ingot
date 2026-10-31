@@ -58,7 +58,9 @@ import { CommandRegistry } from '@theia/core/lib/common/command';
 import { IngotModelClient } from '../models/model-client';
 import { MODELS_OPEN_COMMAND } from '../models/models.browser-consts';
 import type { AgentSession } from '../../common/agents/agents.types';
-import { changesSummary, editedFilesLabel, fileBadge, fileWord, formatWorked, stepText, workingLabel } from '../../common/agents/agents.utils';
+import { changesSummary, editedFilesLabel, fileBadge, fileWord, formatWorked, stepText } from '../../common/agents/agents.utils';
+import { liveStatus } from '../../common/agents/live-status';
+import { LiveStatusLine } from './live-status-line';
 import { AgentStore } from './agent-store';
 import { EditorManager } from '@theia/editor/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
@@ -1330,16 +1332,12 @@ export class IngotAgentsWidget extends ReactWidget {
         </>;
     }
 
-    /** "Getting it done…" with a shimmer while the run works; the "Thinking…" row stands in for it while a thought streams. */
+    /** The shimmering live status line (Thinking…, Reading 3 files…, Almost there…); a streaming thought has its own row. */
     protected renderWorking(session: AgentSession): React.ReactNode {
-        const last = session.messages[session.messages.length - 1];
-        const label = this.store.isRunning(session.id) ? workingLabel(session) : undefined;
-        if (!label || (last?.role === 'agent' && !last.parts && extractThought(last.text).thinking)) {
-            return undefined;
-        }
-        return <div className='ingot-chat-working' id='ingot-chat-working' role='status'>
-            <span className='ingot-chat-working-text ingot-shimmer'>{label}</span>
-        </div>;
+        const status = liveStatus({
+            session, running: this.store.isRunning(session.id), streaming: this.store.isStreaming(session.id), phase: this.store.livePhase(session.id)
+        });
+        return <LiveStatusLine key={session.id} status={status} />;
     }
 
     /** Set by review clicks so the tracker update that follows counts as interaction (stops the countdown). */
