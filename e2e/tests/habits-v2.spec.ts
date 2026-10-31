@@ -235,7 +235,7 @@ test.describe('IDEA-296 Habits v2: scenario playbooks', () => {
             await expect(page.locator('#ingot-habit-draft-text')).toHaveValue(/name: Run npm run lint/);
             await expect(page.locator('#ingot-habit-draft-text')).toHaveValue(/`npm run lint` passes/);
             await page.locator('#ingot-habit-draft-save').click();
-            await expect(page.locator('#ingot-habit-draft-saved')).toContainText('Habit saved to .ingot/habits/run-npm-run-lint.md');
+            await expect(page.locator('#ingot-agents .ingot-habit-note[data-habit-note="project:run-npm-run-lint"]')).toContainText('Run npm run lint → .ingot/habits/run-npm-run-lint.md');
             expect(fs.readFileSync(path.join(dir, '.ingot/habits/run-npm-run-lint.md'), 'utf8')).toContain('Run `npm run lint` and fix what fails');
             await expect(card).toHaveCount(0);
 
@@ -259,10 +259,15 @@ test.describe('IDEA-296 Habits v2: scenario playbooks', () => {
             await shot(page, 'habits-v2-save-run-dark.png');
             await text.fill((await text.inputValue()).replace(/name: .*/, 'name: Release build broken').replace('steps:\n', 'steps:\n  - Check the CI log\n'));
             await page.locator('#ingot-habit-draft-save').click();
-            await expect(page.locator('#ingot-habit-draft-saved')).toContainText('.ingot/habits/release-build-broken.md');
+            const runNote = page.locator('#ingot-agents .ingot-habit-note[data-habit-note="project:release-build-broken"]');
+            await expect(runNote).toContainText('Release build broken → .ingot/habits/release-build-broken.md');
             const saved = fs.readFileSync(path.join(dir, '.ingot/habits/release-build-broken.md'), 'utf8');
             expect(saved).toContain('name: Release build broken');
             expect(saved).toContain('  - Check the CI log\n  - Search the code for `retry`');
+            // The note opens that habit on the Habits page.
+            await runNote.locator('.ingot-habit-note-open').click();
+            await expect(page.locator('#ingot-playbooks-project [data-habit-id="project:release-build-broken"]')).toHaveClass(/ingot-habit-highlight/);
+            await page.locator('#ingot-settings-cancel').click();
 
             // The Habits page lists playbooks (project, global, .cursor, load errors) and learned patterns.
             await setAppearance(page, 'light');

@@ -12,6 +12,8 @@ import { HabitStore } from '../habits/habit-store';
 import { PlaybookService } from '../habits/playbook-service';
 import { PlaybookEditor } from '../habits/playbook-editor';
 import { HabitChecklist, HabitPill } from '../habits/habit-chat';
+import { HabitNoteLine } from '../habits/habit-note';
+import { HABITS_OPEN_COMMAND } from '../../common/habits/habits.consts';
 import type { Habit } from '../../common/habits/habits.types';
 import type { PlaybookScope } from '../../common/habits/playbook.types';
 import { draftFromLearned, draftFromRun, runSummary } from '../../common/habits/playbook-draft.utils';
@@ -111,8 +113,6 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(PlaybookService) protected readonly playbooks: PlaybookService;
     /** IDEA-296: a habit being drafted ("Save as habit", "Make it a habit") in the editor above the composer. */
     protected habitDraft?: { title: string; text: string; learned?: Habit };
-    /** IDEA-296: where the last drafted habit was saved, shown until dismissed. */
-    protected habitSaved?: string;
     @inject(ContextKeyService) protected readonly contextKeys: ContextKeyService;
     @inject(KeybindingRegistry) protected readonly keybindings: KeybindingRegistry;
     @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
@@ -720,33 +720,26 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected draftHabit(title: string, text: string, learned?: Habit): void {
         this.habitDraft = { title, text, learned };
-        this.habitSaved = undefined;
         this.update();
     }
 
     protected async saveHabitDraft(text: string, scope: PlaybookScope): Promise<readonly string[]> {
         const draft = this.habitDraft;
-        const { path, errors } = await this.playbooks.create(scope, text);
+        const { path, playbook, errors } = await this.playbooks.create(scope, text);
         if (path) {
-            if (draft?.learned) {
-                await this.habits.markSaved(draft.learned, path);
+            if (playbook) {
+                await this.habits.savedPlaybook(playbook, path, draft?.learned);
             }
             this.habitDraft = undefined;
-            this.habitSaved = path;
             this.update();
         }
         return errors;
     }
 
     protected renderHabitDraft(): React.ReactNode {
-        if (this.habitDraft) {
-            return <PlaybookEditor key={this.habitDraft.text} id='ingot-habit-draft' title={this.habitDraft.title} text={this.habitDraft.text} scope='project'
-                saveLabel='Save habit' hint={`Edit the steps, then save. ${PLAYBOOK_SCOPE_HINTS.project}`}
-                onSave={(text, scope) => this.saveHabitDraft(text, scope)} onCancel={() => { this.habitDraft = undefined; this.update(); }} />;
-        }
-        return this.habitSaved && <div className='ingot-habit-saved ingot-habit-draft-saved' id='ingot-habit-draft-saved' role='status'>
-            Habit saved to {this.habitSaved}. <a href='#' onClick={e => { e.preventDefault(); this.habitSaved = undefined; this.update(); }}>OK</a>
-        </div>;
+        return this.habitDraft && <PlaybookEditor key={this.habitDraft.text} id='ingot-habit-draft' title={this.habitDraft.title} text={this.habitDraft.text} scope='project'
+            saveLabel='Save habit' hint={`Edit the steps, then save. ${PLAYBOOK_SCOPE_HINTS.project}`}
+            onSave={(text, scope) => this.saveHabitDraft(text, scope)} onCancel={() => { this.habitDraft = undefined; this.update(); }} />;
     }
 
     /** Open chats as one compact row of tabs (IDEA-98): pinned first, drag to reorder, middle-click closes, right-click menu. */
@@ -964,6 +957,11 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     protected renderMessageBody(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+        const habitNote = m.habit;
+        if (habitNote) {
+            return <HabitNoteLine key={i} note={habitNote} onOpen={() => this.commands.executeCommand(HABITS_OPEN_COMMAND.id, habitNote.focus)}
+                onUndo={async () => { await this.habits.undo(habitNote.undo); this.store.markHabitNoteUndone(session.id, i); }} />;
+        }
         return m.memory
             ? <div key={i} className={`ingot-chat-memory${m.memory.undone ? ' undone' : ''}`}>
                     <span className='codicon codicon-lightbulb' />

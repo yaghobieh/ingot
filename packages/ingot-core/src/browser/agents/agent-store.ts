@@ -70,6 +70,7 @@ import { hookBlockedText, hookOutcomeText } from '../../common/hooks/agent-hooks
 import { HabitRunner } from '../habits/habit-runner';
 import { HABIT_TICKED_REPLY, USE_HABIT_TOOL } from '../../common/habits/playbook.consts';
 import { stripHabitMarks } from '../../common/habits/playbook.utils';
+import type { HabitNote } from '../../common/habits/habits.types';
 import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
@@ -2405,6 +2406,26 @@ export class AgentStore {
         }
         await this.memoryStore.remove(message.memory, this.rootFor(session));
         session.messages[index] = { ...message, memory: { ...message.memory, undone: true } };
+        this.changed();
+    }
+
+    /** IDEA-296: a "Saved to Habits" note in the open chat (none is open: nothing to show it in). */
+    addHabitNote(note: HabitNote): void {
+        const session = this.current;
+        if (!session) {
+            return;
+        }
+        session.messages.push({ role: 'system', text: note.label, habit: note });
+        this.changed();
+    }
+
+    markHabitNoteUndone(sessionId: string, index: number): void {
+        const session = this.items.find(s => s.id === sessionId);
+        const message = session?.messages[index];
+        if (!session || !message?.habit) {
+            return;
+        }
+        session.messages[index] = { ...message, habit: { ...message.habit, undone: true } };
         this.changed();
     }
 

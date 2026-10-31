@@ -221,7 +221,7 @@ test.describe('IDEA-287/294/295/296 .ingot rules, ignore, hooks, /init and Habit
             await setAppearance(page, 'light');
             await shot(page, 'habit-card-light.png');
             await card.locator('[data-target="rule"]').click();
-            await expect(page.locator('#ingot-habit-cards')).toContainText('Saved to .ingot/rules/use-bear-components.md');
+            await expect(page.locator('#ingot-agents .ingot-habit-note').last()).toContainText('use Bear components → .ingot/rules/use-bear-components.md');
             const rule = fs.readFileSync(path.join(dir, '.ingot', 'rules', 'use-bear-components.md'), 'utf8');
             expect(rule).toContain('alwaysApply: true');
             expect(rule.toLowerCase()).toContain('bear components');

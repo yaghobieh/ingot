@@ -4,6 +4,7 @@ import { MAKE_HABIT_LABEL, PLAYBOOK_SCOPE_HINTS, PLAYBOOK_SOURCE_LABELS } from '
 import type { Habit } from '../../common/habits/habits.types';
 import type { Playbook, PlaybookFileError, PlaybookList, PlaybookScope } from '../../common/habits/playbook.types';
 import { draftFromLearned } from '../../common/habits/playbook-draft.utils';
+import { learnedFocus } from '../../common/habits/habits.utils';
 import { blankDraft, playbookFileText } from '../../common/habits/playbook.utils';
 import type { HabitStore } from './habit-store';
 import type { PlaybookService } from './playbook-service';
@@ -23,6 +24,8 @@ interface HabitsManagerState {
     editing?: { uri: string; text: string; source: Playbook['source'] };
     adding?: { scope: PlaybookScope; text: string; learned?: Habit };
     saved?: string;
+    /** Row opened from a "Saved to Habits" note: `learned:<id>` or a playbook id. */
+    highlight?: string;
 }
 
 const SCOPE_TITLES: Readonly<Record<PlaybookScope, string>> = { project: 'Project habits', global: 'Global habits' };
@@ -34,15 +37,39 @@ const SCOPE_TITLES: Readonly<Record<PlaybookScope, string>> = { project: 'Projec
 export class HabitsManager extends React.Component<HabitsManagerProps, HabitsManagerState> {
     override state: HabitsManagerState = {};
     protected listeners: { dispose(): void }[] = [];
+    protected root: HTMLDivElement | null = null;
+    /** The highlighted row was scrolled into view (it may appear only once the habits have loaded). */
+    protected scrolled = false;
 
     override componentDidMount(): void {
-        this.listeners = [this.props.store.onDidChange(() => this.forceUpdate()), this.props.playbooks.onDidChange(() => this.refresh())];
+        this.listeners = [this.props.store.onDidChange(() => { this.takeReveal(); this.forceUpdate(); }), this.props.playbooks.onDidChange(() => this.refresh())];
+        this.takeReveal();
         void this.props.store.load(true);
         this.refresh();
     }
 
+    override componentDidUpdate(): void {
+        const row = this.state.highlight && !this.scrolled ? this.root?.querySelector('.ingot-habit-highlight') : undefined;
+        if (row) {
+            this.scrolled = true;
+            row.scrollIntoView({ block: 'center' });
+        }
+    }
+
     override componentWillUnmount(): void {
         this.listeners.forEach(l => l.dispose());
+    }
+
+    protected takeReveal(): void {
+        const highlight = this.props.store.takeReveal();
+        if (highlight) {
+            this.scrolled = false;
+            this.setState({ highlight });
+        }
+    }
+
+    protected highlighted(focus: string): string {
+        return this.state.highlight === focus ? ' ingot-habit-highlight' : '';
     }
 
     protected refresh(): void {
@@ -70,10 +97,10 @@ export class HabitsManager extends React.Component<HabitsManagerProps, HabitsMan
 
     protected async add(text: string, scope: PlaybookScope): Promise<readonly string[]> {
         const learned = this.state.adding?.learned;
-        const { path, errors } = await this.props.playbooks.create(scope, text);
+        const { path, playbook, errors } = await this.props.playbooks.create(scope, text);
         if (path) {
-            if (learned) {
-                await this.props.store.markSaved(learned, path);
+            if (playbook && learned) {
+                await this.props.store.savedPlaybook(playbook, path, learned);
             }
             this.setState({ adding: undefined, saved: path });
         }
@@ -91,7 +118,7 @@ export class HabitsManager extends React.Component<HabitsManagerProps, HabitsMan
             return <React.Fragment key={p.id}>{this.renderEditor()}</React.Fragment>;
         }
         const on = this.state.toggled?.[p.id] ?? this.props.playbooks.isEnabled(p);
-        return <div key={p.id} className={`ingot-playbook-row${on ? '' : ' off'}`} data-habit-id={p.id} title={p.path}>
+        return <div key={p.id} className={`ingot-playbook-row${on ? '' : ' off'}${this.highlighted(p.id)}`} data-habit-id={p.id} title={p.path}>
             <input type='checkbox' checked={on} aria-label={`Use habit ${p.name}`} onChange={e => this.toggle(p, e.currentTarget.checked)} />
             <span className='codicon codicon-checklist' aria-hidden='true' />
             <span className='ingot-rules-name'>{p.name}</span>
@@ -175,7 +202,7 @@ export class HabitsManager extends React.Component<HabitsManagerProps, HabitsMan
             </div>
             <p className='ingot-dim ingot-rules-hint'>Kept in {HABITS_FILE} of this project (git-ignored). Nothing leaves this machine.</p>
             {!habits.length && <div className='ingot-dim ingot-pick-empty'>{enabled ? 'Nothing learned yet. Repeat an instruction, command or rejected edit style and it shows up here.' : 'Turn on "Learn habits" to start.'}</div>}
-            {habits.map(h => <div key={h.id} className={`ingot-habit-row${h.enabled ? '' : ' off'}`} data-habit={h.id}>
+            {habits.map(h => <div key={h.id} className={`ingot-habit-row${h.enabled ? '' : ' off'}${this.highlighted(learnedFocus(h.id))}`} data-habit={h.id}>
                 <div className='ingot-habit-row-head'>
                     <input type='checkbox' checked={h.enabled} aria-label={`Track ${h.label}`} onChange={e => store.setHabitEnabled(h, e.currentTarget.checked)} />
                     <span className='ingot-habit-kind'>{HABIT_KIND_LABELS[h.kind]}</span>
@@ -193,7 +220,7 @@ export class HabitsManager extends React.Component<HabitsManagerProps, HabitsMan
     }
 
     override render(): React.ReactNode {
-        return <div className='ingot-habits-page' id='ingot-habits-page'>
+        return <div className='ingot-habits-page' id='ingot-habits-page' ref={el => { this.root = el; }}>
             {this.renderPlaybooks()}
             {this.renderLearned()}
         </div>;

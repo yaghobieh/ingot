@@ -11,9 +11,11 @@ export interface HabitCardsProps {
     readonly onMakeHabit?: (habit: Habit) => void;
 }
 
-/** IDEA-296: "You often X. Make it a rule / command / hook / habit?" cards in the agent chat. */
-export class HabitCards extends React.Component<HabitCardsProps, { saved?: string }> {
-    override state: { saved?: string } = {};
+/**
+ * IDEA-296: "You often X. Make it a rule / command / hook / habit?" cards in the agent chat. What a card saves shows as
+ * a "Saved to Habits" note in the chat.
+ */
+export class HabitCards extends React.Component<HabitCardsProps> {
     protected listener?: { dispose(): void };
 
     override componentDidMount(): void {
@@ -27,7 +29,7 @@ export class HabitCards extends React.Component<HabitCardsProps, { saved?: strin
     override render(): React.ReactNode {
         const { store } = this.props;
         const proposals = store.proposals;
-        if (!proposals.length && !this.state.saved) {
+        if (!proposals.length) {
             return undefined;
         }
         return <div className='ingot-habit-cards' id='ingot-habit-cards'>
@@ -41,8 +43,7 @@ export class HabitCards extends React.Component<HabitCardsProps, { saved?: strin
                 {habit.examples.length > 0 && <div className='ingot-habit-evidence' title={habit.examples.join('\n')}>e.g. {habit.examples[habit.examples.length - 1]}</div>}
                 <div className='ingot-habit-actions'>
                     {habitTargets(habit).map((target, i) => <button key={target} type='button' data-target={target}
-                        className={i === 0 ? 'ingot-btn-primary' : 'ingot-btn-ghost'}
-                        onClick={async () => { const saved = await store.accept(habit, target); this.setState({ saved }); }}>
+                        className={i === 0 ? 'ingot-btn-primary' : 'ingot-btn-ghost'} onClick={() => store.accept(habit, target)}>
                         {HABIT_TARGET_LABELS[target]}
                     </button>)}
                     {this.props.onMakeHabit && <button type='button' data-target='habit' className='ingot-btn-ghost' onClick={() => this.props.onMakeHabit!(habit)}>
@@ -52,9 +53,6 @@ export class HabitCards extends React.Component<HabitCardsProps, { saved?: strin
                     <button type='button' className='ingot-btn-ghost ingot-habit-dismiss' onClick={() => store.dismiss(habit)}>Not now</button>
                 </div>
             </div>)}
-            {this.state.saved && <div className='ingot-habit-saved' role='status'>
-                Saved to {this.state.saved}. <a href='#' onClick={e => { e.preventDefault(); this.setState({ saved: undefined }); }}>OK</a>
-            </div>}
         </div>;
     }
 }

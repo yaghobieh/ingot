@@ -126,7 +126,7 @@ export class PlaybookService {
     }
 
     /** Writes a new habit to `.ingot/habits/<slug>.md` (or the global folder); returns the path or the errors. */
-    async create(scope: PlaybookScope, text: string): Promise<{ path?: string; errors: readonly string[] }> {
+    async create(scope: PlaybookScope, text: string): Promise<{ path?: string; playbook?: Playbook; errors: readonly string[] }> {
         const draft = parsePlaybook(text, { path: 'habit.md', source: scope });
         if (!draft.playbook) {
             return { errors: draft.errors };
@@ -142,7 +142,8 @@ export class PlaybookService {
         }
         await this.files.create(target, text);
         this.onDidChangeEmitter.fire();
-        return { path: folder.label(name), errors: [] };
+        const path = folder.label(name);
+        return { path, playbook: parsePlaybook(text, { path, source: scope, uri: target.toString() }).playbook, errors: [] };
     }
 
     async remove(uri: string): Promise<void> {

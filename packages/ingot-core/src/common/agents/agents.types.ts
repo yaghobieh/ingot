@@ -33,6 +33,8 @@ export interface AgentMessage {
     readonly images?: readonly import('./composer-parts.types').ImageChip[];
     /** A memory the agent saved from this reply (IDEA-77), with Undo. */
     readonly memory?: { readonly id: string; readonly scope: 'project' | 'global'; readonly undone?: boolean };
+    /** IDEA-296: Habits learned or saved a pattern ("Saved to Habits"), with open and Undo. */
+    readonly habit?: import('../habits/habits.types').HabitNote;
     /** A Plan-mode reply that can be built (IDEA-77). */
     readonly buildable?: boolean;
     /** IDEA-177: the tool call behind a `tool` message, drawn as a rich card (terminal block, profile, …). */
