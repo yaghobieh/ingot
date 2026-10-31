@@ -87,10 +87,20 @@ body.ingot-shell [id^='shell-tab-vsx-extensions-view-container'] { --ingot-icon:
 body.ingot-shell [id^='shell-tab-outline-view'] { --ingot-icon: var(--ingot-icon-structure); }
 body.ingot-shell [id^='shell-tab-test-view-container'] { --ingot-icon: var(--ingot-icon-test); }
 body.ingot-shell [id^='shell-tab-ingot-agents'] { --ingot-icon: var(--ingot-icon-rex); }
-body.ingot-shell .lm-TabBar.theia-app-sides [id^='shell-tab-'] .lm-TabBar-tabIcon {
+body.ingot-shell [id^='shell-tab-ingot-local-changes'] { --ingot-icon: var(--ingot-icon-changes); }
+body.ingot-shell [id^='shell-tab-ingot-threads'] { --ingot-icon: var(--ingot-icon-threads); }
+/* Extension view containers (GitLens before its Inspect and Patch containers, which share its id prefix). */
+body.ingot-shell [id^='shell-tab-plugin-view-container:workbench.view.extension.gitlens'] { --ingot-icon: var(--ingot-icon-lens); }
+body.ingot-shell [id^='shell-tab-plugin-view-container:workbench.view.extension.gitlensInspect'] { --ingot-icon: var(--ingot-icon-inspect); }
+body.ingot-shell [id^='shell-tab-plugin-view-container:workbench.view.extension.gitlensPatch'] { --ingot-icon: var(--ingot-icon-patch); }
+body.ingot-shell [id^='shell-tab-plugin-view-container:workbench.view.extension.tokenforge'] { --ingot-icon: var(--ingot-icon-forge); }
+body.ingot-shell [id^='shell-tab-plugin-view-container:workbench.view.extension.pgObjectExplorer'] { --ingot-icon: var(--ingot-icon-database); }
+/* Only tabs mapped above (SIDE_TAB_ICONS) get the Ingot mask: on any other side tab an unset --ingot-icon leaves a solid
+   currentColor square, so those keep their own codicon or plugin icon. */
+body.ingot-shell .lm-TabBar.theia-app-sides :is([id^='shell-tab-explorer-view-container'], [id^='shell-tab-search-view-container'], [id^='shell-tab-scm-view-container'], [id^='shell-tab-debug'], [id^='shell-tab-vsx-extensions-view-container'], [id^='shell-tab-outline-view'], [id^='shell-tab-test-view-container'], [id^='shell-tab-ingot-agents'], [id^='shell-tab-ingot-local-changes'], [id^='shell-tab-ingot-threads'], [id^='shell-tab-plugin-view-container:workbench.view.extension.gitlens'], [id^='shell-tab-plugin-view-container:workbench.view.extension.gitlensInspect'], [id^='shell-tab-plugin-view-container:workbench.view.extension.gitlensPatch'], [id^='shell-tab-plugin-view-container:workbench.view.extension.tokenforge'], [id^='shell-tab-plugin-view-container:workbench.view.extension.pgObjectExplorer']) .lm-TabBar-tabIcon {
   background: currentColor !important; -webkit-mask: var(--ingot-icon) center / 18px no-repeat; mask: var(--ingot-icon) center / 18px no-repeat;
 }
-body.ingot-shell .lm-TabBar.theia-app-sides [id^='shell-tab-'] .lm-TabBar-tabIcon::before { content: none !important; }
+body.ingot-shell .lm-TabBar.theia-app-sides :is([id^='shell-tab-explorer-view-container'], [id^='shell-tab-search-view-container'], [id^='shell-tab-scm-view-container'], [id^='shell-tab-debug'], [id^='shell-tab-vsx-extensions-view-container'], [id^='shell-tab-outline-view'], [id^='shell-tab-test-view-container'], [id^='shell-tab-ingot-agents'], [id^='shell-tab-ingot-local-changes'], [id^='shell-tab-ingot-threads'], [id^='shell-tab-plugin-view-container:workbench.view.extension.gitlens'], [id^='shell-tab-plugin-view-container:workbench.view.extension.gitlensInspect'], [id^='shell-tab-plugin-view-container:workbench.view.extension.gitlensPatch'], [id^='shell-tab-plugin-view-container:workbench.view.extension.tokenforge'], [id^='shell-tab-plugin-view-container:workbench.view.extension.pgObjectExplorer']) .lm-TabBar-tabIcon::before { content: none !important; }
 /* The agent's tab carries the Rex glyph in its own blue, wherever the panel is docked. */
 body.ingot-shell .lm-TabBar [id^='shell-tab-ingot-agents'] .lm-TabBar-tabIcon.ingot-icon-rex,
 .ingot-icon.ingot-icon-rex { background: var(--ingot-rex-mid) !important; filter: drop-shadow(0 0 1.5px color-mix(in srgb, var(--ingot-rex-glow) 55%, transparent)); }

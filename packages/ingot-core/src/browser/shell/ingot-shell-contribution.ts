@@ -90,7 +90,7 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         this.rightStripe.refreshSoon();
         this.renameProjectView();
         if (!restored) {
-            // The reference layout keeps the bottom panel closed; the Terminal opens from the stripe or ⌥F12.
+            // The reference layout keeps the bottom panel closed; the Terminal opens from the main toolbar or ⌥F12.
             this.shell.collapsePanel('bottom');
         }
         // Chat on the right or at the bottom, as the user chose (IDEA-85).
@@ -113,14 +113,14 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         }
     }
 
-    /** Puts the bottom tool window group (Terminal, Run, Problems, Ports, Git) into the left stripe. */
+    /** Puts Ingot's stripe (Account, Settings) into the left stripe, under the side bar tabs. */
     protected attachStripe(): void {
         const bottomMenu = this.shell.leftPanelHandler.bottomMenu;
         const layout = bottomMenu.parent?.layout as PanelLayout | undefined;
         if (!layout || layout.widgets.includes(this.stripe)) {
             return;
         }
-        // Directly under the side bar tabs, so the stripe reads Project, Search, Git, Terminal.
+        // Directly under the side bar tabs, so the stripe reads Project, Search, Git.
         layout.insertWidget(layout.widgets.indexOf(this.shell.leftPanelHandler.tabBar) + 1, this.stripe);
     }
 
