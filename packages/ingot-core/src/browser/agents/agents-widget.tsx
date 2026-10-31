@@ -1,4 +1,5 @@
 import * as React from '@theia/core/shared/react';
+import { RULES_INSIGHT_COMMANDS } from '../../common/rules-insight/rules-insight.consts';
 import { ImageHoverService } from '../preview/image-hover-service';
 import { actionLine, activityLine } from '../../common/agents/agent-actions';
 import { isWorkspaceTool, SKIPPED_DIRS } from '../../common/agents/workspace-tools';
@@ -953,7 +954,9 @@ export class IngotAgentsWidget extends ReactWidget {
                 <span className='ingot-flex' />
                 <span className={`codicon codicon-chevron-${open ? 'down' : 'right'}`} />
             </button>
-            {open && <ul className='ingot-chat-read-list'>{items.map((item, j) => <li key={j}><span className={`codicon codicon-${rules ? 'law' : 'file'}`} /><button type='button' className='ingot-chat-read-open' onClick={() => this.openWorkspacePath(item)}>{item}</button></li>)}</ul>}
+            {open && <ul className='ingot-chat-read-list'>{items.map((item, j) => <li key={j}><span className={`codicon codicon-${rules ? 'law' : 'file'}`} /><button type='button' className='ingot-chat-read-open' onClick={() => this.openWorkspacePath(item)}>{item}</button></li>)}
+                {rules && <li><span className='codicon codicon-question' /><button type='button' className='ingot-chat-read-open ingot-chat-read-why'
+                    onClick={() => this.commands.executeCommand(RULES_INSIGHT_COMMANDS.ruleHitsForLastTurn.id, session.id)}>Why these rules?</button></li>}</ul>}
         </div>;
     }
 

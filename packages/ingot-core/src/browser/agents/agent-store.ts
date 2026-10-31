@@ -1,4 +1,5 @@
-import { inject, injectable } from '@theia/core/shared/inversify';
+import { inject, injectable, optional } from '@theia/core/shared/inversify';
+import { RuleHitsStore } from '../rules-insight/rule-hits-store';
 import { IngotModelClient } from '../models/model-client';
 import { ZaprexLauncher } from './zaprex-launcher';
 import { ZaprexDesktopService } from '../../common/zaprex/zaprex-desktop.types';
@@ -104,6 +105,7 @@ export class AgentStore {
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(FileService) protected readonly files: FileService;
     @inject(EditorManager) protected readonly editors: EditorManager;
+    @inject(RuleHitsStore) @optional() protected readonly ruleHits?: RuleHitsStore;
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
     @inject(AgentActionsService) protected readonly actions: AgentActionsService;
@@ -871,6 +873,7 @@ export class AgentStore {
         const active = this.editors.currentEditor?.editor.uri;
         const activePath = active && root?.isEqualOrParent(active) ? root.relative(active)?.toString() : undefined;
         const rules = applicableRules(config.rules, activePath ? [...context.paths, activePath] : context.paths);
+        this.ruleHits?.record({ sessionId: session.id, prompt, files: activePath ? [...context.paths, activePath] : context.paths, rules, root: root?.path.fsPath() });
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);

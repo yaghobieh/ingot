@@ -1,0 +1,49 @@
+/* Rules insight: Rule Hits (IDEA-318) and Effective Rules (IDEA-327) tool windows. Colors from design tokens only. */
+
+.ingot-rh-session { max-width: 50%; font: inherit; font-size: 11px; color: var(--ingot-text); background: var(--ingot-surface); border: 1px solid var(--ingot-border); border-radius: 4px; padding: 1px 4px; }
+
+.ingot-rh-turn { margin: 2px 6px 8px; border: 1px solid var(--ingot-border); border-radius: 6px; background: var(--ingot-surface); overflow: hidden; }
+.ingot-rh-turn.latest { border-color: var(--ingot-primary); }
+.ingot-rh-turn-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--ingot-border); color: var(--ingot-text-muted); }
+.ingot-rh-prompt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-text); }
+.ingot-rh-tokens { color: var(--ingot-text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 11px; }
+.ingot-rh-turn .ingot-tw-list { padding: 2px; }
+
+.ingot-rh-row { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ingot-rh-hit.open > .ingot-rh-row { background: var(--theia-list-inactiveSelectionBackground, var(--ingot-selection)); }
+.ingot-rh-reason { flex: none; padding: 0 6px; border-radius: 8px; font-size: 10px; line-height: 16px; color: var(--ingot-text); background: var(--ingot-panel); border: 1px solid var(--ingot-border); }
+.ingot-rh-reason-always, .ingot-rh-reason-agents-file, .ingot-rh-reason-nested-agents { color: var(--ingot-info); border-color: var(--ingot-info); }
+.ingot-rh-reason-glob { color: var(--ingot-success); border-color: var(--ingot-success); }
+.ingot-rh-reason-mention, .ingot-rh-reason-habit, .ingot-rh-reason-agent-requested { color: var(--ingot-warning); border-color: var(--ingot-warning); }
+
+.ingot-rh-card { margin: 2px 6px 6px 28px; padding: 6px 8px; border-left: 2px solid var(--ingot-primary); background: var(--ingot-panel); border-radius: 0 4px 4px 0; }
+.ingot-rh-card dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; margin: 0; }
+.ingot-rh-card dt { color: var(--ingot-text-muted); }
+.ingot-rh-card dd { margin: 0; overflow: hidden; text-overflow: ellipsis; }
+.ingot-rh-muted { color: var(--ingot-text-muted); }
+.ingot-rh-badge { margin-left: 6px; padding: 0 5px; border-radius: 8px; font-size: 10px; color: var(--ingot-warning); border: 1px solid var(--ingot-warning); }
+
+.ingot-er-picker { display: flex; gap: 4px; align-items: center; padding: 0 10px 6px; }
+.ingot-er-file { flex: 1; min-width: 0; }
+.ingot-er-error { color: var(--ingot-danger); }
+.ingot-er-layers { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0; padding: 0 10px 6px; }
+.ingot-er-layer-chip { padding: 0 6px; border-radius: 8px; font-size: 11px; line-height: 18px; background: var(--ingot-panel); border: 1px solid var(--ingot-border); color: var(--ingot-text); }
+.ingot-er-layer-chip + .ingot-er-layer-chip::before { content: '›'; margin-right: 6px; color: var(--ingot-text-muted); }
+.ingot-er-entry { padding-bottom: 2px; }
+.ingot-er-dim { color: var(--ingot-text-muted); }
+.ingot-er-status-applied .codicon-pass-filled { color: var(--ingot-success); }
+.ingot-er-status-overridden .ingot-tw-name, .ingot-er-status-shadowed .ingot-tw-name { text-decoration: line-through; }
+.ingot-er-status { flex: none; padding: 0 6px; border-radius: 8px; font-size: 10px; line-height: 16px; border: 1px solid var(--ingot-border); color: var(--ingot-text-muted); }
+.ingot-er-status-pill-applied { color: var(--ingot-success); border-color: var(--ingot-success); }
+.ingot-er-status-pill-overridden, .ingot-er-status-pill-shadowed { color: var(--ingot-warning); border-color: var(--ingot-warning); }
+.ingot-er-marker, .ingot-er-line { margin-left: 44px; padding: 1px 6px; font-size: 11px; color: var(--ingot-text-muted); display: flex; gap: 4px; align-items: baseline; flex-wrap: wrap; }
+.ingot-er-marker-up { color: var(--ingot-info); }
+.ingot-er-marker-down { color: var(--ingot-warning); }
+.ingot-er-line s { color: var(--ingot-danger); }
+.ingot-er-conflict { color: var(--ingot-warning); }
+.ingot-er-arrow { color: var(--ingot-text-muted); }
+.ingot-er-marker code, .ingot-er-line code { font-size: 10px; }
+.ingot-er-merged-toggle { display: flex; align-items: center; gap: 4px; width: 100%; border: 0; background: transparent; cursor: pointer; text-align: left; font-family: inherit; }
+.ingot-er-merged-text { margin: 0 10px 10px; padding: 8px; max-height: 320px; overflow: auto; white-space: pre-wrap; font-family: var(--theia-code-font-family); font-size: 11px; background: var(--ingot-panel); border: 1px solid var(--ingot-border); border-radius: 4px; color: var(--ingot-text); }
+
+.ingot-chat-read-why { color: var(--ingot-primary); }

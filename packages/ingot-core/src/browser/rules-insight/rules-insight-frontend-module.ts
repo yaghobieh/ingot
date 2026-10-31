@@ -1,11 +1,17 @@
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { CommandContribution } from '@theia/core/lib/common/command';
 import { FrontendApplicationContribution } from '@theia/core/lib/browser/frontend-application-contribution';
+import { WidgetFactory } from '@theia/core/lib/browser/widget-manager';
+import { bindViewContribution } from '@theia/core/lib/browser/shell/view-contribution';
 import { ServiceConnectionProvider } from '@theia/core/lib/browser/messaging/service-connection-provider';
 import { RulesInsightService } from '../../common/rules-insight/rules-insight.types';
-import { RULES_INSIGHT_SERVICE_PATH } from '../../common/rules-insight/rules-insight.consts';
+import { RULE_HITS_WIDGET_ID, RULES_INSIGHT_SERVICE_PATH } from '../../common/rules-insight/rules-insight.consts';
 import { RulesDoctorContribution } from './rules-doctor-contribution';
+import { RuleHitsStore } from './rule-hits-store';
+import { RuleHitsWidget } from './rule-hits-widget';
+import { RuleHitsContribution } from './rules-insight-contribution';
 import { IngotSchemaContribution } from './ingot-schema-contribution';
+import '../../../src/browser/style/rules-insight.css';
 
 /**
  * Rules insight (IDEA-316 epic): Rules Doctor, Rule Hits, `.ingot` schemas and Effective Rules. Its own module keeps
@@ -17,6 +23,11 @@ export default new ContainerModule(bind => {
     bind(RulesDoctorContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(RulesDoctorContribution);
     bind(CommandContribution).toService(RulesDoctorContribution);
+
+    bind(RuleHitsStore).toSelf().inSingletonScope();
+    bind(RuleHitsWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: RULE_HITS_WIDGET_ID, createWidget: () => ctx.container.get(RuleHitsWidget) })).inSingletonScope();
+    bindViewContribution(bind, RuleHitsContribution);
 
     bind(IngotSchemaContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(IngotSchemaContribution);
