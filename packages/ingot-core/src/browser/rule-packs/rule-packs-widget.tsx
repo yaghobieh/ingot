@@ -64,7 +64,6 @@ export class IngotRulePacksWidget extends ReactWidget {
         const busy = this.model.busy;
         return <div className='ingot-rule-packs-root'>
             <div className='ingot-dot-toolbar'>
-                <span className='ingot-dot-title'>{RULE_PACKS_WIDGET_LABEL}</span>
                 <span className='ingot-beta-pill'>{RULE_PACKS_TEXT.beta}</span>
                 <span className='ingot-dot-spacer' />
                 <button type='button' id='ingot-packs-add' className='ingot-dot-button primary' disabled={!root || busy}
@@ -102,18 +101,19 @@ export class IngotRulePacksWidget extends ReactWidget {
                 <button type='button' className='ingot-dot-iconbtn' aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} files of ${key}`} onClick={() => this.toggle(key)}>
                     <span className={`codicon codicon-chevron-${open ? 'down' : 'right'}`} />
                 </button>
-                <span className='ingot-pack-name'>{key}</span>
-                <span className='ingot-pack-version'>{pack.version}</span>
-                <span className='ingot-dot-muted'>{pack.range}</span>
-                {pack.source === 'org' && <span className='ingot-dot-badge'>{RULE_PACKS_TEXT.org}</span>}
-                {pack.enforced && <span className='ingot-dot-badge enforced' title={RULE_PACKS_TEXT.enforcedTooltip}><span className='codicon codicon-lock' /> {RULE_PACKS_TEXT.enforced}</span>}
-                <span className='ingot-dot-spacer' />
-                <span className='ingot-dot-muted'>{pack.files.length} {RULE_PACKS_TEXT.files}</span>
+                <span className='ingot-pack-name' title={key}>{key}</span>
                 <button type='button' className='ingot-dot-iconbtn danger ingot-pack-remove' disabled={pack.enforced || this.model.busy}
                     title={pack.enforced ? RULE_PACKS_TEXT.enforcedTooltip : RULE_PACKS_TEXT.remove} aria-label={`${RULE_PACKS_TEXT.remove} ${key}`}
                     onClick={() => this.remover.removePack(key)}>
                     <span className='codicon codicon-trash' />
                 </button>
+            </div>
+            <div className='ingot-pack-meta'>
+                <span className='ingot-pack-version'>{pack.version}</span>
+                <span className='ingot-dot-muted'>{pack.range}</span>
+                {pack.source === 'org' && <span className='ingot-dot-badge'>{RULE_PACKS_TEXT.org}</span>}
+                {pack.enforced && <span className='ingot-dot-badge enforced' title={RULE_PACKS_TEXT.enforcedTooltip}><span className='codicon codicon-lock' /> {RULE_PACKS_TEXT.enforced}</span>}
+                <span className='ingot-dot-muted'>{pack.files.length} {pack.files.length === 1 ? RULE_PACKS_TEXT.file : RULE_PACKS_TEXT.files}</span>
             </div>
             {open && <ul className='ingot-pack-files'>
                 {pack.files.map(file => <li key={file}>

@@ -28,6 +28,7 @@ export const RULE_PACKS_TEXT = {
     enforced: 'Enforced',
     enforcedTooltip: 'Enforced by your organization: cannot be removed, edited or overridden by project rules.',
     org: 'Org',
+    file: 'file',
     files: 'files',
     synced: 'Org packs from team',
     verified: 'All pack files match the lockfile.',

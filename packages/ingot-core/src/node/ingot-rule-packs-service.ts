@@ -12,7 +12,7 @@ import { readZipEntries } from '../common/theme/zip.utils';
 import { ideHeaders } from '../common/account/gateway.utils';
 import { PRODUCT } from '../common/product.consts';
 import {
-    PACK_DOWNLOAD_TIMEOUT_MS, PACK_FILE_MODE_READ_ONLY, PACK_FILE_MODE_WRITABLE, PACK_MAX_ARCHIVE_BYTES, PACK_USER_AGENT
+    PACK_DOWNLOAD_TIMEOUT_MS, PACK_FILE_MODE_READ_ONLY, PACK_FILE_MODE_WRITABLE, PACK_MAX_ARCHIVE_BYTES, PACK_SHA256_HEADER, PACK_USER_AGENT
 } from '../common/rule-packs/rule-packs.consts';
 import type { RulePackResult, RulePacksService, RulePackVersions, TeamPacksResult } from '../common/rule-packs/rule-packs.types';
 import { pickPackVersion, planArchive } from '../common/rule-packs/rule-packs.utils';
@@ -90,11 +90,17 @@ export class IngotRulePacksService implements RulePacksService {
     /** Downloads one exact version, checks it and writes its files; the lockfile is written by the caller. */
     protected async installVersion(root: string, lock: PackLock, spec: PackSpec, version: string, options: { enforced: boolean; source: PackSource; integrity?: string; force?: boolean }): Promise<LockedPack> {
         const resolved = `${await this.store()}${STORE_PATHS.download(spec.id, version)}`;
-        const bytes = new Uint8Array(await (await this.get(resolved)).arrayBuffer());
+        const response = await this.get(resolved);
+        const bytes = new Uint8Array(await response.arrayBuffer());
         if (bytes.byteLength > PACK_MAX_ARCHIVE_BYTES) {
             throw new PackError(`${spec.key}@${version} is larger than ${PACK_MAX_ARCHIVE_BYTES} bytes.`);
         }
-        const integrity = integrityOf(sha256(bytes));
+        const digest = sha256(bytes);
+        const announced = response.headers.get(PACK_SHA256_HEADER);
+        if (announced && announced.toLowerCase() !== digest) {
+            throw new PackError(`${spec.key}@${version} was damaged in transit (the Store's ${PACK_SHA256_HEADER} does not match).`);
+        }
+        const integrity = integrityOf(digest);
         if (options.integrity && options.integrity !== integrity) {
             throw new PackError(`${spec.key}@${version} does not match the lockfile (expected ${options.integrity}, got ${integrity}).`);
         }

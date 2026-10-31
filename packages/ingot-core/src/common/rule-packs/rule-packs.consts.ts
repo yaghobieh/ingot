@@ -6,3 +6,5 @@ export const PACK_MAX_ARCHIVE_BYTES = 5_000_000;
 export const PACK_FILE_MODE_READ_ONLY = 0o444;
 export const PACK_FILE_MODE_WRITABLE = 0o644;
 export const PACK_USER_AGENT = 'ingot-ide';
+/** Hex SHA-256 of the archive, sent by the Store with every download. */
+export const PACK_SHA256_HEADER = 'X-Ingot-Sha256';

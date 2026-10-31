@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import * as http from 'http';
 import { FAKE_INGOT_PORT } from './e2e.consts';
 
@@ -28,7 +29,17 @@ export interface FakeIngotServer {
     readonly syncWrites: { method: string; kind: string; key: string; baseVersion?: number; device?: string }[];
     /** Adds an item as if another device wrote it. */
     seedSync(kind: string, key: string, data: unknown): void;
+    /** IDEA-322 Store rule packs by id (`acme.react-rules`), and the packs the signed-in user's team requires. */
+    readonly storePacks: Map<string, FakeStorePack>;
+    teamPacks: { team: { id: string; name: string } | null; packs: { id: string; range: string; enforced: boolean }[] };
+    /** `id@version` of every archive the IDE downloaded. */
+    readonly downloads: string[];
     close(): Promise<void>;
+}
+
+export interface FakeStorePack {
+    readonly type: string;
+    readonly versions: { version: string; archive: Buffer; publishedAt: string }[];
 }
 
 export interface FakeSyncItem {
@@ -63,6 +74,7 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
     const state: FakeIngotServer = {
         url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', avatarUrl: '', blocked: false, disabledModels: new Set(), chatErrors: [],
         flags: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined,
+        storePacks: new Map(), teamPacks: { team: null, packs: [] }, downloads: [],
         close: async () => undefined
     };
     const access = 'ingot_at_e2e_access';
@@ -139,6 +151,34 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
                 });
                 return;
             }
+            // Public like the portal: pack versions and downloads work signed out.
+            const store = /^\/api\/marketplace\/([^/]+)\/(versions|download)$/.exec(url.pathname);
+            if (store) {
+                const id = decodeURIComponent(store[1]);
+                const pack = state.storePacks.get(id);
+                const versions = [...(pack?.versions ?? [])].sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }));
+                if (!pack || !versions.length) {
+                    send(res, 404, { error: 'not_found' });
+                    return;
+                }
+                if (store[2] === 'versions') {
+                    const range = url.searchParams.get('range') ?? 'latest';
+                    send(res, 200, {
+                        id, type: pack.type, latest: versions[0].version, range, resolved: range === 'latest' ? versions[0].version : null,
+                        versions: versions.map(v => ({ version: v.version, publishedAt: v.publishedAt, sha256: createHash('sha256').update(v.archive).digest('hex') }))
+                    });
+                    return;
+                }
+                const found = versions.find(v => v.version === (url.searchParams.get('version') ?? versions[0].version));
+                if (!found) {
+                    send(res, 404, { error: 'not_found' });
+                    return;
+                }
+                state.downloads.push(`${id}@${found.version}`);
+                res.writeHead(200, { 'content-type': 'application/vnd.ingot.ingotx', 'x-ingot-sha256': createHash('sha256').update(found.archive).digest('hex') });
+                res.end(found.archive);
+                return;
+            }
             if (!authed) {
                 send(res, 401, { error: 'unauthorized' });
                 return;
@@ -171,6 +211,14 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
                 const conflict = !!existing && body.baseVersion !== undefined && body.baseVersion !== existing.version;
                 const { item, previous } = writeSync(kind, key, body.data, req.method === 'DELETE', body.device ?? null);
                 send(res, 200, { item, conflict, ...(conflict ? { previous } : {}) });
+                return;
+            }
+            if (url.pathname === '/api/store/team-packs') {
+                if (!authed) {
+                    send(res, 401, { error: 'unauthorized' });
+                    return;
+                }
+                send(res, 200, state.teamPacks);
                 return;
             }
             if (url.pathname === '/api/ide/status') {
