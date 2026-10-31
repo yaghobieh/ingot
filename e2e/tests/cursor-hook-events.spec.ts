@@ -7,7 +7,7 @@ import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
-import { E2E_CONFIG_DIR, SYSTEM_HOOKS_DIR } from '../src/e2e.consts';
+import { E2E_CONFIG_DIR, IMPORT_HOME, SYSTEM_HOOKS_DIR } from '../src/e2e.consts';
 import { startOpenPlanServer, type FakeIngotServer } from '../src/fake-ingot-server';
 
 /**
@@ -145,4 +145,112 @@ test.describe('IDEA-287 every Cursor hook event', () => {
             expect(replies.some(l => l.level === 'project')).toBe(true);
         });
     }
+});
+
+/**
+ * IDEA-287: Claude Code hooks from `.claude/settings.json` and `~/.claude/settings.json` run with Cursor's mapping:
+ * UserPromptSubmit `decision: block` keeps the prompt back, PreToolUse's nested `permissionDecision: deny` blocks the read,
+ * Stop `decision: block` sends the reason as a follow-up (no loop limit), and the scripts get Claude's event names.
+ */
+const CLAUDE_HOOK = `const fs = require('fs');
+const path = require('path');
+let s = '';
+process.stdin.on('data', d => { s += d; }).on('end', () => {
+    const input = JSON.parse(s || '{}');
+    const dir = process.env.CLAUDE_PROJECT_DIR;
+    fs.appendFileSync(path.join(dir, 'claude.log'), JSON.stringify({ level: process.argv[2] || 'project', input }) + '\\n');
+    const event = input.hook_event_name;
+    const stopped = path.join(dir, 'stopped.flag');
+    let out = {};
+    if (event === 'UserPromptSubmit' && /FORBIDDEN/.test(input.prompt || '')) {
+        out = { decision: 'block', reason: 'CLAUDE-PROMPT-BLOCKED' };
+    } else if (event === 'PreToolUse') {
+        out = { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'CLAUDE-READ-DENIED' } };
+    } else if (event === 'Stop' && !fs.existsSync(stopped)) {
+        fs.writeFileSync(stopped, '1');
+        out = { decision: 'block', reason: 'CLAUDE-FOLLOWUP-MARKER continue' };
+    }
+    process.stdout.write(JSON.stringify(out));
+});
+`;
+const CLAUDE_USER_SETTINGS = path.join(IMPORT_HOME, '.claude', 'settings.json');
+const claudeCommand = (dir: string, level: string): object => ({ type: 'command', command: `node ${JSON.stringify(path.join(dir, 'claude-hook.js'))} ${level}`, timeout: 10 });
+
+test.describe('IDEA-287 Claude Code hooks', () => {
+    test.setTimeout(180_000);
+    let dir = '';
+    let server: FakeOllama;
+    let account: FakeIngotServer;
+
+    test.beforeEach(async () => {
+        account = await startOpenPlanServer();
+        dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-claude-hooks-')));
+        fs.writeFileSync(path.join(dir, 'claude-hook.js'), CLAUDE_HOOK);
+        fs.writeFileSync(path.join(dir, 'a.txt'), 'A-FILE-MARKER\n');
+        fs.mkdirSync(path.join(dir, '.claude'));
+        fs.writeFileSync(path.join(dir, '.claude', 'settings.json'), JSON.stringify({
+            hooks: {
+                UserPromptSubmit: [{ hooks: [claudeCommand(dir, 'project')] }],
+                PreToolUse: [{ matcher: 'Bash|Read', hooks: [claudeCommand(dir, 'project')] }],
+                Stop: [{ hooks: [claudeCommand(dir, 'project')] }],
+                Notification: [{ hooks: [claudeCommand(dir, 'project')] }]
+            }
+        }, undefined, 2));
+        fs.writeFileSync(CLAUDE_USER_SETTINGS, JSON.stringify({ hooks: { SessionStart: [{ matcher: 'startup', hooks: [claudeCommand(dir, 'user')] }] } }));
+        server = await startFakeOllama((_system, user) => {
+            if (user.startsWith('Tool result (ingot/read_file)')) {
+                return 'Could not read it.';
+            }
+            if (user.includes('CLAUDE-FOLLOWUP-MARKER')) {
+                return 'Claude follow-up done.';
+            }
+            if (user.includes('read the notes')) {
+                return '<<<TOOL ingot/read_file\n{"path": "a.txt"}\n>>>END';
+            }
+            return 'Done.';
+        }, { delayMs: 0 });
+    });
+
+    test.afterEach(async () => {
+        await server.close();
+        await account.close();
+        fs.rmSync(path.join(E2E_CONFIG_DIR, 'remote-config.json'), { force: true });
+        fs.rmSync(CLAUDE_USER_SETTINGS, { force: true });
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('UserPromptSubmit, PreToolUse, Stop and a user-level SessionStart from Claude settings', async ({ page }) => {
+        await openIngot(page, dir);
+        await expect.poll(() => account.configCalls.length).toBeGreaterThan(0);
+        await connectOllama(page, server);
+        await page.locator('#ingot-agents-new').click();
+        await pickModel(page, 'ollama-local');
+        await dismissNotifications(page);
+
+        await composer(page).fill('this is FORBIDDEN');
+        await composer(page).press('Enter');
+        await expect(page.locator('#ingot-agents')).toContainText('CLAUDE-PROMPT-BLOCKED', { timeout: 30_000 });
+        expect(server.requests.some(r => r.users.some(u => u.includes('FORBIDDEN')))).toBe(false);
+
+        await composer(page).fill('read the notes');
+        await composer(page).press('Enter');
+        await expect(page.locator('#ingot-agents .ingot-chat-user', { hasText: 'CLAUDE-FOLLOWUP-MARKER' })).toBeVisible({ timeout: 60_000 });
+        await expect(lastAnswer(page)).toHaveText('Claude follow-up done.', { timeout: 60_000 });
+        const toolTurn = server.requests.find(r => r.users.some(u => u.startsWith('Tool result (ingot/read_file)')));
+        expect(toolTurn?.users.join('\n')).toContain('CLAUDE-READ-DENIED');
+        expect(toolTurn?.users.join('\n')).not.toContain('A-FILE-MARKER');
+        for (const scheme of ['light', 'dark'] as const) {
+            await setAppearance(page, scheme);
+            await shot(page, `claude-hooks-${scheme}.png`);
+        }
+
+        const log = fs.readFileSync(path.join(dir, 'claude.log'), 'utf8').trim().split('\n').map(line => JSON.parse(line) as { level: string; input: Record<string, unknown> });
+        const events = log.map(l => `${l.level}:${String(l.input.hook_event_name)}`);
+        expect(events).toEqual(expect.arrayContaining(['user:SessionStart', 'project:UserPromptSubmit', 'project:PreToolUse', 'project:Stop']));
+        expect(events.some(e => e.endsWith('Notification'))).toBe(false);
+        const pre = log.find(l => l.input.hook_event_name === 'PreToolUse')!.input;
+        expect(pre).toMatchObject({ tool_name: 'Read', tool_input: { path: 'a.txt' }, cwd: dir });
+        expect(typeof pre.session_id).toBe('string');
+        expect(log.filter(l => l.input.hook_event_name === 'Stop').length).toBeGreaterThanOrEqual(2);
+    });
 });

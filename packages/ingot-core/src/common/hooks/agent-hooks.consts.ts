@@ -1,3 +1,5 @@
+import type { AgentHookEvent } from './agent-hooks.types';
+
 /**
  * IDEA-294: Cursor-compatible agent hook events in `.ingot/hooks.json` (and `.cursor/hooks.json`) under `"hooks"`.
  * IDEA-287: every event Cursor documents: agent loop, Tab (inline completions) and the app's workspaceOpen.
@@ -56,6 +58,27 @@ export const SYSTEM_HOOKS_DIR_ENV = 'INGOT_SYSTEM_HOOKS_DIR';
 /** IDEA-287: team hooks from the account's remote config (`config.teamHooks`, the `"hooks"` object of a hooks.json). */
 export const TEAM_HOOKS_CONFIG_KEY = 'teamHooks';
 export const TEAM_HOOKS_SOURCE = 'team hooks (account)';
+/**
+ * IDEA-287: Claude Code hooks (the `"hooks"` of Claude's settings files), read after every hooks.json as in Cursor:
+ * project local, project, then `~/.claude/settings.json`. Their commands run from the project root.
+ */
+export const CLAUDE_PROJECT_HOOK_FILES = ['.claude/settings.local.json', '.claude/settings.json'] as const;
+export const CLAUDE_USER_HOOK_FILE = '.claude/settings.json';
+/** Claude Code hook names → Cursor events (Cursor's mapping). `Notification` and `PermissionRequest` have none and are skipped. */
+export const CLAUDE_HOOK_EVENTS: Readonly<Record<string, AgentHookEvent>> = {
+    PreToolUse: 'preToolUse', PostToolUse: 'postToolUse', UserPromptSubmit: 'beforeSubmitPrompt', Stop: 'stop', SubagentStop: 'subagentStop',
+    SessionStart: 'sessionStart', SessionEnd: 'sessionEnd', PreCompact: 'preCompact'
+};
+export const CLAUDE_SKIPPED_EVENTS: readonly string[] = ['Notification', 'PermissionRequest'];
+/** Claude Code events whose `matcher` filters tools; the others ignore it. */
+export const CLAUDE_TOOL_EVENTS: readonly string[] = ['PreToolUse', 'PostToolUse'];
+/** Claude Code tool names in matchers → Cursor's; `mcp__<server>__<tool>` becomes `MCP:<tool>`. */
+export const CLAUDE_TOOL_NAMES: Readonly<Record<string, string>> = { Bash: 'Shell', Edit: 'Write', MultiEdit: 'Write' };
+export const CLAUDE_TOOL_NAME_PATTERN = /\b(?:Bash|MultiEdit|Edit)\b/g;
+export const CLAUDE_MCP_TOOL_PATTERN = /mcp__[\w-]+?__/g;
+/** Cursor tool names → the names a Claude Code script expects on stdin (`Shell` is `Bash`). */
+export const CURSOR_TO_CLAUDE_TOOL: Readonly<Record<string, string>> = { Shell: 'Bash' };
+
 /** Hook files are re-read at most this often (Tab asks on every pause in typing). */
 export const HOOK_FILES_TTL_MS = 2_000;
 

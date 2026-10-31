@@ -7,8 +7,10 @@ import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { ProcessService } from '../../common/processes/processes.types';
 import {
-    HOOK_FILES_TTL_MS, HOOK_MS_PER_SECOND, PROMPT_HOOK_MAX_TOKENS, PROMPT_HOOK_SYSTEM, SYSTEM_HOOK_FILES, SYSTEM_HOOKS_DIR_ENV, TEAM_HOOKS_CONFIG_KEY, TEAM_HOOKS_SOURCE, USER_HOOKS_FILE
+    CLAUDE_PROJECT_HOOK_FILES, CLAUDE_USER_HOOK_FILE, HOOK_FILES_TTL_MS, HOOK_MS_PER_SECOND, PROMPT_HOOK_MAX_TOKENS, PROMPT_HOOK_SYSTEM, SYSTEM_HOOK_FILES, SYSTEM_HOOKS_DIR_ENV,
+    TEAM_HOOKS_CONFIG_KEY, TEAM_HOOKS_SOURCE, USER_HOOKS_FILE
 } from '../../common/hooks/agent-hooks.consts';
+import { claudeHookPayload, parseClaudeHooks } from '../../common/hooks/claude-hooks.utils';
 import type {
     AgentHookCommand, AgentHookEvent, AgentHookOutcome, AgentHooksParse, HookCommandResult, HookFileSource, HookPayloadBase, HookResponse
 } from '../../common/hooks/agent-hooks.types';
@@ -24,7 +26,7 @@ import { IngotFeatureFlags } from '../config/feature-flags';
 import { IngotAccountService } from '../account/account-service';
 import { IngotModelClient } from '../models/model-client';
 import { AiCommitService } from '../commit/ai-commit-service';
-import { AGENT_EVENT_HOOKS_PREF } from './hooks.consts';
+import { AGENT_EVENT_HOOKS_PREF, CLAUDE_HOOKS_PREF } from './hooks.consts';
 
 /** Per run: the chat's sessionStart env and how many stop follow-ups it already sent. */
 export interface HookRunOptions {
@@ -34,6 +36,8 @@ export interface HookRunOptions {
 
 interface HookFile extends HookFileSource {
     readonly uri: URI;
+    /** IDEA-287: a Claude Code settings file instead of a hooks.json. */
+    readonly claude?: boolean;
 }
 
 const SYSTEM_FILES: Record<OS.Type, readonly string[]> = {
@@ -48,6 +52,7 @@ const SYSTEM_FILES: Record<OS.Type, readonly string[]> = {
  * same file keep running through AgentHooksService. IDEA-287: every Cursor event, matchers, `failClosed`, `loop_limit`
  * and prompt hooks; hooks merge from system-wide (enterprise) files, the account's team hooks, the project and the user
  * (`~/.cursor/hooks.json`, `~/.ingot/hooks.json`), in that order. `.cursor/hooks.json` only while the workspace reads `.cursor` live.
+ * Claude Code hooks (`.claude/settings.local.json`, `.claude/settings.json`, `~/.claude/settings.json`) run last, as in Cursor.
  */
 @injectable()
 export class AgentEventHooks {
@@ -83,16 +88,28 @@ export class AgentEventHooks {
         return this.systemFiles;
     }
 
-    /** Every hooks file in merge order: enterprise, project, user (team hooks come from the account, not a file). */
+    get claudeEnabled(): boolean {
+        return this.preferences.get<boolean>(CLAUDE_HOOKS_PREF, true) !== false;
+    }
+
+    /**
+     * Every hooks file in merge order: enterprise, project, user, then Claude Code's settings files (project local, project,
+     * user) while their preference is on. Team hooks come from the account, not a file.
+     */
     async hookFiles(root: URI | undefined): Promise<HookFile[]> {
-        const [system, imported, global, mode] = await Promise.all([
-            this.system(), this.projectConfig.importedGlobalDir(), this.projectConfig.globalDir(), this.projectConfig.cursorMode(root)
+        const [system, imported, global, home, mode] = await Promise.all([
+            this.system(), this.projectConfig.importedGlobalDir(), this.projectConfig.globalDir(), this.projectConfig.importHome(), this.projectConfig.cursorMode(root)
         ]);
+        const claude: HookFile[] = this.claudeEnabled ? [
+            ...(root ? CLAUDE_PROJECT_HOOK_FILES.map(file => ({ uri: root.resolve(file), source: file, level: 'claude' as const, claude: true })) : []),
+            { uri: home.resolve(CLAUDE_USER_HOOK_FILE), source: `~/${CLAUDE_USER_HOOK_FILE}`, level: 'claude', claude: true }
+        ] : [];
         return [
             ...system,
             ...(root ? agentHookFileNames(mode).map(file => ({ uri: root.resolve(file), source: file, level: 'project' as const })) : []),
             { uri: imported.resolve(USER_HOOKS_FILE), source: `~/${CONFIG_DIRS.external}/${USER_HOOKS_FILE}`, level: 'user', cwd: imported.path.fsPath() },
-            { uri: global.resolve(USER_HOOKS_FILE), source: `~/${CONFIG_DIRS.ingot}/${USER_HOOKS_FILE}`, level: 'user', cwd: global.path.fsPath() }
+            { uri: global.resolve(USER_HOOKS_FILE), source: `~/${CONFIG_DIRS.ingot}/${USER_HOOKS_FILE}`, level: 'user', cwd: global.path.fsPath() },
+            ...claude
         ];
     }
 
@@ -111,7 +128,7 @@ export class AgentEventHooks {
         const files = await this.hookFiles(root);
         const parsed = await Promise.all(files.map(async file => {
             const text = await this.files.read(file.uri).then(r => r.value, () => undefined);
-            return parseAgentHooks(text, file.source, file.cwd, file.level);
+            return file.claude ? parseClaudeHooks(text, file) : parseAgentHooks(text, file.source, file.cwd, file.level);
         }));
         const global = await this.projectConfig.globalDir();
         const team = parseHooksObject(this.flags.config<unknown>(TEAM_HOOKS_CONFIG_KEY, undefined), { source: TEAM_HOOKS_SOURCE, level: 'team', cwd: global.path.fsPath() });
@@ -146,12 +163,14 @@ export class AgentEventHooks {
             return undefined;
         }
         const payload = this.base(root, base);
-        const input = JSON.stringify(hookPayload(event, payload, data));
+        const stdin = hookPayload(event, payload, data);
+        const input = JSON.stringify(stdin);
         const env = hookEnv(cwd ?? '', payload, options.sessionEnv);
         const results: HookCommandResult[] = [];
         for (const hook of commands) {
             const started = Date.now();
-            const response = hook.type === 'prompt' ? await this.runPrompt(event, hook, input) : await this.runCommand(event, hook, input, cwd, env);
+            const hookInput = hook.claudeEvent ? JSON.stringify(claudeHookPayload(stdin, hook.claudeEvent, cwd ?? '')) : input;
+            const response = hook.type === 'prompt' ? await this.runPrompt(event, hook, hookInput) : await this.runCommand(event, hook, hookInput, cwd, env);
             const kept = response.followupMessage && !underLoopLimit(hook, options.loopCount ?? 0) ? { ...response, followupMessage: undefined } : response;
             results.push({ command: hook.type === 'prompt' ? `prompt: ${hook.command}` : hook.command, durationMs: Date.now() - started, ...kept });
         }

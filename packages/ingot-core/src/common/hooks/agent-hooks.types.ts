@@ -6,7 +6,7 @@ export type AgentHookEvent = typeof AGENT_HOOK_EVENTS[number];
 export type HookPermission = 'allow' | 'deny' | 'ask';
 
 /** IDEA-287: where a hook comes from. Responses merge in this order (enterprise first, user last). */
-export type HookLevel = 'enterprise' | 'team' | 'project' | 'user';
+export type HookLevel = 'enterprise' | 'team' | 'project' | 'user' | 'claude';
 
 export interface AgentHookCommand {
     /** The shell command; for a prompt hook, the prompt. */
@@ -27,6 +27,8 @@ export interface AgentHookCommand {
     /** Follow-ups a stop / subagentStop hook may send per chat; `null` is no limit. */
     readonly loopLimit?: number | null;
     readonly level?: HookLevel;
+    /** IDEA-287: a Claude Code hook's own event name (`PreToolUse`); its stdin uses Claude's names. */
+    readonly claudeEvent?: string;
 }
 
 export type AgentHooksConfig = Readonly<Partial<Record<AgentHookEvent, readonly AgentHookCommand[]>>>;

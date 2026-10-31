@@ -27,7 +27,7 @@ const validMatcher = (matcher: string): boolean => {
 };
 
 /** One entry of an event's list: `"cmd"`, `{ "command" }` or `{ "type": "prompt", "prompt" }`, with Cursor's per-hook options. */
-const parseEntry = (event: string, item: unknown, i: number, file: HookFileSource, errors: string[]): AgentHookCommand[] => {
+export const parseHookEntry = (event: string, item: unknown, i: number, file: HookFileSource, errors: string[]): AgentHookCommand[] => {
     const entry = typeof item === 'string' ? { command: item } : isObject(item) ? item : {};
     const prompt = entry.type === 'prompt';
     const raw = prompt ? entry.prompt ?? entry.command : entry.command;
@@ -72,7 +72,7 @@ export const parseHooksObject = (hooks: unknown, file: HookFileSource): AgentHoo
             errors.push(`${file.source}: "${event}" must be a list of commands.`);
             continue;
         }
-        config[event] = list.flatMap((item: unknown, i) => parseEntry(event, item, i, file, errors));
+        config[event] = list.flatMap((item: unknown, i) => parseHookEntry(event, item, i, file, errors));
     }
     return { config, errors };
 };
@@ -183,6 +183,33 @@ export const responseExtras = (json: Json): HookResponseExtras => {
     };
 };
 
+/**
+ * IDEA-287: Claude Code's answers in Cursor's fields, as Cursor reads them from any hook: the nested `hookSpecificOutput`
+ * (`permissionDecision`, `permissionDecisionReason`, `updatedInput`, `additionalContext`) and the flat `decision` /
+ * `reason`. `"block"` denies a permission hook, keeps a prompt from being sent, sends the reason as the stop / subagentStop
+ * follow-up and adds it as context after a tool. Cursor's own fields win when both are present.
+ */
+export const fromClaudeResponse = (event: AgentHookEvent, json: Json): Json => {
+    const nested = isObject(json.hookSpecificOutput) ? json.hookSpecificOutput : {};
+    const field = (key: string): unknown => nested[key] ?? json[key];
+    const decision = field('decision');
+    const reason = typeof field('reason') === 'string' ? field('reason') as string : undefined;
+    const block = decision === 'block';
+    const permission = field('permissionDecision') ?? (block ? 'deny' : decision === 'approve' ? 'allow' : undefined);
+    const userMessage = field('permissionDecisionReason') ?? (block ? reason : undefined) ?? (json.continue === false ? json.stopReason : undefined);
+    const followup = block && (event === 'stop' || event === 'subagentStop') ? reason : undefined;
+    const context = field('additionalContext') ?? (block && (event === 'postToolUse' || event === 'postToolUseFailure') ? reason : undefined);
+    return {
+        ...(permission !== undefined && isGatingEvent(event) ? { permission } : {}),
+        ...(userMessage !== undefined ? { user_message: userMessage } : {}),
+        ...(field('updatedInput') !== undefined ? { updated_input: field('updatedInput') } : {}),
+        ...(context !== undefined ? { additional_context: context } : {}),
+        ...(followup ? { followup_message: followup } : {}),
+        ...(block && event === 'beforeSubmitPrompt' ? { continue: false } : {}),
+        ...json
+    };
+};
+
 /** Cursor's quirks: "ask" is not enforced for preToolUse and means "deny" for subagentStart. */
 const effectivePermission = (event: AgentHookEvent, permission: HookPermission): HookPermission =>
     permission !== 'ask' ? permission : ASK_IGNORED_EVENTS.includes(event) ? 'allow' : ASK_DENIES_EVENTS.includes(event) ? 'deny' : 'ask';
@@ -216,10 +243,11 @@ export const parseHookOutput = (event: AgentHookEvent, output: HookRunOutput, fa
     if (!output.stdout.trim()) {
         return gating && failClosed ? fail('The hook printed nothing.') : { permission: 'allow' };
     }
-    const json = lastJsonObject(output.stdout);
-    if (!json) {
+    const answer = lastJsonObject(output.stdout);
+    if (!answer) {
         return gating ? { permission: 'deny', userMessage: 'The hook did not answer with JSON.' } : { permission: 'allow' };
     }
+    const json = fromClaudeResponse(event, answer);
     const extras = responseExtras(json);
     const user = message(json, 'userMessage', 'user_message');
     const agent = message(json, 'agentMessage', 'agent_message');
