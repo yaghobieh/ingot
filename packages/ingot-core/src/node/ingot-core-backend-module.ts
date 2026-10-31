@@ -20,6 +20,9 @@ import { PluginHostEnvironmentVariable } from '@theia/plugin-ext/lib/common/plug
 import { ProcessService, type ProcessClient } from '../common/processes/processes.types';
 import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
 import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agents/agent-actions-service';
+import { IngotResearchService } from './ingot-research-service';
+import { RESEARCH_SERVICE_PATH } from '../common/research/research.consts';
+import { ResearchService } from '../common/research/research.types';
 import { IngotModelService } from './ingot-model-service';
 import { MODEL_SERVICE_PATH } from '../common/models/models.consts';
 import { ModelService } from '../common/models/models.types';
@@ -40,6 +43,9 @@ import { IngotDebugToolsService } from './ingot-debug-tools-service';
 import { DEBUG_TOOLS_SERVICE_PATH } from '../common/debug/debug.consts';
 import { DebugToolsService } from '../common/debug/debug.types';
 
+import { IngotRulesInsightService } from './rules-insight/ingot-rules-insight-service';
+import { RULES_INSIGHT_SERVICE_PATH } from '../common/rules-insight/rules-insight.consts';
+import { RulesInsightService } from '../common/rules-insight/rules-insight.types';
 import { IngotRulesToolsService } from './rules-tools/ingot-rules-tools-service';
 import { RULES_TOOLS_SERVICE_PATH } from '../common/rules-tools/rules-tools.consts';
 import { RulesToolsService } from '../common/rules-tools/rules-tools.types';
@@ -64,6 +70,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotAgentActionsService).toSelf().inSingletonScope();
     bind(AgentActionsService).toService(IngotAgentActionsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(AGENT_ACTIONS_SERVICE_PATH, () => ctx.container.get<AgentActionsService>(AgentActionsService))).inSingletonScope();
+    bind(IngotResearchService).toSelf().inSingletonScope();
+    bind(ResearchService).toService(IngotResearchService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(RESEARCH_SERVICE_PATH, () => ctx.container.get<ResearchService>(ResearchService))).inSingletonScope();
     bind(BrowserProxyEndpoint).toSelf().inSingletonScope();
     bind(BackendApplicationContribution).toService(BrowserProxyEndpoint);
     bind(ErrorReportingEndpoint).toSelf().inSingletonScope();
@@ -112,4 +121,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotDebugToolsService).toSelf().inSingletonScope();
     bind(DebugToolsService).toService(IngotDebugToolsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(DEBUG_TOOLS_SERVICE_PATH, () => ctx.container.get<DebugToolsService>(DebugToolsService))).inSingletonScope();
+    bind(IngotRulesInsightService).toSelf().inSingletonScope();
+    bind(RulesInsightService).toService(IngotRulesInsightService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(RULES_INSIGHT_SERVICE_PATH, () => ctx.container.get<RulesInsightService>(RulesInsightService))).inSingletonScope();
 });

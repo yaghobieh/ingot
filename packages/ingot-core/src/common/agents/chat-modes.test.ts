@@ -9,8 +9,9 @@ const chat = (id: string, patch: Partial<AgentSession> = {}): AgentSession => ({
 });
 
 describe('chat modes (IDEA-77)', () => {
-    it('has five modes with permissions', () => {
-        expect(AGENT_MODE_INFO.map(m => m.id)).toEqual(['agent', 'multi', 'ask', 'plan', 'debug']);
+    it('has six modes with permissions', () => {
+        expect(AGENT_MODE_INFO.map(m => m.id)).toEqual(['agent', 'multi', 'ask', 'plan', 'debug', 'research']);
+        expect(modeInfo('research')).toMatchObject({ label: 'Deep research', canEdit: false, canUseTools: false, beta: true });
         expect(modeInfo('ask').canEdit).toBe(false);
         expect(modeInfo('ask').canUseTools).toBe(false);
         expect(modeInfo('plan').canEdit).toBe(false);
@@ -18,8 +19,9 @@ describe('chat modes (IDEA-77)', () => {
     });
     it('cycles forward and wraps', () => {
         expect(nextMode('agent')).toBe('multi');
-        expect(nextMode('debug')).toBe('agent');
-        expect(nextMode('agent', -1)).toBe('debug');
+        expect(nextMode('debug')).toBe('research');
+        expect(nextMode('research')).toBe('agent');
+        expect(nextMode('agent', -1)).toBe('research');
         expect(isAgentMode('plan')).toBe(true);
         expect(isAgentMode('nope')).toBe(false);
     });

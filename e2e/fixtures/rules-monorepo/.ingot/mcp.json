@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "db": {
+      "comand": "npx",
+      "args": [
+        "db-mcp"
+      ]
+    }
+  }
+}

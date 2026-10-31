@@ -8,7 +8,7 @@ export const AI_SETTINGS_PREFS = {
     aiCommit: 'ingot.commit.ai.enabled'
 } as const;
 
-export const DEFAULT_AGENT_MODES: readonly AgentMode[] = ['agent', 'ask', 'plan', 'debug', 'multi'];
+export const DEFAULT_AGENT_MODES: readonly AgentMode[] = ['agent', 'ask', 'plan', 'debug', 'multi', 'research'];
 
 /** A valid mode from the setting, else `fallback` (a typo in settings.json never breaks new chats). */
 export const defaultAgentMode = (value: unknown, fallback: AgentMode): AgentMode =>

@@ -19,6 +19,7 @@
     "@theia/editor": "1.76.0",
     "@theia/file-search": "1.76.0",
     "@theia/filesystem": "1.76.0",
+    "@theia/markers": "1.76.0",
     "@theia/messages": "1.76.0",
     "@theia/monaco": "1.76.0",
     "@theia/monaco-editor-core": "1.108.201",
@@ -64,6 +65,9 @@
     },
     {
       "frontendElectron": "lib/electron-browser/ingot-workbench-electron-module"
+    },
+    {
+      "frontend": "lib/browser/rules-insight/rules-insight-frontend-module"
     }
   ]
 }

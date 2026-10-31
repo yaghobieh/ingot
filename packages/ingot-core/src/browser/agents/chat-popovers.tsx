@@ -1,6 +1,7 @@
 import * as React from '@theia/core/shared/react';
 import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
 import { AGENT_MODE_INFO } from '../../common/agents/agent-modes';
+import { RESEARCH_BETA } from '../../common/research/research.consts';
 import { chatTime, filterChats } from '../../common/agents/chat-history';
 import { AUTO_MODEL_ID, AUTO_MODEL_LABEL, SIGN_IN_FOR_MODELS } from '../../common/models/models.consts';
 import type { CatalogModel, ModelFamilyGroup } from '../../common/models/models.types';
@@ -50,7 +51,7 @@ export const ModeMenu = ({ mode, shortcut, onPick, onClose }: ModeMenuProps): Re
                 className={`ingot-mode-item${m.id === mode ? ' selected' : ''}`} style={{ '--ingot-mode-color': m.color } as React.CSSProperties}
                 onClick={() => onPick(m.id)}>
                 <span className={`codicon codicon-${m.icon} ingot-mode-icon`} />
-                <span className='ingot-mode-text'><span className='ingot-mode-label'>{m.label}</span><span className='ingot-mode-desc'>{m.description}</span></span>
+                <span className='ingot-mode-text'><span className='ingot-mode-label'>{m.label}{m.beta && <span className='ingot-beta-pill'>{RESEARCH_BETA}</span>}</span><span className='ingot-mode-desc'>{m.description}</span></span>
                 {m.id === mode && <span className='codicon codicon-check ingot-mode-check' />}
             </button>
         ))}

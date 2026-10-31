@@ -8,6 +8,8 @@ const createMarkdown = ((markdownit as unknown as { default?: unknown }).default
 
 type MdTokens = ReturnType<ReturnType<typeof createMarkdown>['parse']>;
 
+const CITATION = /^\[(\d{1,3})\]$/;
+
 const escapeHtml = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /**
@@ -41,6 +43,16 @@ export class AgentMarkdownRenderer {
         const linkOpen = md.renderer.rules.link_open ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
         md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
             tokens[idx].attrSet('data-md-link', '1');
+            // IDEA-314: a `[[3]](url)` citation from Deep research shows as a numbered source chip.
+            const close = tokens.findIndex((token, i) => i > idx && token.type === 'link_close');
+            const label = close > idx + 1 ? tokens.slice(idx + 1, close) : [];
+            const cite = label.length && label.every(token => token.type === 'text') ? CITATION.exec(label.map(token => token.content).join('')) : undefined;
+            if (cite) {
+                tokens[idx].attrJoin('class', 'ingot-md-cite');
+                tokens[idx].attrSet('aria-label', `Source ${cite[1]}`);
+                tokens[idx].attrSet('title', tokens[idx].attrGet('href') ?? '');
+                label.forEach((token, i) => { token.content = i ? '' : cite[1]; });
+            }
             return linkOpen(tokens, idx, options, env, self);
         };
     }

@@ -11,6 +11,7 @@ const TREE_ORDER = [
     'Open to the Side', 'Open in Browser', 'Open With…',
     'Open in Integrated Terminal', 'Select for Compare',
     'Add File to Agent Chat', 'Add File to New Agent Chat',
+    'Show Effective Rules',
     'Open Changes', 'Open on Remote (Web)',
     'File History', 'Open Timeline',
     'Cut', 'Copy', 'Paste',
