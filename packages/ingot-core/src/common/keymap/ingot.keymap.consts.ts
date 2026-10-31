@@ -1,5 +1,7 @@
 import type { KeymapEntry } from './keymap.types';
 import { CHANGES_PENDING_KEY } from '../changes/changes.consts';
+import { DECISION_COMMANDS } from '../decisions/decisions.consts';
+import { FROZEN_COMMANDS } from '../frozen/frozen.consts';
 
 /** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
@@ -108,7 +110,11 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Add Selection to Agent Chat', command: 'ingot.agents.addSelectionToChat', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: EDITOR },
     { action: 'Cycle Chat Mode', command: 'ingot.agents.cycleMode', mac: 'ctrlcmd+.', other: 'ctrl+.', when: AGENTS_FOCUS },
     { action: 'New Chat', command: 'ingot.agents.new', mac: 'ctrlcmd+alt+n', other: 'ctrl+alt+n', when: AGENTS_FOCUS },
-    { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS }
+    { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS },
+    // Decisions and Frozen Zones (IDEA-302/303)
+    { action: 'Lock a Decision…', command: DECISION_COMMANDS.lock.id, mac: 'ctrlcmd+alt+shift+d', other: 'ctrl+alt+shift+d' },
+    { action: 'Freeze for Agents', command: FROZEN_COMMANDS.freezeFile.id, mac: 'ctrlcmd+alt+shift+z', other: 'ctrl+alt+shift+z' },
+    { action: 'Freeze Function for Agents', command: FROZEN_COMMANDS.freezeSymbol.id, mac: 'ctrlcmd+alt+shift+x', other: 'ctrl+alt+shift+x', when: EDITOR }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';

@@ -86,7 +86,8 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                     { label: 'Terminal & scripts', preferences: ['ingot.agent.terminal.enabled', 'ingot.agent.terminal.requireApproval', 'ingot.agent.terminal.foregroundTimeoutSeconds', 'ingot.agent.terminal.maxOutputChars'] },
                     { label: 'Background processes', preferences: ['ingot.agent.processes.showInChat'] },
                     { label: 'Browser', preferences: ['ingot.agent.browser.enabled', 'ingot.agent.browser.requireApproval', 'ingot.agent.browser.approveReads'] },
-                    { label: 'Work loop', preferences: ['ingot.agent.workLoop', 'ingot.agent.maxToolRounds', 'ingot.agent.maxToolResultChars'] }
+                    { label: 'Work loop', preferences: ['ingot.agent.workLoop', 'ingot.agent.maxToolRounds', 'ingot.agent.maxToolResultChars'] },
+                    { label: 'Doom-loop breaker', preferences: ['ingot.agent.doomLoop.enabled', 'ingot.agent.doomLoop.maxRepeats'] }
                 ]
             },
             { id: 'agent-config', label: 'Rules & MCP', actions: [{ id: 'openAgentConfig', label: 'Open Rules, Commands & MCP Servers…' }] },
@@ -97,6 +98,14 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
             {
                 id: 'habits', label: 'Habits', custom: 'habits', preferences: ['ingot.habits.playbooks.autoSelect', 'ingot.habits.threshold'],
                 description: 'Habits are playbooks: what to do in which scenario (for example a bug in payments: search the logs, check the service, run the tests). Project habits live in .ingot/habits (commit them to share), global ones in ~/.ingot/habits. Learned patterns are what Ingot notices you repeat; they can become a rule, command, hook or habit.'
+            },
+            {
+                id: 'decisions', label: 'Decisions', custom: 'decisions',
+                description: 'Decisions you agreed on with the agent ("use pnpm, not npm"). Confirm a decision the agent proposes in the chat, or lock one here; agents ask before going against a locked decision. A decision confirmed again and again becomes an always-applied rule and a habit.'
+            },
+            {
+                id: 'frozen', label: 'Frozen Zones', custom: 'frozen', preferences: ['ingot.frozen.revertThreshold', 'ingot.frozen.inferMinAgeDays'],
+                description: 'Files and functions agents may not change without your approval in the chat. Ingot suggests freezing a file you keep reverting agent edits to, and can find stable files from green tests and old commits.'
             },
             {
                 id: 'memories', label: 'Memories', custom: 'memories',

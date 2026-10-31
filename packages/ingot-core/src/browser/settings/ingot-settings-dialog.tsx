@@ -19,6 +19,10 @@ import { UserRulesService } from '../project-config/user-rules-service';
 import { RulesManager } from '../project-config/rules-manager';
 import { HabitStore } from '../habits/habit-store';
 import { HabitsManager } from '../habits/habits-manager';
+import { DecisionLedger } from '../decisions/decision-ledger';
+import { DecisionsManager } from '../decisions/decisions-manager';
+import { FrozenStore } from '../frozen/frozen-store';
+import { FrozenManager } from '../frozen/frozen-manager';
 import { PlaybookService } from '../habits/playbook-service';
 import { IngotAccountService } from '../account/account-service';
 import { AccountAvatar } from '../account/account-avatar';
@@ -40,6 +44,8 @@ export class IngotSettingsDialog extends ReactDialog<void> {
     @inject(UserRulesService) protected readonly userRules: UserRulesService;
     @inject(HabitStore) protected readonly habitStore: HabitStore;
     @inject(PlaybookService) protected readonly playbookService: PlaybookService;
+    @inject(DecisionLedger) protected readonly decisionLedger: DecisionLedger;
+    @inject(FrozenStore) protected readonly frozenStore: FrozenStore;
     @inject(IngotAccountService) protected readonly accounts: IngotAccountService;
 
     protected query = '';
@@ -229,6 +235,8 @@ export class IngotSettingsDialog extends ReactDialog<void> {
             {page.custom === 'account' && this.renderAccount()}
             {page.custom === 'rules' && <RulesManager service={this.userRules} />}
             {page.custom === 'habits' && <HabitsManager store={this.habitStore} playbooks={this.playbookService} />}
+            {page.custom === 'decisions' && <DecisionsManager ledger={this.decisionLedger} />}
+            {page.custom === 'frozen' && <FrozenManager store={this.frozenStore} runCommand={id => { this.close(); void this.commands.executeCommand(id); }} />}
             {page.custom === 'memories' && <section className='ingot-settings-card ingot-settings-memories'><MemoriesManager store={this.memoryStore} /></section>}
             {this.groupsFor(page, keys).map(group => <section key={group.label} className='ingot-settings-card'>
                 <h3 className='ingot-settings-card-title'>{group.label}</h3>
