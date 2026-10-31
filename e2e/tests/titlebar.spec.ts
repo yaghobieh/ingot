@@ -5,7 +5,7 @@ import { signInToIngot, startProPlusServer } from '../src/account.e2e-utils';
 import type { FakeIngotServer } from '../src/fake-ingot-server';
 import { SHELL_SELECTOR } from '../src/e2e.consts';
 
-/** IDEA-118: title bar right — bottom panel and chat icons, the Zaprex T-rex (IDEA-179), then the Agents Window pill. */
+/** IDEA-118: title bar right — bottom panel and chat icons, the Zaprex T-rex (IDEA-179, heavy runs only), then the Agents Window pill. */
 test.describe('IDEA-118 title bar window actions', () => {
     let account: FakeIngotServer;
     test.beforeEach(async () => {
@@ -19,9 +19,10 @@ test.describe('IDEA-118 title bar window actions', () => {
     test('icons sit left of the Agents Window pill and toggle their panels', async ({ page }) => {
         await openIngot(page);
         await dismissNotifications(page);
-        // The T-rex shows on PRO+ only.
         await signInToIngot(page);
-        const ids = ['#ingot-tb-panel', '#ingot-tb-chat', '#ingot-tb-zaprex', '#ingot-tb-agents-window'];
+        // The T-rex ("Hand off to Rex") shows on PRO+ only during a heavy run (zaprex-plan.spec), so not here.
+        await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0);
+        const ids = ['#ingot-tb-panel', '#ingot-tb-chat', '#ingot-tb-agents-window'];
         const boxes = [];
         for (const id of ids) {
             await expect(page.locator(id)).toBeVisible();
@@ -59,6 +60,8 @@ test.describe('IDEA-118 title bar window actions', () => {
     test('Agents Window opens a window with only the chat, and leaves the main layout alone', async ({ page, context }) => {
         await openIngot(page);
         await dismissNotifications(page);
+        // The Agents Window pill is a Pro feature (IDEA-271).
+        await signInToIngot(page);
         const popup = context.waitForEvent('page');
         await page.locator('#ingot-tb-agents-window').click();
         const agents = await popup;
@@ -82,6 +85,7 @@ test.describe('IDEA-118 title bar window actions', () => {
         test(`title bar icons, Shift Shift chip and Agents pill use the ${scheme} tokens`, async ({ page }) => {
             await openIngot(page);
             await dismissNotifications(page);
+            await signInToIngot(page);
             await page.locator('#ingot-rs-theme').click();
             await page.locator('.quick-input-widget .monaco-list-row', { hasText: scheme === 'dark' ? 'Dark' : 'Light' }).first().click();
             await expect(page.locator('body')).toHaveClass(new RegExp(`ingot-${scheme}`));

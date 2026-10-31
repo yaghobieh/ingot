@@ -1,111 +1,34 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { expect, test, type Page } from '@playwright/test';
-import { dismissNotifications, openIngot, runCommand, signOutIfSignedIn } from '../src/app.utils';
+import { expect, test } from '@playwright/test';
+import { dismissNotifications, openIngot, signOutIfSignedIn } from '../src/app.utils';
 import { signInToIngot, startProPlusServer } from '../src/account.e2e-utils';
 import type { FakeIngotServer } from '../src/fake-ingot-server';
-import { ZAPREX_DETECT_FILE, ZAPREX_LINK_LOG } from '../src/e2e.consts';
 import { pinZaprexDesktop, unpinZaprexDesktop } from '../src/zaprex.e2e-utils';
 
-/** Optional: where to save review screenshots (outside the repo). */
-const SHOTS = process.env.INGOT_SCREENSHOT_DIR;
-// IDEA-185: without the desktop app the T-rex opens the web app, which offers the download or "Stay here".
-const ZAPREX_APP_URL = 'https://zaprex.dev/app?from=ingot';
-/** IDEA-266: what the backend records instead of running `open -a Zaprex` (see INGOT_ZAPREX_LINK_LOG). */
-const LAUNCH_LINE = 'launch:Zaprex';
-
-const setDesktopApp = (installed: boolean): void => {
-    fs.mkdirSync(path.dirname(ZAPREX_DETECT_FILE), { recursive: true });
-    fs.writeFileSync(ZAPREX_DETECT_FILE, installed ? 'installed' : 'missing');
-    fs.rmSync(ZAPREX_LINK_LOG, { force: true });
-};
-const launches = (): string[] => fs.existsSync(ZAPREX_LINK_LOG) ? fs.readFileSync(ZAPREX_LINK_LOG, 'utf8').split('\n').filter(line => line === LAUNCH_LINE) : [];
-
-const setTheme = async (page: Page, label: string): Promise<void> => {
-    await runCommand(page, 'Preferences: Color Theme');
-    await page.locator('.quick-input-widget input').fill(label);
-    await page.locator('.quick-input-list .monaco-list-row', { hasText: label }).first().click();
-    await expect(page.locator('body')).toHaveClass(new RegExp(label === 'Ingot Dark' ? 'theia-dark' : 'theia-light'));
-};
-
-const shotHeader = async (page: Page, name: string): Promise<void> => {
-    if (!SHOTS) { return; }
-    fs.mkdirSync(SHOTS, { recursive: true });
-    const header = page.locator('.ingot-tb-window-actions').first();
-    const box = await header.boundingBox();
-    if (box) {
-        await page.screenshot({ path: path.join(SHOTS, `${name}-header.png`), clip: { x: Math.max(0, box.x - 8), y: Math.max(0, box.y - 8), width: box.width + 16, height: box.height + 16 } });
-    }
-    await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
-};
-
-/** IDEA-173 / IDEA-179: Zaprex is its own app. The IDE has no Zaprex panel, one small T-rex in the title bar (plus the composer button, IDEA-184) that opens it. */
+/**
+ * IDEA-173 / IDEA-179: Zaprex is its own app. The IDE has no Zaprex panel and no Zaprex button in the composer or the
+ * agent header; the one title bar T-rex ("Hand off to Rex") only shows during a heavy run (see zaprex-plan.spec).
+ */
 test.describe('IDEA-173 Zaprex link', () => {
     let account: FakeIngotServer;
     test.beforeEach(async () => {
         account = await startProPlusServer();
-        // Without the desktop app the T-rex opens the web app, even where Zaprex.app is installed.
         pinZaprexDesktop(false);
     });
     test.afterEach(async ({ page }) => {
         await signOutIfSignedIn(page).catch(() => undefined);
         await account.close();
         unpinZaprexDesktop();
-        fs.rmSync(ZAPREX_LINK_LOG, { force: true });
     });
 
-    test('IDEA-266: with the desktop app installed the Rex button launches it, not the website', async ({ page, context }) => {
-        setDesktopApp(true);
-        let popups = 0;
-        context.on('page', () => { popups++; });
+    test('no Zaprex panel or extra buttons, and no T-rex while no heavy run is going', async ({ page }) => {
         await openIngot(page);
         await dismissNotifications(page);
         await signInToIngot(page);
-        await page.locator('#ingot-tb-zaprex').click();
-        await expect.poll(launches).toEqual([LAUNCH_LINE]);
-        expect(popups).toBe(0);
-    });
-
-    test('the title bar shows the one Zaprex T-rex (not in the agent header), which opens the Zaprex app', async ({ page, context }) => {
-        setDesktopApp(false);
-        await context.route('https://zaprex.dev/**', route => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Zaprex</title>' }));
-        await openIngot(page);
-        await dismissNotifications(page);
-        // The Zaprex app is a PRO+ feature.
-        await signInToIngot(page);
-        const logo = page.locator('#ingot-tb-zaprex');
-        await expect(logo).toBeVisible();
-        // The title bar has the one T-rex.
-        await expect(logo.locator('.ingot-zaprex-link-icon')).toHaveCount(1);
+        await expect(page.locator('.ingot-tb-window-actions')).toBeVisible();
+        await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
         await expect(page.locator('#ingot-agents-zaprex')).toHaveCount(0);
-        expect(await logo.locator('.ingot-zaprex-trex').evaluate(el => getComputedStyle(el).animationName)).toBe('ingot-trex-idle');
-        await expect(logo).toHaveAttribute('title', 'Open Zaprex');
-        await expect(logo).toHaveAttribute('aria-label', 'Open Zaprex');
-        // Small: the same size class as the other header icons.
-        const box = await logo.boundingBox();
-        expect(box?.width ?? 0).toBeLessThanOrEqual(28);
-        // No embedded Zaprex panel any more.
         await expect(page.locator('#ingot-bot-root')).toHaveCount(0);
-
-        await setTheme(page, 'Ingot Light');
-        await shotHeader(page, 'ide-titlebar-zaprex-light');
-        await setTheme(page, 'Ingot Dark');
-        await expect(logo).toBeVisible();
-        await shotHeader(page, 'ide-titlebar-zaprex-dark');
-        // The T-rex stands alone on a transparent background: no circle or tile behind it, even on hover.
-        await logo.hover();
-        await expect.poll(() => logo.locator('.ingot-zaprex-trex').evaluate(el => getComputedStyle(el).animationName)).toBe('ingot-trex-hop');
-        const backgrounds = await logo.evaluate(element => [element, element.firstElementChild!].map(node => getComputedStyle(node).backgroundColor));
-        expect(backgrounds).toEqual(['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)']);
-
-        const popup = page.waitForEvent('popup');
-        await logo.click();
-        const opened = await popup;
-        expect(opened.url()).toBe(ZAPREX_APP_URL);
-        expect(launches()).toEqual([]);
-        await opened.close();
-        await setTheme(page, 'Ingot Light');
     });
 
     test('the command palette has no Zaprex panel command', async ({ page }) => {

@@ -87,6 +87,8 @@ import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/prefe
 import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
 import { MADE_WITH_PREF, withMadeWith } from '../../common/git/made-with';
 import { clampPieces, HARMONY_DEFAULTS, HARMONY_PREFS, harmonyLock, harmonyPrompt, isHeavyRun, pickHarmonyPiece, type HarmonyPiece } from '../../common/agents/harmony';
+import { isHeavyRunWeight, runWeight } from '../../common/agents/rex-handoff';
+import { LONG_RUN_MS } from '../../common/agents/rex-handoff.consts';
 import {
     APPROVAL_PREFS, BUILTIN_TOOLS, BUILTIN_TOOL_SERVER, actionLine, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
     unknownToolResult, updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind,
@@ -225,6 +227,8 @@ export class AgentStore {
     protected readonly loopDepth = new Map<string, number>();
     /** Bumped by send and stop so a replaced or stopped turn cannot keep writing. */
     protected readonly loopGeneration = new Map<string, number>();
+    /** When each chat's current run started; a long run counts as heavy for "Hand off to Rex". */
+    protected readonly runStarted = new Map<string, number>();
     /** Absolute paths of library apps this window created, so later commands may use them as cwd. */
     protected readonly createdApps = new Set<string>();
     /** Chats that already created a library, so the create nudge is not repeated. */
@@ -691,6 +695,9 @@ export class AgentStore {
         const generation = (this.loopGeneration.get(session.id) ?? 0) + 1;
         this.loopGeneration.set(session.id, generation);
         this.cancelled.delete(session.id);
+        this.runStarted.set(session.id, Date.now());
+        // The run turns heavy once it has been going this long, even without any other change to re-render on.
+        setTimeout(() => this.generationFor(session.id) === generation && this.isRunning(session.id) && this.changed(), LONG_RUN_MS);
         this.changed();
         this.runModel(session, generation).finally(() => {
             if (this.generationFor(session.id) === generation) {
@@ -3861,6 +3868,36 @@ export class AgentStore {
     /** The open offer for one chat. */
     harmonyOfferFor(sessionId: string): HarmonyPiece | undefined {
         return this.harmonyOffers.get(sessionId);
+    }
+
+    /** The current chat, while its run is heavy enough to hand off to Rex (many files, a multi-step plan or a long run). */
+    get heavyRun(): AgentSession | undefined {
+        const session = this.current;
+        if (!session || session.parent || session.agent === 'zaprex') {
+            return undefined;
+        }
+        const started = this.isRunning(session.id) ? this.runStarted.get(session.id) : undefined;
+        const prompt = [...session.messages].reverse().find(m => m.role === 'user')?.text ?? '';
+        return isHeavyRunWeight(runWeight(session, Date.now(), started, parseMentions(prompt))) ? session : undefined;
+    }
+
+    /** "Hand off to Rex": Zaprex takes the open Harmony offer, else one scoped piece of the run; with nothing left to take, the Zaprex app opens. */
+    handOffToRex(sessionId: string): AgentSession | undefined {
+        const session = this.find(sessionId);
+        if (!session) {
+            return undefined;
+        }
+        if (!this.harmonyOffers.has(sessionId)) {
+            const goal = [...session.messages].reverse().find(m => m.role === 'user')?.text ?? session.title;
+            const taken = this.zaprexPieces(sessionId).map(p => p.piece).filter(k => !!k);
+            const piece = pickHarmonyPiece(session.plan.map(p => p.text), goal, taken);
+            if (!piece) {
+                void this.zaprex.openApp();
+                return undefined;
+            }
+            this.harmonyOffers.set(sessionId, piece);
+        }
+        return this.acceptHarmony(sessionId);
     }
 
     /** IDEA-181: a chat's subagents (Multi-agent subtasks and Zaprex pieces), oldest first. */

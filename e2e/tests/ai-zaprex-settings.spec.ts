@@ -7,6 +7,7 @@ import { actUntilVisible, dismissNotifications, openIngot, signOutIfSignedIn } f
 import { signInToIngot, startProPlusServer } from '../src/account.e2e-utils';
 import type { FakeIngotServer } from '../src/fake-ingot-server';
 import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
+import { openChat } from '../src/chat.e2e-utils';
 
 /**
  * IDEA-182: Settings › Tools › AI & Zaprex groups the agent defaults, Harmony mode, subagents, the Zaprex button,
@@ -35,12 +36,12 @@ const openAiSettings = async (page: Page): Promise<void> => {
 };
 
 const KEYS = [
-    'ingot.agent.defaultMode', 'ingot.agent.defaultModel',
+    'ingot.agent.defaultMode', 'ingot.agent.defaultModel', 'ingot.chat.attachActiveFile',
     'ingot.zaprex.harmony.enabled', 'ingot.zaprex.harmony.maxPieces', 'ingot.zaprex.harmony.askFirst',
     'ingot.agents.subagents.view', 'ingot.zaprex.showButton', 'ingot.commit.ai.enabled',
     'ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'
 ];
-const GROUPS = ['Agent defaults', 'Harmony mode', 'Subagents & Zaprex', 'Commits', 'Agent git hooks'];
+const GROUPS = ['Agent defaults', 'Chat', 'Harmony mode', 'Subagents & Zaprex', 'Commits', 'Agent git hooks'];
 
 let account: FakeIngotServer;
 test.beforeEach(async () => {
@@ -59,9 +60,9 @@ for (const scheme of ['light', 'dark'] as const) {
             await openIngot(page, repo);
             await setAppearance(page, scheme);
             await dismissNotifications(page);
-            // The T-rex shows on PRO+ only.
             await signInToIngot(page);
-            await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
+            // The T-rex shows on PRO+ only during a heavy run (zaprex-plan.spec); an idle window has none.
+            await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0);
             await actUntilVisible(() => page.keyboard.press('Control+k'), page.locator('#ingot-commit-message'));
             await expect(page.locator('#ingot-commit-ai')).toBeVisible();
 
@@ -75,6 +76,8 @@ for (const scheme of ['light', 'dark'] as const) {
             await expect(setting(page, 'ingot.agent.defaultMode')).toHaveValue('agent');
             await expect(setting(page, 'ingot.zaprex.showButton')).toBeChecked();
             await expect(setting(page, 'ingot.commit.ai.enabled')).toBeChecked();
+            await expect(setting(page, 'ingot.chat.attachActiveFile')).not.toBeChecked();
+            await expect(dialog(page)).toContainText('Attach active file automatically');
             await shot(page, `ai-zaprex-settings-${scheme}.png`);
 
             // Turn the T-rex and Commit with AI off; new chats start in Plan.
@@ -83,8 +86,8 @@ for (const scheme of ['light', 'dark'] as const) {
             await setting(page, 'ingot.commit.ai.enabled').click();
             await page.locator('#ingot-settings-ok').click();
             await expect(dialog(page)).toBeHidden();
-            await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0);
             await expect(page.locator('#ingot-commit-ai')).toHaveCount(0);
+            await openChat(page);
             await page.locator('#ingot-agents-new').click();
             await expect(page.locator('#ingot-composer-more')).toHaveAttribute('data-mode', 'plan');
             await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
@@ -96,7 +99,6 @@ for (const scheme of ['light', 'dark'] as const) {
             await setting(page, 'ingot.zaprex.showButton').click();
             await setting(page, 'ingot.commit.ai.enabled').click();
             await page.locator('#ingot-settings-ok').click();
-            await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
             await expect(page.locator('#ingot-commit-ai')).toBeVisible();
         } finally {
             fs.rmSync(repo, { recursive: true, force: true });

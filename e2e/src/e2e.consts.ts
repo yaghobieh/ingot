@@ -64,8 +64,12 @@ export const E2E_USER_SETTINGS = {
     // IDEA-182: an interrupted AI & Zaprex settings run must not leave the T-rex hidden, Commit with AI off or Plan as default.
     'ingot.zaprex.showButton': true,
     'ingot.commit.ai.enabled': true,
-    'ingot.agent.defaultMode': 'agent'
+    'ingot.agent.defaultMode': 'agent',
+    // An interrupted attach-active-file run must not leave the open file attached to every chat.
+    'ingot.chat.attachActiveFile': false
 } as const;
+/** Settings › Tools › AI & Zaprex › Chat › Attach active file automatically. */
+export const ATTACH_ACTIVE_FILE = 'ingot.chat.attachActiveFile';
 /** dismissNotifications: upper bound of toasts closed in one call, and how long one close click may wait. */
 export const MAX_NOTIFICATION_CLOSES = 20;
 export const NOTIFICATION_CLOSE_TIMEOUT_MS = 2_000;

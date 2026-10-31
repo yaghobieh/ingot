@@ -2,12 +2,16 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
-import { dismissNotifications, openIngot } from '../src/app.utils';
+import { dismissNotifications, openIngot, signOutIfSignedIn } from '../src/app.utils';
+import { signInToIngot } from '../src/account.e2e-utils';
 import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
-import { pickModel } from '../src/chat.e2e-utils';
+import { openChat, pickModel } from '../src/chat.e2e-utils';
+import { startFakeIngotServer, type FakeIngotServer } from '../src/fake-ingot-server';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { git } from '../src/git-repo';
 import { connectOllama } from '../src/models.e2e-utils';
+import { setSettings } from '../src/autopilot.e2e-utils';
+import { ATTACH_ACTIVE_FILE } from '../src/e2e.consts';
 
 /**
  * IDEA-267: auto-context chips (file, selection, git diff, memories) that the user can remove, memories in
@@ -68,8 +72,12 @@ const reply = (_system: string, user: string): string => {
 test.describe('IDEA-267 agent context, memory and follow-ups', () => {
     let repo = '';
     let server: FakeOllama | undefined;
+    let account: FakeIngotServer | undefined;
 
-    test.afterEach(async () => {
+    test.afterEach(async ({ page }) => {
+        await setSettings(page, 'ai-zaprex', { [ATTACH_ACTIVE_FILE]: false }).catch(() => undefined);
+        await signOutIfSignedIn(page).catch(() => undefined);
+        await account?.close();
         await server?.close();
         if (repo) {
             fs.rmSync(repo, { recursive: true, force: true });
@@ -79,9 +87,12 @@ test.describe('IDEA-267 agent context, memory and follow-ups', () => {
     test('attaches removable IDE context, redirects an overview to the task, and offers follow-ups', async ({ page }) => {
         repo = makeRepo();
         server = await startFakeOllama(reply, { delayMs: 0, chunkSize: 4_000 });
+        account = await startFakeIngotServer();
         await openIngot(page, repo);
         await dismissNotifications(page);
         await setAppearance(page, 'light');
+        // Chat is a Pro feature (IDEA-271).
+        await signInToIngot(page);
         await connectOllama(page, server);
 
         await expect(async () => {
@@ -96,10 +107,14 @@ test.describe('IDEA-267 agent context, memory and follow-ups', () => {
         await page.keyboard.press('Shift+ArrowDown');
         await page.keyboard.press('Shift+ArrowDown');
 
+        await openChat(page);
         await page.locator('#ingot-agents-new').click();
         await pickModel(page, 'ollama-local');
-        await expect(chip(page, 'file')).toContainText('cart.ts');
+        // The open file itself is only attached with "Attach active file automatically" on (off by default).
         await expect(chip(page, 'selection')).toContainText('cart.ts (2-3)');
+        await expect(chip(page, 'file')).toHaveCount(0);
+        await setSettings(page, 'ai-zaprex', { [ATTACH_ACTIVE_FILE]: true });
+        await expect(chip(page, 'file')).toContainText('cart.ts');
         await expect(chip(page, 'diff')).toContainText('Git diff +1 −0', { timeout: GIT_READY_MS });
         await expect(chip(page, 'memory')).toContainText('2 memories');
         expect(fs.existsSync(path.join(repo, '.ingot', 'memory', 'm-old-fact.md'))).toBe(true);

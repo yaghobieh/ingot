@@ -6,6 +6,8 @@ import { EditorManager, type EditorWidget } from '@theia/editor/lib/browser';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { ProblemManager } from '@theia/markers/lib/browser/problem/problem-manager';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
+import { PreferenceService } from '@theia/core/lib/common/preferences';
+import { AI_SETTINGS_PREFS, attachActiveFileOn } from '../../common/agents/ai-settings';
 import { autoContextItems, fileContext, recentEdits, recordEdit, visibleAutoContext } from '../../common/agents/auto-context';
 import { AUTO_CONTEXT_DEBOUNCE_MS, DIFF_DEBOUNCE_MS, DIFF_RETRY_MS, LSP_SEVERITY, LSP_SEVERITY_ERROR, MAX_DIFF_RETRIES } from '../../common/agents/auto-context.consts';
 import type { AutoAttach, AutoContextItem, AutoDiagnostic, AutoEdit, AutoSelection, DiagnosticSeverity } from '../../common/agents/auto-context.types';
@@ -13,8 +15,9 @@ import { GitService } from '../../common/git/git.types';
 import { MemoryStore } from './memory-store';
 
 /**
- * IDEA-267: keeps the composer's auto-context chips current — the file and selection in the last active editor,
- * the editor's problems, files the user just edited, the uncommitted git diff and the memory count.
+ * IDEA-267: keeps the composer's auto-context chips current — the selection in the last active editor (and the file
+ * itself only with "Attach active file automatically" on), the editor's problems, files the user just edited, the
+ * uncommitted git diff and the memory count.
  */
 @injectable()
 export class AutoContextService {
@@ -25,6 +28,7 @@ export class AutoContextService {
     @inject(GitService) protected readonly git: GitService;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(FileService) protected readonly files: FileService;
+    @inject(PreferenceService) protected readonly preferences: PreferenceService;
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
@@ -47,6 +51,8 @@ export class AutoContextService {
         this.editors.onCreated(widget => widget.editor.onDocumentContentChanged(e => this.onEdit(widget, e.contentChanges.map(c => c.range.start.line + 1))));
         this.problems.onDidChangeMarkers(() => this.schedule());
         this.memoryStore.onDidChange(() => this.schedule());
+        this.preferences.onPreferenceChanged(e => e.preferenceName === AI_SETTINGS_PREFS.attachActiveFile && this.schedule(0));
+        void this.preferences.ready.then(() => this.schedule(0));
         this.files.onDidFilesChange(() => this.scheduleDiff());
         this.workspace.onWorkspaceChanged(() => {
             void this.memoryStore.load().catch(() => undefined);
@@ -174,12 +180,17 @@ export class AutoContextService {
         return out;
     }
 
+    /** Settings › AI & Zaprex › Attach active file automatically (off by default). */
+    get attachActiveFile(): boolean {
+        return attachActiveFileOn(this.preferences.get(AI_SETTINGS_PREFS.attachActiveFile));
+    }
+
     protected rebuild(): void {
         const editor = this.editors.currentEditor;
         const path = editor ? this.relative(editor.editor.uri) : undefined;
         const now = Date.now();
         this.all = autoContextItems({
-            file: editor && path ? fileContext(path, editor.editor.uri.toString(), editor.editor.document.getText(), editor.editor.cursor.line + 1) : undefined,
+            file: editor && path && this.attachActiveFile ? fileContext(path, editor.editor.uri.toString(), editor.editor.document.getText(), editor.editor.cursor.line + 1) : undefined,
             selection: editor && path ? this.selection(editor, path) : undefined,
             diagnostics: this.diagnostics(),
             edits: recentEdits(this.edits, now),

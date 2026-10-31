@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { dismissNotifications, openIngot, signOutIfSignedIn } from '../src/app.utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
-import { pickModel } from '../src/chat.e2e-utils';
+import { openChat, pickMode, pickModel } from '../src/chat.e2e-utils';
 import { makeToolsProject } from '../src/agent-tools.e2e-utils';
 import { signInToIngot, startProPlusServer } from '../src/account.e2e-utils';
 import type { FakeIngotServer } from '../src/fake-ingot-server';
@@ -61,8 +61,10 @@ test.describe('IDEA-180 Harmony mode', () => {
         await signInToIngot(page);
         await setScheme(page, scheme);
         await connectOllama(page, server);
+        await openChat(page);
         await page.locator('#ingot-agents-new').click();
         await pickModel(page, 'ollama-local');
+        await pickMode(page, 'agent');
         await page.locator('#ingot-composer-input').fill('add a CSV export to the File menu');
         await page.locator('#ingot-composer-input').press('Enter');
     };
@@ -123,7 +125,8 @@ test.describe('IDEA-180 Harmony mode', () => {
         await expect(bubble).toHaveCount(0);
         await expect(page.locator('#ingot-agents .ingot-chat-agent').last()).toContainText('Done.', { timeout: 45_000 });
         await expect(bubble).toHaveCount(0);
-        await expect(page.locator('#ingot-tb-zaprex')).not.toHaveClass(/thinking/);
+        // The run is over, so the T-rex ("Hand off to Rex") is gone too.
+        await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0, { timeout: 30_000 });
         // No lock without a piece: the lead agent writes the tests itself.
         await expect.poll(() => fs.readFileSync(path.join(dir, 'src', 'export.test.ts'), 'utf8')).toContain('LEAD-TEST');
         await expect(page.locator('#ingot-agents')).not.toContainText('to Zaprex');

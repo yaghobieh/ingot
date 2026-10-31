@@ -15,8 +15,10 @@ import type { HarmonyPiece } from '../../common/agents/harmony';
 import { HarmonyBubble } from '../agents/harmony-bubble';
 import { AGENT_COMMANDS, AGENTS_WIDGET_ID } from '../agents/agents.consts';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
-import { ZAPREX_LINK_LABEL } from '../agents/zaprex-link.consts';
 import { ZaprexLauncher } from '../agents/zaprex-launcher';
+import type { AgentSession } from '../../common/agents/agents.types';
+import { showRexHandoff } from '../../common/agents/rex-handoff';
+import { REX_HANDOFF_BUSY_LABEL, REX_HANDOFF_LABEL } from '../../common/agents/rex-handoff.consts';
 import { IngotAccountService } from '../account/account-service';
 import { IngotPlanService } from '../plan/plan-service';
 import { PLAN_COMMANDS, PLAN_TEXT } from '../plan/plan.browser-consts';
@@ -257,15 +259,15 @@ export class IngotMainToolbar extends ReactWidget {
 
     /**
      * IDEA-179: the one Zaprex entry point in the IDE (the Manage gear stays at the bottom of the left stripe).
-     * A transparent T-rex that idles with a slow sway; it opens the separate Zaprex app.
+     * A transparent T-rex that idles with a slow sway. It only shows during a heavy run and hands a piece of it to Rex.
      */
-    protected renderZaprex(): React.ReactNode {
+    protected renderZaprex(run: AgentSession): React.ReactNode {
         const offer = this.agents.harmonyEnabled ? this.agents.harmonyOffer : undefined;
         const busy = this.agents.zaprexBusy;
-        const label = busy ? `${ZAPREX_LINK_LABEL} · Zaprex is working on a piece (Harmony mode)` : ZAPREX_LINK_LABEL;
+        const label = busy ? REX_HANDOFF_BUSY_LABEL : REX_HANDOFF_LABEL;
         return <span className='ingot-tb-zaprex-anchor'>
             <button id='ingot-tb-zaprex' type='button' className={`ingot-tb-button ingot-tb-icon ingot-tb-zaprex${offer || busy ? ' thinking' : ''}`} title={label} aria-label={label}
-                onClick={() => void this.zaprex.openApp()}>
+                onClick={() => this.agents.handOffToRex(run.id)}>
                 <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
                 {busy && <span className='ingot-tb-zaprex-busy' aria-hidden='true' />}
             </button>
@@ -282,7 +284,13 @@ export class IngotMainToolbar extends ReactWidget {
             onAccept={() => this.agents.acceptHarmony(sessionId)} onDismiss={() => this.agents.dismissHarmony(sessionId)} />;
     }
 
-    /** Bottom panel and chat icons, the Zaprex T-rex (PRO+ only), then the Agents Window pill (IDEA-118, IDEA-179). On free: one "Upgrade to Pro" pill (IDEA-271). */
+    /** The run the T-rex would hand off: PRO+ (admins count) with Rex on the plan, the button on, and the current run heavy. */
+    protected get rexHandoffRun(): AgentSession | undefined {
+        const run = this.agents.heavyRun;
+        return showRexHandoff({ enabled: this.agents.zaprexButtonVisible, proPlus: this.account.proPlus, canRex: this.plan.can('rex'), heavy: !!run }) ? run : undefined;
+    }
+
+    /** Bottom panel and chat icons, the Zaprex T-rex (PRO+, heavy runs only), then the Agents Window pill (IDEA-118, IDEA-179). On free: one "Upgrade to Pro" pill (IDEA-271). */
     protected renderWindowActions(): React.ReactNode {
         const panel = <IconButton id='ingot-tb-panel' codicon='layout-panel' title={TITLEBAR_TEXT.bottomPanel} pressed={this.bottomPanelOpen} onClick={() => this.toggle(TOGGLE_BOTTOM_PANEL_COMMAND)} />;
         if (!this.plan.can('chat')) {
@@ -293,10 +301,11 @@ export class IngotMainToolbar extends ReactWidget {
                 </button>
             </div>;
         }
+        const rexRun = this.rexHandoffRun;
         return <div className='ingot-tb-window-actions'>
             {panel}
             <IconButton id='ingot-tb-chat' codicon='comment' title={TITLEBAR_TEXT.chat} pressed={this.chatOpen} onClick={() => this.toggle(AGENT_COMMANDS.toggle.id)} />
-            {this.agents.zaprexButtonVisible && this.account.proPlus && this.plan.can('rex') && this.renderZaprex()}
+            {rexRun && this.renderZaprex(rexRun)}
             <button id='ingot-tb-agents-window' type='button' className='ingot-tb-pill' title={TITLEBAR_TEXT.agentsWindowTitle} onClick={() => this.run(TITLEBAR_COMMANDS.agentsWindow.id)}>
                 <span>{TITLEBAR_TEXT.agentsWindow}</span><span className='ingot-tb-pill-arrow' aria-hidden='true'>↗</span>
             </button>

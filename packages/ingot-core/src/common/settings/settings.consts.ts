@@ -50,9 +50,9 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
             },
             {
                 id: 'ai-zaprex', label: 'AI & Zaprex',
-                description: 'Agent defaults, Harmony mode (Zaprex takes one scoped piece of a heavy run), how subagents show, the Zaprex button, Commit with AI and agent git hooks.',
+                description: 'Agent defaults, chat context, Harmony mode (Zaprex takes one scoped piece of a heavy run), how subagents show, the Zaprex button, Commit with AI and agent git hooks.',
                 preferences: [
-                    'ingot.agent.defaultMode', 'ingot.agent.defaultModel',
+                    'ingot.agent.defaultMode', 'ingot.agent.defaultModel', 'ingot.chat.attachActiveFile',
                     'ingot.zaprex.harmony.enabled', 'ingot.zaprex.harmony.maxPieces', 'ingot.zaprex.harmony.askFirst',
                     'ingot.agents.subagents.view', 'ingot.zaprex.showButton',
                     'ingot.commit.ai.enabled', 'ingot.commit.madeWithTrailer',
@@ -60,6 +60,7 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                 ],
                 groups: [
                     { label: 'Agent defaults', preferences: ['ingot.agent.defaultMode', 'ingot.agent.defaultModel'] },
+                    { label: 'Chat', preferences: ['ingot.chat.attachActiveFile'] },
                     { label: 'Harmony mode', preferences: ['ingot.zaprex.harmony.enabled', 'ingot.zaprex.harmony.maxPieces', 'ingot.zaprex.harmony.askFirst'] },
                     { label: 'Subagents & Zaprex', preferences: ['ingot.agents.subagents.view', 'ingot.zaprex.showButton'] },
                     { label: 'Commits', preferences: ['ingot.commit.ai.enabled', 'ingot.commit.madeWithTrailer'] },

@@ -7,6 +7,7 @@ export const flattenPages = (pages: readonly SettingsPage[], parents: readonly s
 /** Labels that read better than the key's last segment. */
 const SETTING_LABELS: Record<string, string> = {
     'ingot.account.syncSettings': 'Sync settings',
+    'ingot.chat.attachActiveFile': 'Attach active file automatically',
     // IDEA-133: Agent tools.
     'ingot.agent.terminal.enabled': 'Let the agent run commands',
     'ingot.agent.terminal.requireApproval': 'Ask before running commands',
