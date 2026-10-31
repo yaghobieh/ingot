@@ -28,7 +28,8 @@
     "info": "#2F7FB8",
     "editorBg": "#FFFFFF",
     "editorLineHighlight": "#F3F5F9",
-    "editorGutter": "#9AA0AB"
+    "editorGutter": "#9AA0AB",
+    "silver": "#7A8494"
   },
   "dark": {
     "bg": "#1C1E24",
@@ -50,6 +51,7 @@
     "info": "#5AA9DE",
     "editorBg": "#1E2027",
     "editorLineHighlight": "#262932",
-    "editorGutter": "#5E6673"
+    "editorGutter": "#5E6673",
+    "silver": "#B4BBC7"
   }
 }

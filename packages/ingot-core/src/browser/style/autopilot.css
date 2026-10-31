@@ -1,0 +1,50 @@
+/* IDEA-305 / IDEA-306 / IDEA-307: silver Habits notes, the plan review card, the fresh-context offer, the cost forecast. Design tokens only. */
+
+.ingot-chat-note-row { display: flex; flex-direction: column; gap: 6px; margin: 2px 0; }
+.ingot-habit-note { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; align-self: flex-start; padding: 1px 8px; border: 1px solid color-mix(in srgb, var(--ingot-silver) 45%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--ingot-silver) 10%, transparent); color: var(--ingot-silver); font-size: 11px; line-height: 18px; }
+.ingot-habit-note > .codicon { font-size: 12px; color: var(--ingot-silver); }
+.ingot-habit-note-text { font-weight: 500; white-space: nowrap; }
+.ingot-habit-note-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-text-muted); }
+.ingot-habit-note-action { flex: none; margin-left: 2px; padding: 0 6px; border: 1px solid color-mix(in srgb, var(--ingot-silver) 45%, transparent); border-radius: 999px; background: transparent; color: var(--ingot-text); font: inherit; font-size: 11px; line-height: 16px; cursor: pointer; }
+.ingot-habit-note-action:hover, .ingot-habit-note-action:focus-visible { border-color: var(--ingot-silver); background: color-mix(in srgb, var(--ingot-silver) 18%, transparent); outline: none; }
+
+.ingot-plan-review { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border: 1px solid var(--ingot-border); border-left: 3px solid var(--ingot-silver); border-radius: 6px; background: var(--ingot-surface); color: var(--ingot-text); font-size: 12px; }
+.ingot-plan-review-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ingot-plan-review-head > .codicon { color: var(--ingot-silver); }
+.ingot-plan-review-title { flex: none; font-weight: 500; white-space: nowrap; }
+.ingot-plan-review-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-text-muted); font-size: 11px; }
+.ingot-plan-review-open { flex: none; white-space: nowrap; }
+.ingot-plan-review-open, .ingot-plan-review-file { padding: 0 6px; border: 1px solid var(--ingot-border); border-radius: 4px; background: transparent; color: var(--ingot-text-muted); font: inherit; font-size: 11px; cursor: pointer; }
+.ingot-plan-review-open:hover, .ingot-plan-review-file:hover { border-color: var(--ingot-silver); color: var(--ingot-text); }
+.ingot-plan-review-steps { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.ingot-plan-review-step { display: grid; grid-template-columns: 14px minmax(0, 1fr); align-items: baseline; column-gap: 6px; }
+.ingot-plan-review-step > .codicon { grid-row: 1 / span 2; }
+.ingot-plan-review-step.matched > .codicon { color: var(--ingot-success); }
+.ingot-plan-review-step.missing > .codicon { color: var(--ingot-warning); }
+.ingot-plan-review-step.missing .ingot-plan-review-text { color: var(--ingot-text-muted); }
+.ingot-plan-review-evidence { grid-column: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-text-muted); font-size: 11px; font-family: var(--theia-code-font-family, monospace); }
+.ingot-plan-review-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-top: 4px; border-top: 1px solid var(--ingot-border); font-size: 11px; color: var(--ingot-text-muted); }
+.ingot-plan-review-scope > .codicon { color: var(--ingot-warning); }
+
+.ingot-agents-root > .ingot-handoff-offer,
+.ingot-agents-root > .ingot-cost-confirm { flex: none; margin: 0 10px 6px; }
+.ingot-handoff-offer, .ingot-cost-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--ingot-border); border-radius: 6px; background: var(--ingot-surface); color: var(--ingot-text); font-size: 12px; }
+.ingot-handoff-offer { border-left: 3px solid var(--ingot-silver); }
+.ingot-handoff-offer > .codicon { color: var(--ingot-silver); }
+.ingot-cost-confirm { border-left: 3px solid var(--ingot-warning); }
+.ingot-cost-confirm > .codicon { color: var(--ingot-warning); }
+.ingot-handoff-offer-text, .ingot-cost-confirm-text { flex: 1 1 200px; min-width: 0; }
+.ingot-handoff-offer-actions, .ingot-cost-confirm-actions { display: inline-flex; gap: 6px; }
+
+.ingot-cost-forecast { display: inline-flex; align-items: center; gap: 3px; height: 20px; margin-right: 6px; padding: 0 6px; border-radius: 999px; color: var(--ingot-text-muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: default; }
+.ingot-cost-forecast .codicon { font-size: 12px; }
+.ingot-cost-forecast.routed .codicon-arrow-swap { color: var(--ingot-silver); }
+.ingot-cost-forecast.over { color: var(--ingot-warning); background: color-mix(in srgb, var(--ingot-warning) 12%, transparent); }
+.ingot-composer-more-menu .ingot-composer-router.on .codicon { color: var(--ingot-silver); }
+
+.ingot-learned-habits { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.ingot-learned-row { display: flex; align-items: center; gap: var(--ingot-space-2); padding: 5px 8px; border: 1px solid var(--ingot-border); border-radius: 6px; color: var(--ingot-text); }
+.ingot-learned-row.off { opacity: 0.6; }
+.ingot-learned-row > .codicon { color: var(--ingot-silver); }
+.ingot-learned-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-learned-status { font-size: 11px; color: var(--ingot-text-muted); white-space: nowrap; }
