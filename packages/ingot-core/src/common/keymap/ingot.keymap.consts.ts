@@ -136,7 +136,11 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     // Agent sandbox (IDEA-288) and AI code review (IDEA-293)
     { action: 'Agent Sandbox and Approvals', command: 'ingot.agents.sandboxPreset', mac: 'ctrlcmd+alt+shift+s', other: 'ctrl+alt+shift+s' },
     { action: 'Review Changes', command: 'ingot.codeReview.changes', mac: 'ctrlcmd+alt+shift+e', other: 'ctrl+alt+shift+e' },
-    { action: 'Review GitHub PR', command: 'ingot.codeReview.githubPr', mac: 'ctrlcmd+alt+shift+g', other: 'ctrl+alt+shift+g' }
+    { action: 'Review GitHub PR', command: 'ingot.codeReview.githubPr', mac: 'ctrlcmd+alt+shift+g', other: 'ctrl+alt+shift+g' },
+    // Artifacts and Agent Manager (IDEA-290, IDEA-291)
+    { action: 'Artifacts', command: 'ingot.artifacts.open', mac: 'ctrlcmd+alt+shift+k', other: 'ctrl+alt+shift+k' },
+    { action: 'Agent Manager', command: 'ingot.agentManager.toggle', mac: 'ctrlcmd+alt+shift+m', other: 'ctrl+alt+shift+m' },
+    { action: 'Jump to Next Agent Approval', command: 'ingot.agentManager.nextApproval', mac: 'ctrlcmd+alt+shift+j', other: 'ctrl+alt+shift+j' }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';

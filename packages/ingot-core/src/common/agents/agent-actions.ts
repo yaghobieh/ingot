@@ -10,6 +10,8 @@ import { CREATE_LIBRARY_TOOL } from './library-app.consts';
 import { CODE_TOOLS, CODE_TOOLS_HINT } from './code-tools.consts';
 import { isCodeTool } from './code-tools';
 import { isSlackPostTool, slackPostAction } from '../slack';
+import { ARTIFACT_TOOL, ARTIFACT_TOOL_DESCRIPTION } from '../artifacts/artifacts.consts';
+import { TASK_TOOL, TASK_TOOL_DESCRIPTION } from './subagent-task.consts';
 
 export const BUILTIN_TOOL_SERVER = 'ingot';
 /** One "Always Run" entry covers every run_tests call (files and filters change between iterations). */
@@ -79,7 +81,9 @@ export const BUILTIN_TOOLS = [
     ...CODE_TOOLS,
     { name: 'ask_user', description: 'Ask the user a clarifying question and wait for the answer before continuing. Arguments: {"question": "…", "options"?: ["a", "b"]}. The user can also type their own answer. Runs at once and pauses the run.' },
     { name: 'create_library', description: 'Create a new React + Vite client and Node + Express server for a library (books, authors, members, loans, borrow and return) in a new empty folder. Arguments: {"path": "/absolute/or/relative", "react": "feature-folders" | "atomic", "node": "layered" | "modular", "reactExample"?: "/path/to/example", "nodeExample"?: "/path/to/example"}. Named presets or an example folder. If the layout is unclear, call ask_user first. Runs at once; each file shows up for Accept or Reject.' },
-    { name: 'open_workspace', description: 'Open a folder as the Ingot workspace. Arguments: {"path": "/absolute/path"}. Waits for the user\'s approval. Call it last, after install, tests and git.' }
+    { name: 'open_workspace', description: 'Open a folder as the Ingot workspace. Arguments: {"path": "/absolute/path"}. Waits for the user\'s approval. Call it last, after install, tests and git.' },
+    { name: TASK_TOOL, description: TASK_TOOL_DESCRIPTION },
+    { name: ARTIFACT_TOOL, description: ARTIFACT_TOOL_DESCRIPTION }
 ] as const;
 
 const str = (value: unknown): string => typeof value === 'string' ? value : '';
@@ -158,6 +162,8 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
         case 'scripts': case 'processes': case 'process_output': return undefined;
         // IDEA-186: read-only project tools run at once.
         case 'read_file': case 'list_dir': case 'glob': case 'grep': case 'codebase_search': case 'ask_user': case 'create_library': case 'fetch_rule': case 'use_habit': return undefined;
+        // IDEA-290 / IDEA-291: artifacts are notes for the user, and a subagent asks for approval on its own actions.
+        case ARTIFACT_TOOL: case TASK_TOOL: return undefined;
         case 'open_workspace': return { kind: 'terminal', label: 'Open folder', detail: str(a.path), command: str(a.path) };
         case 'process_stop': return { kind: 'terminal', label: 'Stop process', detail: str(a.id) };
         case 'web_search': return { kind: 'web', label: 'Search web', detail: str(a.query) };

@@ -200,6 +200,13 @@ import { ModalEditingContribution } from './editor/modal-editing-contribution';
 import { modalEditingPreferenceSchema } from './editor/modal-editing-preferences';
 import '../../src/browser/style/index.css';
 import { ErrorReportingContribution } from './error-reporting-contribution';
+import { ArtifactService } from './artifacts/artifact-service';
+import { IngotArtifactsWidget } from './artifacts/artifacts-widget';
+import { IngotArtifactsContribution } from './artifacts/artifacts-contribution';
+import { ARTIFACTS_WIDGET_ID } from './artifacts/artifacts.consts';
+import { IngotAgentManagerWidget } from './agent-manager/agent-manager-widget';
+import { IngotAgentManagerContribution } from './agent-manager/agent-manager-contribution';
+import { AGENT_MANAGER_WIDGET_ID } from './agent-manager/agent-manager.consts';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
@@ -440,6 +447,14 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(DiskSyncContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(DiskSyncContribution);
     bind(CommandContribution).toService(DiskSyncContribution);
+    // IDEA-290 artifacts viewer, IDEA-291 Agent Manager
+    bind(ArtifactService).toSelf().inSingletonScope();
+    bind(IngotArtifactsWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: ARTIFACTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotArtifactsWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotArtifactsContribution);
+    bind(IngotAgentManagerWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENT_MANAGER_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentManagerWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotAgentManagerContribution);
 
     bind(IngotAccountClient).toSelf().inSingletonScope();
     bind(AccountBackend).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<AccountBackend>(ctx.container, ACCOUNT_SERVICE_PATH, ctx.container.get(IngotAccountClient))).inSingletonScope();

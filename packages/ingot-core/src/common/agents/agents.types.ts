@@ -86,7 +86,7 @@ export interface AgentSession {
     project?: string;
     /** IDEA-266: the workspace (folder or workspace file URI) of the window the chat belongs to. */
     workspace?: string;
-    /** IDEA-268: the chat works in its own git worktree instead of the project folder. */
+    /** IDEA-268 / IDEA-291: the chat (or task subagent) works in its own git worktree instead of the project folder; `path` is a URI. */
     worktree?: import('../threads/threads.types').ThreadWorktree;
     /** Open as a tab in the Agents panel (closed chats stay in History). */
     open?: boolean;
@@ -113,6 +113,8 @@ export interface AgentSession {
     goal?: import('./goal.types').AgentGoal;
     /** IDEA-292: a command or skill pinned into this chat's system prompt ("Use as mode"). */
     customMode?: import('./custom-mode.types').CustomMode;
+    /** IDEA-290: the `.ingot/artifacts/<runId>` folder of the latest run, once something was written. */
+    artifactsRun?: string;
 }
 
 export interface ReviewPause {

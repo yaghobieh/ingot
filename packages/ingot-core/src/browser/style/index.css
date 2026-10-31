@@ -43,3 +43,5 @@
 @import './goal-mode.css';
 @import './sandbox.css';
 @import './code-review.css';
+@import './artifacts.css';
+@import './agent-manager.css';

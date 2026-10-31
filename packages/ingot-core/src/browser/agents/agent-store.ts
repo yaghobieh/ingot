@@ -131,6 +131,12 @@ import type { SandboxCheck } from '../../common/sandbox/sandbox.types';
 import { blocksNetwork, checkSandbox, editIntent, gateDecision, refusalText, sandboxNote, toolIntent } from '../../common/sandbox/sandbox.utils';
 import { SandboxPresetService } from '../sandbox/sandbox-preset-service';
 import { AutoReviewer } from '../sandbox/auto-reviewer';
+import { ArtifactService } from '../artifacts/artifact-service';
+import { ARTIFACT_TOOL } from '../../common/artifacts/artifacts.consts';
+import { parseArtifactArgs } from '../../common/artifacts/artifacts.utils';
+import { isTaskCall, parseTaskArgs, taskChildPrompt, taskResultText, worktreeBranch, worktreeName } from '../../common/agents/subagent-task';
+import { MAX_PARALLEL_TASKS, NESTED_TASK_ERROR, SUBAGENT_STEP_PREFIX, TASK_TOOL, TOO_MANY_TASKS } from '../../common/agents/subagent-task.consts';
+import type { TaskOutcome, TaskRequest } from '../../common/agents/subagent-task.types';
 
 let nextId = 1;
 const newChatId = (): string => `chat-${Date.now().toString(36)}-${nextId++}`;
@@ -215,6 +221,7 @@ export class AgentStore {
     @inject(AgentAuditLog) protected readonly audit: AgentAuditLog;
     @inject(SandboxPresetService) protected readonly sandbox: SandboxPresetService;
     @inject(AutoReviewer) protected readonly autoReviewer: AutoReviewer;
+    @inject(ArtifactService) protected readonly artifacts: ArtifactService;
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
 
@@ -628,8 +635,34 @@ export class AgentStore {
         return this.cancelled.has(id);
     }
 
+    /**
+     * IDEA-290: a message for a chat from outside the composer (an artifact comment). A running chat reads it on its
+     * next round, like a message typed during the run; an idle chat starts a new turn with it.
+     */
+    steer(sessionId: string, text: string): 'steered' | 'sent' | undefined {
+        const session = this.items.find(s => s.id === sessionId);
+        const trimmed = text.trim();
+        if (!session || !trimmed) {
+            return undefined;
+        }
+        if (this.isRunning(sessionId)) {
+            const message: AgentMessage = { role: 'user', text: trimmed };
+            session.messages.push(message);
+            this.queuedSteers.add(sessionId, message);
+            this.steers.set(sessionId, [...(this.steers.get(sessionId) ?? []), trimmed]);
+            session.updatedAt = Date.now();
+            this.changed();
+            return 'steered';
+        }
+        this.reopen(sessionId);
+        this.send(trimmed);
+        return 'sent';
+    }
+
     /** Stops a streaming agent (Stop button / Escape). */
     stop(id: string): void {
+        // IDEA-291: a chat's task subagents stop with it.
+        this.items.filter(s => s.parent === id && s.agent !== 'zaprex' && this.isRunning(s.id)).forEach(child => this.stop(child.id));
         const piece = this.items.find(s => s.id === id)?.handoff;
         if (piece && this.handoffs.has(id)) {
             void this.zaprexDesktop.cancel(piece.id).catch(() => undefined);
@@ -994,6 +1027,9 @@ export class AgentStore {
             return;
         }
         const root = this.rootFor(session);
+        if (this.loopDepth.get(session.id) === 1) {
+            this.artifacts.begin(session, root);
+        }
         const config = await this.projectConfig.load(root);
         this.projectCommands = config.commands;
         const lastUser = session.messages.map((m, i) => ({ m, i })).reverse().find(x => x.m.role === 'user');
@@ -1073,6 +1109,9 @@ export class AgentStore {
                 const parsed = await this.streamRound(session, system);
                 if (this.stale(session.id, generation)) {
                     return;
+                }
+                if (parsed?.plan.length) {
+                    await this.artifacts.writePlan(session, parsed.plan).catch(() => undefined);
                 }
                 if (!parsed) {
                     if (session.status !== 'error' && session.status !== 'idle' && session.status !== 'review') {
@@ -1245,6 +1284,9 @@ export class AgentStore {
             }
         }
         } finally {
+            if (this.loopDepth.get(session.id) === 1) {
+                await this.finishArtifacts(session);
+            }
             this.leaveLoop(session.id);
             this.flushPoke();
             if (!this.loopDepth.has(session.id)) {
@@ -1395,6 +1437,14 @@ export class AgentStore {
         });
     }
 
+    /** IDEA-290: walkthrough.md and the run's end time, once the outermost loop of a turn returns. */
+    protected async finishArtifacts(session: AgentSession): Promise<void> {
+        const visible = (role: AgentMessage['role']): string => [...session.messages].reverse().find(m => m.role === role && !m.hidden && m.text)?.text ?? '';
+        const files = [...new Set([...session.changes.map(c => c.label), ...session.steps.filter(s => s.kind === 'edit').map(s => s.target)])];
+        await this.artifacts.finish(session, { reply: visible('agent'), files, plan: session.plan.map(p => p.text) }).catch(() => undefined);
+        this.changed();
+    }
+
     /** Stop or a newer turn owns the chat. A stopped turn is marked idle; a replaced turn is left alone. */
     protected gaveUp(session: AgentSession, generation: number): boolean {
         if (this.stale(session.id, generation)) {
@@ -1536,7 +1586,11 @@ export class AgentStore {
         const root = this.rootFor(session);
         const rootPath = root?.path.fsPath();
         const policy = await this.policy.load(rootPath);
-        for (const raw of calls) {
+        const tasks = calls.filter(isTaskCall);
+        if (tasks.length) {
+            await this.runTasks(session, tasks, rootPath);
+        }
+        for (const raw of calls.filter(call => !isTaskCall(call))) {
             const startedAt = Date.now();
             const resolved = await this.resolveCall(raw, rootPath);
             if ('error' in resolved) {
@@ -2191,6 +2245,16 @@ export class AgentStore {
                     const stopped = await this.processes.service.stop(str(call.args.id));
                     return stopped ? { text: `Stopped ${str(call.args.id)}.`, isError: false } : { text: `Process "${str(call.args.id)}" is not running.`, isError: true };
                 }
+                case ARTIFACT_TOOL: {
+                    const parsed = parseArtifactArgs(call.args);
+                    if ('error' in parsed) {
+                        return { text: parsed.error, isError: true };
+                    }
+                    const saved = await this.artifacts.write(session, parsed.name, parsed.content);
+                    return saved
+                        ? { text: `Saved ${saved}. The user reviews it in the Artifacts view; their comments come back as messages.`, isError: false }
+                        : { text: 'No run folder to save the artifact in.', isError: true };
+                }
                 case 'web_search': return await this.actions.search(str(call.args.query));
                 case 'web_fetch': return await this.actions.fetchUrl(str(call.args.url));
                 case 'delete': {
@@ -2342,6 +2406,9 @@ export class AgentStore {
             case 'browser_screenshot': {
                 const shot = await this.browser.agentScreenshot(session.id);
                 const data = shot.image?.dataUrl.replace(/^data:image\/png;base64,/, '');
+                if (data) {
+                    await this.artifacts.writeScreenshot(session, data).catch(() => undefined);
+                }
                 return { ...text(shot.text), ...(data ? { images: [{ id: `shot-${Date.now().toString(36)}`, name: 'screenshot.png', mediaType: 'image/png', data }] } : {}) };
             }
             default: return { text: `Unknown browser tool "${call.tool}". Tools: ${['browser_open', 'browser_click', 'browser_type', 'browser_scroll', 'browser_back', ...BROWSER_READ_TOOLS].join(', ')}.`, isError: true };
@@ -3320,6 +3387,101 @@ export class AgentStore {
             }
         }
         return undefined;
+    }
+
+    /**
+     * IDEA-291: the `ingot/task` calls of one reply run as parallel subagents. Each starts with only its prompt
+     * (clean context), optionally in its own git worktree; its card in the lead chat fills in with the summary.
+     */
+    protected async runTasks(lead: AgentSession, calls: readonly AgentToolCall[], rootPath: string | undefined): Promise<void> {
+        const from = `${BUILTIN_TOOL_SERVER}/${TASK_TOOL}`;
+        const card = (call: AgentToolCall): AgentMessage => {
+            const message: AgentMessage = { role: 'tool', from, text: '', tool: { server: call.server, tool: call.tool, args: call.args, state: 'running', startedAt: Date.now() } };
+            lead.messages.push(message);
+            return message;
+        };
+        const settle = (message: AgentMessage, text: string, isError: boolean): void => {
+            const done: AgentMessage = { ...message, text: `${isError ? 'Error: ' : ''}${text}`, ...(message.tool ? { tool: { ...message.tool, state: isError ? 'error' : 'done', endedAt: Date.now() } } : {}) };
+            const at = lead.messages.indexOf(message);
+            if (at >= 0) {
+                lead.messages[at] = done;
+            } else {
+                lead.messages.push(done);
+            }
+        };
+        if (lead.parent) {
+            calls.forEach(call => settle(card(call), NESTED_TASK_ERROR, true));
+            this.changed();
+            return;
+        }
+        calls.slice(MAX_PARALLEL_TASKS).forEach(call => settle(card(call), TOO_MANY_TASKS, true));
+        const jobs = calls.slice(0, MAX_PARALLEL_TASKS).map(call => ({ message: card(call), task: parseTaskArgs(call.args) }));
+        const started = jobs.flatMap(job => 'error' in job.task ? [] : [{ job, run: this.startTask(lead, job.task, rootPath) }]);
+        jobs.filter(job => 'error' in job.task).forEach(job => settle(job.message, (job.task as { error: string }).error, true));
+        if (started.length) {
+            lead.messages.push({ role: 'system', text: `Started ${started.length} ${started.length === 1 ? 'subagent' : 'subagents'}: ${started.map(s => s.run.child.title).join(' · ')}`, refs: started.map(s => s.run.child.id) });
+            lead.steps = [...lead.steps, ...started.map(s => ({ kind: 'run' as const, target: `${SUBAGENT_STEP_PREFIX}${s.run.child.title}`, done: false }))];
+        }
+        lead.status = 'thinking';
+        this.changed();
+        await Promise.all(started.map(async ({ job, run }) => {
+            const outcome = await run.done;
+            settle(job.message, taskResultText(outcome), outcome.status === 'error');
+            lead.steps = lead.steps.map(s => s.target === `${SUBAGENT_STEP_PREFIX}${run.child.title}` ? { ...s, done: true } : s);
+            this.changed();
+        }));
+    }
+
+    protected startTask(lead: AgentSession, task: TaskRequest, rootPath: string | undefined): { child: AgentSession; done: Promise<TaskOutcome> } {
+        const child: AgentSession = {
+            id: newChatId(), title: task.description, status: 'thinking', updatedAt: Date.now(), mode: 'agent', model: lead.model,
+            messages: [{ role: 'user', text: task.prompt, expanded: taskChildPrompt(task) }],
+            plan: [], steps: [], changes: [], project: lead.project, open: false, openedAt: Date.now(), parent: lead.id, agent: 'ingot'
+        };
+        this.items = [child, ...this.items];
+        const fail = (error: string): TaskOutcome => {
+            child.status = 'error';
+            child.messages.push({ role: 'system', text: error });
+            this.changed();
+            return { title: child.title, status: 'error', reply: '', files: [], error };
+        };
+        let worktree: TaskOutcome['worktree'];
+        const done = (async (): Promise<TaskOutcome> => {
+            if (task.worktree) {
+                if (!rootPath) {
+                    return fail('Open a project folder to run a subagent in a worktree.');
+                }
+                try {
+                    const name = worktreeName(child.id);
+                    const branch = worktreeBranch(name);
+                    const path = (await this.git.run(rootPath, { kind: 'worktreeAdd', name, branch })).output.trim();
+                    worktree = { path, branch };
+                    child.worktree = { path: URI.fromFilePath(path).toString(), branch };
+                    child.project = child.worktree.path;
+                    child.messages[0] = { ...child.messages[0], expanded: taskChildPrompt(task, worktree) };
+                    this.changed();
+                } catch (error) {
+                    return fail(`Could not create a git worktree: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }
+            await this.runModel(child).catch((error: unknown) => {
+                child.status = 'error';
+                child.messages.push({ role: 'system', text: `The subagent stopped: ${error instanceof Error ? error.message : String(error)}` });
+            });
+            const stopped = this.cancelled.has(child.id);
+            if (!stopped && (child.status === 'thinking' || child.status === 'editing' || child.status === 'idle')) {
+                child.status = 'done';
+            }
+            child.updatedAt = Date.now();
+            this.changed();
+            const reply = [...child.messages].reverse().find(m => m.role === 'agent' && !m.hidden && m.text)?.text ?? '';
+            const files = [...new Set([...child.changes.map(c => c.label), ...child.steps.filter(s => s.kind === 'edit').map(s => s.target)])];
+            return {
+                title: child.title, reply, files, ...(worktree ? { worktree } : {}),
+                status: stopped ? 'stopped' : child.status === 'error' ? 'error' : child.status === 'review' ? 'review' : 'done'
+            };
+        })();
+        return { child, done };
     }
 
     /** Multi-agent: one Agent-mode chat per subtask, run in parallel in their own tabs; the lead chat reports progress. */
