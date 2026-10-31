@@ -22,7 +22,8 @@ body.ingot-shell {
 .ingot-tb-run { font-weight: 400; }
 .ingot-tb-search { display: inline-flex; align-items: center; gap: 8px; height: 26px; width: 240px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--theia-panel-border); background: var(--theia-editor-background); color: var(--theia-descriptionForeground); font: inherit; font-size: 12px; cursor: text; }
 .ingot-tb-search .ingot-icon { width: 14px; height: 14px; }
-.ingot-tb-search-text { flex: 1; text-align: left; }
+.ingot-tb-search { white-space: nowrap; }
+.ingot-tb-search-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .ingot-tb-search-kbd { font-size: 11px; line-height: 16px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--ingot-border); background: var(--ingot-panel); color: var(--ingot-text-muted); }
 .ingot-tb-search:hover { color: var(--ingot-text); border-color: var(--ingot-text-muted); }
 /* IDEA-169: toolbar labels stay on one line; long project/branch/run names ellipsize, and small windows drop text
