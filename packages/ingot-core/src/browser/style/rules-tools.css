@@ -1,0 +1,53 @@
+/* IDEA-319/320/323/328: Export, Rule Tests, Prune and Learned Rule dialogs (Rules tab). */
+.ingot-rules-dialog .dialogContent { width: min(640px, 86vw); max-height: 70vh; overflow: auto; }
+.ingot-rules-body { display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; color: var(--ingot-text, var(--theia-foreground)); line-height: 1.45; }
+.ingot-rules-lead, .ingot-rules-hint { margin: 0; color: var(--ingot-text-muted, var(--theia-descriptionForeground)); }
+.ingot-rules-hint { font-size: 11.5px; }
+.ingot-rules-body code { font-family: var(--theia-code-font-family); font-size: 11.5px; padding: 0 3px; border-radius: 3px; background: var(--ingot-panel); }
+.ingot-rules-targets { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.ingot-rules-target { display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 8px; border: 1px solid var(--ingot-border); border-radius: 6px; background: var(--ingot-surface); cursor: pointer; }
+.ingot-rules-target > span:first-of-type { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-rules-pill { flex: none; padding: 0 6px; border-radius: 9px; font-size: 10.5px; line-height: 16px; border: 1px solid currentColor; }
+.ingot-rules-pill.ok { color: var(--ingot-success); }
+.ingot-rules-pill.warn { color: var(--ingot-warning); }
+.ingot-rules-pill.fail { color: var(--ingot-danger); }
+.ingot-rules-status { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--ingot-border); background: var(--ingot-panel); }
+.ingot-rules-status.ok { border-color: var(--ingot-success); }
+.ingot-rules-status.warn { border-color: var(--ingot-warning); }
+.ingot-rules-status.error { border-color: var(--ingot-danger); color: var(--ingot-danger); }
+.ingot-rules-files, .ingot-rules-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--ingot-border); border-radius: 6px; background: var(--ingot-surface); }
+.ingot-rules-file, .ingot-rules-item { display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 2px 10px; border-top: 1px solid var(--ingot-border); }
+.ingot-rules-file:first-child, .ingot-rules-item:first-child { border-top: none; }
+.ingot-rules-file.unchanged { color: var(--ingot-text-muted); }
+.ingot-rules-action { flex: none; width: 72px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.ingot-rules-action.create { color: var(--ingot-success); }
+.ingot-rules-action.update { color: var(--ingot-primary); }
+.ingot-rules-action.delete { color: var(--ingot-danger); }
+.ingot-rules-action.skipped, .ingot-rules-action.unchanged { color: var(--ingot-text-muted); }
+.ingot-rules-path { color: var(--ingot-text) !important; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: none !important; }
+.ingot-rules-delta { flex: none; font-family: var(--theia-code-font-family); font-size: 11px; }
+.ingot-rules-delta .add { color: var(--ingot-success); }
+.ingot-rules-delta .del { color: var(--ingot-danger); }
+.ingot-rules-reason { flex: none; max-width: 45%; color: var(--ingot-text-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-rules-force { display: flex; align-items: center; gap: 6px; color: var(--ingot-text-muted); }
+.ingot-rules-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ingot-rules-row label { display: flex; align-items: center; gap: 6px; }
+.ingot-rules-row select, .ingot-rules-row input[type=number] { height: 24px; padding: 0 6px; border: 1px solid var(--ingot-border); border-radius: 4px; background: var(--ingot-surface); color: var(--ingot-text); font-size: 12px; }
+.ingot-rules-row input[type=number] { width: 80px; }
+.ingot-rules-meter { position: relative; height: 6px; border-radius: 3px; background: var(--ingot-panel); overflow: hidden; }
+.ingot-rules-meter > span { position: absolute; inset: 0 auto 0 0; background: var(--ingot-success); }
+.ingot-rules-meter.fail > span { background: var(--ingot-danger); }
+.ingot-rules-item { flex-wrap: wrap; padding: 6px 10px; }
+.ingot-rules-item-head { display: flex; align-items: center; gap: 8px; width: 100%; }
+.ingot-rules-item-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-rules-item-meta { color: var(--ingot-text-muted); font-size: 11px; }
+.ingot-rules-findings { margin: 2px 0 0 26px; padding: 0; list-style: none; color: var(--ingot-text-muted); font-size: 11.5px; width: 100%; }
+.ingot-rules-findings li::before { content: '•'; margin-right: 6px; }
+.ingot-rules-findings b { color: var(--ingot-text); font-weight: 600; }
+.ingot-rules-reply { width: 100%; margin: 4px 0 0 26px; padding: 6px 8px; border-left: 2px solid var(--ingot-border); color: var(--ingot-text-muted); font-size: 11.5px; white-space: pre-wrap; max-height: 90px; overflow: auto; }
+.ingot-mcp-rules-tools { display: flex; gap: 6px; margin-left: auto; margin-right: 6px; }
+.ingot-rules-diff { margin: 0; padding: 6px 0; border: 1px solid var(--ingot-border); border-radius: 6px; background: var(--ingot-editor-bg); font-family: var(--theia-code-font-family); font-size: 12px; line-height: 18px; overflow: auto; max-height: 260px; }
+.ingot-rules-diff div { padding: 0 10px; white-space: pre-wrap; }
+.ingot-rules-diff .add { color: var(--ingot-success); background: color-mix(in srgb, var(--ingot-success) 10%, transparent); }
+.ingot-rules-diff .ctx { color: var(--ingot-text-muted); }
+.ingot-rules-dialog textarea { width: 100%; min-height: 64px; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--ingot-border); border-radius: 4px; background: var(--ingot-surface); color: var(--ingot-text); font-family: var(--theia-code-font-family); font-size: 12px; resize: vertical; }
