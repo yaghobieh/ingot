@@ -43,6 +43,10 @@ export const LEFT_PANEL = '#theia-left-side-panel';
 /** Fake ingot-server + portal for the account / gateway e2e (IDEA-101); the browser app is started pointing at it. */
 export const FAKE_INGOT_PORT = Number(process.env.INGOT_FAKE_SERVER_PORT ?? 3398);
 export const FAKE_INGOT_URL = `http://127.0.0.1:${FAKE_INGOT_PORT}`;
+/** Same name as CONFIG_CACHE_FILE in the app: the last GET /v1/config, used while the server is unreachable. */
+export const REMOTE_CONFIG_CACHE = 'remote-config.json';
+/** IDEA-271: the plan gate locks AI for signed-out users; e2e turns it off unless a spec tests the gate itself. */
+export const E2E_REMOTE_FLAGS: Readonly<Record<string, boolean>> = { plan_gate: false };
 /** The plan that unlocks the Zaprex app entry (title bar T-rex). */
 export const PRO_PLUS_PLAN = 'pro+';
 /** IDEA-270: fake Slack MCP server; the app's Slack connection points here instead of mcp.slack.com. */

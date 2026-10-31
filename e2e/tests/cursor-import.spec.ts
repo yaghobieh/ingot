@@ -9,6 +9,7 @@ import { CALC_SERVER, E2E_CONFIG_DIR } from '../src/e2e.consts';
 import { startFakeIngotServer, type FakeIngotServer } from '../src/fake-ingot-server';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
+import { seedRemoteConfig } from '../src/remote-config.e2e-utils';
 
 /**
  * IDEA-287: a workspace with Cursor config asks once "Import?" and then "Convert to .ingot" or "Keep .cursor"; the answer
@@ -18,7 +19,6 @@ import { connectOllama } from '../src/models.e2e-utils';
  */
 const SETTINGS_FILE = path.join(E2E_CONFIG_DIR, 'settings.json');
 const MODES_FILE = path.join(E2E_CONFIG_DIR, 'cursor-workspaces.json');
-const REMOTE_CONFIG_CACHE = path.join(E2E_CONFIG_DIR, 'remote-config.json');
 const ASK = 'Cursor config found in this workspace';
 const HOW = 'How should Ingot use the Cursor config?';
 
@@ -195,7 +195,7 @@ test.describe('IDEA-287 Cursor config: first-open import, Convert / Keep, change
 
     test.beforeEach(async () => {
         // Team rules cached by another spec would show up in these rule lists.
-        fs.rmSync(REMOTE_CONFIG_CACHE, { force: true });
+        seedRemoteConfig();
         dir = makeCursorProject();
         writeSettings({ 'ingot.import.cursorRules': 'ask' });
         initialAppearance = undefined;
@@ -352,7 +352,7 @@ test.describe('IDEA-287 team rules from the account', () => {
     });
 
     test.afterEach(async () => {
-        fs.rmSync(REMOTE_CONFIG_CACHE, { force: true });
+        seedRemoteConfig();
         writeSettings({ 'ingot.rules.disabledTeamRules': [] });
         await server.close();
         await ingot.close();

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { E2E_CONFIG_DIR, E2E_USER_SETTINGS } from './e2e.consts';
+import { seedRemoteConfig } from './remote-config.e2e-utils';
 
 /** Seeds the isolated e2e user settings (never the developer's own ~/.ingot). */
 export function globalSetup(): void {
@@ -14,7 +15,7 @@ export function globalSetup(): void {
     }
     fs.writeFileSync(file, JSON.stringify({ ...current, ...E2E_USER_SETTINGS }, undefined, 4));
     // A remote config cached by an earlier (interrupted) run, e.g. a force update, must not leak into this one.
-    fs.rmSync(path.join(E2E_CONFIG_DIR, 'remote-config.json'), { force: true });
+    seedRemoteConfig();
 }
 
 // Playwright requires a default export for globalSetup (tool config exception).

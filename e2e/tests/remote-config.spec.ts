@@ -2,12 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { dismissNotifications, openIngot, runCommand, signOutIfSignedIn } from '../src/app.utils';
-import { CONFIG_PROJECT, E2E_CONFIG_DIR } from '../src/e2e.consts';
+import { CONFIG_PROJECT, E2E_REMOTE_FLAGS } from '../src/e2e.consts';
 import { startFakeIngotServer, type FakeIngotServer } from '../src/fake-ingot-server';
+import { seedRemoteConfig } from '../src/remote-config.e2e-utils';
 
 const SHOTS = process.env.INGOT_SCREENSHOT_DIR;
-/** Same name as CONFIG_CACHE_FILE in the app. */
-const REMOTE_CONFIG_CACHE = 'remote-config.json';
 const shot = async (page: Page, name: string): Promise<void> => {
     if (SHOTS) {
         fs.mkdirSync(SHOTS, { recursive: true });
@@ -23,11 +22,11 @@ test.describe('IDEA-125 remote config, flags and updates', () => {
         await signOutIfSignedIn(page);
         await server.close();
         // The app caches the last config for offline use; a cached force update would block every later spec.
-        fs.rmSync(path.join(E2E_CONFIG_DIR, REMOTE_CONFIG_CACHE), { force: true });
+        seedRemoteConfig();
     });
 
     test('flags gate the mic and the MCP marketplace; config is fetched signed out and again after sign-in', async ({ page }) => {
-        server.flags = { mic_dictation: false, mcp_marketplace: false };
+        server.flags = { ...E2E_REMOTE_FLAGS, mic_dictation: false, mcp_marketplace: false };
         await openIngot(page, CONFIG_PROJECT);
         await dismissNotifications(page);
         await expect.poll(() => server.configCalls.length).toBeGreaterThan(0);
@@ -40,7 +39,7 @@ test.describe('IDEA-125 remote config, flags and updates', () => {
         await expect(page.locator('#ingot-mcp-browse')).toHaveCount(0);
         await shot(page, 'flags-off-marketplace-hidden');
 
-        server.flags = {};
+        server.flags = { ...E2E_REMOTE_FLAGS };
         const popup = page.waitForEvent('popup');
         await runCommand(page, 'Account: Sign in to Ingot…');
         const browser = await popup;

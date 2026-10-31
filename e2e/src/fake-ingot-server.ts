@@ -1,5 +1,5 @@
 import * as http from 'http';
-import { FAKE_INGOT_PORT } from './e2e.consts';
+import { E2E_REMOTE_FLAGS, FAKE_INGOT_PORT } from './e2e.consts';
 
 const STREAM_DELAY_MS = 20;
 const ALLOWANCE = 1_000_000;
@@ -67,7 +67,7 @@ const send = (res: http.ServerResponse, status: number, body: unknown): void => 
 export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<FakeIngotServer> => {
     const state: FakeIngotServer = {
         url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', plan: FAKE_DEFAULT_PLAN, avatarUrl: '', blocked: false, disabledModels: new Set(), chatErrors: [],
-        flags: {}, config: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined,
+        flags: { ...E2E_REMOTE_FLAGS }, config: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined,
         close: async () => undefined
     };
     const access = 'ingot_at_e2e_access';
