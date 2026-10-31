@@ -48,6 +48,10 @@ export interface ProjectEnvironment {
     readonly name?: string;
     readonly user?: string;
     readonly ports?: readonly EnvironmentPort[];
+    /** IDEA-287: `agentCanUpdateSnapshot` (cloud snapshots only). */
+    readonly agentCanUpdateSnapshot?: boolean;
+    /** IDEA-287: Cursor cloud-agent settings that are set but have no local meaning (`egressAllowlist`, `mcpServerAllowlist`…). */
+    readonly cloudOnly?: readonly string[];
     readonly errors: readonly string[];
 }
 
@@ -56,14 +60,17 @@ export interface EnvironmentPort {
     readonly name?: string;
 }
 
+/** A Dockerfile path or, with `dockerfileContents`, the Dockerfile itself (IDEA-287). */
 export interface EnvironmentBuild {
-    readonly dockerfile: string;
+    readonly dockerfile?: string;
+    readonly dockerfileContents?: string;
     readonly context?: string;
 }
 
 /** IDEA-287: `build` paths resolved to project-relative paths. */
 export interface ResolvedEnvironmentBuild {
-    readonly dockerfile: string;
+    readonly dockerfile?: string;
+    readonly dockerfileContents?: string;
     readonly context: string;
 }
 

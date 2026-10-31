@@ -42,4 +42,19 @@ test.describe('IDEA-287 environment.json build and snapshot', () => {
             await expect(toast(page, 'Build Container Image')).toBeVisible();
         });
     }
+
+    test('Build Container Image pipes an inline build.dockerfileContents into docker build -f -', async ({ page }) => {
+        dir = makeProject();
+        const contents = "FROM node:22\nRUN echo 'inline-dockerfile-marker'";
+        fs.writeFileSync(path.join(dir, '.ingot', 'environment.json'), JSON.stringify({ build: { dockerfileContents: contents, context: '..' } }, undefined, 2));
+        await openIngot(page, dir);
+        await dismissNotifications(page);
+
+        await runCommand(page, 'Project Environment: Build Container Image');
+        const tag = `ingot-env-${path.basename(dir).toLowerCase()}`;
+        await expect(toast(page, `Building ${tag} from inline Dockerfile (build.dockerfileContents)`)).toBeVisible();
+        const read = (file: string) => () => fs.existsSync(path.join(dir, file)) ? fs.readFileSync(path.join(dir, file), 'utf8').trim() : '';
+        await expect.poll(read('fake-docker.log'), { timeout: 20_000 }).toBe(`build -f - -t ${tag} .`);
+        await expect.poll(read('fake-docker.stdin'), { timeout: 20_000 }).toBe(contents);
+    });
 });

@@ -1,4 +1,6 @@
-import { CONFIG_DIRS, ENVIRONMENT_IMAGE_PREFIX, ENVIRONMENT_ROOT_PATHS, MAX_PORT } from './project-config.consts';
+import {
+    CONFIG_DIRS, ENVIRONMENT_CLOUD_ONLY_FIELDS, ENVIRONMENT_IMAGE_PREFIX, ENVIRONMENT_ROOT_PATHS, INLINE_DOCKERFILE_LABEL, MAX_PORT
+} from './project-config.consts';
 import type { EnvironmentBuild, EnvironmentPort, ProjectEnvironment, ResolvedEnvironmentBuild } from './project-config.types';
 
 const command = (value: unknown): string | undefined => typeof value === 'string' && value.trim() ? value.trim() : undefined;
@@ -9,12 +11,15 @@ const parseBuild = (value: unknown, source: string, errors: string[]): Environme
     }
     const build = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
     const dockerfile = command(build?.dockerfile);
-    if (!dockerfile) {
-        errors.push(`${source}: "build" needs a "dockerfile".`);
+    const dockerfileContents = typeof build?.dockerfileContents === 'string' && build.dockerfileContents.trim() ? build.dockerfileContents : undefined;
+    if (!dockerfile && !dockerfileContents) {
+        errors.push(`${source}: "build" needs a "dockerfile" or "dockerfileContents".`);
         return undefined;
     }
     const context = command(build?.context);
-    return { dockerfile, ...(context ? { context } : {}) };
+    return dockerfileContents
+        ? { dockerfileContents, ...(context ? { context } : {}) }
+        : { dockerfile, ...(context ? { context } : {}) };
 };
 
 const isPort = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= MAX_PORT;
@@ -34,7 +39,9 @@ const parsePorts = (value: unknown, source: string, errors: string[]): Environme
 /**
  * IDEA-287: `environment.json` as Cursor writes it: `{ "install": "npm ci", "start": "docker compose up -d",
  * "terminals": [{ "name": "web", "command": "npm run dev" }], "build": { "dockerfile": "Dockerfile", "context": ".." },
- * "snapshot": "snapshot-…" }`. `snapshot` is a Cursor cloud image (shown only); `build` can be built locally with Docker.
+ * "snapshot": "snapshot-…" }`. `snapshot` is a Cursor cloud image (shown only); `build` (a `dockerfile` path or inline
+ * `dockerfileContents`, which wins as in Cursor) can be built locally with Docker. Cloud-agent settings such as
+ * `egressAllowlist` are listed in `cloudOnly` so the agent knows they exist but are not applied here.
  */
 export const parseEnvironmentJson = (text: string | undefined, source: string): ProjectEnvironment | undefined => {
     if (!text?.trim()) {
@@ -66,9 +73,12 @@ export const parseEnvironmentJson = (text: string | undefined, source: string): 
     const name = command(json.name);
     const user = command(json.user);
     const ports = parsePorts(json.ports, source, errors);
+    const agentCanUpdateSnapshot = typeof json.agentCanUpdateSnapshot === 'boolean' ? json.agentCanUpdateSnapshot : undefined;
+    const cloudOnly = ENVIRONMENT_CLOUD_ONLY_FIELDS.filter(field => json[field] !== undefined);
     return {
         ...(install ? { install } : {}), ...(start ? { start } : {}), terminals, ...(snapshot ? { snapshot } : {}), ...(build ? { build } : {}),
-        ...(image ? { image } : {}), ...(name ? { name } : {}), ...(user ? { user } : {}), ...(ports.length ? { ports } : {}), errors
+        ...(image ? { image } : {}), ...(name ? { name } : {}), ...(user ? { user } : {}), ...(ports.length ? { ports } : {}),
+        ...(agentCanUpdateSnapshot === undefined ? {} : { agentCanUpdateSnapshot }), ...(cloudOnly.length ? { cloudOnly } : {}), errors
     };
 };
 
@@ -100,9 +110,14 @@ export const resolveEnvironmentPath = (path: string, configDir: string): string 
 
 /** `build` with both paths project-relative; `context` defaults to the folder of environment.json. */
 export const resolveEnvironmentBuild = (build: EnvironmentBuild, configDir: string): ResolvedEnvironmentBuild => ({
-    dockerfile: resolveEnvironmentPath(build.dockerfile, configDir),
+    ...(build.dockerfileContents
+        ? { dockerfileContents: build.dockerfileContents }
+        : build.dockerfile ? { dockerfile: resolveEnvironmentPath(build.dockerfile, configDir) } : {}),
     context: build.context ? resolveEnvironmentPath(build.context, configDir) : configDir
 });
+
+/** The Dockerfile path, or a label for inline `dockerfileContents`. */
+export const environmentDockerfileLabel = (build: ResolvedEnvironmentBuild): string => build.dockerfile ?? INLINE_DOCKERFILE_LABEL;
 
 /** The folder of an environment.json source (`.cursor/environment.json` → `.cursor`). */
 export const environmentConfigDir = (source: string): string => source.includes('/') ? source.slice(0, source.lastIndexOf('/')) : '.';
@@ -113,9 +128,11 @@ const shellQuote = (value: string): string => /^[\w./-]+$/.test(value) ? value :
 export const environmentImageTag = (projectName: string): string =>
     `${ENVIRONMENT_IMAGE_PREFIX}${projectName.toLowerCase().replace(/[^a-z0-9_.-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '') || 'project'}`;
 
-/** `docker build -f <dockerfile> -t <tag> <context>`, run from the project root. */
-export const dockerBuildCommand = (bin: string, build: ResolvedEnvironmentBuild, tag: string): string =>
-    [bin, 'build', '-f', shellQuote(build.dockerfile), '-t', shellQuote(tag), shellQuote(build.context)].join(' ');
+/** `docker build -f <dockerfile> -t <tag> <context>` (inline contents are piped in with `-f -`), run from the project root. */
+export const dockerBuildCommand = (bin: string, build: ResolvedEnvironmentBuild, tag: string): string => {
+    const args = [bin, 'build', '-f', build.dockerfile ? shellQuote(build.dockerfile) : '-', '-t', shellQuote(tag), shellQuote(build.context)].join(' ');
+    return build.dockerfile || !build.dockerfileContents ? args : `printf '%s\\n' ${shellQuote(build.dockerfileContents)} | ${args}`;
+};
 
 /** A short note for the agent: how this project is installed and started. */
 export const formatEnvironment = (env: ProjectEnvironment | undefined, source: string): string => {
@@ -128,10 +145,12 @@ export const formatEnvironment = (env: ProjectEnvironment | undefined, source: s
         ...(env.install ? [`- install: \`${env.install}\``] : []),
         ...(env.start ? [`- start: \`${env.start}\``] : []),
         ...env.terminals.map(t => `- ${t.name}: \`${t.command}\`${t.description ? ` (${t.description})` : ''}`),
-        ...(build ? [`- container image: \`${build.dockerfile}\` (build context \`${build.context}\`)`] : []),
+        ...(build ? [`- container image: ${build.dockerfile ? `\`${build.dockerfile}\`` : INLINE_DOCKERFILE_LABEL} (build context \`${build.context}\`)`] : []),
         ...(env.image ? [`- prebuilt image: \`${env.image}\``] : []),
         ...(env.user ? [`- runs as user: ${env.user}`] : []),
         ...(env.ports?.length ? [`- ports: ${env.ports.map(p => p.name ? `${p.port} (${p.name})` : String(p.port)).join(', ')}`] : []),
-        ...(env.snapshot ? [`- Cursor cloud snapshot: ${env.snapshot} (cloud agents only, not available locally)`] : [])
+        ...(env.snapshot ? [`- Cursor cloud snapshot: ${env.snapshot} (cloud agents only, not available locally)`] : []),
+        ...(env.agentCanUpdateSnapshot === undefined ? [] : [`- agentCanUpdateSnapshot: ${env.agentCanUpdateSnapshot} (Cursor cloud snapshots only)`]),
+        ...(env.cloudOnly?.length ? [`- Cursor cloud-agent settings, not applied locally: ${env.cloudOnly.join(', ')}`] : [])
     ].join('\n');
 };

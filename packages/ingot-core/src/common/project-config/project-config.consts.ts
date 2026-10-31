@@ -113,3 +113,9 @@ export const DOCKER_BIN_ENV = 'INGOT_DOCKER_BIN';
 export const ENVIRONMENT_IMAGE_PREFIX = 'ingot-env-';
 /** Paths that mean the project root in `build` (as in Cursor). */
 export const ENVIRONMENT_ROOT_PATHS: readonly string[] = ['.', './', '..', '../'];
+/** IDEA-287: environment.json settings that only Cursor's cloud agents use; named for the agent when set, never applied locally. */
+export const ENVIRONMENT_CLOUD_ONLY_FIELDS = [
+    'repositoryDependencies', 'disableAllMcpServers', 'mcpServerAllowlist', 'egressAllowlist', 'egressMode', 'chromeExecutablePath', 'enable_testing'
+] as const;
+/** How the Build Container Image command and the agent name an inline `build.dockerfileContents`. */
+export const INLINE_DOCKERFILE_LABEL = 'inline Dockerfile (build.dockerfileContents)';

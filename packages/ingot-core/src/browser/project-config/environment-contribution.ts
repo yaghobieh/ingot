@@ -8,7 +8,9 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import {
     DOCKER_BIN, DOCKER_BIN_ENV, ENVIRONMENT_BUILD_COMMAND, ENVIRONMENT_COMMAND, ENVIRONMENT_INSTALL_TIMEOUT_MS, TEAM_RULES_DISABLED_PREF
 } from '../../common/project-config/project-config.consts';
-import { dockerBuildCommand, environmentConfigDir, environmentImageTag, resolveEnvironmentBuild } from '../../common/project-config/environment.utils';
+import {
+    dockerBuildCommand, environmentConfigDir, environmentDockerfileLabel, environmentImageTag, resolveEnvironmentBuild
+} from '../../common/project-config/environment.utils';
 import { ProcessService } from '../../common/processes/processes.types';
 import { ProjectConfigService } from './project-config-service';
 
@@ -77,13 +79,13 @@ export class EnvironmentContribution implements CommandContribution {
             return;
         }
         const build = resolveEnvironmentBuild(found.environment.build, environmentConfigDir(found.source));
-        if (!await this.files.exists(root.resolve(build.dockerfile))) {
+        if (build.dockerfile && !await this.files.exists(root.resolve(build.dockerfile))) {
             this.messages.error(`${found.source}: ${build.dockerfile} does not exist.`);
             return;
         }
         const tag = environmentImageTag(root.path.base);
         const bin = (await this.env.getValue(DOCKER_BIN_ENV).catch(() => undefined))?.value || DOCKER_BIN;
         await this.processes.start({ cwd, command: dockerBuildCommand(bin, build, tag), origin: 'user', background: true });
-        this.messages.info(`Building ${tag} from ${build.dockerfile} (context ${build.context}). Follow it in the Processes list.`);
+        this.messages.info(`Building ${tag} from ${environmentDockerfileLabel(build)} (context ${build.context}). Follow it in the Processes list.`);
     }
 }

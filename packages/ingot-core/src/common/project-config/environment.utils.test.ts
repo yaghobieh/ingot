@@ -5,10 +5,28 @@ import {
 import { environmentBuildFiles, planCursorConversion } from '../import/cursor-convert.utils';
 
 describe('IDEA-287 environment.json snapshot and build', () => {
+    it('builds an inline dockerfileContents through stdin and names cloud-only settings for the agent', () => {
+        const contents = "FROM node:22\nRUN echo 'hi'";
+        const env = parseEnvironmentJson(JSON.stringify({
+            build: { dockerfile: 'Dockerfile', dockerfileContents: contents, context: '..' }, snapshot: 'snap-1', agentCanUpdateSnapshot: false,
+            egressAllowlist: ['example.com'], mcpServerAllowlist: [{ command: 'npx' }], enable_testing: false
+        }), '.cursor/environment.json')!;
+        expect(env.build).toEqual({ dockerfileContents: contents, context: '..' });
+        expect(env).toMatchObject({ agentCanUpdateSnapshot: false, cloudOnly: ['mcpServerAllowlist', 'egressAllowlist', 'enable_testing'], errors: [] });
+        const build = resolveEnvironmentBuild(env.build!, '.cursor');
+        expect(build).toEqual({ dockerfileContents: contents, context: '.' });
+        expect(dockerBuildCommand('docker', build, 'ingot-env-app')).toBe(`printf '%s\\n' 'FROM node:22\nRUN echo '\\''hi'\\''' | docker build -f - -t ingot-env-app .`);
+        const text = formatEnvironment(env, '.cursor/environment.json');
+        expect(text).toContain('- container image: inline Dockerfile (build.dockerfileContents) (build context `.`)');
+        expect(text).toContain('- agentCanUpdateSnapshot: false (Cursor cloud snapshots only)');
+        expect(text).toContain('- Cursor cloud-agent settings, not applied locally: mcpServerAllowlist, egressAllowlist, enable_testing');
+        expect(environmentBuildFiles(JSON.stringify({ build: { dockerfileContents: contents } }))).toEqual([]);
+    });
+
     it('reads snapshot and build, and flags a build without a dockerfile', () => {
         const env = parseEnvironmentJson(JSON.stringify({ snapshot: 'snap-123', build: { dockerfile: 'Dockerfile', context: '..' }, install: 'npm ci' }), '.cursor/environment.json')!;
         expect(env).toMatchObject({ snapshot: 'snap-123', build: { dockerfile: 'Dockerfile', context: '..' }, install: 'npm ci', errors: [] });
-        expect(parseEnvironmentJson(JSON.stringify({ build: { context: '.' } }), 'e.json')?.errors).toEqual(['e.json: "build" needs a "dockerfile".']);
+        expect(parseEnvironmentJson(JSON.stringify({ build: { context: '.' } }), 'e.json')?.errors).toEqual(['e.json: "build" needs a "dockerfile" or "dockerfileContents".']);
         expect(parseEnvironmentJson(JSON.stringify({ build: { dockerfile: 'Dockerfile' } }), 'e.json')?.build).toEqual({ dockerfile: 'Dockerfile' });
     });
 
