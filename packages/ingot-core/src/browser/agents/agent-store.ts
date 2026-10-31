@@ -33,7 +33,7 @@ import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { ACTIVE_STATUSES, AGENT_MAX_TOKENS, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE, STREAM_POKE_MS } from '../../common/agents/agents.consts';
 import type { AgentMessage, AgentMode, AgentSession, SentPromptEvent } from '../../common/agents/agents.types';
-import type { ToolCallInfo } from '../../common/agents/tool-cards';
+import { extractThought, type ToolCallInfo } from '../../common/agents/tool-cards';
 import { hookCardInfo } from '../../common/git/hooks';
 import { AgentHooksService } from '../hooks/agent-hooks-service';
 import { activeAgentCount, resolveLoopGeneration, titleFromPrompt } from '../../common/agents/agents.utils';
@@ -81,6 +81,11 @@ import { FETCH_RULE_TOOL } from '../../common/project-config/project-config.cons
 import { AgentEventHooks } from '../hooks/agent-event-hooks';
 import type { AgentHookEvent, AgentHookOutcome } from '../../common/hooks/agent-hooks.types';
 import { hookBlockedText, hookOutcomeText } from '../../common/hooks/agent-hooks.utils';
+import { HOOK_TEXT, TASK_SUBAGENT_TYPE } from '../../common/hooks/agent-hooks.consts';
+import {
+    afterMcpPayload, afterShellPayload, hookContextText, hookToolLabel, mcpPayload, postToolPayload, preCompactPayload, shellPayload, subagentStartPayload, subagentStopPayload,
+    toolFailurePayload, toolFailureType, toolPayload, type HookToolCall
+} from '../../common/hooks/hook-payloads.utils';
 import { HabitRunner } from '../habits/habit-runner';
 import { HABIT_TICKED_REPLY, USE_HABIT_TOOL } from '../../common/habits/playbook.consts';
 import { stripHabitMarks } from '../../common/habits/playbook.utils';
@@ -272,6 +277,16 @@ export class AgentStore {
     protected readonly handedOff = new Set<string>();
     /** IDEA-287: the rules loaded for a chat's last turn, for ingot/fetch_rule. */
     protected readonly sessionRules = new Map<string, readonly ProjectRule[]>();
+    /** IDEA-287: chats whose sessionStart hook ran, with the env and context it returned. */
+    protected readonly hookSessions = new Map<string, { startedAt: number; env?: Readonly<Record<string, string>>; context?: string }>();
+    /** IDEA-287: chats whose next run checks the prompt with beforeSubmitPrompt (set by send). */
+    protected readonly submitPending = new Set<string>();
+    /** IDEA-287: stop-hook follow-ups already sent per chat (`loop_count`). */
+    protected readonly hookLoops = new Map<string, number>();
+    /** IDEA-287: chats compacted at least once (preCompact's `is_first_compaction`). */
+    protected readonly compacted = new Set<string>();
+    /** IDEA-287: runs that ended because beforeSubmitPrompt blocked the prompt (no stop hook for those). */
+    protected readonly promptBlocked = new Set<string>();
     protected readonly onDidSendEmitter = new Emitter<{ session: AgentSession; prompt: string }>();
     /** IDEA-296: a prompt the user sent (Habits counts repeated instructions). */
     readonly onDidSend: Event<{ session: AgentSession; prompt: string }> = this.onDidSendEmitter.event;
@@ -479,8 +494,20 @@ export class AgentStore {
         if (wasSelected) {
             this.closeTab(id);
         }
+        const removed = this.items.find(s => s.id === id);
+        if (removed && this.hookSessions.has(id)) {
+            void this.runEventHook(removed, 'sessionEnd', {
+                session_id: id, reason: 'user_close', duration_ms: Date.now() - (this.hookSessions.get(id)?.startedAt ?? Date.now()), is_background_agent: !!removed.parent,
+                final_status: removed.status === 'error' ? 'error' : 'completed'
+            }).finally(() => this.forgetHookSession(id));
+        }
         this.items = this.items.filter(s => s.id !== id);
         this.changed();
+    }
+
+    protected forgetHookSession(id: string): void {
+        [this.hookSessions, this.hookLoops].forEach(map => map.delete(id));
+        [this.submitPending, this.compacted, this.promptBlocked].forEach(set => set.delete(id));
     }
 
     /** Sessions of the active project tab (all sessions outside project groups). */
@@ -688,6 +715,10 @@ export class AgentStore {
         if (routable && asked) {
             this.routePending.add(session.id);
         }
+        if (asked) {
+            this.submitPending.add(session.id);
+        }
+        this.hookLoops.delete(session.id);
         this.startRun(session);
         return session;
     }
@@ -1236,6 +1267,10 @@ export class AgentStore {
         await this.captures.get(session.id);
         this.captures.delete(session.id);
         const root = this.rootFor(session);
+        if (this.loopDepth.get(session.id) === 1 && !await this.hookTurnStart(session, root)) {
+            this.promptBlocked.add(session.id);
+            return;
+        }
         if (this.loopDepth.get(session.id) === 1) {
             this.artifacts.begin(session, root);
         }
@@ -1279,7 +1314,7 @@ export class AgentStore {
         const environment = await this.projectConfig.loadEnvironment(root).catch(() => undefined);
         const rulesText = [
             formatRules(rules), info.canUseTools ? formatRuleIndex(requestableRules(config.rules), `${BUILTIN_TOOL_SERVER}/${FETCH_RULE_TOOL}`) : '',
-            formatEnvironment(environment?.environment, environment?.source ?? '')
+            formatEnvironment(environment?.environment, environment?.source ?? ''), this.hookSessions.get(session.id)?.context ?? ''
         ].filter(Boolean).join('\n\n');
         const habitText = await this.habitRunner.prepare(session, {
             root, prompt: lastUser?.m.text ?? '', attachments: prompt, canUseTools: info.canUseTools,
@@ -1532,13 +1567,17 @@ export class AgentStore {
             }
         }
         } finally {
-            if (this.loopDepth.get(session.id) === 1) {
+            const blocked = this.loopDepth.get(session.id) === 1 && this.promptBlocked.delete(session.id);
+            if (this.loopDepth.get(session.id) === 1 && !blocked) {
                 await this.finishArtifacts(session);
             }
             this.leaveLoop(session.id);
             this.flushPoke();
-            if (!this.loopDepth.has(session.id)) {
-                void this.runEventHook(session, 'stop', { status: session.status === 'error' ? 'error' : this.cancelled.has(session.id) ? 'aborted' : 'completed' });
+            if (!this.loopDepth.has(session.id) && !blocked && !session.parent) {
+                const status = session.status === 'error' ? 'error' : this.cancelled.has(session.id) ? 'aborted' : 'completed';
+                void this.runEventHook(session, 'stop', { status, loop_count: this.hookLoops.get(session.id) ?? 0 }).then(outcome => this.hookFollowUp(session, outcome));
+            }
+            if (!this.loopDepth.has(session.id) && !blocked) {
                 this.afterGoalTurn(session, generation);
                 if (!this.stale(session.id, generation) && !this.cancelled.has(session.id) && session.goal?.state !== 'running') {
                     void this.afterRun(session).catch(() => undefined);
@@ -1856,9 +1895,92 @@ export class AgentStore {
     }
 
     /** IDEA-294: runs a `hooks.json` agent event; undefined when no hook is configured (or hooks are off). */
-    protected async runEventHook(session: AgentSession, event: AgentHookEvent, data: Readonly<Record<string, unknown>>): Promise<AgentHookOutcome | undefined> {
+    protected async runEventHook(session: AgentSession, event: AgentHookEvent, data: Readonly<Record<string, unknown>>, loopCount?: number): Promise<AgentHookOutcome | undefined> {
         const generation = this.loopGeneration.get(session.id) ?? 0;
-        return this.eventHooks.run(event, this.rootFor(session), { conversationId: session.id, generationId: `${session.id}-${generation}` }, data).catch(() => undefined);
+        return this.eventHooks.run(event, this.rootFor(session), { conversationId: session.id, generationId: `${session.id}-${generation}`, model: this.modelFor(session) }, data,
+            { sessionEnv: this.hookSessions.get(session.id)?.env, loopCount: loopCount ?? this.hookLoops.get(session.id) ?? 0 }).catch(() => undefined);
+    }
+
+    /**
+     * IDEA-287: sessionStart on a chat's first run (its env and context stay with the chat), then beforeSubmitPrompt for
+     * a prompt the user just sent. False: a hook kept the prompt from being sent.
+     */
+    protected async hookTurnStart(session: AgentSession, root: URI | undefined): Promise<boolean> {
+        if (session.parent) {
+            return true;
+        }
+        if (!this.hookSessions.has(session.id)) {
+            const startedAt = Date.now();
+            this.hookSessions.set(session.id, { startedAt });
+            const started = await this.runEventHook(session, 'sessionStart', { session_id: session.id, is_background_agent: !!session.parent, composer_mode: session.mode });
+            const { env, additionalContext } = started?.extras ?? {};
+            this.hookSessions.set(session.id, { startedAt, ...(env ? { env } : {}), ...(additionalContext ? { context: hookContextText('sessionStart', additionalContext) } : {}) });
+        }
+        const last = this.submitPending.delete(session.id) ? [...session.messages].reverse().find(m => m.role === 'user' && !m.hidden) : undefined;
+        if (!last) {
+            return true;
+        }
+        const attachments = (last.chips ?? []).flatMap(chip => chip.path ? [{ type: 'file', file_path: root && !chip.path.startsWith('/') ? root.resolve(chip.path).path.fsPath() : chip.path }] : []);
+        const outcome = await this.runEventHook(session, 'beforeSubmitPrompt', { prompt: last.text, attachments });
+        if (!outcome || (outcome.extras.continue !== false && outcome.decision.permission !== 'deny')) {
+            return true;
+        }
+        session.messages.push({ role: 'system', text: `${HOOK_TEXT.promptBlocked}${outcome.decision.userMessage ? `: ${outcome.decision.userMessage}` : '.'}` });
+        session.status = 'idle';
+        session.updatedAt = Date.now();
+        this.changed();
+        return false;
+    }
+
+    /** IDEA-287: a stop hook's `followup_message` is sent as the next user message (loop flows), up to each hook's loop_limit. */
+    protected hookFollowUp(session: AgentSession, outcome: AgentHookOutcome | undefined): void {
+        const text = outcome?.extras.followupMessage;
+        if (!text || this.isRunning(session.id) || this.cancelled.has(session.id) || session.ask || session.status === 'review' || session.status === 'approval') {
+            return;
+        }
+        this.hookLoops.set(session.id, (this.hookLoops.get(session.id) ?? 0) + 1);
+        session.messages.push({ role: 'user', text });
+        this.loops.set(session.id, this.newLoop(text));
+        this.startRun(session);
+    }
+
+    /** IDEA-287: afterAgentThought (a `<think>` block) and afterAgentResponse for a finished reply. Observation only. */
+    protected afterReplyHooks(session: AgentSession, display: string, thoughtMs?: number): void {
+        const { thought, rest } = extractThought(display);
+        if (thought?.trim()) {
+            void this.runEventHook(session, 'afterAgentThought', { text: thought.trim(), ...(thoughtMs ? { duration_ms: thoughtMs } : {}) });
+        }
+        if (rest.trim()) {
+            void this.runEventHook(session, 'afterAgentResponse', { text: rest.trim() });
+        }
+    }
+
+    /**
+     * IDEA-287: after a tool ran: afterShellExecution / afterMCPExecution (observation), then postToolUse or postToolUseFailure.
+     * Returns context a hook added (read by the model after the result) and, for MCP tools, a replaced result.
+     */
+    protected async afterToolHooks(session: AgentSession, call: AgentToolCall, result: AgentActionResult, durationMs: number, toolUseId: string): Promise<{ context?: string; text?: string }> {
+        const cwd = this.rootFor(session)?.path.fsPath();
+        const builtin = call.server === BUILTIN_TOOL_SERVER;
+        if (builtin && call.tool === 'run') {
+            void this.runEventHook(session, 'afterShellExecution', afterShellPayload(String(call.args.command ?? ''), result.text, durationMs, !!result.sandboxed));
+        } else if (!builtin) {
+            void this.runEventHook(session, 'afterMCPExecution', afterMcpPayload(call, result, durationMs));
+        }
+        const event = result.isError ? 'postToolUseFailure' : 'postToolUse';
+        const outcome = await this.runEventHook(session, event, result.isError
+            ? toolFailurePayload(call, BUILTIN_TOOL_SERVER, toolUseId, result.text, toolFailureType(result.text, false), durationMs, cwd)
+            : postToolPayload(call, BUILTIN_TOOL_SERVER, toolUseId, result, durationMs, cwd));
+        const replaced = !builtin && !result.isError ? outcome?.extras.updatedMcpToolOutput : undefined;
+        return {
+            ...(outcome?.extras.additionalContext ? { context: hookContextText(event, outcome.extras.additionalContext) } : {}),
+            ...(replaced !== undefined ? { text: typeof replaced === 'string' ? replaced : JSON.stringify(replaced) } : {})
+        };
+    }
+
+    /** IDEA-287: a call that never ran (blocked by a hook, the policy or the sandbox) is a permission_denied failure. */
+    protected hookToolDenied(session: AgentSession, call: HookToolCall, reason: string, toolUseId: string): void {
+        void this.runEventHook(session, 'postToolUseFailure', toolFailurePayload(call, BUILTIN_TOOL_SERVER, toolUseId, reason, 'permission_denied', 0, this.rootFor(session)?.path.fsPath()));
     }
 
     /** IDEA-294: a hook that denied (or asked about) an action shows as a hook card in the chat. */
@@ -2245,6 +2367,7 @@ export class AgentStore {
             // IDEA-186: a silent round of project reads shows only in the Explored row.
             ...(!display && !parsed.edits.length && parsed.toolCalls.length && parsed.toolCalls.every(c => c.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(c.tool)) ? { hidden: true } : {})
         });
+        this.afterReplyHooks(session, display, session.messages[index]?.thoughtMs);
         return { ...parsed, memories, followUps };
     }
 
@@ -2269,8 +2392,9 @@ export class AgentStore {
                 this.changed();
                 continue;
             }
-            const call = withRepoDefaults(resolved.call, this.github);
+            let call = withRepoDefaults(resolved.call, this.github);
             const target = `${call.server}/${call.tool}`;
+            const toolUseId = `${session.id}-${startedAt}-${target}`;
             if (!toolAllowedInMode(session.mode, call)) {
                 const blocked = modeBlockedResult(session.mode, call);
                 session.messages.push({
@@ -2351,12 +2475,16 @@ export class AgentStore {
                 this.changed();
                 continue;
             }
-            const gate = await this.gateWithHooks(session, call, root);
+            const gate = await this.gateWithHooks(session, call, root, toolUseId);
             if (gate.blocked) {
                 session.messages.push({ role: 'tool', from: target, text: `Error: ${gate.blocked}` });
                 this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: gate.blocked, startedAt });
+                this.hookToolDenied(session, call, gate.blocked, toolUseId);
                 this.changed();
                 continue;
+            }
+            if (gate.args) {
+                call = { ...call, args: gate.args };
             }
             // IDEA-263: `.ingot/policy.json` decides first: denied calls never reach the card; allowed ones skip it.
             const isRun = call.server === BUILTIN_TOOL_SERVER && call.tool === 'run';
@@ -2473,6 +2601,7 @@ export class AgentStore {
                 .catch((error: unknown) => ({ text: error instanceof Error ? error.message : String(error), isError: true }));
             // IDEA-263: restricted mode runs commands in the OS sandbox; one the user approved to leave the project runs without it.
             const box = isRun && context && !outside ? sandboxSpec(policy.policy, context) : undefined;
+            let ranAt = Date.now();
             let result = await execute(box);
             let recorded = false;
             let stoppedOnCard = false;
@@ -2482,6 +2611,7 @@ export class AgentStore {
                 const choice = await this.askApproval(session, sandboxRetryApproval(typeof call.args.command === 'string' ? call.args.command : ''));
                 stoppedOnCard = !!choice.stopped;
                 if (!choice.stopped && choice.decision !== 'skip') {
+                    ranAt = Date.now();
                     result = await execute(undefined);
                     decision = 'approved';
                     recorded = false;
@@ -2495,14 +2625,18 @@ export class AgentStore {
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
             this.habitRunner.afterTool(session, call, !!result.isError);
             this.observeTool(session, call, result, root);
+            const after = await this.afterToolHooks(session, call, result, Date.now() - ranAt, toolUseId);
             const done: AgentMessage = {
-                role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}),
+                role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${after.text ?? result.text}`, ...(result.images?.length ? { images: result.images } : {}),
                 tool: { ...tool, state: result.isError ? 'error' : 'done', endedAt: Date.now() }
             };
             if (session.messages[at] && session.messages[at].tool === tool) {
                 session.messages[at] = done;
             } else {
                 session.messages.push(done);
+            }
+            if (after.context) {
+                session.messages.push({ role: 'user', text: after.context, hidden: true });
             }
             if (stoppedOnCard) {
                 this.changed();
@@ -2537,28 +2671,41 @@ export class AgentStore {
      * IDEA-294: `.ingotignore` and the before-hooks of `hooks.json` for one tool call. `blocked` is the tool result when
      * the call must not run; `ask` forces the approval card.
      */
-    protected async gateWithHooks(session: AgentSession, call: AgentToolCall, root: URI | undefined): Promise<{ blocked?: string; ask?: boolean }> {
+    protected async gateWithHooks(session: AgentSession, call: AgentToolCall, root: URI | undefined, toolUseId: string): Promise<{ blocked?: string; ask?: boolean; args?: Record<string, unknown> }> {
         const builtin = call.server === BUILTIN_TOOL_SERVER;
         const path = typeof call.args.path === 'string' ? call.args.path.trim().replace(/^\.\/+/, '') : '';
         if (builtin && call.tool === 'read_file' && path && (await this.agentIgnore(root)).agent(path)) {
             return { blocked: `"${path}" is in .ingotignore: agents cannot read it.` };
         }
-        const cwd = root?.path.fsPath();
-        const event: AgentHookEvent | undefined = builtin ? (call.tool === 'run' ? 'beforeShellExecution' : call.tool === 'read_file' ? 'beforeReadFile' : undefined) : 'beforeMCPExecution';
-        if (!event || !root) {
+        if (!root) {
             return {};
+        }
+        const cwd = root.path.fsPath();
+        // IDEA-287: preToolUse sees every tool first; its `updated_input` replaces the arguments ("ask" is ignored, as in Cursor).
+        const pre = await this.runEventHook(session, 'preToolUse', toolPayload(call, BUILTIN_TOOL_SERVER, toolUseId, cwd));
+        if (pre?.decision.permission === 'deny') {
+            this.pushHookCard(session, pre, hookToolLabel(call));
+            this.changed();
+            return { blocked: hookBlockedText(pre) };
+        }
+        const updated = pre?.extras.updatedInput ? { ...call.args, ...pre.extras.updatedInput } : undefined;
+        const effective = updated ? { ...call, args: updated } : call;
+        const withArgs = updated ? { args: updated } : {};
+        const event: AgentHookEvent | undefined = builtin ? (call.tool === 'run' ? 'beforeShellExecution' : call.tool === 'read_file' ? 'beforeReadFile' : undefined) : 'beforeMCPExecution';
+        if (!event || (event === 'beforeReadFile' && !await this.eventHooks.has(event, root))) {
+            return withArgs;
         }
         const file = event === 'beforeReadFile' ? root.resolve(path) : undefined;
-        const data = event === 'beforeShellExecution' ? { command: String(call.args.command ?? ''), cwd: call.args.cwd ? String(call.args.cwd) : cwd }
-            : event === 'beforeReadFile' ? { file_path: file?.path.fsPath(), content: file ? await this.files.read(file).then(r => r.value, () => '') : '' }
-                : { server: call.server, tool_name: call.tool, tool_input: call.args };
+        const data = event === 'beforeShellExecution' ? shellPayload(String(effective.args.command ?? ''), effective.args.cwd ? String(effective.args.cwd) : cwd)
+            : event === 'beforeReadFile' ? { file_path: file?.path.fsPath(), content: file ? await this.files.read(file).then(r => r.value, () => '') : '', attachments: [] }
+                : mcpPayload(effective);
         const outcome = await this.runEventHook(session, event, data);
         if (!outcome || outcome.decision.permission === 'allow') {
-            return {};
+            return withArgs;
         }
-        this.pushHookCard(session, outcome, event === 'beforeShellExecution' ? String(call.args.command ?? '') : event === 'beforeReadFile' ? path : `${call.server}/${call.tool}`);
+        this.pushHookCard(session, outcome, event === 'beforeShellExecution' ? String(effective.args.command ?? '') : event === 'beforeReadFile' ? path : hookToolLabel(call));
         this.changed();
-        return outcome.decision.permission === 'deny' ? { blocked: hookBlockedText(outcome) } : { ask: true };
+        return outcome.decision.permission === 'deny' ? { blocked: hookBlockedText(outcome) } : { ask: true, ...withArgs };
     }
 
     /**
@@ -4215,7 +4362,13 @@ export class AgentStore {
             return { title: child.title, status: 'error', reply: '', files: [], error };
         };
         let worktree: TaskOutcome['worktree'];
+        const begun = Date.now();
+        const info = { id: child.id, type: TASK_SUBAGENT_TYPE, task: task.prompt, parentId: lead.id, model: this.modelFor(child), parallel: true };
         const done = (async (): Promise<TaskOutcome> => {
+            const gate = await this.runEventHook(lead, 'subagentStart', subagentStartPayload(info));
+            if (gate && gate.decision.permission !== 'allow') {
+                return fail(`${HOOK_TEXT.subagentBlocked}${gate.decision.userMessage ? `: ${gate.decision.userMessage}` : '.'}`);
+            }
             if (task.worktree) {
                 if (!rootPath) {
                     return fail('Open a project folder to run a subagent in a worktree.');
@@ -4233,18 +4386,36 @@ export class AgentStore {
                     return fail(`Could not create a git worktree: ${error instanceof Error ? error.message : String(error)}`);
                 }
             }
-            await this.runModel(child).catch((error: unknown) => {
-                child.status = 'error';
-                child.messages.push({ role: 'system', text: `The subagent stopped: ${error instanceof Error ? error.message : String(error)}` });
-            });
-            const stopped = this.cancelled.has(child.id);
-            if (!stopped && (child.status === 'thinking' || child.status === 'editing' || child.status === 'idle')) {
-                child.status = 'done';
+            let reply = '';
+            let files: string[] = [];
+            let stopped = false;
+            // IDEA-287: a subagentStop hook's `followup_message` sends the subagent another turn, up to the hook's loop_limit.
+            for (let loops = 0; ; loops++) {
+                await this.runModel(child).catch((error: unknown) => {
+                    child.status = 'error';
+                    child.messages.push({ role: 'system', text: `The subagent stopped: ${error instanceof Error ? error.message : String(error)}` });
+                });
+                stopped = this.cancelled.has(child.id);
+                if (!stopped && (child.status === 'thinking' || child.status === 'editing' || child.status === 'idle')) {
+                    child.status = 'done';
+                }
+                child.updatedAt = Date.now();
+                this.changed();
+                reply = [...child.messages].reverse().find(m => m.role === 'agent' && !m.hidden && m.text)?.text ?? '';
+                files = [...new Set([...child.changes.map(c => c.label), ...child.steps.filter(s => s.kind === 'edit').map(s => s.target)])];
+                const status = stopped ? 'aborted' : child.status === 'error' ? 'error' : 'completed';
+                const outcome = await this.runEventHook(lead, 'subagentStop', subagentStopPayload(info, {
+                    status, description: task.description, summary: reply, durationMs: Date.now() - begun, messageCount: child.messages.length,
+                    toolCallCount: child.messages.filter(m => m.role === 'tool').length, loopCount: loops, files
+                }), loops);
+                const followUp = child.status === 'done' ? outcome?.extras.followupMessage : undefined;
+                if (!followUp) {
+                    break;
+                }
+                child.messages.push({ role: 'user', text: followUp });
+                child.status = 'thinking';
+                this.changed();
             }
-            child.updatedAt = Date.now();
-            this.changed();
-            const reply = [...child.messages].reverse().find(m => m.role === 'agent' && !m.hidden && m.text)?.text ?? '';
-            const files = [...new Set([...child.changes.map(c => c.label), ...child.steps.filter(s => s.kind === 'edit').map(s => s.target)])];
             return {
                 title: child.title, reply, files, ...(worktree ? { worktree } : {}),
                 status: stopped ? 'stopped' : child.status === 'error' ? 'error' : child.status === 'review' ? 'review' : 'done'
@@ -4405,8 +4576,18 @@ export class AgentStore {
         if (!session || !session.messages.length) {
             return session;
         }
+        const usage = session.context?.usage;
+        const hook = await this.runEventHook(session, 'preCompact', preCompactPayload({
+            trigger: 'manual', tokens: usage?.total ?? estimateTokens(this.historyFor(session).map(m => m.content).join('\n')),
+            window: usage?.window ?? findModel(this.modelFor(session))?.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
+            messageCount: session.messages.length, firstCompaction: !this.compacted.has(session.id)
+        }));
+        this.compacted.add(session.id);
         const summary = await this.summaryOf(session);
         session.messages.splice(0, session.messages.length, { role: 'agent', text: `Conversation compacted. Summary so far:\n${summary}` });
+        if (hook?.decision.userMessage) {
+            session.messages.push({ role: 'system', text: `${HOOK_TEXT.compactNote}: ${hook.decision.userMessage}` });
+        }
         session.steps = [];
         if (session.context) {
             const history = estimateTokens(summary);

@@ -8,6 +8,7 @@ import { findModel } from '../../common/models/models.utils';
 import { budgetBlock } from '../../common/tab/tab-budget.utils';
 import { TAB_PREFERENCES } from '../../common/tab/tab.consts';
 import { IngotTabCompletions } from './tab-completions';
+import type { TabAcceptedEdit } from '../../common/tab/tab.types';
 import { IngotTabNextEdit } from './tab-next-edit';
 import { IngotTabUsage } from './tab-usage';
 import { TAB_COMMANDS, TAB_KEYBINDINGS, TAB_STATUS_ID, TAB_STATUS_PRIORITY, TAB_STATUS_TEXT } from './tab.consts';
@@ -67,6 +68,7 @@ export class IngotTabContribution implements FrontendApplicationContribution, Co
         registry.registerCommand(TAB_COMMANDS.jumpToNextEdit, { execute: () => this.nextEdit.jump(), isEnabled: () => this.nextEdit.visible });
         registry.registerCommand(TAB_COMMANDS.dismissNextEdit, { execute: () => this.nextEdit.dismiss(), isEnabled: () => this.nextEdit.visible });
         registry.registerCommand(TAB_COMMANDS.showNextEdit, { execute: (uri: string, snippet: string) => this.completions.enabled && this.nextEdit.show(uri, snippet) });
+        registry.registerCommand(TAB_COMMANDS.accepted, { execute: (edit: TabAcceptedEdit) => this.completions.accepted(edit) });
     }
 
     registerKeybindings(keybindings: KeybindingRegistry): void {

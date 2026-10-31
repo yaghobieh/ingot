@@ -90,6 +90,8 @@ export interface HookRunOptions {
     readonly timeoutMs: number;
     /** IDEA-287: the project root for `INGOT_PROJECT_DIR` / `CURSOR_PROJECT_DIR` when the command runs elsewhere (user hooks). */
     readonly projectDir?: string;
+    /** IDEA-287: extra environment (Cursor's hook variables, a chat's sessionStart env). */
+    readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface WorkspaceSearchResult {

@@ -11,7 +11,7 @@ export const hooksPreferenceSchema: PreferenceSchema = {
         },
         [AGENT_EVENT_HOOKS_PREF]: {
             type: 'boolean', default: true,
-            description: 'Agent event hooks: run the commands under "hooks" in .ingot/hooks.json (and .cursor/hooks.json) on beforeShellExecution, beforeMCPExecution, beforeReadFile, afterFileEdit and stop. A command gets the event as JSON on stdin and can answer {"permission": "allow" | "deny" | "ask"}.'
+            description: 'Agent event hooks: run the commands under "hooks" in hooks.json on every Cursor hook event (sessionStart, beforeSubmitPrompt, preToolUse, beforeShellExecution, afterFileEdit, stop, Tab events and more). Files merge in order: system-wide (enterprise), team (account), project (.ingot/hooks.json, .cursor/hooks.json), user (~/.cursor/hooks.json, ~/.ingot/hooks.json). A command gets the event as JSON on stdin; permission hooks answer {"permission": "allow" | "deny" | "ask"}.'
         },
         [HOOKS_PREFS.installGitHooks]: {
             type: 'boolean', default: true,

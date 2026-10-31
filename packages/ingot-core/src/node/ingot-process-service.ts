@@ -216,7 +216,7 @@ export class IngotProcessService implements ProcessService {
             };
             const child = spawn(shell.cmd, shell.args, {
                 cwd: options.cwd, stdio: ['pipe', 'pipe', 'pipe'], detached: !win, windowsHide: true,
-                env: { ...process.env, [HOOK_PROJECT_ENV]: options.projectDir ?? options.cwd, [HOOK_CURSOR_PROJECT_ENV]: options.projectDir ?? options.cwd }
+                env: { ...process.env, ...options.env, [HOOK_PROJECT_ENV]: options.projectDir ?? options.cwd, [HOOK_CURSOR_PROJECT_ENV]: options.projectDir ?? options.cwd }
             });
             const timer = setTimeout(() => {
                 timedOut = true;

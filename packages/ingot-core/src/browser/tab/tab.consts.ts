@@ -3,7 +3,9 @@ export const TAB_COMMANDS = {
     jumpToNextEdit: { id: 'ingot.tab.jumpToNextEdit', label: 'Tab: Jump to Next Edit', category: 'Ingot' },
     dismissNextEdit: { id: 'ingot.tab.dismissNextEdit', label: 'Tab: Dismiss Next Edit Hint', category: 'Ingot' },
     /** Run by an accepted completion; not meant for Find Action. */
-    showNextEdit: { id: 'ingot.tab.showNextEdit' }
+    showNextEdit: { id: 'ingot.tab.showNextEdit' },
+    /** Run by an accepted completion (afterTabFileEdit hook, next-edit hint); not meant for Find Action. */
+    accepted: { id: 'ingot.tab.accepted' }
 } as const;
 
 /** True while a next-edit hint is shown in the focused editor. */

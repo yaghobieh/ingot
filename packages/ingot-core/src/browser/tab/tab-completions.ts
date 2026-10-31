@@ -11,12 +11,13 @@ import {
 } from '../../common/tab/tab.consts';
 import { recordRecentEdit } from '../../common/tab/tab.utils';
 import { runTabPrediction } from '../../common/tab/tab-engine.utils';
-import type { TabContext, TabOutcome, TabRecentEdit } from '../../common/tab/tab.types';
+import type { TabAcceptedEdit, TabContext, TabOutcome, TabRecentEdit } from '../../common/tab/tab.types';
 import type { ProviderId } from '../../common/models/models.types';
 import { IngotTabIgnore } from './tab-ignore';
 import { IngotTabNextEdit } from './tab-next-edit';
 import { IngotTabUsage } from './tab-usage';
 import { TAB_COMMANDS } from './tab.consts';
+import { AgentEventHooks } from '../hooks/agent-event-hooks';
 
 const NO_ITEMS: monaco.languages.InlineCompletions = { items: [] };
 
@@ -44,6 +45,7 @@ export class IngotTabCompletions implements monaco.languages.InlineCompletionsPr
     @inject(IngotTabUsage) protected readonly usage: IngotTabUsage;
     @inject(IngotTabNextEdit) protected readonly nextEdit: IngotTabNextEdit;
     @inject(IngotPlanService) protected readonly plan: IngotPlanService;
+    @inject(AgentEventHooks) protected readonly hooks: AgentEventHooks;
 
     protected readonly recentEdits = new Map<string, TabRecentEdit[]>();
     lastOutcome?: TabOutcome;
@@ -82,7 +84,7 @@ export class IngotTabCompletions implements monaco.languages.InlineCompletionsPr
         const linePrefix = line.slice(0, position.column - 1);
         const lineSuffix = line.slice(position.column - 1);
         const outcome = await runTabPrediction({
-            isIgnored: () => this.ignore.isIgnored(uri),
+            isIgnored: async () => await this.ignore.isIgnored(uri) || !await this.tabReadAllowed(model, uri),
             buildContext: () => this.buildContext(model, position, uri),
             checkBudget: tokens => this.usage.check(tokens),
             recordRequest: tokens => this.usage.recordRequest(tokens),
@@ -104,13 +106,42 @@ export class IngotTabCompletions implements monaco.languages.InlineCompletionsPr
             return NO_ITEMS;
         }
         const end = replacesSuffix ? model.getLineMaxColumn(position.lineNumber) : position.column;
+        const range = new monaco.Range(position.lineNumber, position.column, position.lineNumber, end);
+        const accepted: TabAcceptedEdit = { uri: model.uri.toString(), range, oldText: model.getValueInRange(range), newText: insertText, oldLine: line, nextSnippet };
         return {
-            items: [{
-                insertText,
-                range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, end),
-                ...(nextSnippet ? { command: { id: TAB_COMMANDS.showNextEdit.id, title: TAB_COMMANDS.jumpToNextEdit.label, arguments: [model.uri.toString(), nextSnippet] } } : {})
-            }]
+            items: [{ insertText, range, command: { id: TAB_COMMANDS.accepted.id, title: TAB_COMMANDS.jumpToNextEdit.label, arguments: [accepted] } }]
         };
+    }
+
+    /** An accepted completion: Cursor's afterTabFileEdit hook, then the next-edit hint. */
+    accepted(edit: TabAcceptedEdit): void {
+        if (edit.nextSnippet && this.enabled) {
+            this.nextEdit.show(edit.uri, edit.nextSnippet);
+        }
+        const uri = new URI(edit.uri);
+        const root = this.rootOf(uri);
+        const line = monaco.editor.getModel(monaco.Uri.parse(edit.uri))?.getLineContent(edit.range.startLineNumber);
+        void this.hooks.run('afterTabFileEdit', root, {}, {
+            file_path: uri.path.fsPath(),
+            edits: [{
+                old_string: edit.oldText, new_string: edit.newText, old_line: edit.oldLine, new_line: line ?? edit.oldLine,
+                range: { start_line_number: edit.range.startLineNumber, start_column: edit.range.startColumn, end_line_number: edit.range.endLineNumber, end_column: edit.range.endColumn }
+            }]
+        }).catch(() => undefined);
+    }
+
+    /** IDEA-287: Cursor's beforeTabFileRead: a hook can keep a file out of Tab's prompt (allow / deny only, no card). */
+    protected async tabReadAllowed(model: monaco.editor.ITextModel, uri: URI): Promise<boolean> {
+        const root = this.rootOf(uri);
+        if (!root || !await this.hooks.has('beforeTabFileRead', root)) {
+            return true;
+        }
+        const outcome = await this.hooks.run('beforeTabFileRead', root, {}, { file_path: uri.path.fsPath(), content: model.getValue() }).catch(() => undefined);
+        return outcome?.decision.permission !== 'deny';
+    }
+
+    protected rootOf(uri: URI): URI | undefined {
+        return this.workspace.tryGetRoots().find(r => r.resource.isEqualOrParent(uri))?.resource;
     }
 
     disposeInlineCompletions(): void {

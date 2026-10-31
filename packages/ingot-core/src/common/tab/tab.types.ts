@@ -61,3 +61,13 @@ export interface TabIgnoreRule {
     /** Has a slash, so it matches from the workspace root instead of any path segment. */
     readonly anchored: boolean;
 }
+
+/** IDEA-287: an accepted Tab completion, for Cursor's afterTabFileEdit hook. Lines and columns are 1-based (Monaco). */
+export interface TabAcceptedEdit {
+    readonly uri: string;
+    readonly range: { readonly startLineNumber: number; readonly startColumn: number; readonly endLineNumber: number; readonly endColumn: number };
+    readonly oldText: string;
+    readonly newText: string;
+    readonly oldLine: string;
+    readonly nextSnippet?: string;
+}

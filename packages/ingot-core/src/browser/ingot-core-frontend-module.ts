@@ -146,6 +146,7 @@ import { IngotDiffWidget } from './commit/ingot-diff-widget';
 import { AiCommitService } from './commit/ai-commit-service';
 import { AgentHooksService } from './hooks/agent-hooks-service';
 import { AgentEventHooks } from './hooks/agent-event-hooks';
+import { WorkspaceOpenHooks } from './hooks/workspace-open-hooks';
 import { InitAgentsContribution } from './project-config/init-agents-contribution';
 import { UserRulesService } from './project-config/user-rules-service';
 import { HabitStore } from './habits/habit-store';
@@ -312,6 +313,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(AiCommitService).toSelf().inSingletonScope();
     bind(AgentHooksService).toSelf().inSingletonScope();
     bind(AgentEventHooks).toSelf().inSingletonScope();
+    bind(WorkspaceOpenHooks).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(WorkspaceOpenHooks);
     bind(InitAgentsContribution).toSelf().inSingletonScope();
     bind(UserRulesService).toSelf().inSingletonScope();
     bind(HabitStore).toSelf().inSingletonScope();
