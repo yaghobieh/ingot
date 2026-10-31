@@ -6,7 +6,7 @@ import { actUntilVisible, dismissNotifications, openIngot, runCommand } from '..
 import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { CALC_SERVER, E2E_CONFIG_DIR } from '../src/e2e.consts';
-import { startFakeIngotServer, type FakeIngotServer } from '../src/fake-ingot-server';
+import { startOpenPlanServer, type FakeIngotServer } from '../src/fake-ingot-server';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 
@@ -145,13 +145,14 @@ const answerSecondQuestion = async (page: Page, button: string, screenshot?: str
     await how.getByRole('button', { name: button, exact: true }).click();
 };
 
-/** Opens the "Read rules" step of the last turn (what the screenshots of a working rule show). */
+/** Opens the Explored row of the last turn, where applied rules are listed (what the screenshots of a working rule show). */
 const showRules = async (page: Page): Promise<void> => {
-    const read = page.locator('#ingot-agents .ingot-chat-read').filter({ hasText: 'rules' }).last();
-    await expect(read).toBeVisible();
-    await read.locator('.ingot-chat-read-label').click();
-    await expect(read.locator('.ingot-chat-read-list li').first()).toBeVisible();
+    const explored = page.locator('#ingot-chat-explored');
+    await expect(explored).toContainText('Explored');
+    await explored.locator('.ingot-chat-explored-head').click();
+    await expect(explored.locator('li[data-kind="rule"]').first()).toBeVisible();
 };
+const appliedRules = (page: Page): Locator => page.locator('#ingot-chat-explored .ingot-chat-explored-list');
 
 /** A slash command from the project shows in the menu and expands into the prompt. */
 const runSlashCommand = async (page: Page, server: FakeOllama): Promise<string> => {
@@ -191,11 +192,14 @@ test.describe('IDEA-287 Cursor config: first-open import, Convert / Keep, change
     test.setTimeout(240_000);
     let dir: string;
     let server: FakeOllama;
+    // The agent chat is a paid feature; the fake account server opens the plan.
+    let account: FakeIngotServer;
     let initialAppearance: string | undefined;
 
     test.beforeEach(async () => {
         // Team rules cached by another spec would show up in these rule lists.
         fs.rmSync(REMOTE_CONFIG_CACHE, { force: true });
+        account = await startOpenPlanServer();
         dir = makeCursorProject();
         writeSettings({ 'ingot.import.cursorRules': 'ask' });
         initialAppearance = undefined;
@@ -230,6 +234,8 @@ test.describe('IDEA-287 Cursor config: first-open import, Convert / Keep, change
         delete workspaces[dir];
         fs.writeFileSync(MODES_FILE, JSON.stringify({ version: 1, workspaces }, undefined, 2));
         await server.close();
+        await account.close();
+        fs.rmSync(REMOTE_CONFIG_CACHE, { force: true });
         fs.rmSync(dir, { recursive: true, force: true });
     });
 
@@ -248,7 +254,7 @@ test.describe('IDEA-287 Cursor config: first-open import, Convert / Keep, change
             expect(turn.system, marker).toContain(marker);
         }
         await showRules(page);
-        await expect(page.locator('#ingot-agents .ingot-chat-read-list').last()).toContainText('frontend/ui');
+        await expect(appliedRules(page)).toContainText('frontend/ui');
         await shots(page, 'cursor-rule-keep-mode');
 
         await ask(page, server, 'read private notes', 'Done with ingot/read_file.');
@@ -301,7 +307,7 @@ test.describe('IDEA-287 Cursor config: first-open import, Convert / Keep, change
             expect(occurrences(turn.system, marker), marker).toBe(1);
         }
         await showRules(page);
-        await expect(page.locator('#ingot-agents .ingot-chat-read-list').last()).toContainText('frontend/ui');
+        await expect(appliedRules(page)).toContainText('frontend/ui');
         await shots(page, 'cursor-rule-convert-mode');
 
         await ask(page, server, 'read private notes', 'Done with ingot/read_file.');
@@ -341,7 +347,7 @@ test.describe('IDEA-287 team rules from the account', () => {
     let server: FakeOllama;
 
     test.beforeEach(async () => {
-        ingot = await startFakeIngotServer();
+        ingot = await startOpenPlanServer();
         ingot.config = {
             teamRules: [
                 { name: 'org-security', body: 'TEAM-ENFORCED-MARKER: never log tokens.', enforced: true },
