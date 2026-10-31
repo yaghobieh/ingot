@@ -76,6 +76,10 @@ const HOVER = '.monaco-hover:not(.hidden)';
 const SUGGESTIONS = '.suggest-widget .monaco-list-row';
 /** One attempt; the whole check retries until the language server answers. */
 const ATTEMPT_MS = 5_000;
+/** Monaco's selection highlight, drawn once a double-click has selected the word. */
+const SELECTION = '.view-overlays .selected-text';
+const SELECT_ATTEMPT_MS = 1_000;
+const SELECT_TIMEOUT_MS = 15_000;
 
 const BLANK_OFFSET_PX = 10;
 /** Moves the mouse to the empty space under the text, so the editor sees it leave the word and come back (leaving the editor can keep a stale hover pending). */
@@ -104,7 +108,12 @@ export const expectCompletion = async (page: Page, word: string, typed: string, 
     await expect(token).toBeVisible();
     const lines = activeEditor(page).locator('.view-lines');
     const original = await lines.innerText();
-    await token.dblclick();
+    // A hover left open by an earlier check can swallow the first click, leaving a caret inside the word instead of selecting it.
+    await expect(async () => {
+        await parkMouse(page);
+        await token.dblclick();
+        await expect(activeEditor(page).locator(SELECTION).first()).toBeVisible({ timeout: SELECT_ATTEMPT_MS });
+    }).toPass({ timeout: SELECT_TIMEOUT_MS });
     await page.keyboard.type(typed);
     try {
         await expect(async () => {
