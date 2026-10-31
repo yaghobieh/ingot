@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { addStopHook, commandEvidence, habitFile, habitTargets, habitTitle, instructionEvidence, parseHabits, recordEvidence, rejectionEvidence, serializeHabits, terminalInput } from './habits.utils';
+import {
+    addStopHook, commandEvidence, habitFile, habitNoteDetail, habitTargets, habitTitle, hasStopHook, instructionEvidence, learnedFocus, parseHabits, recordEvidence,
+    rejectionEvidence, removeStopHook, serializeHabits, terminalInput, undoHabits
+} from './habits.utils';
 import type { Habit } from './habits.types';
 
 describe('IDEA-296 habits', () => {
@@ -48,6 +51,39 @@ describe('IDEA-296 habits', () => {
         expect(hooks).toEqual({ version: 1, 'pre-commit': ['lint'], hooks: { stop: [{ command: 'a' }, { command: 'npm test' }] } });
         expect(JSON.parse(addStopHook(undefined, 'npm test')).hooks.stop).toEqual([{ command: 'npm test' }]);
         expect(JSON.parse(addStopHook(JSON.stringify(hooks), 'npm test')).hooks.stop.length).toBe(2);
+    });
+});
+
+describe('IDEA-296 "Saved to Habits" notes', () => {
+    const learned: Habit = {
+        id: 'command-npm-test', kind: 'command', key: 'command:npm test', label: 'npm test', text: 'Run `npm test`.', count: 3, examples: ['npm test'],
+        enabled: true, status: 'proposed', firstSeen: 1, lastSeen: 3
+    };
+
+    it('describes what was learned or saved', () => {
+        expect(habitNoteDetail({ kind: 'learned', label: 'npm test' })).toBe('Learned: npm test');
+        expect(habitNoteDetail({ kind: 'saved', label: 'npm test', savedAs: '.ingot/commands/npm-test.md' })).toBe('npm test → .ingot/commands/npm-test.md');
+        expect(habitNoteDetail({ kind: 'saved', label: 'Release build broken' })).toBe('Release build broken');
+        expect(learnedFocus('command-npm-test')).toBe('learned:command-npm-test');
+    });
+
+    it('Undo forgets a new pattern and puts a saved one back as it was', () => {
+        const saved: Habit = { ...learned, status: 'accepted', savedAs: '.ingot/commands/npm-test.md' };
+        const other: Habit = { ...learned, id: 'other', key: 'command:other' };
+        expect(undoHabits([learned, other], { habitId: learned.id })).toEqual([other]);
+        expect(undoHabits([saved, other], { habitId: learned.id, previous: learned })).toEqual([learned, other]);
+        expect(undoHabits([saved], { playbook: 'file:///p/.ingot/habits/x.md' })).toEqual([saved]);
+    });
+
+    it('takes an added stop hook back out and keeps the rest of hooks.json', () => {
+        const before = JSON.stringify({ version: 1, hooks: { stop: [{ command: 'a' }], beforeShellExecution: [{ command: 'guard' }] } });
+        expect(hasStopHook(before, 'npm test')).toBe(false);
+        const added = addStopHook(before, 'npm test');
+        expect(hasStopHook(added, 'npm test')).toBe(true);
+        expect(JSON.parse(removeStopHook(added, 'npm test'))).toEqual(JSON.parse(before));
+        const only = removeStopHook(addStopHook(undefined, 'npm test'), 'npm test');
+        expect(JSON.parse(only)).toEqual({ version: 1, hooks: {} });
+        expect(hasStopHook('not json', 'npm test')).toBe(false);
     });
 });
 
