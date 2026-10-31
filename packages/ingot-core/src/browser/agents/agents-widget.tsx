@@ -59,7 +59,8 @@ import { IngotModelClient } from '../models/model-client';
 import { MODELS_OPEN_COMMAND } from '../models/models.browser-consts';
 import type { AgentSession } from '../../common/agents/agents.types';
 import { changesSummary, editedFilesLabel, fileBadge, fileWord, formatWorked, stepText } from '../../common/agents/agents.utils';
-import { liveStatus } from '../../common/agents/live-status';
+import { appendStep, liveStatus } from '../../common/agents/live-status';
+import type { LiveStep } from '../../common/agents/live-status.types';
 import { LiveStatusLine } from './live-status-line';
 import { AgentStore } from './agent-store';
 import { EditorManager } from '@theia/editor/lib/browser';
@@ -398,7 +399,10 @@ export class IngotAgentsWidget extends ReactWidget {
         this.title.iconClass = 'ingot-icon ingot-icon-rex';
         this.addClass('ingot-agents');
         this.listenForDrops();
-        this.toDispose.push(this.store.onDidChange(() => this.holdScroll()));
+        this.toDispose.push(this.store.onDidChange(() => {
+            this.recordLiveStatus(this.store.current);
+            this.holdScroll();
+        }));
         this.toDispose.push(this.autoContext.onDidChange(() => this.update()));
         this.toDispose.push(this.account.onDidChange(() => this.update()));
         this.toDispose.push(this.processes.onDidChange(() => this.update()));
@@ -1332,13 +1336,30 @@ export class IngotAgentsWidget extends ReactWidget {
         </>;
     }
 
+    /**
+     * Records what the open chat's status line says now. Called on every store change (synchronously), so a step
+     * that starts and ends between two frames is still recorded and shown.
+     */
+    protected recordLiveStatus(session: AgentSession | undefined): readonly LiveStep[] {
+        if (!session) {
+            return [];
+        }
+        const status = liveStatus({
+            session, running: this.store.isRunning(session.id), streaming: this.store.isStreaming(session.id),
+            phase: this.store.livePhase(session.id), planned: this.store.plannedTools(session.id)
+        });
+        const log = appendStep(this.liveLogs.get(session.id) ?? [], status);
+        this.liveLogs.set(session.id, log);
+        return log;
+    }
+
     /** The shimmering live status line (Thinking…, Reading 3 files…, Almost there…); a streaming thought has its own row. */
     protected renderWorking(session: AgentSession): React.ReactNode {
-        const status = liveStatus({
-            session, running: this.store.isRunning(session.id), streaming: this.store.isStreaming(session.id), phase: this.store.livePhase(session.id)
-        });
-        return <LiveStatusLine key={session.id} status={status} />;
+        return <LiveStatusLine key={session.id} log={this.recordLiveStatus(session)} />;
     }
+
+    /** Recent status lines per chat, for the live status line. */
+    protected readonly liveLogs = new Map<string, readonly LiveStep[]>();
 
     /** Set by review clicks so the tracker update that follows counts as interaction (stops the countdown). */
     protected reviewTouched = false;

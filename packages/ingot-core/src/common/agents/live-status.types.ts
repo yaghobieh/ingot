@@ -13,6 +13,12 @@ export interface LiveStatus {
     readonly label: string;
 }
 
+/** One change of the status line, recorded when the store announced it; no status means the line steps aside. */
+export interface LiveStep {
+    readonly seq: number;
+    readonly status?: LiveStatus;
+}
+
 export interface LiveStatusInput {
     readonly session: Pick<AgentSession, 'status' | 'activeFile' | 'ask' | 'messages'>;
     /** The model loop is running for this chat. */
@@ -20,6 +26,8 @@ export interface LiveStatusInput {
     /** A model reply is streaming right now. */
     readonly streaming: boolean;
     readonly phase?: LivePhase;
+    /** Tool names the current round asked for, including the ones that have not started yet. */
+    readonly planned?: readonly string[];
 }
 
 /** Shell command kinds that read better as a plain sentence than as the command itself. */

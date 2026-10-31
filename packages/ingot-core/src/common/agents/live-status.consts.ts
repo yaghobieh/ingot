@@ -65,3 +65,7 @@ export const SCRIPT_RUNNER = 'npm run';
  * The line that ends a run is held just as long, so the last step is seen.
  */
 export const LIVE_STATUS_MIN_MS = 450;
+/** Lines that only say the run is going; a newer line replaces them at once. Every other kind is a step and is shown. */
+export const FLOW_KINDS: readonly LiveStatusKind[] = ['working', 'waiting', 'typing'];
+/** Steps kept per chat; older ones are dropped, so the line never lags far behind the run. */
+export const LIVE_LOG_MAX = 4;

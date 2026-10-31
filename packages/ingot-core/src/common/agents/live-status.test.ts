@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentMessage, AgentSession } from './agents.types';
-import { commandKind, holdRemaining, liveStatus, shortCommand } from './live-status';
-import type { LiveStatusInput } from './live-status.types';
+import { appendStep, commandKind, holdRemaining, liveStatus, nextStep, shortCommand } from './live-status';
+import type { LiveStatus, LiveStatusInput, LiveStep } from './live-status.types';
 import type { ToolCallInfo } from './tool-cards';
 
 const session = (over: Partial<AgentSession> = {}): LiveStatusInput['session'] => ({ status: 'thinking', messages: [], ...over });
@@ -43,6 +43,8 @@ describe('live status line', () => {
         // Reads of an earlier round do not count.
         expect(label([user, reply('On it.'), done(first), reply('More.'), tool('read_file', { path: 'b.ts' })])).toBe('Reading b.ts…');
         expect(label([user, reply('On it.'), done(first)])).toBe('Getting it done…');
+        // The round asked for three reads: the first one already says so.
+        expect(label([user, reply('On it.'), first], { planned: ['read_file', 'grep', 'read_file', 'read_file'] })).toBe('Reading 3 files…');
     });
 
     it('describes searches, commands and other tools in plain words', () => {
@@ -89,5 +91,32 @@ describe('live status line', () => {
     it('holds a line for the minimum time before the next one', () => {
         expect(holdRemaining(1_000, 1_100, 450)).toBe(350);
         expect(holdRemaining(1_000, 2_000, 450)).toBe(0);
+    });
+});
+
+describe('live status steps', () => {
+    const typing = { kind: 'typing', label: 'Typing…' } as const;
+    const search = { kind: 'searching', label: 'Searching the codebase…' } as const;
+    const working = { kind: 'working', label: 'Getting it done…' } as const;
+    const waiting = { kind: 'waiting', label: 'Thinking…' } as const;
+    const build = (...statuses: (LiveStatus | undefined)[]): readonly LiveStep[] => statuses.reduce<readonly LiveStep[]>(appendStep, []);
+
+    it('records each change once, with no empty start', () => {
+        expect(build(undefined)).toEqual([]);
+        expect(build(typing, typing, search).map(s => s.status?.label)).toEqual(['Typing…', 'Searching the codebase…']);
+        expect(build(typing, undefined).map(s => s.seq)).toEqual([1, 2]);
+        expect(build(typing, search, working, waiting, typing, search)).toHaveLength(4);
+    });
+
+    it('shows a quick step that already ended before catching up, but skips lines that only say the run is going', () => {
+        const log = build(typing, search, working, waiting);
+        // Typing… was up: the 5 ms search still shows next, then the latest line.
+        expect(nextStep(log, 1)?.status).toEqual(search);
+        expect(nextStep(log, 2)?.status).toEqual(waiting);
+        expect(nextStep(log, 4)).toBeUndefined();
+        // The run ended right after its wrap-up: "Almost there…" is still shown, then the line goes.
+        const end = build(typing, { kind: 'wrapping-up', label: 'Almost there…' }, undefined);
+        expect(nextStep(end, 1)?.status?.label).toBe('Almost there…');
+        expect(nextStep(end, 2)?.status).toBeUndefined();
     });
 });
