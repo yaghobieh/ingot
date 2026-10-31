@@ -12,7 +12,7 @@ describe('composerBarWidthClass (IDEA-188)', () => {
     });
 
     it('keeps attach, model and send in the bar and moves the extras into the menu', () => {
-        expect(COMPOSER_INLINE_IDS).toEqual(['ingot-composer-attach', 'ingot-composer-model', 'ingot-composer-more', 'ingot-composer-send']);
+        expect(COMPOSER_INLINE_IDS).toEqual(['ingot-composer-attach', 'ingot-composer-model', 'ingot-composer-sandbox', 'ingot-composer-more', 'ingot-composer-send']);
         expect([...COMPOSER_OVERFLOW_IDS]).toEqual(['ingot-composer-mode', 'ingot-composer-review', 'ingot-context-ring', 'ingot-composer-mic']);
         expect(COMPOSER_INLINE_IDS).not.toContain('ingot-composer-zaprex');
         expect(COMPOSER_OVERFLOW_IDS).not.toContain('ingot-composer-zaprex');

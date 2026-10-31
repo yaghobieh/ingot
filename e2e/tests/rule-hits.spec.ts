@@ -30,10 +30,10 @@ test.describe('IDEA-318 Rule Hits panel with provenance', () => {
         await expect(page.locator('#ingot-agents .ingot-chat-agent .ingot-md').last()).toHaveText('The App component is tidy now.');
         expect(server.requests.at(-1)!.system).toContain('MONO-ROOT-AGENTS');
 
-        // From the chat's "Read rules" step to the panel.
-        const read = page.locator('#ingot-agents .ingot-chat-read').filter({ hasText: 'Read rules' }).last();
-        await read.locator('.ingot-chat-read-label').click();
-        await read.getByRole('button', { name: 'Why these rules?' }).click();
+        // From the chat's Explored row (rules it loaded) to the panel.
+        const explored = page.locator('#ingot-agents #ingot-chat-explored').last();
+        await explored.locator('.ingot-chat-explored-head').click();
+        await explored.getByRole('button', { name: 'Why these rules?' }).click();
         await expect(panel(page)).toBeVisible();
         await expect(panel(page).locator('.ingot-rh-turn.latest .ingot-rh-prompt')).toHaveText('Tidy up the App component');
         await expect(hit(page, 'AGENTS.md').locator('.ingot-rh-reason')).toHaveText('AGENTS.md');

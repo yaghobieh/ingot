@@ -11,9 +11,9 @@ import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
 import type { MonacoEditorModel } from '@theia/monaco/lib/browser/monaco-editor-model';
 import { MonacoTextModelService } from '@theia/monaco/lib/browser/monaco-text-model-service';
 import * as monaco from '@theia/monaco-editor-core';
-import { CHANGES_PENDING_KEY, STREAM_APPLY_MS } from '../../common/changes/changes.consts';
-import type { ChangeHunk, Checkpoint, CodeChange, HunkState, RejectedHunksEvent } from '../../common/changes/changes.types';
-import { buildHunks, changeStats, composeText, decide, hunkLines, isPending, streamingPreview } from '../../common/changes/changes.utils';
+import { CHANGES_PENDING_KEY, REBASE_DEBOUNCE_MS, STREAM_APPLY_MS } from '../../common/changes/changes.consts';
+import type { AgentEditEvent, ChangeHunk, Checkpoint, CodeChange, HunkState, RejectedHunksEvent } from '../../common/changes/changes.types';
+import { buildHunks, changeStats, composeText, decide, hunkLines, isPending, rebaseChange, streamingPreview } from '../../common/changes/changes.utils';
 import { ACCEPT_EDIT_KEY_LABEL, REJECT_EDIT_KEY_LABEL } from './changes.browser-consts';
 import { formatCountdown } from '../../common/review/review';
 
@@ -69,6 +69,12 @@ export class ChangeTracker {
     protected readonly onDidRejectHunksEmitter = new Emitter<RejectedHunksEvent>();
     /** IDEA-328: hunks the user rejected (one event per decision), for learned rules. */
     readonly onDidRejectHunks: Event<RejectedHunksEvent> = this.onDidRejectHunksEmitter.event;
+    protected readonly onDidEditEmitter = new Emitter<AgentEditEvent>();
+    /** IDEA-262: file text before an agent edit and after its review (Local History). */
+    readonly onDidEdit: Event<AgentEditEvent> = this.onDidEditEmitter.event;
+    protected readonly onDidRejectEmitter = new Emitter<{ change: CodeChange; hunks: readonly ChangeHunk[] }>();
+    /** IDEA-296: hunks the user rejected (Habits learns the styles they keep rejecting). */
+    readonly onDidReject: Event<{ change: CodeChange; hunks: readonly ChangeHunk[] }> = this.onDidRejectEmitter.event;
 
     protected items: CodeChange[] = [];
     protected checkpointList: Checkpoint[] = [];
@@ -88,6 +94,10 @@ export class ChangeTracker {
     protected readonly pinned = new Set<string>();
     /** Serializes preview replacement so two files never open two tabs. */
     protected previewQueue: Promise<unknown> = Promise.resolve();
+    /** Nonzero while the tracker writes a model itself, so only other edits trigger a rebase. */
+    protected applying = 0;
+    protected readonly editListeners = new Map<string, { dispose(): void }>();
+    protected readonly rebaseTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
     @postConstruct()
     protected init(): void {
@@ -201,6 +211,9 @@ export class ChangeTracker {
             clearTimeout(state.timer);
         }
         this.streams.delete(change.id);
+        if (!change.created) {
+            this.onDidEditEmitter.fire({ uri: change.uri, sessionId, phase: 'before', text: change.oldText });
+        }
         const hunks = buildHunks(change.oldText, newText, `${change.id}-h`);
         const final: CodeChange = { ...change, messageIndex, newText, hunks, status: hunks.length ? 'applied' : 'accepted' };
         await this.applyText(final, newText, true);
@@ -236,12 +249,21 @@ export class ChangeTracker {
     }
 
     async decide(id: string, hunkIds: readonly string[] | 'all', state: HunkState): Promise<void> {
+        const queued = this.find(id)?.uri;
+        if (queued && this.rebaseTimers.has(queued)) {
+            clearTimeout(this.rebaseTimers.get(queued));
+            this.rebaseTimers.delete(queued);
+            await this.rebase(queued);
+        }
         const change = this.find(id);
         if (!change || change.status === 'streaming') {
             return;
         }
         const next = decide(change, hunkIds, state);
-        const rejected = state === 'rejected' ? change.hunks.filter(h => h.state === 'pending' && (hunkIds === 'all' || hunkIds.includes(h.id))) : [];
+        const rejected = state === 'rejected' ? next.hunks.filter(h => h.state === 'rejected' && change.hunks.find(o => o.id === h.id)?.state !== 'rejected') : [];
+        if (rejected.length) {
+            this.onDidRejectEmitter.fire({ change: next, hunks: rejected });
+        }
         this.replace(next);
         if (rejected.length) {
             this.onDidRejectHunksEmitter.fire({ sessionId: change.sessionId, path: change.path, hunks: rejected });
@@ -455,6 +477,8 @@ export class ChangeTracker {
             // editor gets dirty" raced it and the two editors for one file closed each other with a save prompt.
             ref = this.textModels.createModelReference(new URI(uri)).then(r => {
                 r.object.suppressOpenEditorWhenDirty = true;
+                this.editListeners.get(uri)?.dispose();
+                this.editListeners.set(uri, r.object.textEditorModel.onDidChangeContent(() => this.onForeignEdit(uri)));
                 return r;
             });
             this.refs.set(uri, ref);
@@ -469,6 +493,8 @@ export class ChangeTracker {
         }
         const ref = await this.refs.get(change.uri)?.catch(() => undefined);
         this.refs.delete(change.uri);
+        this.editListeners.get(change.uri)?.dispose();
+        this.editListeners.delete(change.uri);
         if (ref) {
             ref.object.suppressOpenEditorWhenDirty = false;
             ref.dispose();
@@ -482,10 +508,45 @@ export class ChangeTracker {
             return;
         }
         const edit = [{ range: model.getFullModelRange(), text }];
-        if (undoable) {
-            model.pushEditOperations([], edit, () => null);
-        } else {
-            model.applyEdits(edit);
+        this.applying++;
+        try {
+            if (undoable) {
+                model.pushEditOperations([], edit, () => null);
+            } else {
+                model.applyEdits(edit);
+            }
+        } finally {
+            this.applying--;
+        }
+    }
+
+    /** IDEA-268: the user typed in a file with pending hunks (editor or review diff), or it was reloaded from disk. */
+    protected onForeignEdit(uri: string): void {
+        if (this.applying) {
+            return;
+        }
+        clearTimeout(this.rebaseTimers.get(uri));
+        this.rebaseTimers.set(uri, setTimeout(() => {
+            this.rebaseTimers.delete(uri);
+            void this.rebase(uri);
+        }, REBASE_DEBOUNCE_MS));
+    }
+
+    /** Re-diffs the pending hunks of a file against its current text, so decisions apply to what the user sees. */
+    async rebase(uri: string): Promise<void> {
+        const text = await this.bufferText(uri);
+        if (text === undefined) {
+            return;
+        }
+        for (const change of this.items.filter(c => c.uri === uri && isPending(c) && c.status !== 'streaming')) {
+            if (composeText(change.oldText, change.hunks) === text) {
+                continue;
+            }
+            const next = rebaseChange(change, text, `${change.id}-r${++this.counter}-h`);
+            this.replace(next);
+            if (!isPending(next)) {
+                await this.settle(next);
+            }
         }
     }
 
@@ -500,7 +561,9 @@ export class ChangeTracker {
             await this.files.delete(new URI(change.uri)).catch(() => undefined);
         } else {
             const ref = await this.refFor(change.uri);
-            await this.applyText(change, composeText(change.oldText, change.hunks), true);
+            const text = composeText(change.oldText, change.hunks);
+            await this.applyText(change, text, true);
+            this.onDidEditEmitter.fire({ uri: change.uri, sessionId: change.sessionId, phase: 'after', text });
             await ref.object.save();
             await this.release(change.id);
         }

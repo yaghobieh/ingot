@@ -12,6 +12,8 @@ import {
 import { AiCommitService } from '../commit/ai-commit-service';
 import { IngotModelClient } from '../models/model-client';
 import { ProcessStore } from '../processes/process-store';
+import { ProjectConfigService } from '../project-config/project-config-service';
+import { bugbotGuidance } from '../../common/project-config/bugbot.utils';
 
 export interface HooksRun {
     readonly stage: HookStage;
@@ -34,6 +36,7 @@ export class AgentHooksService {
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
     @inject(AiCommitService) protected readonly aiCommit: AiCommitService;
+    @inject(ProjectConfigService) protected readonly projectConfig: ProjectConfigService;
 
     protected readonly onDidChangeEmitter = new Emitter<HooksRun | undefined>();
     /** Fires while a run goes (step by step) and when it ends; `undefined` clears the panel. */
@@ -96,7 +99,7 @@ export class AgentHooksService {
             publish(false);
             let result: HookStepResult;
             if (isAgentStep(step)) {
-                result = await this.runAgentStep(step, stage, diff, startedAt);
+                result = await this.runAgentStep(step, stage, diff, startedAt, root);
             } else {
                 const timeoutMs = (step.timeoutSeconds ?? HOOK_TIMEOUT_SECONDS) * 1000;
                 const out = await this.processes.service.run({ cwd: root, command: step.run, origin: 'agent', timeoutMs, maxOutput: 20_000 })
@@ -117,14 +120,17 @@ export class AgentHooksService {
         return publish(!failed && !errors.length);
     }
 
-    protected async runAgentStep(step: { name: string; agent: string }, stage: HookStage, diff: (() => Promise<string>) | undefined, startedAt: number): Promise<HookStepResult> {
+    protected async runAgentStep(step: { name: string; agent: string }, stage: HookStage, diff: (() => Promise<string>) | undefined, startedAt: number, root: string): Promise<HookStepResult> {
         const model = this.aiCommit.pickModel();
         if (!model) {
             return { step, state: 'failed', output: 'No model is ready for agent checks. Sign in to Ingot or connect a model, or bypass this time.', startedAt, endedAt: Date.now() };
         }
         try {
             const text = await (diff ? diff() : this.aiCommit.collectDiff());
-            const answer = await this.models.stream(model, [{ role: 'user', content: agentHookPrompt(step, stage, text) }], () => undefined,
+            // IDEA-287: BUGBOT.md review guidelines (root and the folders of changed files) apply to agent checks.
+            const guidance = bugbotGuidance(await this.projectConfig.loadBugbot(this.rootUri(root)).catch(() => []), text);
+            const content = [agentHookPrompt(step, stage, text), guidance].filter(Boolean).join('\n\n');
+            const answer = await this.models.stream(model, [{ role: 'user', content }], () => undefined,
                 { feature: 'agent_hook', maxTokens: 300, temperature: 0 }).done;
             const verdict = agentVerdict(answer);
             return { step, state: verdict.passed ? 'passed' : 'failed', output: answer.trim(), startedAt, endedAt: Date.now() };

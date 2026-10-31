@@ -6,8 +6,6 @@ import { app, Menu, nativeImage, type BrowserWindow } from '@theia/core/electron
 import { injectable } from '@theia/core/shared/inversify';
 import type { ElectronMainApplication, ElectronMainApplicationContribution } from '@theia/core/lib/electron-main/electron-main-application';
 import { parseRecentProjects, RECENT_WORKSPACE_FILE, type RecentProject } from '../common/recent/recent-projects';
-import { PRODUCT } from '../common/product.consts';
-
 /**
  * The @ingot/core resources folder (IDEA-108). In the bundled app the main process runs from
  * applications/electron/lib/backend, so `__dirname/../../resources` is the app's own copy (esbuild.mjs puts it there);
@@ -44,7 +42,6 @@ export class IngotElectronMainContribution implements ElectronMainApplicationCon
 
     onStart(application?: ElectronMainApplication): void {
         this.application = application;
-        app.setName(PRODUCT.name);
         this.installRecentMenus();
         const icon = nativeImage.createFromPath(APP_ICON_PATH);
         if (icon.isEmpty()) {

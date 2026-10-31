@@ -29,8 +29,8 @@ export class IngotLayoutContribution implements CommandContribution, MenuContrib
         return toChatPosition(this.preferences.get(LAYOUT_PREFS.chatPosition));
     }
 
-    /** Called by the shell once the default layout (with the Agents panel) is in place. */
-    async start(): Promise<void> {
+    /** Called by the shell once the layout (with the Agents panel) is in place; a restored layout keeps the chat as it was. */
+    async start(restored = false): Promise<void> {
         if (this.started) {
             return;
         }
@@ -43,7 +43,7 @@ export class IngotLayoutContribution implements CommandContribution, MenuContrib
         });
         await this.apply();
         // The shell starts with the bottom panel folded; a bottom-docked chat opens with the window.
-        if (this.chatPosition === 'bottom') {
+        if (this.chatPosition === 'bottom' && !restored) {
             await this.shell.revealWidget(AGENTS_WIDGET_ID);
         }
     }

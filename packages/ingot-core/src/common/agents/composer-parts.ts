@@ -24,7 +24,7 @@ const tidy = (text: string): string => text.replace(/[ \t]+\n/g, '\n').replace(/
 
 const codeBlock = (part: Extract<ComposerPart, { kind: 'code' }>): string => {
     const { chip } = part;
-    const what = chip.whole ? `File ${chip.path}` : `Selected code from ${chip.path} (lines ${chip.start}-${chip.end})`;
+    const what = chip.rule ? `Project rule ${chip.rule} (${chip.path}), follow it for this request` : chip.whole ? `File ${chip.path}` : `Selected code from ${chip.path} (lines ${chip.start}-${chip.end})`;
     return `\n[${chipLabel(chip)}] ${what}:\n\`\`\`\n${chip.text.replace(/\n$/, '')}\n\`\`\`\n`;
 };
 

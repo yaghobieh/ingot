@@ -26,5 +26,13 @@
   .ingot-mark .im-dots { display: none; }
 }
 
+/* Rex / agent icon: the </> glyph alone on a transparent background, with a soft blue glow that stays visible at 16px. */
+.ingot-rex-mark { display: inline-block; flex: none; overflow: visible; background: none; vertical-align: middle; filter: drop-shadow(0 0 1.5px color-mix(in srgb, var(--ingot-rex-glow) 55%, transparent)); }
+.ingot-rex-mark .ingot-rex-stop-light { stop-color: var(--ingot-rex-light); }
+.ingot-rex-mark .ingot-rex-stop-mid { stop-color: var(--ingot-rex-mid); }
+.ingot-rex-mark .ingot-rex-stop-deep { stop-color: var(--ingot-rex-deep); }
+.ingot-rex-mark .ingot-rex-glow { stroke: var(--ingot-rex-glow); opacity: .55; }
+.ingot-rex-mark .ingot-rex-edge { stroke: var(--ingot-rex-edge); stroke-opacity: .92; }
+
 /* The animated mark sits on top of the static icon background (kept for consistency and fallbacks). */
 .ingot-app-icon.ingot-mark-host { background-size: 0 0 !important; display: inline-flex; align-items: center; justify-content: center; }

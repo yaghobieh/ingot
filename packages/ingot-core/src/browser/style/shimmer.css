@@ -1,0 +1,31 @@
+/*
+ * Agent "working" text: a bright band sweeps across muted text once every 1.5 s (Getting it done…, Thinking…).
+ * Light themes: the band is near the panel white, so the text gleams. Dark themes: the band is the bright text color.
+ * Reduced motion: plain muted text.
+ */
+.ingot-shimmer {
+    --ingot-shimmer-base: var(--ingot-text-muted);
+    --ingot-shimmer-glint: color-mix(in srgb, var(--ingot-text-muted) 18%, var(--ingot-surface));
+    background-image: linear-gradient(100deg,
+        var(--ingot-shimmer-base) 0%, var(--ingot-shimmer-base) 38%,
+        var(--ingot-shimmer-glint) 50%,
+        var(--ingot-shimmer-base) 62%, var(--ingot-shimmer-base) 100%);
+    background-size: 250% 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: ingot-shimmer-sweep 1.5s linear infinite;
+}
+[data-theme='dark'] .ingot-shimmer,
+body.theia-dark .ingot-shimmer,
+body.ingot-dark .ingot-shimmer,
+body.theia-hc .ingot-shimmer { --ingot-shimmer-glint: var(--ingot-text); }
+@keyframes ingot-shimmer-sweep { from { background-position: 100% 0; } to { background-position: 0% 0; } }
+@media (prefers-reduced-motion: reduce) {
+    .ingot-shimmer { animation: none; background-image: none; color: var(--ingot-shimmer-base); }
+}
+
+/* The status line at the end of a running chat. */
+.ingot-chat-working { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: 12px; line-height: 18px; }
+.ingot-chat-working-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

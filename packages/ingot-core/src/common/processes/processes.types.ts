@@ -1,4 +1,6 @@
 import type { RpcServer } from '@theia/core/lib/common/messaging';
+import type { SandboxSpec } from '../policy/agent-policy.types';
+import type { HookRunOutput } from '../hooks/agent-hooks.types';
 
 /** IDEA-131/132: processes started by the agent (or the user from the chat's process list). */
 export type ProcessStatus = 'running' | 'exited' | 'failed' | 'stopped';
@@ -19,6 +21,8 @@ export interface ProcessInfo {
     readonly pid?: number;
     /** Ports found in the output ("Local: http://localhost:5173"). */
     readonly ports: readonly number[];
+    /** IDEA-263: runs inside the OS sandbox (writes only in the project). */
+    readonly sandboxed?: boolean;
 }
 
 export interface ProcessStartOptions {
@@ -26,6 +30,10 @@ export interface ProcessStartOptions {
     readonly command: string;
     readonly origin?: ProcessOrigin;
     readonly background?: boolean;
+    /** IDEA-263: run in the OS sandbox where the platform has one. */
+    readonly sandbox?: SandboxSpec;
+    /** IDEA-288: extra environment, e.g. the proxy settings that keep a sandboxed command off the network. */
+    readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface ForegroundOptions extends ProcessStartOptions {
@@ -39,6 +47,8 @@ export interface ForegroundResult {
     readonly output: string;
     /** Still running after the timeout: it was moved to the background. */
     readonly movedToBackground: boolean;
+    /** IDEA-263: the sandbox refused something the command tried (a write outside the project). */
+    readonly sandboxDenied?: boolean;
 }
 
 export interface ProcessOutput {
@@ -66,6 +76,20 @@ export interface WorkspaceSearchQuery {
     readonly regex?: boolean;
     /** List matching files instead of matching lines. */
     readonly files: boolean;
+    /** IDEA-287: several file globs (files mode). */
+    readonly globs?: readonly string[];
+    /** IDEA-294: honour `.ingotignore` / `.cursorignore` in the root (agent searches). */
+    readonly agentIgnore?: boolean;
+}
+
+/** IDEA-294: one agent hook command: JSON on stdin, JSON (or exit code 2) back. */
+export interface HookRunOptions {
+    readonly cwd: string;
+    readonly command: string;
+    readonly input: string;
+    readonly timeoutMs: number;
+    /** IDEA-287: the project root for `INGOT_PROJECT_DIR` / `CURSOR_PROJECT_DIR` when the command runs elsewhere (user hooks). */
+    readonly projectDir?: string;
 }
 
 export interface WorkspaceSearchResult {
@@ -92,4 +116,6 @@ export interface ProcessService extends RpcServer<ProcessClient> {
     /** Removes finished processes from the list. */
     clearFinished(): Promise<void>;
     scripts(cwd: string): Promise<PackageScripts | undefined>;
+    /** IDEA-294: runs an agent hook command (not listed as a process). */
+    runHook(options: HookRunOptions): Promise<HookRunOutput>;
 }

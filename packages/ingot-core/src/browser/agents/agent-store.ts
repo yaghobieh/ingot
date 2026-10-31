@@ -1,7 +1,6 @@
 import { inject, injectable, optional } from '@theia/core/shared/inversify';
 import { RuleHitsStore } from '../rules-insight/rule-hits-store';
 import { RulesToolsService } from '../../common/rules-tools/rules-tools.types';
-import type { ProjectRule } from '../../common/project-config/project-config.types';
 import { IngotModelClient } from '../models/model-client';
 import { ZaprexLauncher } from './zaprex-launcher';
 import { ZaprexDesktopService } from '../../common/zaprex/zaprex-desktop.types';
@@ -16,40 +15,52 @@ import { findModel, supportsVision } from '../../common/models/models.utils';
 import type { ComposedMessage } from '../../common/agents/composer-parts.types';
 import { reorderTabs, tabTitleFromText, togglePinOrder } from '../../common/agents/chat-tabs';
 import { BUILD_PROMPT, MAX_SUB_AGENTS, TERMINAL_CONTEXT_LINES, modeInfo } from '../../common/agents/agent-modes';
-import { CHATS_STORAGE_KEY, parseChats, serializeChats } from '../../common/agents/chat-history';
-import { SUMMARIZE_PROMPT, contextUsage, estimateTokens } from '../../common/agents/context-usage';
-import { MEMORY_PROTOCOL, extractMemories, formatMemories, relevantMemories } from '../../common/memories/memories';
+import { modeBlockedResult, toolAllowedInMode } from '../../common/agents/mode-tools';
+import { CHATS_STORAGE_KEY, mergeWindowChats, parseChats, serializeChats, windowChats } from '../../common/agents/chat-history';
+import { SUMMARIZE_PROMPT, contextUsage, estimateTokens, usageRatio } from '../../common/agents/context-usage';
+import { DEFAULT_SCOPE, MEMORY_PROTOCOL, extractMemories, formatMemories, relevantMemories, type MemoryNote } from '../../common/memories/memories';
 import { MemoryStore } from './memory-store';
+import { formatAutoContext, sentAutoContext } from '../../common/agents/auto-context';
+import type { AutoAttach } from '../../common/agents/auto-context.types';
+import { extractFollowUps, followUpsFor } from '../../common/agents/follow-ups';
+import { FOLLOW_UPS_PROTOCOL } from '../../common/agents/follow-ups.consts';
+import type { CheckOutcome } from '../../common/agents/follow-ups.types';
+import { misreadTask } from '../../common/agents/task-intent';
+import { ACT_NUDGE, AGENT_WORKFLOW, EXPLAIN_NUDGE } from '../../common/agents/task-intent.consts';
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service';
 import { postConstruct } from '@theia/core/shared/inversify';
 import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
-import { ACTIVE_STATUSES, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE, STREAM_POKE_MS } from '../../common/agents/agents.consts';
+import { ACTIVE_STATUSES, AGENT_MAX_TOKENS, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE, STREAM_POKE_MS } from '../../common/agents/agents.consts';
 import type { AgentMessage, AgentMode, AgentSession, SentPromptEvent } from '../../common/agents/agents.types';
 import type { ToolCallInfo } from '../../common/agents/tool-cards';
 import { hookCardInfo } from '../../common/git/hooks';
 import { AgentHooksService } from '../hooks/agent-hooks-service';
 import { activeAgentCount, resolveLoopGeneration, titleFromPrompt } from '../../common/agents/agents.utils';
-import { CREATE_LIBRARY_TOOL, LIBRARY_COMMAND_TIMEOUT_SECONDS, LIBRARY_EXAMPLE_DEPTH, OPEN_WORKSPACE_DELAY_MS, OPEN_WORKSPACE_TOOL, TEMPLATE_NOTE } from '../../common/agents/library-app.consts';
+import {
+    CREATE_LIBRARY_TOOL, LIBRARY_COMMAND_TIMEOUT_SECONDS, LIBRARY_EXAMPLE_DEPTH, LIBRARY_TEMPLATE_PREF, OPEN_WORKSPACE_DELAY_MS, OPEN_WORKSPACE_TOOL, TEMPLATE_NOTE
+} from '../../common/agents/library-app.consts';
 import {
     isNodeStructure, isReactStructure, libraryCommandNeedsTime, libraryFiles, libraryNudge, libraryPathError, nodeStructureFromTree, parseLibraryPrompt, reactStructureFromTree, wantsProjectSkills
 } from '../../common/agents/library-app';
 import type { NodeStructure, ReactStructure } from '../../common/agents/library-app.types';
 import { chipLabel, expandWithChips, type ContextChip } from '../../common/agents/context-chips';
-import { AGENT_PROTOCOL, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
+import { AGENT_PROTOCOL, TOOL_CALL_FORMAT, formatContextFiles, parseAgentOutput, parseMentions, type AgentEdit } from '../../common/agents/agent-protocol';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
+import { parseFolderMentions } from '../../common/agents/agent-panel';
+import { FOLDER_LISTING_LIMIT } from '../../common/agents/agent-panel.consts';
 import {
     GREP_MAX_FILE_BYTES, GREP_MAX_FILES, GREP_MAX_MATCHES, GLOB_MAX_PATHS, compileGitignore, githubRepoFromRemote, globMatcher, grepMatcher,
     answerFromFiles, answerFromProject, asksAboutOpenProject, FILE_ANSWER_PATHS, fileQuestionGlob, globPaths, isPromptEcho, isTextCandidate, isWorkspaceTool, LIST_MAX_ENTRIES, numberLines, parseRgFiles, parseRgMatches,
     printsShellInsteadOfRunning, PROJECT_ENTRY_FILES, SHELL_NUDGE, shellReadsAsTools, textForRead,
-    SKIPPED_DIRS, withRepoDefaults, workspaceProtocol, type GitHubRepo, type WorkspaceInfo
+    SKIPPED_DIRS, withRepoDefaults, WORKSPACE_TOOLS, workspaceProtocol, type GitHubRepo, type WorkspaceInfo
 } from '../../common/agents/workspace-tools';
 import { MAX_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
 import {
-    CHECKS_PASSED_PREFIX, MAX_FIX_ATTEMPTS, MAX_TOOL_ROUNDS_CAP, MULTI_FILE_EDITS, REMOTE_BLOCKED, REVIEW_THEN_CHECKS, TOOL_ROUNDS_STOP, WORK_LOOP_PREFS
+    CHECKS_PASSED_PREFIX, CONTINUE_NUDGE, EMPTY_REPLY_NUDGE, MAX_FIX_ATTEMPTS, MAX_TOOL_ROUNDS_CAP, MULTI_FILE_EDITS, REMOTE_BLOCKED, REVIEW_THEN_CHECKS, TOOL_ROUNDS_STOP, WORK_LOOP_PREFS
 } from '../../common/agents/work-loop.consts';
 import {
-    WORK_LOOP_PROTOCOL, checkFailNudge, checkPassed, checksPassedNudge, commitBlockReason, detectChecks, detectE2eFramework, e2eNudge, isRemoteCodeFetch,
+    WORK_LOOP_PROTOCOL, checkFailNudge, checkPassed, checksPassedNudge, commitBlockReason, cutEditNudge, detectChecks, promisesMoreWork, shellGitBlockReason, detectE2eFramework, e2eNudge, isRemoteCodeFetch,
     isTestPath, isUiPath, needsE2eNudge, planFromEdits, stopMessage, summaryText, userAllowsWeakerTests, userAskedForRemote, wantsCommit,
     wantsE2e, wantsWorkLoop, weakensTests, withCheckEnv
 } from '../../common/agents/work-loop';
@@ -63,25 +74,41 @@ import { ChangeTracker, type ChangeOrigin } from '../changes/change-tracker';
 import { restorePlan } from '../../common/changes/changes.utils';
 import { ProjectConfigService } from '../project-config/project-config-service';
 import { IngotMcpClient } from '../project-config/mcp-client';
-import { applicableRules, expandCommand, formatRules } from '../../common/project-config/project-config.utils';
-import type { ProjectCommand } from '../../common/project-config/project-config.types';
-import { toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
+import { applicableRules, expandCommand, findRule, formatRuleIndex, formatRules, requestableRules } from '../../common/project-config/project-config.utils';
+import { formatEnvironment } from '../../common/project-config/environment.utils';
+import type { IgnoreRules, ProjectCommand, ProjectRule } from '../../common/project-config/project-config.types';
+import { FETCH_RULE_TOOL } from '../../common/project-config/project-config.consts';
+import { AgentEventHooks } from '../hooks/agent-event-hooks';
+import type { AgentHookEvent, AgentHookOutcome } from '../../common/hooks/agent-hooks.types';
+import { hookBlockedText, hookOutcomeText } from '../../common/hooks/agent-hooks.utils';
+import { HabitRunner } from '../habits/habit-runner';
+import { HABIT_TICKED_REPLY, USE_HABIT_TOOL } from '../../common/habits/playbook.consts';
+import { stripHabitMarks } from '../../common/habits/playbook.utils';
+import { cutAfterToolCalls, toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
 import { MADE_WITH_PREF, withMadeWith } from '../../common/git/made-with';
 import { clampPieces, HARMONY_DEFAULTS, HARMONY_PREFS, harmonyLock, harmonyPrompt, isHeavyRun, pickHarmonyPiece, type HarmonyPiece } from '../../common/agents/harmony';
+import { isHeavyRunWeight, runWeight } from '../../common/agents/rex-handoff';
+import { LONG_RUN_MS } from '../../common/agents/rex-handoff.consts';
 import {
-    APPROVAL_PREFS, BUILTIN_TOOLS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
-    updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind
+    APPROVAL_PREFS, BUILTIN_TOOLS, BUILTIN_TOOL_SERVER, actionLine, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
+    unknownToolResult, updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind,
+    type BuiltinToolSwitches
 } from '../../common/agents/agent-actions';
 import { ProcessStore } from '../processes/process-store';
 import type { ImageChip } from '../../common/agents/composer-parts.types';
 import { BrowserController } from '../browser-tool/browser-controller';
-import { BROWSER_READ_TOOLS, browserNeedsCard, browserToolSettings } from '../../common/browser-tool/browser-settings';
-import { toTarget } from '../../common/browser-tool/browser-tool.utils';
+import { TestStore } from '../testing/test-store';
+import { DEFAULT_TEST_ITERATIONS, RUN_TESTS_TOOL, TEST_LOOP_PREFS, TESTS_CAPPED_TEXT } from '../../common/testing/testing.consts';
+import { clampIterations, formatForAgent, requestFromArgs, testLoopStep } from '../../common/testing/testing.utils';
+import { BROWSER_READ_TOOLS, browserNeedsCard, browserToolSettings, browserToolsOn } from '../../common/browser-tool/browser-settings';
+import { browserRunTask, consoleFilter, toTarget } from '../../common/browser-tool/browser-tool.utils';
+import { BROWSER_RUN_COMMAND, BROWSER_RUN_NOTE, BROWSER_RUN_ONLY_TEXT } from '../../common/browser-tool/browser-tool.consts';
 import { describeProcesses, isSafeScriptName, scriptCommand } from '../../common/processes/processes.utils';
 import { OUTPUT_POLL_MS } from '../../common/processes/processes.consts';
 import { truncateForEdit } from '../../common/agents/chat-thread';
+import { SteerQueue } from '../../common/agents/steer-queue';
 import { ASK_STOPPED, ASK_USER_TOOL } from '../../common/agents/chat-round.consts';
 import { conflictWarning, stampThought, toggleReaction } from '../../common/agents/chat-round';
 import type { ReactionKind } from '../../common/agents/chat-round.types';
@@ -89,6 +116,64 @@ import { runToolSettings, type RunToolSettings } from '../../common/processes/ru
 import { AgentActionsService, type AgentActionResult } from '../../common/agents/agent-actions-service';
 import { GitService } from '../../common/git/git.types';
 import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
+import { applyTextEdits, codeToolStep, findSymbolPosition, formatDiagnostics, formatLocations, isCodeEditTool, isCodeTool, parseNewName, parseSymbolTarget, severityFilter } from '../../common/agents/code-tools';
+import { CodeToolsService, type CodeEditResult } from './code-tools-service';
+import { CodebaseIndexStore } from '../codebase-index/codebase-index-store';
+import { CODEBASE_SEARCH_TOOL, INDEX_DIR } from '../../common/codebase-index/codebase-index.consts';
+import { formatSearchResult } from '../../common/codebase-index/codebase-index.utils';
+import { AgentPolicyService } from '../policy/agent-policy-service';
+import { AgentAuditLog } from '../policy/agent-audit-log';
+import { POLICY_FILE, SANDBOX_TEXT } from '../../common/policy/agent-policy.consts';
+import type { PolicyDecision, SandboxSpec } from '../../common/policy/agent-policy.types';
+import { checkEdit, checkToolCall, outsideApproval, policyBlockedText, sandboxRetryApproval, sandboxSpec } from '../../common/policy/agent-policy.utils';
+import type { AuditDecision, AuditEntryInput } from '../../common/audit/agent-audit.types';
+import { toolSummary } from '../../common/audit/agent-audit.utils';
+import { GOAL_BUDGET_TEXT, GOAL_DONE_TEXT, GOAL_PREFS, GOAL_STOPPED_TEXT, GOAL_USAGE } from '../../common/agents/goal.consts';
+import { applyGoalCheck, createGoal, decideGoal, goalLimits, goalProtocol, parseGoalCheck, parseGoalCommand, stripGoalCheck } from '../../common/agents/goal';
+import type { GoalStopReason } from '../../common/agents/goal.types';
+import { customModeFrom, customModePrompt, findModeCommand } from '../../common/agents/custom-mode';
+import type { CustomMode } from '../../common/agents/custom-mode.types';
+import { NETWORK_OFF_ENV } from '../../common/sandbox/sandbox.consts';
+import type { SandboxCheck } from '../../common/sandbox/sandbox.types';
+import { blocksNetwork, checkSandbox, editIntent, gateDecision, refusalText, sandboxNote, toolIntent } from '../../common/sandbox/sandbox.utils';
+import { SandboxPresetService } from '../sandbox/sandbox-preset-service';
+import { AutoReviewer } from '../sandbox/auto-reviewer';
+import { ArtifactService } from '../artifacts/artifact-service';
+import { ARTIFACT_TOOL } from '../../common/artifacts/artifacts.consts';
+import { parseArtifactArgs } from '../../common/artifacts/artifacts.utils';
+import { isTaskCall, parseTaskArgs, taskChildPrompt, taskResultText, worktreeBranch, worktreeName } from '../../common/agents/subagent-task';
+import { MAX_PARALLEL_TASKS, NESTED_TASK_ERROR, SUBAGENT_STEP_PREFIX, TASK_TOOL, TOO_MANY_TASKS } from '../../common/agents/subagent-task.consts';
+import type { TaskOutcome, TaskRequest } from '../../common/agents/subagent-task.types';
+import { DecisionLedger } from '../decisions/decision-ledger';
+import { FrozenStore } from '../frozen/frozen-store';
+import { AntiHabitStore } from '../doom-loop/anti-habit-store';
+import { DECISION_ASK_OPTIONS, DECISION_NOTES, DECISIONS_PROTOCOL } from '../../common/decisions/decisions.consts';
+import type { DecisionConflict } from '../../common/decisions/decisions.types';
+import { addedLines, conflictQuestion, decisionKey, decisionMarks, decisionsToCapture, formatDecisions, keptDecisionNote } from '../../common/decisions/decisions.utils';
+import { FROZEN_ASK_OPTIONS, FROZEN_NOTES } from '../../common/frozen/frozen.consts';
+import { formatFrozen, frozenQuestion, isTestCommand, keptFrozenNote } from '../../common/frozen/frozen.utils';
+import { DEFAULT_MAX_REPEATS, DOOM_ACTIONS, DOOM_MESSAGES, DOOM_NOTE, DOOM_PREFS, MIN_MAX_REPEATS } from '../../common/doom-loop/doom-loop.consts';
+import type { DoomState } from '../../common/doom-loop/doom-loop.types';
+import { detectDoom, differentApproachNudge, formatAntiHabits, observeEdit, observeReply, observeResult, startDoom } from '../../common/doom-loop/doom-loop.utils';
+import type { HabitEvent, HabitNoteInfo } from '../../common/habits/habits.types';
+import { HABIT_NOTE_LABELS, HABIT_NOTE_TEXT } from '../../common/habits/habits.consts';
+import { habitNoteDetail, savedHabitFocus, savedHabitKey } from '../../common/habits/habits.utils';
+
+/** What the user chose when the agent was about to contradict a locked decision or change a frozen zone. */
+type GuardChoice = 'keep' | 'allow' | 'release' | 'stopped';
+/** After the guards: the agent should revise (edits were kept out), or the user stopped the run. */
+type GuardOutcome = 'revise' | 'stopped' | undefined;
+import { FreshContextService } from '../fresh-context/fresh-context-service';
+import { PlanReviewService } from '../plan-review/plan-review-service';
+import { ModelRouter } from '../router/model-router';
+import type { LearnedHabit } from '../../common/habits/learned.types';
+import { learnedLabel, learnedPrefFocus } from '../../common/habits/learned.utils';
+import { CONTINUE_PROMPT } from '../../common/fresh-context/fresh-context.consts';
+import type { RotVerdict } from '../../common/fresh-context/fresh-context.types';
+import { briefPath, briefPrompt, buildBrief, changesDiff, countFailures, countTurns, freshTitle, offerAllowed, recentFailures, rotSummary } from '../../common/fresh-context/fresh-context.utils';
+import { reviewHeadline } from '../../common/plan-review/plan-review.utils';
+import { classifyTask, taskTypeLabel } from '../../common/router/router.utils';
+import { DEFAULT_SYSTEM_TOKENS } from '../../common/cost/cost.consts';
 
 let nextId = 1;
 const newChatId = (): string => `chat-${Date.now().toString(36)}-${nextId++}`;
@@ -118,6 +203,9 @@ export class AgentStore {
     protected readonly handoffs = new Map<string, Promise<void>>();
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(BrowserController) protected readonly browser: BrowserController;
+    @inject(TestStore) protected readonly tests: TestStore;
+    /** IDEA-261: red run_tests results in the current user turn, capped by the max-iterations setting. */
+    protected readonly testIterations = new Map<string, number>();
     /** IDEA-109: runs waiting on the approval card, per session. */
     protected readonly approvals = new Map<string, (choice: { decision: ApprovalDecision; reason?: string; stopped?: boolean }) => void>();
     /** IDEA-105: paused runs waiting for Continue (or the countdown), per session. */
@@ -126,16 +214,24 @@ export class AgentStore {
     protected readonly streamingEdits = new Map<string, Promise<string | undefined>>();
     /** IDEA-248: work-loop state for the current user turn, not saved with the chat. */
     protected readonly loops = new Map<string, LoopState>();
+    /** IDEA-267: IDE context attached to the latest user turn, per chat; not saved with the chat. */
+    protected readonly autoContexts = new Map<string, AutoAttach>();
     /** Chats whose model loop is on the stack, so accepting a review does not start a second one. */
     protected readonly modelLoops = new Set<string>();
     /** Answers waiting on ingot/ask_user. Undefined means the user stopped. */
     protected readonly answers = new Map<string, (text: string | undefined) => void>();
     /** Messages typed while a run is in progress, delivered on the next round. */
     protected readonly steers = new Map<string, string[]>();
+    /** IDEA-280: steer messages the model has not read yet (shown with a "Queued" chip). */
+    protected readonly queuedSteers = new SteerQueue<AgentMessage>();
+    /** IDEA-289: chats whose current run was started with /browser (the browser tools are on until it ends). */
+    protected readonly browserRuns = new Set<string>();
     /** Nested runModel calls for one chat. The set stays until the outermost call returns. */
     protected readonly loopDepth = new Map<string, number>();
     /** Bumped by send and stop so a replaced or stopped turn cannot keep writing. */
     protected readonly loopGeneration = new Map<string, number>();
+    /** When each chat's current run started; a long run counts as heavy for "Hand off to Rex". */
+    protected readonly runStarted = new Map<string, number>();
     /** Absolute paths of library apps this window created, so later commands may use them as cwd. */
     protected readonly createdApps = new Set<string>();
     /** Chats that already created a library, so the create nudge is not repeated. */
@@ -146,20 +242,57 @@ export class AgentStore {
     protected readonly libraryFixes = new Map<string, number>();
     /** Chats the user stopped. Cleared when they send again. */
     protected readonly cancelled = new Set<string>();
+    /** IDEA-292: the agent message each goal last self-checked, so one reply never counts twice. */
+    protected readonly goalChecked = new Map<string, number>();
     protected pokeTimer?: ReturnType<typeof setTimeout>;
     @inject(ProjectConfigService) protected readonly projectConfig: ProjectConfigService;
     @inject(IngotMcpClient) protected readonly mcp: IngotMcpClient;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
+    @inject(AgentEventHooks) protected readonly eventHooks: AgentEventHooks;
+    @inject(HabitRunner) protected readonly habitRunner: HabitRunner;
+    @inject(DecisionLedger) protected readonly decisions: DecisionLedger;
+    @inject(FrozenStore) protected readonly frozen: FrozenStore;
+    @inject(AntiHabitStore) protected readonly antiHabits: AntiHabitStore;
+    /** IDEA-304: what the current turn tried, per chat (reset by each user message and by "Try a different approach"). */
+    protected readonly dooms = new Map<string, DoomState>();
+    /** IDEA-302: decisions being written for a just-sent message; the run waits so the note lands before the reply. */
+    protected readonly captures = new Map<string, Promise<void>>();
+    /** IDEA-302 / IDEA-303: chats whose open question comes from a guard, not from ingot/ask_user. */
+    protected readonly guardAsks = new Set<string>();
+    @inject(FreshContextService) protected readonly freshContext: FreshContextService;
+    @inject(PlanReviewService) protected readonly planReview: PlanReviewService;
+    @inject(ModelRouter) protected readonly router: ModelRouter;
+    /** IDEA-307: chats whose next run decides a route (set by send), and sends that never route (Build). */
+    protected readonly routePending = new Set<string>();
+    protected readonly noRoute = new Set<string>();
+    /** IDEA-307: chats whose routed turn was already counted for Habits. */
+    protected readonly routeCounted = new Set<string>();
+    /** IDEA-305: chats already handed off to a fresh chat. */
+    protected readonly handedOff = new Set<string>();
+    /** IDEA-287: the rules loaded for a chat's last turn, for ingot/fetch_rule. */
+    protected readonly sessionRules = new Map<string, readonly ProjectRule[]>();
+    protected readonly onDidSendEmitter = new Emitter<{ session: AgentSession; prompt: string }>();
+    /** IDEA-296: a prompt the user sent (Habits counts repeated instructions). */
+    readonly onDidSend: Event<{ session: AgentSession; prompt: string }> = this.onDidSendEmitter.event;
     @inject(TerminalService) protected readonly terminals: TerminalService;
     @inject(RulesToolsService) @optional() protected readonly rulesTools?: RulesToolsService;
+    @inject(CodeToolsService) protected readonly codeTools: CodeToolsService;
+    @inject(CodebaseIndexStore) protected readonly codebaseIndex: CodebaseIndexStore;
+    @inject(AgentPolicyService) protected readonly policy: AgentPolicyService;
+    @inject(AgentAuditLog) protected readonly audit: AgentAuditLog;
+    @inject(SandboxPresetService) protected readonly sandbox: SandboxPresetService;
+    @inject(AutoReviewer) protected readonly autoReviewer: AutoReviewer;
+    @inject(ArtifactService) protected readonly artifacts: ArtifactService;
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
 
+    /** IDEA-266: the workspace this window's chats belong to; undefined in a window without a folder (nothing is saved). */
+    protected windowWorkspace?: string;
+
     @postConstruct()
     protected restore(): void {
-        this.items = parseChats(localStorage.getItem(CHATS_STORAGE_KEY));
-        this.selected = this.tabs[0]?.id;
+        void this.workspace.ready.then(() => this.loadWindowChats());
         this.preferences.onPreferenceChanged(e => {
             if (e.preferenceName === AI_SETTINGS_PREFS.defaultMode || e.preferenceName === AI_SETTINGS_PREFS.defaultModel) {
                 this.applyChatDefaults();
@@ -169,6 +302,16 @@ export class AgentStore {
             }
         });
         void this.preferences.ready.then(() => this.applyChatDefaults());
+    }
+
+    /** IDEA-266: a new window does not copy another window's chats; it shows the chats of its own workspace only. */
+    protected loadWindowChats(): void {
+        this.windowWorkspace = this.workspace.workspace?.resource.toString();
+        const loaded = windowChats(parseChats(localStorage.getItem(CHATS_STORAGE_KEY)), this.windowWorkspace);
+        const ids = new Set(this.items.map(s => s.id));
+        this.items = [...this.items, ...loaded.filter(s => !ids.has(s.id))];
+        this.selected ??= this.tabs[0]?.id;
+        this.onDidChangeEmitter.fire();
     }
 
     /** IDEA-182: new chats start in the mode and model from Settings › AI & Zaprex; open chats keep theirs. */
@@ -439,27 +582,46 @@ export class AgentStore {
     }
 
     /** Sends a prompt. Without a connected model the agent explains how to connect one instead of pretending. */
-    send(prompt: string, chips: readonly ContextChip[] = [], composed?: ComposedMessage): AgentSession {
+    send(prompt: string, chips: readonly ContextChip[] = [], composed?: ComposedMessage, auto?: AutoAttach): AgentSession {
         const session = this.current ?? this.create();
+        const routable = !this.noRoute.delete(session.id);
         const askedNow = prompt.trim();
         if (session.ask && askedNow) {
             this.answerQuestion(session.id, askedNow);
             return session;
         }
         if (askedNow && this.isRunning(session.id)) {
-            session.messages.push({ role: 'user', text: askedNow });
+            this.startBrowserRun(session, askedNow);
+            const steer: AgentMessage = { role: 'user', text: askedNow };
+            session.messages.push(steer);
+            this.queuedSteers.add(session.id, steer);
             this.onDidSendPromptEmitter.fire({ sessionId: session.id, text: askedNow });
             this.steers.set(session.id, [...(this.steers.get(session.id) ?? []), askedNow]);
             session.updatedAt = Date.now();
             this.changed();
             return session;
         }
+        const goalCommand = parseGoalCommand(askedNow);
+        if (session.goal && session.goal.state !== 'running') {
+            session.goal = undefined;
+        }
+        if (goalCommand && !goalCommand.objective) {
+            session.messages.push({ role: 'user', text: askedNow }, { role: 'system', text: GOAL_USAGE });
+            session.updatedAt = Date.now();
+            this.changed();
+            return session;
+        }
         if (session.title === NEW_AGENT_TITLE) {
-            session.title = tabTitleFromText(prompt) || titleFromPrompt(prompt);
+            const titled = goalCommand?.objective ?? prompt;
+            session.title = tabTitleFromText(titled) || titleFromPrompt(titled);
         }
         session.mode = this.mode;
         session.model = this.model;
-        if (composed && (composed.chips.length || composed.images.length)) {
+        if (goalCommand) {
+            session.goal = createGoal(goalCommand, goalLimits(key => this.preferences.get(GOAL_PREFS[key])), Date.now());
+            this.goalChecked.delete(session.id);
+            session.messages.push({ role: 'user', text: askedNow, expanded: `Goal: ${goalCommand.objective}` });
+        } else if (composed && (composed.chips.length || composed.images.length)) {
             // Inline composer (IDEA-98): chips and images stay where the user put them.
             session.messages.push({
                 role: 'user', text: composed.text, expanded: composed.expanded, parts: composed.parts,
@@ -471,18 +633,34 @@ export class AgentStore {
                 ? { role: 'user', text: prompt.trim(), expanded: expandWithChips(prompt.trim(), chips), chips: chips.map(c => ({ label: chipLabel(c), path: c.path })) }
                 : { role: 'user', text: prompt.trim() });
         }
+        this.attachAutoContext(session, auto);
+        this.browserRuns.delete(session.id);
+        if (this.startBrowserRun(session, askedNow)) {
+            const sent = session.messages[session.messages.length - 1];
+            const full = sent.expanded ?? sent.text;
+            session.messages[session.messages.length - 1] = { ...sent, expanded: `${BROWSER_RUN_NOTE}\n\n${browserRunTask(full) ?? full}` };
+        }
         const asked = prompt.trim();
         if (asked && !asked.startsWith('/')) {
             this.onDidSendPromptEmitter.fire({ sessionId: session.id, text: composed?.text.trim() || asked });
         }
-        this.loops.set(session.id, {
-            prompt: asked, wants: this.workLoopOn() && wantsWorkLoop(asked), edits: [], checks: [], fixAttempts: 0,
-            e2eNudged: false, commitNudged: false, commitBlocked: false, committed: false, verifiedEdits: 0, required: []
-        });
+        this.testIterations.delete(session.id);
+        this.loops.set(session.id, this.newLoop(asked));
+        this.dooms.delete(session.id);
+        session.doom = undefined;
+        if (asked) {
+            this.captureDecisions(session, composed?.text ?? asked, session.messages.length - 1);
+        }
+        session.route = undefined;
+        session.handoffOffer = undefined;
+        this.routeCounted.delete(session.id);
         if (this.commandHandlers.some(handle => handle(session, prompt.trim()))) {
             session.updatedAt = Date.now();
             this.changed();
             return session;
+        }
+        if (asked) {
+            this.onDidSendEmitter.fire({ session, prompt: composed?.text ?? asked });
         }
         if (this.flags.forceUpdate) {
             session.messages.push({ role: 'system', text: UPDATE_TEXT.chatBlocked });
@@ -507,22 +685,121 @@ export class AgentStore {
             this.changed();
             return session;
         }
+        if (routable && asked) {
+            this.routePending.add(session.id);
+        }
+        this.startRun(session);
+        return session;
+    }
+
+    protected newLoop(prompt: string): LoopState {
+        return {
+            prompt, wants: this.workLoopOn() && wantsWorkLoop(prompt), edits: [], checks: [], fixAttempts: 0,
+            e2eNudged: false, commitNudged: false, commitBlocked: false, committed: false, verifiedEdits: 0, required: []
+        };
+    }
+
+    /** Starts a new turn of the model loop for a chat (send, a handoff, Use original). */
+    protected startRun(session: AgentSession): void {
         session.status = 'thinking';
         session.updatedAt = Date.now();
         const generation = (this.loopGeneration.get(session.id) ?? 0) + 1;
         this.loopGeneration.set(session.id, generation);
         this.cancelled.delete(session.id);
+        this.runStarted.set(session.id, Date.now());
+        // The run turns heavy once it has been going this long, even without any other change to re-render on.
+        setTimeout(() => this.generationFor(session.id) === generation && this.isRunning(session.id) && this.changed(), LONG_RUN_MS);
         this.changed();
-        this.runModel(session, generation).finally(() => this.browser.endAgentRun(session.id));
-        return session;
+        this.runModel(session, generation).finally(() => {
+            if (this.generationFor(session.id) === generation) {
+                this.browserRuns.delete(session.id);
+            }
+            this.browser.endAgentRun(session.id);
+        });
+    }
+
+    /** IDEA-307: tokens the chat's next request re-sends (history) and the system part measured on its last request. */
+    requestTokens(session: AgentSession | undefined): { history: number; system?: number } {
+        const usage = session?.context?.usage;
+        return {
+            history: session ? estimateTokens(this.historyFor(session).map(m => m.content).join('\n')) : 0,
+            ...(usage ? { system: usage.system + usage.rules + usage.files + usage.memories } : {})
+        };
+    }
+
+    /** The model a chat's requests go to: the router's pick for this turn, else the chat's model. */
+    modelFor(session: AgentSession): string {
+        const routed = session.route?.to;
+        return routed && this.models.isModelConfigured(routed) ? routed : this.resolveModel(session.model);
+    }
+
+    /** IDEA-267: the composer's IDE-context chips go to the model with this turn and show under the user message. */
+    protected attachAutoContext(session: AgentSession, auto: AutoAttach | undefined): void {
+        if (!auto) {
+            this.autoContexts.delete(session.id);
+            return;
+        }
+        this.autoContexts.set(session.id, auto);
+        const last = session.messages.length - 1;
+        if (auto.items.length && session.messages[last]?.role === 'user') {
+            session.messages[last] = { ...session.messages[last], auto: sentAutoContext(auto.items) };
+        }
+    }
+
+    /** IDEA-289: a message starting with /browser turns the browser tools on for this run and shows the panel. */
+    protected startBrowserRun(session: AgentSession, prompt: string): boolean {
+        if (browserRunTask(prompt) === undefined || this.projectCommands.some(c => c.name === BROWSER_RUN_COMMAND)) {
+            return false;
+        }
+        this.browserRuns.add(session.id);
+        if (browserToolSettings(key => this.preferences.get(key)).enabled) {
+            void this.browser.open(false);
+        }
+        return true;
+    }
+
+    /** IDEA-289: whether this chat's run gets the browser tools (Settings, plus /browser unless offered in every run). */
+    protected browserOn(session: AgentSession): boolean {
+        return browserToolsOn(browserToolSettings(key => this.preferences.get(key)), this.browserRuns.has(session.id));
     }
 
     isRunning(id: string | undefined): boolean {
         return !!id && !this.cancelled.has(id) && (this.running.has(id) || this.modelLoops.has(id));
     }
 
+    /** The user stopped this chat's last run (cleared when they send again). */
+    wasStopped(id: string): boolean {
+        return this.cancelled.has(id);
+    }
+
+    /**
+     * IDEA-290: a message for a chat from outside the composer (an artifact comment). A running chat reads it on its
+     * next round, like a message typed during the run; an idle chat starts a new turn with it.
+     */
+    steer(sessionId: string, text: string): 'steered' | 'sent' | undefined {
+        const session = this.items.find(s => s.id === sessionId);
+        const trimmed = text.trim();
+        if (!session || !trimmed) {
+            return undefined;
+        }
+        if (this.isRunning(sessionId)) {
+            const message: AgentMessage = { role: 'user', text: trimmed };
+            session.messages.push(message);
+            this.queuedSteers.add(sessionId, message);
+            this.steers.set(sessionId, [...(this.steers.get(sessionId) ?? []), trimmed]);
+            session.updatedAt = Date.now();
+            this.changed();
+            return 'steered';
+        }
+        this.reopen(sessionId);
+        this.send(trimmed);
+        return 'sent';
+    }
+
     /** Stops a streaming agent (Stop button / Escape). */
     stop(id: string): void {
+        // IDEA-291: a chat's task subagents stop with it.
+        this.items.filter(s => s.parent === id && s.agent !== 'zaprex' && this.isRunning(s.id)).forEach(child => this.stop(child.id));
         const piece = this.items.find(s => s.id === id)?.handoff;
         if (piece && this.handoffs.has(id)) {
             void this.zaprexDesktop.cancel(piece.id).catch(() => undefined);
@@ -536,9 +813,14 @@ export class AgentStore {
         this.answers.get(id)?.(undefined);
         this.answers.delete(id);
         this.steers.delete(id);
+        this.queuedSteers.take(id);
+        this.browserRuns.delete(id);
         const session = this.items.find(s => s.id === id);
         if (session) {
             session.ask = undefined;
+            if (session.goal?.state === 'running') {
+                this.endGoal(session, 'user', GOAL_STOPPED_TEXT);
+            }
         }
         if (session && (session.status === 'thinking' || session.status === 'editing' || session.status === 'approval')) {
             session.status = 'idle';
@@ -570,12 +852,26 @@ export class AgentStore {
         return true;
     }
 
-    protected waitForAnswer(session: AgentSession, question: string, options: readonly string[]): Promise<string | undefined> {
+    /** `guard`: asked by a Decisions / Frozen Zones check, so the answer is not read as confirming a decision. */
+    protected waitForAnswer(session: AgentSession, question: string, options: readonly string[], guard = false): Promise<string | undefined> {
         session.ask = { question, ...(options.length ? { options } : {}) };
+        if (guard) {
+            this.guardAsks.add(session.id);
+        } else {
+            this.guardAsks.delete(session.id);
+        }
         this.changed();
         return new Promise(resolve => {
-            this.answers.set(session.id, resolve);
+            this.answers.set(session.id, text => {
+                this.guardAsks.delete(session.id);
+                resolve(text);
+            });
         });
+    }
+
+    /** IDEA-280: a message typed during the run that the model has not read yet. */
+    isQueued(sessionId: string, message: AgentMessage): boolean {
+        return this.queuedSteers.has(sessionId, message);
     }
 
     /** Continues a run that is waiting on ingot/ask_user. */
@@ -587,11 +883,63 @@ export class AgentStore {
             return;
         }
         this.answers.delete(sessionId);
+        const question = session.ask.question;
         session.ask = undefined;
         session.messages.push({ role: 'user', text: trimmed });
+        if (!this.guardAsks.has(sessionId)) {
+            this.captureDecisions(session, trimmed, session.messages.length - 1, decisionMarks(question));
+        }
         session.updatedAt = Date.now();
         this.changed();
         resolve(trimmed);
+    }
+
+    /**
+     * IDEA-302: a user message locks the decisions it states outright, and the agent's `DECISION:` proposals (in the
+     * reply before it, or in the question it answers) when it confirms them. Shows "Locked in Decisions" in the chat.
+     */
+    protected captureDecisions(session: AgentSession, text: string, userIndex: number, extra: readonly string[] = []): void {
+        const root = this.rootFor(session);
+        const previous = session.messages.slice(0, userIndex).reverse().find(m => m.role === 'agent' && (m.expanded ?? m.text));
+        const proposals = [...decisionMarks(previous ? previous.expanded ?? previous.text : ''), ...extra];
+        const texts = decisionsToCapture(text, proposals);
+        if (!root || !texts.length) {
+            return;
+        }
+        const work = this.decisions.capture(root, texts).then(({ captured, promoted }) => {
+            captured.forEach(d => this.addNote(session, { kind: 'decision', text: DECISION_NOTES.locked, detail: d.text, ref: d.id }));
+            promoted.forEach(d => this.addNote(session, { kind: 'habit', text: DECISION_NOTES.habit, detail: `${d.text} → ${d.habit}`, focus: savedHabitFocus(savedHabitKey('decision', decisionKey(d.text))) }));
+        }, (error: unknown) => {
+            session.messages.push({ role: 'system', text: `Could not save the decision: ${error instanceof Error ? error.message : String(error)}` });
+            this.changed();
+        });
+        this.captures.set(session.id, work);
+    }
+
+    /** IDEA-302..304: a silver "saved" note in the chat (never sent to the model). */
+    addNote(session: AgentSession, note: HabitNoteInfo): void {
+        const text = note.text ?? HABIT_NOTE_TEXT[note.kind];
+        session.messages.push({ role: 'system', text: note.detail ? `${text}: ${note.detail}` : text, note });
+        session.updatedAt = Date.now();
+        this.changed();
+    }
+
+    /** The note's undo: unlock the decision or unfreeze the zone it saved. */
+    async undoNote(sessionId: string, index: number): Promise<void> {
+        const session = this.items.find(s => s.id === sessionId);
+        const message = session?.messages[index];
+        const note = message?.note;
+        if (!session || !message || !note?.ref || note.undone) {
+            return;
+        }
+        const root = this.rootFor(session);
+        if (note.kind === 'decision') {
+            await this.decisions.setLocked(note.ref, false, root);
+        } else if (note.kind === 'frozen') {
+            await this.frozen.unfreeze(note.ref, root);
+        }
+        session.messages[index] = { ...message, note: { ...note, undone: true } };
+        this.addNote(session, { kind: note.kind, text: note.kind === 'decision' ? DECISION_NOTES.unlocked : FROZEN_NOTES.unfrozen, detail: note.detail });
     }
 
     toggleReaction(sessionId: string, index: number, kind: ReactionKind): void {
@@ -756,8 +1104,11 @@ export class AgentStore {
         });
     }
 
-    /** Root the agent works in: its project (groups) or the first workspace root. */
-    protected rootFor(session: AgentSession): URI | undefined {
+    /** Root the agent works in: its worktree (IDEA-268), its project (groups) or the first workspace root. */
+    rootFor(session: AgentSession): URI | undefined {
+        if (session.worktree) {
+            return new URI(session.worktree.path);
+        }
         if (session.project) {
             return new URI(session.project);
         }
@@ -782,8 +1133,16 @@ export class AgentStore {
             }
         };
         if (root) {
-            for (const mention of parseMentions(prompt).filter(isSafeRelativePath)) {
+            const ignore = await this.agentIgnore(root);
+            for (const mention of parseMentions(prompt).filter(isSafeRelativePath).filter(m => !ignore.agent(m))) {
                 await add(root.resolve(mention));
+            }
+            for (const folder of parseFolderMentions(prompt).filter(path => isSafeRelativePath(path.slice(0, -1)))) {
+                const stat = await this.files.resolve(root.resolve(folder.slice(0, -1))).catch(() => undefined);
+                if (stat?.isDirectory) {
+                    const names = (stat.children ?? []).slice(0, FOLDER_LISTING_LIMIT).map(child => `${child.name}${child.isDirectory ? '/' : ''}`);
+                    files.push({ path: folder, content: names.join('\n') });
+                }
             }
         }
         let text = files.length ? `Project files for context:\n\n${formatContextFiles(files)}` : '';
@@ -840,7 +1199,7 @@ export class AgentStore {
         if (!images.length) {
             return { role: 'user', content };
         }
-        const model = findModel(this.resolveModel(session.model));
+        const model = findModel(this.modelFor(session));
         if (!model || !supportsVision(model.provider)) {
             return { role: 'user', content: `${content}\n\n(${images.length} image(s) attached, but the selected model cannot read images.)` };
         }
@@ -874,11 +1233,16 @@ export class AgentStore {
         if (this.stale(session.id, generation)) {
             return;
         }
+        await this.captures.get(session.id);
+        this.captures.delete(session.id);
         const root = this.rootFor(session);
+        if (this.loopDepth.get(session.id) === 1) {
+            this.artifacts.begin(session, root);
+        }
         const config = await this.projectConfig.load(root);
         this.projectCommands = config.commands;
         const lastUser = session.messages.map((m, i) => ({ m, i })).reverse().find(x => x.m.role === 'user');
-        if (lastUser && lastUser.m.text.startsWith('/')) {
+        if (lastUser && lastUser.m.text.startsWith('/') && !parseGoalCommand(lastUser.m.text)) {
             const expansion = expandCommand(lastUser.m.text, config.commands);
             if (expansion) {
                 session.messages[lastUser.i] = { ...lastUser.m, expanded: lastUser.m.expanded ? lastUser.m.expanded.replace(lastUser.m.text, expansion.text) : expansion.text };
@@ -886,27 +1250,53 @@ export class AgentStore {
             }
         }
         const prompt = lastUser ? (session.messages[lastUser.i].expanded ?? lastUser.m.text) : '';
+        if (this.routePending.delete(session.id) && lastUser) {
+            await this.routeTurn(session, lastUser.m.text, (lastUser.m.chips?.length ?? 0) + parseMentions(prompt).length);
+        }
         const context = await this.readContext(session, prompt, root);
         // Glob rules still match the file open in the editor; its content is not attached (the agent reads files via tools).
         const active = this.editors.currentEditor?.editor.uri;
         const activePath = active && root?.isEqualOrParent(active) ? root.relative(active)?.toString() : undefined;
-        const rules = applicableRules(config.rules, activePath ? [...context.paths, activePath] : context.paths);
-        this.ruleHits?.record({ sessionId: session.id, prompt, files: activePath ? [...context.paths, activePath] : context.paths, rules, root: root?.path.fsPath() });
+        // IDEA-287: nested rules also follow files the agent read or edited earlier in this chat.
+        const ruleFiles = [...new Set([...context.paths, ...(activePath ? [activePath] : []), ...this.touchedPaths(session)])];
+        const rules = applicableRules(config.rules, ruleFiles);
+        this.sessionRules.set(session.id, config.rules);
+        this.ruleHits?.record({ sessionId: session.id, prompt, files: ruleFiles, rules, root: root?.path.fsPath() });
         this.recordRuleHits(root, rules);
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
-        const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
+        const auto = this.autoContexts.get(session.id);
+        const memories = auto?.skipMemories ? [] : relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
         const workspace = await this.workspaceInfo(root);
         this.github = workspace.github;
-        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
-        const rulesText = formatRules(rules);
+        const base = [
+            AGENT_SYSTEM_PROMPTS[session.mode], session.customMode ? customModePrompt(session.customMode, config.commands) : '',
+            session.goal?.state === 'running' ? goalProtocol(session.goal) : '',
+            info.canEdit ? AGENT_WORKFLOW : '', info.canEdit ? AGENT_PROTOCOL : '', info.canUseTools ? TOOL_CALL_FORMAT : '',
+            info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools),
+            info.canUseTools ? builtinToolProtocol(this.toolSwitches(session)) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : '', session.parent ? '' : FOLLOW_UPS_PROTOCOL
+        ].filter(Boolean).join('\n\n');
+        const environment = await this.projectConfig.loadEnvironment(root).catch(() => undefined);
+        const rulesText = [
+            formatRules(rules), info.canUseTools ? formatRuleIndex(requestableRules(config.rules), `${BUILTIN_TOOL_SERVER}/${FETCH_RULE_TOOL}`) : '',
+            formatEnvironment(environment?.environment, environment?.source ?? '')
+        ].filter(Boolean).join('\n\n');
+        const habitText = await this.habitRunner.prepare(session, {
+            root, prompt: lastUser?.m.text ?? '', attachments: prompt, canUseTools: info.canUseTools,
+            files: [...new Set([...context.paths, ...(activePath ? [activePath] : []), ...(lastUser?.m.chips ?? []).map(c => c.path).filter(Boolean)])]
+        });
+        const guardText = await this.guardPrompt(root, info.canEdit);
         const memoriesText = formatMemories(memories);
-        const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
-        const model = findModel(this.resolveModel(session.model));
+        // IDEA-306: Plan mode follows the plan template Habits learned for this kind of task.
+        const planTemplateText = session.mode === 'plan' ? await this.planReview.templateFor(classifyTask(lastUser?.m.text ?? '')).catch(() => '') : '';
+        const autoText = formatAutoContext(auto?.items ?? []);
+        const system = [base, rulesText, habitText, planTemplateText, guardText, memoriesText, context.text, autoText].filter(Boolean).join('\n\n');
+        const model = findModel(this.modelFor(session));
         session.context = {
             files: context.paths, rules: rules.map(r => r.name), memories: memories.map(m => ({ id: m.id, text: m.text })),
             usage: contextUsage({
-                system: estimateTokens(base), rules: estimateTokens(rulesText), files: estimateTokens(context.text), memories: estimateTokens(memoriesText),
+                system: estimateTokens(base), rules: estimateTokens(rulesText) + estimateTokens(habitText) + estimateTokens(planTemplateText) + estimateTokens(guardText),
+                files: estimateTokens([context.text, autoText].join('\n')), memories: estimateTokens(memoriesText),
                 history: estimateTokens(this.historyFor(session).map(m => m.content).join('\n'))
             }, model?.contextWindow ?? DEFAULT_CONTEXT_WINDOW)
         };
@@ -923,15 +1313,38 @@ export class AgentStore {
         this.changed();
 
         let nudged = false;
+        let retriedEmpty = false;
+        let redirected = false;
+        let edited = false;
+        let followUps: string[] = [];
         const rounds = this.maxToolRounds();
         try {
             for (let round = 0; ; round++) {
                 if (this.gaveUp(session, generation)) {
                     return;
                 }
+                if (session.goal?.state === 'running' && session.goal.tokensUsed >= session.goal.tokenBudget) {
+                    this.endGoal(session, 'budget', GOAL_BUDGET_TEXT);
+                    session.status = 'idle';
+                    this.changed();
+                    return;
+                }
+                if (round > 0 && await this.breakDoomLoop(session, root)) {
+                    return;
+                }
+                if (round > 0 && !session.parent && await this.freshContext.failingNow(session.messages)) {
+                    // IDEA-305 auto mode: a failure streak stops the run and a fresh chat takes over from a brief.
+                    session.messages.push({ role: 'system', text: `Stopped after ${countFailures(session.messages)} failed attempts: continuing in a fresh chat.` });
+                    session.status = 'idle';
+                    void this.handOffFresh(session.id, { auto: true });
+                    return;
+                }
                 const parsed = await this.streamRound(session, system);
                 if (this.stale(session.id, generation)) {
                     return;
+                }
+                if (parsed?.plan.length) {
+                    await this.artifacts.writePlan(session, parsed.plan).catch(() => undefined);
                 }
                 if (!parsed) {
                     if (session.status !== 'error' && session.status !== 'idle' && session.status !== 'review') {
@@ -940,11 +1353,12 @@ export class AgentStore {
                     }
                     return;
                 }
+                followUps = parsed.followUps;
                 const agentIndex = session.messages.map(m => m.role).lastIndexOf('agent');
                 const agentText = session.messages[agentIndex]?.text ?? '';
                 const asked = lastUser?.m.text ?? prompt;
                 const echoed = isPromptEcho(agentText, prompt) || isPromptEcho(agentText, asked);
-                const scaffold = parseLibraryPrompt(asked) ?? parseLibraryPrompt(prompt);
+                const scaffold = this.libraryTemplateOn() ? parseLibraryPrompt(asked) ?? parseLibraryPrompt(prompt) : undefined;
                 // Last resort: the hosted model repeated the prompt and called nothing. Say it is a template.
                 if (echoed && scaffold?.path && scaffold.react && scaffold.node && !scaffold.ambiguous && !this.libraries.has(session.id)
                     && !parsed.toolCalls.length && !parsed.edits.length && round < rounds) {
@@ -983,10 +1397,17 @@ export class AgentStore {
                     this.changed();
                     return;
                 }
+                if (!retriedEmpty && round < rounds && !parsed.display.trim() && !parsed.edits.length && !parsed.toolCalls.length && !parsed.editing) {
+                    retriedEmpty = true;
+                    this.hidePrinted(session, agentIndex);
+                    session.messages.push({ role: 'user', text: EMPTY_REPLY_NUDGE, hidden: true });
+                    continue;
+                }
                 const recovered = !parsed.toolCalls.length && round < rounds ? shellReadsAsTools(agentText) : [];
                 if (recovered.length) {
                     this.hidePrinted(session, agentIndex);
                     if (info.canEdit && parsed.edits.length) {
+                        edited = true;
                         await this.applyParsedEdits(session, parsed.edits, parsed.plan, root);
                     }
                     if (!await this.finishTools(session, generation, recovered)) {
@@ -1001,15 +1422,59 @@ export class AgentStore {
                     session.messages.push({ role: 'user', text: SHELL_NUDGE, hidden: true });
                     continue;
                 }
+                // IDEA-267: an overview of the repo is not an answer to "fix…" or "explain src/x.ts". Send it back once.
+                const misread = !parsed.toolCalls.length && !parsed.edits.length && !redirected && round < rounds ? misreadTask(asked, agentText, edited) : undefined;
+                if (misread && (misread === 'explain' || info.canEdit)) {
+                    redirected = true;
+                    this.hidePrinted(session, agentIndex);
+                    session.messages.push({ role: 'user', text: misread === 'act' ? ACT_NUDGE : EXPLAIN_NUDGE, hidden: true });
+                    continue;
+                }
+                if (!info.canEdit && parsed.plan.length) {
+                    const choice = await this.checkPlan(session, parsed.plan, root);
+                    if (choice === 'stopped' || this.stale(session.id, generation)) {
+                        return;
+                    }
+                    if (choice === 'keep' && round < rounds) {
+                        continue;
+                    }
+                }
                 const applied = info.canEdit && parsed.edits.length > 0;
                 if (applied) {
-                    await this.applyParsedEdits(session, parsed.edits, parsed.plan, root);
+                    edited = true;
+                    const guarded = await this.applyParsedEdits(session, parsed.edits, parsed.plan, root);
+                    if (guarded === 'stopped' || this.gaveUp(session, generation)) {
+                        return;
+                    }
+                    if (guarded === 'revise' && !parsed.toolCalls.length && round < rounds) {
+                        continue;
+                    }
+                }
+                const cut = info.canEdit && parsed.editing && round < rounds ? parsed.editing : undefined;
+                if (cut) {
+                    await this.tracker.cancelStream(session.id, cut);
                 }
                 if (parsed.toolCalls.length && round < rounds) {
                     if (!await this.finishTools(session, generation, parsed.toolCalls)) {
                         return;
                     }
+                    if (cut) {
+                        session.messages.push({ role: 'user', text: cutEditNudge(cut), hidden: true });
+                    }
                     continue;
+                }
+                if (cut) {
+                    session.messages.push({ role: 'user', text: cutEditNudge(cut), hidden: true });
+                    continue;
+                }
+                const loopNow = this.loopOf(session);
+                if (!parsed.toolCalls.length && round < rounds && session.mode === 'agent' && promisesMoreWork([agentText, ...parsed.plan].join('\n'), loopNow.continues ?? 0)) {
+                    loopNow.continues = (loopNow.continues ?? 0) + 1;
+                    if (!(applied && this.tracker.pending().some(change => change.sessionId === session.id))) {
+                        session.messages.push({ role: 'user', text: CONTINUE_NUDGE, hidden: true });
+                        continue;
+                    }
+                    loopNow.promised = true;
                 }
                 if (parsed.toolCalls.length) {
                     session.messages.push({ role: 'system', text: TOOL_ROUNDS_STOP });
@@ -1025,6 +1490,8 @@ export class AgentStore {
                     if (this.stale(session.id, generation)) {
                         return;
                     }
+                    continue;
+                } else if (!pending && info.canUseTools && round < rounds && this.nudgeHabitDone(session)) {
                     continue;
                 } else if (!applied && !parsed.toolCalls.length && round < rounds && (this.nudgeLibraryFix(session) || this.nudgeLibrary(session, prompt))) {
                     continue;
@@ -1050,6 +1517,7 @@ export class AgentStore {
                 if (session.status !== 'review' && this.followSteer(session, generation)) {
                     continue;
                 }
+                this.attachFollowUps(session, followUps, edited);
                 session.activeFile = undefined;
                 session.updatedAt = Date.now();
                 this.changed();
@@ -1064,9 +1532,350 @@ export class AgentStore {
             }
         }
         } finally {
+            if (this.loopDepth.get(session.id) === 1) {
+                await this.finishArtifacts(session);
+            }
             this.leaveLoop(session.id);
             this.flushPoke();
+            if (!this.loopDepth.has(session.id)) {
+                void this.runEventHook(session, 'stop', { status: session.status === 'error' ? 'error' : this.cancelled.has(session.id) ? 'aborted' : 'completed' });
+                this.afterGoalTurn(session, generation);
+                if (!this.stale(session.id, generation) && !this.cancelled.has(session.id) && session.goal?.state !== 'running') {
+                    void this.afterRun(session).catch(() => undefined);
+                }
+            }
         }
+    }
+
+    /**
+     * IDEA-292: after a full agent turn of a running goal, read the reply's self-check and either finish,
+     * stop at the iteration or budget cap, or send a hidden nudge and take another turn.
+     */
+    protected afterGoalTurn(session: AgentSession, generation = this.loopGeneration.get(session.id) ?? 0): void {
+        const goal = session.goal;
+        if (goal?.state !== 'running' || this.stale(session.id, generation) || this.cancelled.has(session.id) || this.modelLoops.has(session.id)) {
+            return;
+        }
+        if (session.status === 'review' || session.status === 'approval' || session.status === 'paused' || session.ask) {
+            return;
+        }
+        if (session.status === 'error') {
+            this.endGoal(session, 'error', GOAL_STOPPED_TEXT);
+            this.changed();
+            return;
+        }
+        const index = session.messages.map(m => m.role).lastIndexOf('agent');
+        if (index < 0 || this.goalChecked.get(session.id) === index) {
+            return;
+        }
+        this.goalChecked.set(session.id, index);
+        const reply = session.messages[index];
+        const check = parseGoalCheck(reply.expanded ?? reply.text);
+        const next = applyGoalCheck(goal, check, 0);
+        const decision = decideGoal(next, check);
+        session.goal = next;
+        if (decision.kind === 'done') {
+            session.goal = { ...next, state: 'done' };
+            session.messages.push({ role: 'system', text: GOAL_DONE_TEXT });
+        } else if (decision.kind === 'stop') {
+            this.endGoal(session, decision.reason, decision.message);
+        } else {
+            session.messages.push({ role: 'user', text: decision.nudge, hidden: true });
+            session.status = 'thinking';
+            session.updatedAt = Date.now();
+            this.changed();
+            void this.runModel(session, generation).finally(() => this.browser.endAgentRun(session.id));
+            return;
+        }
+        session.updatedAt = Date.now();
+        this.changed();
+    }
+
+    protected goalDisplay(session: AgentSession, text: string): string {
+        return session.goal ? stripGoalCheck(text) : text;
+    }
+
+    protected endGoal(session: AgentSession, reason: GoalStopReason, message: string): void {
+        if (session.goal?.state !== 'running') {
+            return;
+        }
+        session.goal = { ...session.goal, state: 'stopped', reason };
+        session.messages.push({ role: 'system', text: message });
+    }
+
+    /** Goal banner Stop: ends the goal and the current run. */
+    stopGoal(id: string): void {
+        const session = this.items.find(s => s.id === id);
+        if (!session?.goal) {
+            return;
+        }
+        this.endGoal(session, 'user', GOAL_STOPPED_TEXT);
+        this.stop(id);
+    }
+
+    dismissGoal(id: string): void {
+        const session = this.items.find(s => s.id === id);
+        if (session?.goal && session.goal.state !== 'running') {
+            session.goal = undefined;
+            this.changed();
+        }
+    }
+
+    /** End of a user turn: check the diff against the approved plan, count a routed turn, look for a stale chat. */
+    protected async afterRun(session: AgentSession): Promise<void> {
+        if (session.parent || session.agent === 'zaprex' || this.handedOff.has(session.id)) {
+            return;
+        }
+        await this.reviewAgainstPlan(session);
+        await this.countRoute(session);
+        await this.considerHandoff(session);
+        this.changed();
+    }
+
+    /** IDEA-307: the router's pick for a simple step, shown as a silver note with "Use original". */
+    protected async routeTurn(session: AgentSession, prompt: string, files: number): Promise<void> {
+        const history = estimateTokens(this.historyFor(session).map(m => m.content).join('\n'));
+        const decision = await this.router.route(this.resolveModel(session.model), prompt, { mode: session.mode, files }, (session.context?.usage?.system ?? DEFAULT_SYSTEM_TOKENS) + history).catch(() => undefined);
+        if (!decision) {
+            return;
+        }
+        session.route = decision;
+        const detail = `${this.models.label(decision.to)} instead of ${this.models.label(decision.from)} · ${taskTypeLabel(decision.taskType)} step${decision.learned ? ' · from Habits' : ''}`;
+        session.messages.push({ role: 'system', text: `${HABIT_NOTE_TEXT.route}: ${detail}`, note: { kind: 'route', detail, action: 'use-original', actionLabel: `Use ${this.models.label(decision.from)}` } });
+        this.changed();
+    }
+
+    /** IDEA-307: a routed turn that finished counts as the user keeping that model for the task type. */
+    protected async countRoute(session: AgentSession): Promise<void> {
+        const route = session.route;
+        if (!route || this.routeCounted.has(session.id) || session.status === 'error') {
+            return;
+        }
+        this.routeCounted.add(session.id);
+        const saved = await this.router.recordChoice(route.taskType, route.to, true);
+        if (saved) {
+            this.noteSaved(session, saved);
+        }
+    }
+
+    /** IDEA-307 "Use original": runs the turn again on the chat's own model; Habits counts the routed model as turned down. */
+    async useOriginalModel(sessionId: string, index: number): Promise<void> {
+        const session = this.items.find(s => s.id === sessionId);
+        const message = session?.messages[index];
+        const route = session?.route;
+        if (!session || !message?.note || message.note.kind !== 'route' || message.note.done || !route) {
+            return;
+        }
+        if (this.isRunning(sessionId)) {
+            this.stop(sessionId);
+        }
+        session.messages = session.messages.slice(0, index + 1);
+        session.messages[index] = { ...message, note: { ...message.note, done: true, detail: `${message.note.detail ?? ''} · ran again on ${this.models.label(route.from)}` } };
+        session.route = undefined;
+        this.routeCounted.add(session.id);
+        void this.router.recordChoice(route.taskType, route.to, false);
+        this.startRun(session);
+    }
+
+    /** "Saved to Habits": a learned preference reached the Habits threshold. */
+    protected noteSaved(session: AgentSession, habit: LearnedHabit): void {
+        const detail = learnedLabel(habit, id => this.models.label(id));
+        session.messages.push({
+            role: 'system', text: `${HABIT_NOTE_TEXT.habit}: ${detail}`,
+            note: { kind: 'habit', detail, focus: learnedPrefFocus(habit.id), ...(habit.savedAs ? { path: habit.savedAs, action: 'open-file' as const, actionLabel: 'Open' } : {}) }
+        });
+        this.changed();
+    }
+
+    /** IDEA-306: the run's changed files and commands against the steps of the plan approved with Build. */
+    protected async reviewAgainstPlan(session: AgentSession): Promise<void> {
+        const plan = session.approvedPlan;
+        if (!plan) {
+            return;
+        }
+        session.approvedPlan = undefined;
+        const since = session.messages.map(m => m.role === 'user' && !m.hidden).lastIndexOf(true);
+        const commands = session.messages.slice(since + 1).flatMap(m =>
+            m.tool?.tool === 'run' && m.tool.state === 'done' && typeof m.tool.args.command === 'string' ? [m.tool.args.command] : []);
+        const files = [...new Set(this.loopOf(session).edits.map(p => p.replace(/^\.\/+/, '')))];
+        const review = await this.planReview.review(this.rootFor(session), plan, { files, commands });
+        const detail = reviewHeadline(review);
+        session.messages.push({
+            role: 'system', text: `${HABIT_NOTE_TEXT.plan}: ${detail}`, planReview: review,
+            note: { kind: 'plan', detail, path: plan.path, action: 'open-file', actionLabel: 'Open plan' }
+        });
+        this.changed();
+    }
+
+    /** IDEA-305: after a turn, a stale chat is offered a fresh start (or handed off at once in auto mode). */
+    protected async considerHandoff(session: AgentSession): Promise<void> {
+        const mode = this.freshContext.mode;
+        if (mode === 'off' || session.handoffOffer) {
+            return;
+        }
+        const verdict = await this.freshContext.check(session.messages, usageRatio(session.context?.usage));
+        if (!verdict) {
+            return;
+        }
+        if (mode === 'auto') {
+            await this.handOffFresh(session.id, { auto: true, verdict });
+            return;
+        }
+        if (offerAllowed(verdict, session.handoffDismissedAt)) {
+            session.handoffOffer = { verdict };
+            this.changed();
+        }
+    }
+
+    /** IDEA-292: pins a project command or skill into the current chat's system prompt. */
+    async useAsMode(name: string): Promise<CustomMode | undefined> {
+        await this.loadCommands();
+        const command = findModeCommand(this.projectCommands, name);
+        if (!command) {
+            return undefined;
+        }
+        const session = this.current ?? this.create();
+        session.customMode = customModeFrom(command);
+        session.updatedAt = Date.now();
+        this.changed();
+        return session.customMode;
+    }
+
+    clearMode(id: string): void {
+        const session = this.items.find(s => s.id === id);
+        if (session?.customMode) {
+            session.customMode = undefined;
+            session.updatedAt = Date.now();
+            this.changed();
+        }
+    }
+
+    /** IDEA-305 "Not now": the offer comes back later; Habits counts this turn count as too early. */
+    dismissHandoff(sessionId: string): void {
+        const session = this.items.find(s => s.id === sessionId);
+        if (!session?.handoffOffer) {
+            return;
+        }
+        const turns = countTurns(session.messages);
+        session.handoffOffer = undefined;
+        session.handoffDismissedAt = turns;
+        void this.freshContext.record(turns, false);
+        this.changed();
+    }
+
+    /**
+     * IDEA-305: writes the distilled brief (goal, plan, decisions, diff, failures, where it stopped) to
+     * `.ingot/handoffs/` and continues in a new chat seeded with it. Accepted handoffs teach Habits the turn threshold.
+     */
+    async handOffFresh(sessionId: string, options: { auto?: boolean; verdict?: RotVerdict } = {}): Promise<AgentSession | undefined> {
+        const session = this.items.find(s => s.id === sessionId);
+        if (!session || this.handedOff.has(sessionId)) {
+            return undefined;
+        }
+        const root = this.rootFor(session);
+        if (!root) {
+            session.messages.push({ role: 'system', text: 'Open a project folder to hand off: the brief is saved under .ingot/handoffs/ in the project.' });
+            this.changed();
+            return undefined;
+        }
+        this.handedOff.add(sessionId);
+        if (this.isRunning(sessionId)) {
+            this.stop(sessionId);
+        }
+        const turns = countTurns(session.messages);
+        const ratio = usageRatio(session.context?.usage);
+        const verdict = options.verdict ?? session.handoffOffer?.verdict ?? await this.freshContext.check(session.messages, ratio)
+            ?? { reasons: [], signals: { turns, failures: countFailures(session.messages), ratio } };
+        const asked = session.messages.filter(m => m.role === 'user' && !m.hidden);
+        const lastReply = [...session.messages].reverse().find(m => m.role === 'agent' && !m.hidden && m.text)?.text ?? '';
+        const changes = this.tracker.changes.filter(c => c.sessionId === session.id);
+        const now = new Date();
+        const path = briefPath(session.title, now);
+        const brief = buildBrief({
+            title: session.title, savedAt: now.toISOString().slice(0, 16).replace('T', ' '), verdict,
+            goal: asked[0]?.text ?? session.title, latest: asked[asked.length - 1]?.text ?? '',
+            plan: session.approvedPlan?.steps.map(text => ({ text, done: false })) ?? session.plan.map(p => ({ text: p.text, done: p.state === 'done' })),
+            decisions: await this.freshContext.readDecisions(root), files: [...new Set([...changes.map(c => c.path), ...this.loopOf(session).edits])],
+            diff: changesDiff(changes), failures: recentFailures(session.messages), lastReply
+        });
+        try {
+            await this.freshContext.saveBrief(root, path, brief);
+        } catch (error) {
+            this.handedOff.delete(sessionId);
+            session.messages.push({ role: 'system', text: `Could not save the handoff brief: ${error instanceof Error ? error.message : String(error)}` });
+            this.changed();
+            return undefined;
+        }
+        const summary = rotSummary(verdict) || 'handed off by hand';
+        session.handoffOffer = undefined;
+        session.messages.push({ role: 'system', text: `${HABIT_NOTE_TEXT.handoff}: ${path}`, note: { kind: 'handoff', detail: summary, path, action: 'open-file', actionLabel: 'Open brief' } });
+        const saved = options.auto ? undefined : await this.freshContext.record(turns, true);
+        const next = this.create(freshTitle(session.title));
+        next.project = session.project;
+        next.mode = session.mode;
+        next.model = session.model;
+        next.messages.push({ role: 'system', text: `${HABIT_NOTE_TEXT.handoff}: ${path}`, note: { kind: 'handoff', detail: `from "${session.title}" · ${summary}`, path, action: 'open-file', actionLabel: 'Open brief' } });
+        if (saved) {
+            this.noteSaved(next, saved);
+        }
+        next.messages.push({ role: 'user', text: CONTINUE_PROMPT, expanded: briefPrompt(path, brief), chips: [{ label: path.split('/').pop() ?? path, path, kind: 'file' }] });
+        this.closeTab(session.id);
+        this.selected = next.id;
+        this.loops.set(next.id, this.newLoop(CONTINUE_PROMPT));
+        this.startRun(next);
+        return next;
+    }
+
+    /** IDEA-296: one more round to verify the active habit's open done criteria before the run ends. */
+    protected nudgeHabitDone(session: AgentSession): boolean {
+        const nudge = this.habitRunner.doneNudge(session);
+        if (nudge) {
+            session.messages.push({ role: 'user', text: nudge, hidden: true });
+        }
+        return !!nudge;
+    }
+
+    /** IDEA-296: the user picked a habit in the pill (or turned it off); a running turn sees it on its next round. */
+    async chooseHabit(sessionId: string, id: string | undefined): Promise<void> {
+        const session = this.items.find(s => s.id === sessionId);
+        if (!session) {
+            return;
+        }
+        const note = await this.habitRunner.choose(session, this.rootFor(session), id);
+        if (note && this.isRunning(session.id)) {
+            session.messages.push({ role: 'user', text: note, hidden: true });
+        }
+        session.updatedAt = Date.now();
+        this.changed();
+    }
+
+    /** IDEA-287: project files the agent read or edited in this chat (nested rules apply to them). */
+    protected touchedPaths(session: AgentSession): string[] {
+        const paths = session.messages.flatMap(m => m.tool && m.tool.server === BUILTIN_TOOL_SERVER && m.tool.tool === 'read_file' && typeof m.tool.args.path === 'string' ? [m.tool.args.path] : []);
+        return [...paths, ...session.steps.filter(s => s.kind === 'edit').map(s => s.target)].map(p => p.replace(/^\.\/+/, ''));
+    }
+
+    /** IDEA-294: runs a `hooks.json` agent event; undefined when no hook is configured (or hooks are off). */
+    protected async runEventHook(session: AgentSession, event: AgentHookEvent, data: Readonly<Record<string, unknown>>): Promise<AgentHookOutcome | undefined> {
+        const generation = this.loopGeneration.get(session.id) ?? 0;
+        return this.eventHooks.run(event, this.rootFor(session), { conversationId: session.id, generationId: `${session.id}-${generation}` }, data).catch(() => undefined);
+    }
+
+    /** IDEA-294: a hook that denied (or asked about) an action shows as a hook card in the chat. */
+    protected pushHookCard(session: AgentSession, outcome: AgentHookOutcome, target: string): void {
+        const now = Date.now();
+        session.messages.push({
+            role: 'tool', from: `${BUILTIN_TOOL_SERVER}/hook`, text: hookOutcomeText(outcome.results),
+            tool: { server: BUILTIN_TOOL_SERVER, tool: 'hook', args: { check: `${outcome.event} · ${outcome.decision.permission}: ${target}` }, state: outcome.decision.permission === 'deny' ? 'error' : 'done', startedAt: now, endedAt: now }
+        });
+    }
+
+    /** IDEA-290: walkthrough.md and the run's end time, once the outermost loop of a turn returns. */
+    protected async finishArtifacts(session: AgentSession): Promise<void> {
+        const visible = (role: AgentMessage['role']): string => [...session.messages].reverse().find(m => m.role === role && !m.hidden && m.text)?.text ?? '';
+        const files = [...new Set([...session.changes.map(c => c.label), ...session.steps.filter(s => s.kind === 'edit').map(s => s.target)])];
+        await this.artifacts.finish(session, { reply: visible('agent'), files, plan: session.plan.map(p => p.text) }).catch(() => undefined);
+        this.changed();
     }
 
     /** Stop or a newer turn owns the chat. A stopped turn is marked idle; a replaced turn is left alone. */
@@ -1091,12 +1900,248 @@ export class AgentStore {
     }
 
     /** Applies a reply's edits even when that same reply also called tools. */
-    protected async applyParsedEdits(session: AgentSession, edits: readonly AgentEdit[], plan: readonly string[], root: URI | undefined): Promise<void> {
+    /** Returns 'revise' when a guard kept edits out (the agent should try again), 'stopped' when the user stopped. */
+    protected async applyParsedEdits(session: AgentSession, edits: readonly AgentEdit[], plan: readonly string[], root: URI | undefined): Promise<GuardOutcome> {
         if (edits.length >= MULTI_FILE_EDITS && !plan.length && session.plan.length === 0) {
             session.plan = planFromEdits(edits.map(edit => edit.path)).map((text, i) => ({ text, state: i === 0 ? 'active' : 'todo' }));
         }
-        const editable = await this.editsAllowed(session, edits, root);
-        await this.applyEdits(session, editable, root);
+        const editable = await this.sandboxEdits(session, await this.editsAllowed(session, edits, root), root);
+        const guarded = await this.guardEdits(session, editable, plan, root);
+        if (guarded.outcome === 'stopped') {
+            return guarded.outcome;
+        }
+        await this.applyEdits(session, guarded.edits, root);
+        return guarded.outcome;
+    }
+
+    /** IDEA-302..304: locked decisions, frozen zones and anti-habits of the project, for the system prompt. */
+    protected async guardPrompt(root: URI | undefined, canEdit: boolean): Promise<string> {
+        if (!root) {
+            return '';
+        }
+        const [decisions, frozen, anti] = await Promise.all([
+            this.decisions.load(root).catch(() => []),
+            this.frozen.load(root).then(state => state.zones, () => []),
+            this.antiHabits.load(root).catch(() => [])
+        ]);
+        return [
+            formatDecisions(decisions, `${BUILTIN_TOOL_SERVER}/${ASK_USER_TOOL}`), DECISIONS_PROTOCOL,
+            canEdit ? formatFrozen(frozen) : '', formatAntiHabits(anti)
+        ].filter(Boolean).join('\n\n');
+    }
+
+    /** Reads a project file; empty when it does not exist yet. */
+    protected async readText(root: URI, path: string): Promise<string> {
+        const uri = this.safeUri(root, path);
+        return uri && uri !== root ? this.files.read(uri).then(file => file.value, () => '') : '';
+    }
+
+    /** Asks a Decisions / Frozen Zones question in the chat and maps the picked option. */
+    protected async askGuard(session: AgentSession, question: string, options: { keep: string; allow: string; release: string }): Promise<GuardChoice> {
+        const answer = await this.waitForAnswer(session, question, [options.keep, options.allow, options.release], true);
+        if (answer === undefined || this.cancelled.has(session.id)) {
+            session.ask = undefined;
+            session.messages.push({ role: 'system', text: ASK_STOPPED });
+            this.changed();
+            return 'stopped';
+        }
+        return answer === options.allow ? 'allow' : answer === options.release ? 'release' : 'keep';
+    }
+
+    /** IDEA-302: "Keep the decision" / "Go ahead this time" / "Unlock the decision" for the conflicts found. */
+    protected async askDecisions(session: AgentSession, conflicts: readonly DecisionConflict[], root: URI): Promise<GuardChoice> {
+        const choice = await this.askGuard(session, conflictQuestion(conflicts), { keep: DECISION_ASK_OPTIONS.keep, allow: DECISION_ASK_OPTIONS.once, release: DECISION_ASK_OPTIONS.unlock });
+        if (choice === 'release') {
+            for (const decision of new Map(conflicts.map(c => [c.decision.id, c.decision])).values()) {
+                await this.decisions.setLocked(decision.id, false, root);
+                this.addNote(session, { kind: 'decision', text: DECISION_NOTES.unlocked, detail: decision.text });
+            }
+        }
+        return choice;
+    }
+
+    /**
+     * IDEA-302 / IDEA-303: before edits land, ask in the chat about each locked decision they contradict and each
+     * frozen file or function they change. Edits the user keeps out are dropped and the agent is told why.
+     */
+    protected async guardEdits(session: AgentSession, edits: readonly AgentEdit[], plan: readonly string[], root: URI | undefined): Promise<{ edits: AgentEdit[]; outcome: GuardOutcome }> {
+        if (!root || !edits.length) {
+            return { edits: [...edits], outcome: undefined };
+        }
+        const befores = new Map(await Promise.all(edits.map(async edit => [edit.path, await this.readText(root, edit.path)] as const)));
+        let kept = [...edits];
+        let revise = false;
+        const conflicts = await this.decisions.conflicts(root, {
+            plan, edits: edits.map(edit => ({ path: edit.path, added: addedLines(befores.get(edit.path) ?? '', edit.content) })), commands: []
+        }).catch(() => []);
+        if (conflicts.length) {
+            const choice = await this.askDecisions(session, conflicts, root);
+            if (choice === 'stopped') {
+                await this.tracker.cancelStreams(session.id);
+                return { edits: [], outcome: 'stopped' };
+            }
+            if (choice === 'keep') {
+                revise = true;
+                const planConflict = conflicts.some(c => !edits.some(edit => edit.path === c.where));
+                const skipped = planConflict ? kept.map(edit => edit.path) : [...new Set(conflicts.map(c => c.where))];
+                kept = kept.filter(edit => !skipped.includes(edit.path));
+                await Promise.all(skipped.map(path => this.tracker.cancelStream(session.id, path)));
+                session.messages.push({ role: 'user', text: keptDecisionNote(conflicts, skipped), hidden: true });
+            }
+        }
+        const allowed: AgentEdit[] = [];
+        for (const edit of kept) {
+            const touches = await this.frozen.touches(root, edit.path, befores.get(edit.path) ?? '', edit.content).catch(() => []);
+            if (!touches.length) {
+                allowed.push(edit);
+                continue;
+            }
+            const choice = await this.askGuard(session, frozenQuestion(touches), { keep: FROZEN_ASK_OPTIONS.keep, allow: FROZEN_ASK_OPTIONS.allow, release: FROZEN_ASK_OPTIONS.unfreeze });
+            if (choice === 'stopped') {
+                await this.tracker.cancelStreams(session.id);
+                return { edits: [], outcome: 'stopped' };
+            }
+            if (choice === 'keep') {
+                revise = true;
+                await this.tracker.cancelStream(session.id, edit.path);
+                session.messages.push({ role: 'user', text: keptFrozenNote(touches.map(t => t.label)), hidden: true });
+                continue;
+            }
+            if (choice === 'release') {
+                for (const touch of touches) {
+                    await this.frozen.unfreeze(touch.zone.id, root);
+                    this.addNote(session, { kind: 'frozen', text: FROZEN_NOTES.unfrozen, detail: touch.label });
+                }
+            }
+            allowed.push(edit);
+        }
+        return { edits: allowed, outcome: revise ? 'revise' : undefined };
+    }
+
+    /** IDEA-302: a plan (Plan / Ask mode) that contradicts a locked decision. Keep sends it back for a revision. */
+    protected async checkPlan(session: AgentSession, plan: readonly string[], root: URI | undefined): Promise<GuardChoice | undefined> {
+        const conflicts = root ? await this.decisions.conflicts(root, { plan, edits: [], commands: [] }).catch(() => []) : [];
+        if (!root || !conflicts.length) {
+            return undefined;
+        }
+        const choice = await this.askDecisions(session, conflicts, root);
+        if (choice === 'keep') {
+            session.messages.push({ role: 'user', text: `${keptDecisionNote(conflicts, [])} Revise the plan so it follows the decision.`, hidden: true });
+        }
+        return choice;
+    }
+
+    /**
+     * IDEA-302 / IDEA-303: a shell command that contradicts a locked decision, or a delete of a frozen file, asks
+     * first. Returns the tool error when the user keeps it out, 'stopped' when they stopped the run.
+     */
+    protected async guardTool(session: AgentSession, call: AgentToolCall, root: URI | undefined): Promise<string | undefined> {
+        if (!root || call.server !== BUILTIN_TOOL_SERVER) {
+            return undefined;
+        }
+        const command = call.tool === 'run' && typeof call.args.command === 'string' ? call.args.command : '';
+        const conflicts = command ? await this.decisions.conflicts(root, { plan: [], edits: [], commands: [command] }).catch(() => []) : [];
+        if (conflicts.length) {
+            const choice = await this.askDecisions(session, conflicts, root);
+            return choice === 'stopped' ? 'stopped' : choice === 'keep' ? keptDecisionNote(conflicts, []) : undefined;
+        }
+        const path = call.tool === 'delete' && typeof call.args.path === 'string' ? call.args.path : '';
+        if (!path) {
+            return undefined;
+        }
+        const before = await this.readText(root, path);
+        const touches = await this.frozen.touches(root, path, before, '').catch(() => []);
+        if (!touches.length) {
+            return undefined;
+        }
+        const choice = await this.askGuard(session, frozenQuestion(touches), { keep: FROZEN_ASK_OPTIONS.keep, allow: FROZEN_ASK_OPTIONS.allow, release: FROZEN_ASK_OPTIONS.unfreeze });
+        if (choice === 'release') {
+            for (const touch of touches) {
+                await this.frozen.unfreeze(touch.zone.id, root);
+                this.addNote(session, { kind: 'frozen', text: FROZEN_NOTES.unfrozen, detail: touch.label });
+            }
+        }
+        return choice === 'stopped' ? 'stopped' : choice === 'keep' ? keptFrozenNote(touches.map(t => t.label)) : undefined;
+    }
+
+    protected doomOf(session: AgentSession): DoomState {
+        return this.dooms.get(session.id) ?? startDoom();
+    }
+
+    /** IDEA-304: a command result feeds the doom-loop tracker; a test run also tells Frozen Zones what is green. */
+    protected observeTool(session: AgentSession, call: AgentToolCall, result: AgentActionResult, root: URI | undefined): void {
+        if (call.server !== BUILTIN_TOOL_SERVER) {
+            return;
+        }
+        const command = call.tool === 'run' && typeof call.args.command === 'string' ? call.args.command : '';
+        if (command || result.isError) {
+            this.dooms.set(session.id, observeResult(this.doomOf(session), { action: command || call.tool, failed: !!result.isError, output: result.text }));
+        }
+        if (command && isTestCommand(command) && root) {
+            void this.frozen.recordTests({ command, passed: !result.isError, at: Date.now() }, root).catch(() => undefined);
+        }
+    }
+
+    /**
+     * IDEA-304: the same error after N tries, a fix that breaks what the last one fixed, or "it works" claims the
+     * checks keep disproving pause the run. The chat shows what was tried, and the approach is saved as an anti-habit.
+     */
+    protected async breakDoomLoop(session: AgentSession, root: URI | undefined): Promise<boolean> {
+        if (this.preferences.get<boolean>(DOOM_PREFS.enabled, true) === false) {
+            return false;
+        }
+        const max = Math.max(MIN_MAX_REPEATS, this.preferences.get<number>(DOOM_PREFS.maxRepeats, DEFAULT_MAX_REPEATS) ?? DEFAULT_MAX_REPEATS);
+        const verdict = detectDoom(this.doomOf(session), max);
+        if (!verdict) {
+            return false;
+        }
+        await this.tracker.cancelStreams(session.id);
+        session.doom = verdict;
+        session.status = 'idle';
+        session.messages.push({ role: 'system', text: `${DOOM_MESSAGES.paused}${verdict.reason}` });
+        this.changed();
+        if (root) {
+            const habit = await this.antiHabits.record(root, verdict).catch(() => undefined);
+            if (habit) {
+                this.addNote(session, { kind: 'habit', text: DOOM_NOTE, detail: habit.text, focus: savedHabitFocus(savedHabitKey('anti', habit.id)) });
+            }
+        }
+        session.updatedAt = Date.now();
+        this.changed();
+        return true;
+    }
+
+    /** IDEA-304: the doom card's buttons. Reset puts the files back to before this turn; the chat stays. */
+    async resolveDoom(sessionId: string, action: keyof typeof DOOM_ACTIONS): Promise<void> {
+        const session = this.items.find(s => s.id === sessionId);
+        const verdict = session?.doom;
+        if (!session || !verdict) {
+            return;
+        }
+        session.doom = undefined;
+        this.dooms.delete(sessionId);
+        if (action === 'reset') {
+            const from = session.messages.map(m => m.role === 'user' && !m.hidden).lastIndexOf(true);
+            try {
+                await this.tracker.revertTo(sessionId, from, restorePlan(this.tracker.checkpoints, sessionId, from));
+                session.messages.push({ role: 'system', text: DOOM_MESSAGES.reset(session.messages[from]?.text ?? '') });
+            } catch (error) {
+                session.messages.push({ role: 'system', text: `${DOOM_MESSAGES.resetFailed}${error instanceof Error ? error.message : String(error)}` });
+            }
+            session.status = 'idle';
+        } else if (action === 'different' || action === 'keep') {
+            if (action === 'different') {
+                session.messages.push({ role: 'user', text: differentApproachNudge(verdict), hidden: true });
+            }
+            session.messages.push({ role: 'system', text: DOOM_MESSAGES[action] });
+            this.cancelled.delete(sessionId);
+            session.status = 'thinking';
+            this.changed();
+            void this.runModel(session);
+            return;
+        }
+        session.updatedAt = Date.now();
+        this.changed();
     }
 
     /** Runs tools unless the user stopped or sent a newer message. False means the loop should return. */
@@ -1118,29 +2163,34 @@ export class AgentStore {
     }
 
     /** One streamed model reply; returns the parsed output, or undefined after an error. */
-    protected async streamRound(session: AgentSession, system: string, retried = false): Promise<(ReturnType<typeof parseAgentOutput> & { memories: string[] }) | undefined> {
+    protected async streamRound(session: AgentSession, system: string, retried = false): Promise<(ReturnType<typeof parseAgentOutput> & { memories: MemoryNote[]; followUps: string[] }) | undefined> {
         const generation = this.loopGeneration.get(session.id) ?? 0;
         const live = (): boolean => !this.stale(session.id, generation) && !this.cancelled.has(session.id);
         if (!live()) {
             return undefined;
         }
         const history = this.historyFor(session);
+        if (this.queuedSteers.take(session.id).length) {
+            // This round reads the queued messages, so no extra round is needed for them afterwards.
+            this.steers.delete(session.id);
+        }
         const index = session.messages.push({ role: 'agent', text: '' }) - 1;
         session.status = 'thinking';
         this.changed();
         let final = '';
         try {
             const tools = modeInfo(session.mode).canUseTools
-                ? BUILTIN_TOOLS.filter(tool => builtinToolEnabled(tool.name, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }))
+                ? BUILTIN_TOOLS.filter(tool => builtinToolEnabled(tool.name, this.toolSwitches(session)))
+                    .filter(tool => this.habitRunner.allows(session, BUILTIN_TOOL_SERVER, tool.name))
                     .map(tool => ({ name: tool.name, description: tool.description }))
                 : [];
-            const stream = this.models.stream(this.resolveModel(session.model), [{ role: 'system', content: system }, ...history], text => {
+            const stream = this.models.stream(this.modelFor(session), [{ role: 'system', content: system }, ...history], text => {
                 if (!live() || !session.messages[index]) {
                     return;
                 }
-                const parsed = parseAgentOutput(text);
+                const parsed = parseAgentOutput(cutAfterToolCalls(text));
                 this.streamEdit(session, index, parsed.editing, parsed.editingContent);
-                this.writeAgentDraft(session, index, extractMemories(parsed.display).display);
+                this.writeAgentDraft(session, index, stripHabitMarks(this.goalDisplay(session, extractFollowUps(extractMemories(parsed.display).display).display)));
                 if (parsed.plan.length) {
                     session.plan = parsed.plan.map((t, i) => ({ text: t, state: i === 0 ? 'active' : 'todo' }));
                     this.considerHarmony(session, parsed.edits.length);
@@ -1149,9 +2199,9 @@ export class AgentStore {
                 session.activeFile = parsed.editing ?? parsed.edits[parsed.edits.length - 1]?.path;
                 session.updatedAt = Date.now();
                 this.poke();
-            }, tools.length ? { tools } : {});
+            }, { maxTokens: AGENT_MAX_TOKENS, ...(tools.length ? { tools } : {}) });
             this.running.set(session.id, stream.cancel);
-            final = await stream.done;
+            final = cutAfterToolCalls(await stream.done);
         } catch (error) {
             await this.tracker.cancelStreams(session.id);
             const gateway = decodeGatewayError(error instanceof Error ? error.message : String(error));
@@ -1176,15 +2226,26 @@ export class AgentStore {
             return undefined;
         }
         this.flushPoke();
+        if (session.goal?.state === 'running') {
+            const spent = estimateTokens(system) + estimateTokens(history.map(m => m.content).join('\n')) + estimateTokens(final);
+            session.goal = { ...session.goal, tokensUsed: session.goal.tokensUsed + spent };
+        }
         const parsed = parseAgentOutput(final);
-        const { display, memories } = extractMemories(parsed.display);
+        const extracted = extractMemories(parsed.display);
+        const withFollowUps = extractFollowUps(extracted.display);
+        const display = stripHabitMarks(this.goalDisplay(session, withFollowUps.display));
+        const followUps = withFollowUps.followUps;
+        const memories = extracted.memories;
+        this.habitRunner.consume(session, final);
+        this.dooms.set(session.id, observeReply(this.doomOf(session), display));
         // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
-        this.writeAgentDraft(session, index, display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : '(empty reply)'), {
+        const empty = extracted.display.trim() ? HABIT_TICKED_REPLY : '(empty reply)';
+        this.writeAgentDraft(session, index, display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : empty), {
             expanded: final,
             // IDEA-186: a silent round of project reads shows only in the Explored row.
             ...(!display && !parsed.edits.length && parsed.toolCalls.length && parsed.toolCalls.every(c => c.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(c.tool)) ? { hidden: true } : {})
         });
-        return { ...parsed, memories };
+        return { ...parsed, memories, followUps };
     }
 
     /**
@@ -1194,20 +2255,38 @@ export class AgentStore {
     protected async runTools(session: AgentSession, calls: readonly AgentToolCall[]): Promise<boolean> {
         const root = this.rootFor(session);
         const rootPath = root?.path.fsPath();
-        for (const raw of calls) {
+        const policy = await this.policy.load(rootPath);
+        const tasks = calls.filter(isTaskCall);
+        if (tasks.length) {
+            await this.runTasks(session, tasks, rootPath);
+        }
+        for (const raw of calls.filter(call => !isTaskCall(call))) {
+            const startedAt = Date.now();
             const resolved = await this.resolveCall(raw, rootPath);
             if ('error' in resolved) {
                 session.messages.push({ role: 'tool', from: `${raw.server}/${raw.tool}`, text: `Error: ${resolved.error}` });
+                this.recordTool(session, raw, rootPath, { decision: 'auto', outcome: 'error', output: resolved.error, startedAt });
                 this.changed();
                 continue;
             }
             const call = withRepoDefaults(resolved.call, this.github);
             const target = `${call.server}/${call.tool}`;
+            if (!toolAllowedInMode(session.mode, call)) {
+                const blocked = modeBlockedResult(session.mode, call);
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: ${blocked}`,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt, endedAt: Date.now() }
+                });
+                this.recordTool(session, call, rootPath, { decision: 'auto', outcome: 'error', output: blocked, startedAt });
+                this.changed();
+                continue;
+            }
             if (call.server === BUILTIN_TOOL_SERVER && call.tool === ASK_USER_TOOL) {
                 const question = typeof call.args.question === 'string' ? call.args.question.trim() : '';
                 const options = Array.isArray(call.args.options) ? call.args.options.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
                 if (!question) {
                     session.messages.push({ role: 'tool', from: target, text: 'Error: a question is required.' });
+                    this.recordTool(session, call, rootPath, { decision: 'auto', outcome: 'error', output: 'A question is required.', startedAt });
                     this.changed();
                     continue;
                 }
@@ -1215,6 +2294,7 @@ export class AgentStore {
                 if (answer === undefined || this.cancelled.has(session.id)) {
                     session.ask = undefined;
                     session.messages.push({ role: 'system', text: ASK_STOPPED });
+                    this.recordTool(session, call, rootPath, { decision: 'stopped', outcome: 'skipped', startedAt });
                     this.changed();
                     return false;
                 }
@@ -1222,6 +2302,7 @@ export class AgentStore {
                     role: 'tool', from: target, text: answer,
                     tool: { server: call.server, tool: call.tool, args: call.args, state: 'done', startedAt: Date.now(), endedAt: Date.now() }
                 });
+                this.recordTool(session, call, rootPath, { decision: 'auto', outcome: 'ok', output: answer, startedAt });
                 this.changed();
                 continue;
             }
@@ -1231,35 +2312,118 @@ export class AgentStore {
                     role: 'tool', from: target, text: REMOTE_BLOCKED,
                     tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
                 });
+                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: REMOTE_BLOCKED, startedAt });
                 this.changed();
                 continue;
             }
+            if (call.server === BUILTIN_TOOL_SERVER && call.tool === 'run' && typeof call.args.command === 'string') {
+                const userText = session.messages.filter(message => message.role === 'user' && !message.hidden).map(message => message.text).join('\n');
+                const answers = session.messages.filter(message => message.role === 'tool' && message.tool?.tool === ASK_USER_TOOL).map(message => message.text);
+                const refused = shellGitBlockReason(call.args.command, userText, answers);
+                if (refused) {
+                    session.messages.push({
+                        role: 'tool', from: target, text: `Error: ${refused}`,
+                        tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                    });
+                    this.changed();
+                    continue;
+                }
+            }
+            const refusedByHabit = this.habitRunner.refuse(session, call);
+            if (refusedByHabit) {
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: ${refusedByHabit}`,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                });
+                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: refusedByHabit, startedAt });
+                this.changed();
+                continue;
+            }
+            const guarded = await this.guardTool(session, call, root);
+            if (guarded === 'stopped') {
+                return false;
+            }
+            if (guarded) {
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: ${guarded}`,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                });
+                this.changed();
+                continue;
+            }
+            const gate = await this.gateWithHooks(session, call, root);
+            if (gate.blocked) {
+                session.messages.push({ role: 'tool', from: target, text: `Error: ${gate.blocked}` });
+                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: gate.blocked, startedAt });
+                this.changed();
+                continue;
+            }
+            // IDEA-263: `.ingot/policy.json` decides first: denied calls never reach the card; allowed ones skip it.
+            const isRun = call.server === BUILTIN_TOOL_SERVER && call.tool === 'run';
+            const runCwd = isRun && rootPath ? this.resolveRunCwd(rootPath, typeof call.args.cwd === 'string' ? call.args.cwd : '') : undefined;
+            const context = rootPath ? await this.policy.context(rootPath, runCwd) : undefined;
+            const verdict: PolicyDecision = context ? checkToolCall(policy, call, context) : { verdict: 'default' };
+            if (verdict.verdict === 'deny') {
+                const text = policyBlockedText(verdict.reason);
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: ${text}`,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt, endedAt: Date.now() }
+                });
+                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: `${POLICY_FILE} ${verdict.reason ?? ''}`.trim(), startedAt });
+                this.changed();
+                continue;
+            }
+            const outside = verdict.verdict === 'ask';
+            let decision: AuditDecision = verdict.verdict === 'allow' ? 'allowed' : 'auto';
             const isGit = call.server === BUILTIN_TOOL_SERVER && call.tool === 'git';
             const branch = isGit && rootPath && call.args.op === 'push' && !call.args.branch
                 ? (await this.git.run(rootPath, { kind: 'currentBranch' }).catch(() => ({ output: '' }))).output.trim() || undefined : undefined;
             const described = describeAction(call, branch);
             // Stopping a process the agent started itself never asks; the user's own processes do.
-            const action = call.server === BUILTIN_TOOL_SERVER && call.tool === 'process_stop' && this.processes.find(String(call.args.id))?.origin !== 'user' ? undefined : described;
+            const plain = call.server === BUILTIN_TOOL_SERVER && call.tool === 'process_stop' && this.processes.find(String(call.args.id))?.origin !== 'user' ? undefined : described;
+            // IDEA-294: a hook that answers "ask" always shows the approval card, even for actions that run at once.
+            const action = gate.ask ? { ...(plain ?? { kind: 'mcp' as const, label: call.tool, detail: String(call.args.path ?? '') }), label: `Hook asks · ${plain?.label ?? call.tool}` } : plain;
             const requireGit = this.preferences.get<boolean>(APPROVAL_PREFS.gitRequireApproval, true) !== false;
             const isBrowser = call.server === BUILTIN_TOOL_SERVER && call.tool.startsWith('browser_');
             const requireRun = action?.kind === 'terminal' ? this.runSettings.requireApproval
                 : isBrowser ? browserNeedsCard(call.tool, browserToolSettings(key => this.preferences.get(key))) : true;
             // IDEA-133: a tool turned off in Settings › Agent tools is refused at once, without a card.
             const turnedOff = call.server === BUILTIN_TOOL_SERVER
-                && !builtinToolEnabled(call.tool, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled });
-            if (action && !turnedOff && requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)) {
-                const choice = await this.askApproval(session, action);
+                && !builtinToolEnabled(call.tool, this.toolSwitches(session));
+            const policyCard = action && outside ? outsideApproval(action) : action;
+            // A `.ingot/policy.json` "ask" or a hook's "ask" always shows the card, whatever the sandbox preset says.
+            const mustAsk = !!policyCard && !turnedOff && (outside || !!gate.ask);
+            const cardRequired = mustAsk || (!!policyCard && !turnedOff && verdict.verdict !== 'allow' && requireRun
+                && needsApproval(policyCard, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands));
+            // IDEA-288: the project's sandbox preset decides whether the action runs, asks, is refused or goes to auto-review.
+            const sandboxed = turnedOff ? { decision: 'run' as const, action: policyCard, offline: false } : await this.sandboxGate(session, call, policyCard, rootPath, cardRequired);
+            if (sandboxed.decision === 'refuse') {
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: ${sandboxed.refusal}`,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                });
+                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: sandboxed.refusal, startedAt });
+                this.changed();
+                continue;
+            }
+            const card = sandboxed.action;
+            if (card && (sandboxed.decision === 'ask' || mustAsk)) {
+                const choice = await this.askApproval(session, card);
                 if (choice.stopped) {
+                    this.recordTool(session, call, rootPath, { decision: 'stopped', outcome: 'skipped', reason: verdict.reason, startedAt });
                     return false;
                 }
                 if (choice.decision === 'skip') {
-                    session.messages.push({ role: 'tool', from: target, text: skippedResult(action, choice.reason) });
+                    session.messages.push({ role: 'tool', from: target, text: skippedResult(card, choice.reason) });
+                    this.recordTool(session, call, rootPath, { decision: 'skipped', outcome: 'skipped', reason: choice.reason ?? verdict.reason, startedAt });
                     this.changed();
                     continue;
                 }
-                if (choice.decision === 'always' && rootPath) {
-                    await (action.command ? this.setAlwaysRunCommand(rootPath, action.command, true) : this.setAlwaysRun(rootPath, action.kind, true));
+                const always = choice.decision === 'always' && !card.once && !card.alwaysAsk && !card.sandbox && !gate.ask;
+                if (always && rootPath) {
+                    await (card.command ? this.setAlwaysRunCommand(rootPath, card.command, true) : this.setAlwaysRun(rootPath, card.kind, true));
                 }
+                decision = always ? 'always' : 'approved';
             }
             // IDEA-178: an agent commit / push goes through the `.ingot/hooks.json` steps first, shown as tool cards.
             // IDEA-248: a commit on master, main or release/*, or before green checks, is refused.
@@ -1271,6 +2435,7 @@ export class AgentStore {
                 if (blocked) {
                     loop.commitBlocked = true;
                     session.messages.push({ role: 'tool', from: target, text: `Error: ${blocked}` });
+                    this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: blocked, startedAt });
                     this.changed();
                     continue;
                 }
@@ -1285,10 +2450,9 @@ export class AgentStore {
                 if (!run.passed) {
                     const failed = run.results.filter(r => r.state === 'failed').map(r => `"${r.step.name}"`);
                     this.loopOf(session).commitBlocked = true;
-                    session.messages.push({
-                        role: 'tool', from: target,
-                        text: `Error: blocked by .ingot hooks (${hookStage}${failed.length ? `: ${failed.join(', ')} failed` : ''}${run.errors.length ? `; ${run.errors.join(' ')}` : ''}). Fix the problem, then try the ${call.args.op} again.`
-                    });
+                    const reason = `blocked by .ingot hooks (${hookStage}${failed.length ? `: ${failed.join(', ')} failed` : ''}${run.errors.length ? `; ${run.errors.join(' ')}` : ''})`;
+                    session.messages.push({ role: 'tool', from: target, text: `Error: ${reason}. Fix the problem, then try the ${call.args.op} again.` });
+                    this.recordTool(session, call, rootPath, { decision, outcome: 'blocked', reason, startedAt });
                     this.changed();
                     continue;
                 }
@@ -1296,16 +2460,41 @@ export class AgentStore {
                 this.changed();
             }
             const workspaceTool = call.server === BUILTIN_TOOL_SERVER && isWorkspaceTool(call.tool);
-            session.steps = [...session.steps, workspaceTool ? this.workspaceStep(call) : { kind: 'run', target, done: false }];
+            const codeTool = call.server === BUILTIN_TOOL_SERVER && isCodeTool(call.tool) ? call.tool : undefined;
+            session.steps = [...session.steps, workspaceTool ? this.workspaceStep(call)
+                : { kind: 'run', target, done: false, ...(codeTool ? { label: codeToolStep(codeTool, call.args) } : {}) }];
             session.status = 'thinking';
             // IDEA-177: the card shows at once with a spinner, then fills in with the result.
             const tool: ToolCallInfo = { server: call.server, tool: call.tool, args: call.args, state: 'running', startedAt: Date.now() };
             const at = session.messages.push({ role: 'tool', from: target, text: '', tool }) - 1;
             this.changed();
-            const result: AgentActionResult & { images?: ImageChip[] } = await (isBrowser ? this.runBrowser(session, call)
-                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(session, this.withMadeWithTrailer(session, call), root, hooksRan) : this.mcp.callTool(call.server, call.tool, call.args))
+            const execute = (box?: SandboxSpec): Promise<AgentActionResult & { images?: ImageChip[] }> => (isBrowser ? this.runBrowser(session, call)
+                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(session, this.withMadeWithTrailer(session, call), root, hooksRan, box, sandboxed.offline) : this.mcp.callTool(call.server, call.tool, call.args))
                 .catch((error: unknown) => ({ text: error instanceof Error ? error.message : String(error), isError: true }));
+            // IDEA-263: restricted mode runs commands in the OS sandbox; one the user approved to leave the project runs without it.
+            const box = isRun && context && !outside ? sandboxSpec(policy.policy, context) : undefined;
+            let result = await execute(box);
+            let recorded = false;
+            let stoppedOnCard = false;
+            if (result.sandboxDenied) {
+                this.recordTool(session, call, rootPath, { decision, outcome: 'blocked', reason: SANDBOX_TEXT.blocked, output: result.text, sandboxed: true, startedAt });
+                recorded = true;
+                const choice = await this.askApproval(session, sandboxRetryApproval(typeof call.args.command === 'string' ? call.args.command : ''));
+                stoppedOnCard = !!choice.stopped;
+                if (!choice.stopped && choice.decision !== 'skip') {
+                    result = await execute(undefined);
+                    decision = 'approved';
+                    recorded = false;
+                } else {
+                    result = { text: `${result.text}\n${SANDBOX_TEXT.notApproved}`, isError: true };
+                }
+            }
+            if (!recorded) {
+                this.recordTool(session, call, rootPath, { decision, outcome: result.isError ? 'error' : 'ok', output: result.text, sandboxed: result.sandboxed, startedAt });
+            }
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
+            this.habitRunner.afterTool(session, call, !!result.isError);
+            this.observeTool(session, call, result, root);
             const done: AgentMessage = {
                 role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}),
                 tool: { ...tool, state: result.isError ? 'error' : 'done', endedAt: Date.now() }
@@ -1314,6 +2503,10 @@ export class AgentStore {
                 session.messages[at] = done;
             } else {
                 session.messages.push(done);
+            }
+            if (stoppedOnCard) {
+                this.changed();
+                return false;
             }
             if (isGit && call.args.op === 'commit' && !result.isError && rootPath && this.loopOf(session).wants) {
                 const loop = this.loopOf(session);
@@ -1325,6 +2518,104 @@ export class AgentStore {
             this.changed();
         }
         return true;
+    }
+
+    /** IDEA-263: one audit log line per agent tool call (what, when, the decision and the result). */
+    protected recordTool(
+        session: AgentSession, call: AgentToolCall, project: string | undefined,
+        entry: Pick<AuditEntryInput, 'decision' | 'outcome' | 'reason' | 'output' | 'sandboxed'> & { readonly startedAt?: number; readonly summary?: string }
+    ): void {
+        const { startedAt, summary, ...rest } = entry;
+        this.audit.record({
+            sessionId: session.id, chat: session.title, ...(project ? { project } : {}),
+            tool: `${call.server}/${call.tool}`, summary: summary ?? toolSummary(call), args: call.args,
+            ...rest, ...(startedAt ? { durationMs: Date.now() - startedAt } : {})
+        });
+    }
+
+    /**
+     * IDEA-294: `.ingotignore` and the before-hooks of `hooks.json` for one tool call. `blocked` is the tool result when
+     * the call must not run; `ask` forces the approval card.
+     */
+    protected async gateWithHooks(session: AgentSession, call: AgentToolCall, root: URI | undefined): Promise<{ blocked?: string; ask?: boolean }> {
+        const builtin = call.server === BUILTIN_TOOL_SERVER;
+        const path = typeof call.args.path === 'string' ? call.args.path.trim().replace(/^\.\/+/, '') : '';
+        if (builtin && call.tool === 'read_file' && path && (await this.agentIgnore(root)).agent(path)) {
+            return { blocked: `"${path}" is in .ingotignore: agents cannot read it.` };
+        }
+        const cwd = root?.path.fsPath();
+        const event: AgentHookEvent | undefined = builtin ? (call.tool === 'run' ? 'beforeShellExecution' : call.tool === 'read_file' ? 'beforeReadFile' : undefined) : 'beforeMCPExecution';
+        if (!event || !root) {
+            return {};
+        }
+        const file = event === 'beforeReadFile' ? root.resolve(path) : undefined;
+        const data = event === 'beforeShellExecution' ? { command: String(call.args.command ?? ''), cwd: call.args.cwd ? String(call.args.cwd) : cwd }
+            : event === 'beforeReadFile' ? { file_path: file?.path.fsPath(), content: file ? await this.files.read(file).then(r => r.value, () => '') : '' }
+                : { server: call.server, tool_name: call.tool, tool_input: call.args };
+        const outcome = await this.runEventHook(session, event, data);
+        if (!outcome || outcome.decision.permission === 'allow') {
+            return {};
+        }
+        this.pushHookCard(session, outcome, event === 'beforeShellExecution' ? String(call.args.command ?? '') : event === 'beforeReadFile' ? path : `${call.server}/${call.tool}`);
+        this.changed();
+        return outcome.decision.permission === 'deny' ? { blocked: hookBlockedText(outcome) } : { ask: true };
+    }
+
+    /**
+     * IDEA-288: checks a tool call against the project's sandbox preset. `offline` runs the command with the network blocked
+     * (it stayed inside a sandbox without network); an approved escape runs without that block.
+     */
+    protected async sandboxGate(session: AgentSession, call: AgentToolCall, described: AgentAction | undefined, rootPath: string | undefined, cardRequired: boolean):
+        Promise<{ decision: 'run' | 'ask' | 'refuse'; action?: AgentAction; offline: boolean; refusal?: string }> {
+        const root = this.rootFor(session);
+        const preset = root ? await this.sandbox.load(root) : this.sandbox.peek(root);
+        const intent = rootPath ? toolIntent(call, BUILTIN_TOOL_SERVER, rootPath) : undefined;
+        const check: SandboxCheck = intent ? checkSandbox(preset, intent) : { verdict: 'inside', reasons: [] };
+        const outside = check.verdict === 'outside';
+        const base = described ?? { kind: 'terminal' as const, label: `${call.server}/${call.tool}`, detail: '' };
+        const action: AgentAction = outside ? { ...base, sandbox: sandboxNote(check) } : base;
+        const offline = !outside && blocksNetwork(preset);
+        const decision = gateDecision(preset.approvals, check, cardRequired);
+        if (decision === 'refuse') {
+            return { decision, action, offline, refusal: refusalText(preset, check, actionLine(action, 200)) };
+        }
+        if (decision === 'review') {
+            return { decision: await this.autoReview(session, action, check) ? 'run' : 'ask', action, offline };
+        }
+        return { decision, action, offline };
+    }
+
+    /** IDEA-288: auto-review's verdict, noted in the chat. True runs the action without the card. */
+    protected async autoReview(session: AgentSession, action: AgentAction, check: SandboxCheck): Promise<boolean> {
+        const preset = this.sandbox.peek(this.rootFor(session));
+        const assessed = await this.autoReviewer.assess(session.id, this.resolveModel(session.model), actionLine(action, 200), check, preset);
+        const low = assessed.risk === 'low';
+        session.messages.push({ role: 'system', text: `Auto-review: ${low ? 'low risk, running' : 'needs your approval'}: ${actionLine(action)}. ${assessed.reason}` });
+        this.changed();
+        return low;
+    }
+
+    /** IDEA-288: agent edits in a read-only sandbox (or to the policy file) follow the approvals preset. */
+    protected async sandboxEdits(session: AgentSession, edits: readonly AgentEdit[], root: URI | undefined): Promise<AgentEdit[]> {
+        const rootPath = root?.path.fsPath();
+        if (!root || !rootPath || !edits.length) {
+            return [...edits];
+        }
+        const preset = await this.sandbox.load(root);
+        const check = checkSandbox(preset, editIntent(edits.map(edit => edit.path), rootPath));
+        const action: AgentAction = { kind: 'write', label: 'Edit files', detail: edits.map(edit => edit.path).join(', '), ...(check.verdict === 'outside' ? { sandbox: sandboxNote(check) } : {}) };
+        const decision = gateDecision(preset.approvals, check, false);
+        if (decision === 'run' || (decision === 'review' && await this.autoReview(session, action, check))) {
+            return [...edits];
+        }
+        const choice = decision === 'refuse' ? undefined : await this.askApproval(session, action);
+        if (choice?.decision === 'run' || choice?.decision === 'always') {
+            return [...edits];
+        }
+        await Promise.all(edits.map(edit => this.tracker.cancelStream(session.id, edit.path)));
+        session.messages.push({ role: 'system', text: choice ? skippedResult(action, choice.reason) : refusalText(preset, check, actionLine(action, 200)) });
+        this.changed();
+        return [];
     }
 
     /** IDEA-186: GitHub owner/repo of the open project (from its git remote), for GitHub tool calls. */
@@ -1345,7 +2636,9 @@ export class AgentStore {
 
     protected workspaceStep(call: AgentToolCall): AgentSession['steps'][number] {
         const s = (v: unknown): string => typeof v === 'string' ? v : '';
-        return call.tool === 'grep' || call.tool === 'glob'
+        return call.tool === CODEBASE_SEARCH_TOOL
+            ? { kind: 'search', target: s(call.args.query), done: true }
+            : call.tool === 'grep' || call.tool === 'glob'
             ? { kind: 'search', target: s(call.args.pattern), done: true }
             : call.tool === 'list_dir'
                 ? { kind: 'read', target: `${(s(call.args.path) || '.').replace(/\/+$/, '')}/`, done: true }
@@ -1487,7 +2780,7 @@ export class AgentStore {
                 }
                 const rel = root.relative(entry.resource)?.toString() ?? entry.name;
                 if (entry.isDirectory) {
-                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot') && !ignored(rel)) {
+                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot') && rel !== INDEX_DIR && !ignored(rel)) {
                         await visit(entry.resource);
                     }
                     continue;
@@ -1533,7 +2826,7 @@ export class AgentStore {
                     continue;
                 }
                 if (entry.isDirectory) {
-                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot')) {
+                    if (!SKIPPED_DIRS.has(entry.name) && !(entry.name.startsWith('.') && entry.name !== '.ingot') && rel !== INDEX_DIR) {
                         await visit(entry.resource);
                     }
                     continue;
@@ -1554,8 +2847,36 @@ export class AgentStore {
         return { text: hits.length ? `${hits.length}${hits.length >= GREP_MAX_MATCHES ? '+' : ''} match(es) for "${pattern}" in ${scanned} file(s):\n${hits.join('\n')}` : `No matches for "${pattern}" (${scanned} file(s) searched).`, isError: false };
     }
 
+    /** IDEA-260: ranked snippets from the local codebase index. */
+    protected async codebaseSearchTool(rootPath: string, query: string, path: string, limit: unknown): Promise<AgentActionResult> {
+        if (!query.trim()) {
+            return { text: 'No query given.', isError: true };
+        }
+        if (!this.codebaseIndex.enabled) {
+            return { text: 'The codebase index is turned off in Settings. Use ingot/grep instead.', isError: true };
+        }
+        if (path && !isSafeRelativePath(path.replace(/\/+$/, ''))) {
+            return { text: `"${path}" is not inside the project.`, isError: true };
+        }
+        const result = await this.codebaseIndex.search(rootPath, query, { path, ...(limit !== undefined ? { limit: Number(limit) } : {}) });
+        return { text: formatSearchResult(result), isError: Boolean(result.error) };
+    }
+
+    /** IDEA-287: the body of an Agent Requested (or any) project rule, by name. */
+    protected fetchRuleTool(session: AgentSession, name: string): AgentActionResult {
+        const rules = this.sessionRules.get(session.id) ?? [];
+        const rule = findRule(rules, name);
+        if (!rule) {
+            const known = requestableRules(rules).map(r => r.name).join(', ');
+            return { text: `No rule "${name}".${known ? ` Rules: ${known}.` : ''}`, isError: true };
+        }
+        return { text: `Rule ${rule.name} (${rule.path})${rule.scope ? `, for files under ${rule.scope}/` : ''}:\n\n${rule.body}`, isError: false };
+    }
+
     /** Ingot's built-in agent tools (IDEA-109): git, terminal command, web search / fetch, file delete. */
-    protected async runBuiltin(session: AgentSession, call: AgentToolCall, root: URI | undefined, hooksRan = false): Promise<AgentActionResult> {
+    protected async runBuiltin(
+        session: AgentSession, call: AgentToolCall, root: URI | undefined, hooksRan = false, sandbox?: SandboxSpec, offline = false
+    ): Promise<AgentActionResult> {
         const rootPath = root?.path.fsPath();
         const str = (v: unknown): string => typeof v === 'string' ? v : '';
         try {
@@ -1568,6 +2889,9 @@ export class AgentStore {
             if (!root || !rootPath) {
                 return { text: 'Open a project first.', isError: true };
             }
+            if (isCodeTool(call.tool)) {
+                return await this.runCodeTool(session, call, root);
+            }
             switch (call.tool) {
                 case 'git': {
                     if (call.args.op === 'log') {
@@ -1579,18 +2903,22 @@ export class AgentStore {
                     return { text: result.output.trim() || 'Done.', isError: false };
                 }
                 case 'read_file': return await this.readFileTool(root, str(call.args.path), Number(call.args.start) || 1, Number(call.args.end) || undefined);
+                case FETCH_RULE_TOOL: return this.fetchRuleTool(session, str(call.args.name));
+                case USE_HABIT_TOOL: return this.habitRunner.use(session, str(call.args.name));
                 case 'list_dir': return await this.listDirTool(root, str(call.args.path), Math.min(3, Math.max(1, Number(call.args.depth) || 1)));
                 case 'glob': return await this.globTool(root, str(call.args.pattern), str(call.args.path));
                 case 'grep': return await this.grepTool(root, str(call.args.pattern), str(call.args.path), str(call.args.glob), call.args.regex === true);
+                case CODEBASE_SEARCH_TOOL: return await this.codebaseSearchTool(rootPath, str(call.args.query), str(call.args.path), call.args.limit);
                 case 'run': {
                     const command = str(call.args.command);
                     const cwd = this.resolveRunCwd(rootPath, str(call.args.cwd));
                     if (!cwd) {
                         return { text: `Refusing to run "${command}" outside the open project.`, isError: true };
                     }
-                    const timeout = this.isCreatedApp(cwd) && libraryCommandNeedsTime(command) ? LIBRARY_COMMAND_TIMEOUT_SECONDS : undefined;
-                    return await this.runCommand(cwd, command, call.args.background === true, undefined, timeout);
+                    const timeout = libraryCommandNeedsTime(command) ? Math.max(LIBRARY_COMMAND_TIMEOUT_SECONDS, this.runSettings.foregroundTimeoutSeconds) : undefined;
+                    return await this.runCommand(cwd, command, call.args.background === true, undefined, timeout, sandbox, offline ? NETWORK_OFF_ENV : undefined);
                 }
+                case RUN_TESTS_TOOL: return await this.runTestsTool(session, call.args);
                 case 'scripts': {
                     const found = await this.processes.service.scripts(rootPath);
                     if (!found || !Object.keys(found.scripts).length) {
@@ -1610,6 +2938,16 @@ export class AgentStore {
                     const stopped = await this.processes.service.stop(str(call.args.id));
                     return stopped ? { text: `Stopped ${str(call.args.id)}.`, isError: false } : { text: `Process "${str(call.args.id)}" is not running.`, isError: true };
                 }
+                case ARTIFACT_TOOL: {
+                    const parsed = parseArtifactArgs(call.args);
+                    if ('error' in parsed) {
+                        return { text: parsed.error, isError: true };
+                    }
+                    const saved = await this.artifacts.write(session, parsed.name, parsed.content);
+                    return saved
+                        ? { text: `Saved ${saved}. The user reviews it in the Artifacts view; their comments come back as messages.`, isError: false }
+                        : { text: 'No run folder to save the artifact in.', isError: true };
+                }
                 case 'web_search': return await this.actions.search(str(call.args.query));
                 case 'web_fetch': return await this.actions.fetchUrl(str(call.args.url));
                 case 'delete': {
@@ -1620,17 +2958,133 @@ export class AgentStore {
                     await this.files.delete(root.resolve(path), { recursive: false, useTrash: true });
                     return { text: `Deleted ${path}.`, isError: false };
                 }
-                default: return { text: `Unknown Ingot tool "${call.tool}".`, isError: true };
+                default: return {
+                    text: unknownToolResult(call.tool, [...WORKSPACE_TOOLS, ...BUILTIN_TOOLS].map(t => t.name)
+                        .filter(name => builtinToolEnabled(name, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }))),
+                    isError: true
+                };
             }
         } catch (error) {
             return { text: error instanceof Error ? error.message : String(error), isError: true };
         }
     }
 
+    /** IDEA-259: language-server tools. Rename and organize imports become reviewable edits like any agent edit. */
+    protected async runCodeTool(session: AgentSession, call: AgentToolCall, root: URI): Promise<AgentActionResult> {
+        const str = (v: unknown): string => typeof v === 'string' ? v.trim() : '';
+        const fileUri = (path: string): URI | undefined => {
+            const uri = this.safeUri(root, path);
+            return uri && uri !== root ? uri : undefined;
+        };
+        if (isCodeEditTool(call.tool) && !modeInfo(session.mode).canEdit) {
+            return { text: `${modeInfo(session.mode).label} mode does not change files; switch to Agent to ${call.tool === 'rename_symbol' ? 'rename' : 'organize imports'}.`, isError: true };
+        }
+        if (call.tool === 'diagnostics') {
+            const path = str(call.args.path);
+            const uri = path ? fileUri(path) : undefined;
+            if (path && !uri) {
+                return { text: `"${path}" is not a file path inside the project.`, isError: true };
+            }
+            const wanted = severityFilter(call.args.severity);
+            const found = (await this.codeTools.diagnostics(root, uri)).filter(d => wanted(d.severity));
+            return { text: formatDiagnostics(found, path || 'the project (files the language servers have checked)'), isError: false };
+        }
+        if (call.tool === 'organize_imports') {
+            const path = str(call.args.path);
+            const uri = fileUri(path);
+            if (!uri) {
+                return { text: `"${path}" is not a file path inside the project.`, isError: true };
+            }
+            const result = await this.codeTools.organizeImportsEdits(uri);
+            return result.ranCommand
+                ? { text: `Organized imports in ${path} (the language server saved the file).`, isError: false }
+                : this.applyCodeEdits(session, root, result, 'Organized imports', `Imports in ${path} are already organized.`);
+        }
+        const target = parseSymbolTarget(call.args);
+        if ('error' in target) {
+            return { text: target.error, isError: true };
+        }
+        const uri = fileUri(target.path);
+        if (!uri) {
+            return { text: `"${target.path}" is not a file path inside the project.`, isError: true };
+        }
+        const text = await this.codeTools.text(uri).catch(() => undefined);
+        if (text === undefined) {
+            return { text: `No file "${target.path}". Use ingot/glob to find it.`, isError: true };
+        }
+        const at = findSymbolPosition(text, target);
+        if (!at) {
+            return { text: `"${target.symbol ?? `line ${target.line}`}" is not in ${target.path}${target.symbol && target.line ? ` near line ${target.line}` : ''}.`, isError: true };
+        }
+        const where = `${target.path}:${at.line}:${at.column}`;
+        switch (call.tool) {
+            case 'go_to_definition': return { text: `${where}\n${formatLocations('definitions', await this.codeTools.definitions(root, uri, at))}`, isError: false };
+            case 'find_references': return { text: `${where}\n${formatLocations('references', await this.codeTools.references(root, uri, at))}`, isError: false };
+            default: {
+                const newName = parseNewName(call.args);
+                if (typeof newName !== 'string') {
+                    return { text: newName.error, isError: true };
+                }
+                const result = await this.codeTools.renameEdits(uri, at, newName);
+                return this.applyCodeEdits(session, root, result, `Renamed ${target.symbol ?? where} to ${newName}`, 'The language server returned no edits.');
+            }
+        }
+    }
+
+    /** Text edits from a language server, applied per file through the review (Accept / Reject) like any agent edit. */
+    protected async applyCodeEdits(session: AgentSession, root: URI, result: CodeEditResult, summary: string, empty: string): Promise<AgentActionResult> {
+        const edits: AgentEdit[] = [];
+        const outside: string[] = [];
+        for (const [key, fileEdits] of result.edits) {
+            const uri = new URI(key);
+            const path = root.relative(uri)?.toString();
+            if (!path) {
+                outside.push(uri.path.fsPath());
+                continue;
+            }
+            const before = await this.codeTools.text(uri);
+            const after = applyTextEdits(before, fileEdits);
+            if (after !== before) {
+                edits.push({ path, content: after });
+            }
+        }
+        if (!edits.length) {
+            return { text: outside.length ? `Refused: every edit was outside the project (${outside.join(', ')}).` : empty, isError: outside.length > 0 };
+        }
+        await this.applyEdits(session, edits, root);
+        return {
+            text: [
+                `${summary} in ${edits.length} file(s): ${edits.map(edit => edit.path).join(', ')}. The edits wait for the user's Accept or Reject.`,
+                ...(outside.length ? [`Skipped files outside the project: ${outside.join(', ')}.`] : []),
+                ...(result.skipped.length ? [`Not applied: ${result.skipped.join(', ')}.`] : [])
+            ].join('\n'),
+            isError: false
+        };
+    }
+
+    /** IDEA-261: one step of the edit -> run_tests -> fix loop. A red run counts; past the cap the tool refuses to run. */
+    protected async runTestsTool(session: AgentSession, args: Record<string, unknown>): Promise<AgentActionResult> {
+        if (!this.runSettings.enabled) {
+            return { text: 'Running commands is turned off in Settings › Tools › Agent tools.', isError: true };
+        }
+        const max = clampIterations(this.preferences.get<number>(TEST_LOOP_PREFS.maxIterations, DEFAULT_TEST_ITERATIONS));
+        const previous = this.testIterations.get(session.id) ?? 0;
+        if (previous >= max) {
+            return { text: `${TESTS_CAPPED_TEXT} (${previous} of ${max} runs used.)`, isError: true };
+        }
+        const result = await this.tests.run(requestFromArgs(args, this.tests.allResults));
+        const step = testLoopStep(previous, max, result.status);
+        this.testIterations.set(session.id, result.status === 'passed' ? 0 : step.iteration);
+        return { text: formatForAgent(result, step), isError: result.status !== 'passed' };
+    }
+
     /** IDEA-130: the agent's browser tools, run in the Ingot browser panel (they wait while the user has control). */
     protected async runBrowser(session: AgentSession, call: AgentToolCall): Promise<AgentActionResult & { images?: ImageChip[] }> {
         if (!browserToolSettings(key => this.preferences.get(key)).enabled) {
             return { text: 'The browser tool is turned off in Settings › Tools › Agent tools.', isError: true };
+        }
+        if (!this.browserOn(session)) {
+            return { text: BROWSER_RUN_ONLY_TEXT, isError: true };
         }
         const a = call.args;
         const str = (v: unknown): string => typeof v === 'string' ? v : '';
@@ -1648,8 +3102,13 @@ export class AgentStore {
             case 'browser_screenshot': {
                 const shot = await this.browser.agentScreenshot(session.id);
                 const data = shot.image?.dataUrl.replace(/^data:image\/png;base64,/, '');
+                if (data) {
+                    await this.artifacts.writeScreenshot(session, data).catch(() => undefined);
+                }
                 return { ...text(shot.text), ...(data ? { images: [{ id: `shot-${Date.now().toString(36)}`, name: 'screenshot.png', mediaType: 'image/png', data }] } : {}) };
             }
+            case 'browser_console': return text(await this.browser.agentConsole(session.id, consoleFilter(a.level)));
+            case 'browser_network': return text(await this.browser.agentNetwork(session.id));
             default: return { text: `Unknown browser tool "${call.tool}". Tools: ${['browser_open', 'browser_click', 'browser_type', 'browser_scroll', 'browser_back', ...BROWSER_READ_TOOLS].join(', ')}.`, isError: true };
         }
     }
@@ -1675,7 +3134,10 @@ export class AgentStore {
     }
 
     /** IDEA-131: a command in the foreground (waits, then moves to the background after the timeout) or in the background. */
-    protected async runCommand(cwd: string, command: string, background: boolean, onOutput?: (text: string) => void, timeoutSecondsArg?: number): Promise<AgentActionResult> {
+    protected async runCommand(
+        cwd: string, command: string, background: boolean, onOutput?: (text: string) => void, timeoutSecondsArg?: number, sandbox?: SandboxSpec,
+        env?: Readonly<Record<string, string>>
+    ): Promise<AgentActionResult> {
         if (!command.trim()) {
             return { text: 'No command given.', isError: true };
         }
@@ -1685,10 +3147,13 @@ export class AgentStore {
         }
         const service = this.processes.service;
         if (background) {
-            const info = await service.start({ cwd, command, background: true, origin: 'agent' });
+            const info = await service.start({ cwd, command, background: true, origin: 'agent', ...(sandbox ? { sandbox } : {}), ...(env ? { env } : {}) });
             const out = await service.output(info.id, settings.maxOutputChars);
             const state = info.status === 'running' ? `Running in the background as ${info.id}${info.ports.length ? ` on port ${info.ports.join(', ')}` : ''}.` : `Exited with code ${info.exitCode ?? '?'}.`;
-            return { text: `${state} Read more output with ingot/process_output, stop it with ingot/process_stop.\n${out?.text.trimEnd() ?? ''}`.trim(), isError: info.status === 'failed' };
+            return {
+                text: `${state} Read more output with ingot/process_output, stop it with ingot/process_stop.\n${out?.text.trimEnd() ?? ''}`.trim(), isError: info.status === 'failed',
+                ...(info.sandboxed ? { sandboxed: true } : {})
+            };
         }
         const startedAt = Date.now();
         const poll = onOutput ? setInterval(() => {
@@ -1705,11 +3170,14 @@ export class AgentStore {
         }, OUTPUT_POLL_MS) : undefined;
         try {
             const timeoutSeconds = timeoutSecondsArg ?? settings.foregroundTimeoutSeconds;
-            const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: timeoutSeconds * 1000, maxOutput: settings.maxOutputChars });
+            const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: timeoutSeconds * 1000, maxOutput: settings.maxOutputChars, ...(sandbox ? { sandbox } : {}), ...(env ? { env } : {}) });
             const status = result.movedToBackground
                 ? `Still running after ${timeoutSeconds}s: moved to the background as ${result.info.id}${result.info.ports.length ? ` (port ${result.info.ports.join(', ')})` : ''}. Use ingot/process_output or ingot/process_stop.`
                 : result.info.status === 'stopped' ? 'Stopped.' : `Exit code ${result.info.exitCode ?? '?'}.`;
-            return { text: `${result.output.trimEnd()}\n${status}`.trim(), isError: result.movedToBackground || result.info.status !== 'exited', movedToBackground: result.movedToBackground };
+            return {
+                text: `${result.output.trimEnd()}\n${status}`.trim(), isError: result.movedToBackground || result.info.status !== 'exited', movedToBackground: result.movedToBackground,
+                ...(result.info.sandboxed ? { sandboxed: true } : {}), ...(result.sandboxDenied ? { sandboxDenied: true } : {})
+            };
         } finally {
             if (poll) {
                 clearInterval(poll);
@@ -1719,7 +3187,7 @@ export class AgentStore {
 
     /** One nudge when a library prompt never becomes create_library, and another when its tests fail. */
     protected nudgeLibrary(session: AgentSession, prompt: string): boolean {
-        if (this.libraryNudged.has(session.id) || this.libraries.has(session.id)) {
+        if (this.libraryNudged.has(session.id) || this.libraries.has(session.id) || !this.libraryTemplateOn()) {
             return false;
         }
         const parsed = parseLibraryPrompt(prompt);
@@ -1871,6 +3339,18 @@ export class AgentStore {
         };
     }
 
+    protected toolSwitches(session: AgentSession): BuiltinToolSwitches {
+        return {
+            terminal: this.runSettings.enabled,
+            browser: this.browserOn(session),
+            template: this.libraryTemplateOn()
+        };
+    }
+
+    protected libraryTemplateOn(): boolean {
+        return this.preferences.get<boolean>(LIBRARY_TEMPLATE_PREF, true) !== false;
+    }
+
     protected workLoopOn(): boolean {
         return this.preferences.get<boolean>(WORK_LOOP_PREFS.enabled, true) !== false;
     }
@@ -1923,8 +3403,20 @@ export class AgentStore {
     }
 
     protected async ignoreOf(root: URI): Promise<(rel: string) => boolean> {
-        const text = await this.files.read(root.resolve('.gitignore')).then(file => file.value, () => '');
-        return compileGitignore(text);
+        const [text, agent] = await Promise.all([this.files.read(root.resolve('.gitignore')).then(file => file.value, () => ''), this.agentIgnore(root)]);
+        const git = compileGitignore(text);
+        return rel => git(rel) || agent.agent(rel);
+    }
+
+    /** IDEA-287: the open project's rules, for the composer's @ menu. */
+    async mentionRules(): Promise<readonly ProjectRule[]> {
+        const root = this.workspace.tryGetRoots()[0]?.resource;
+        return root ? (await this.projectConfig.load(root).catch(() => undefined))?.rules ?? [] : [];
+    }
+
+    /** IDEA-294: `.ingotignore` / `.cursorignore` of the project (none without a project). */
+    async agentIgnore(root: URI | undefined): Promise<IgnoreRules> {
+        return this.projectConfig.ignoreRules(root);
     }
 
     /** Ripgrep when the backend has it. Undefined asks the caller to walk the tree. */
@@ -1933,7 +3425,7 @@ export class AgentStore {
         if (!cwd) {
             return undefined;
         }
-        const found = await this.processes.service.workspaceSearch({ cwd, ...query }).catch(() => undefined);
+        const found = await this.processes.service.workspaceSearch({ cwd, ...query, agentIgnore: true }).catch(() => undefined);
         if (!found || found.engine !== 'ripgrep') {
             return undefined;
         }
@@ -1969,6 +3461,7 @@ export class AgentStore {
             role: 'tool', from: `${BUILTIN_TOOL_SERVER}/run`, text: `${result.isError ? 'Error: ' : ''}${result.text}`,
             tool: { ...tool, state: result.isError ? 'error' : 'done', endedAt: Date.now() }
         };
+        this.observeTool(session, { server: BUILTIN_TOOL_SERVER, tool: 'run', args: { command } }, result, this.rootFor(session));
         this.changed();
         return result;
     }
@@ -2059,7 +3552,17 @@ export class AgentStore {
 
     /** Review finished and the files are on disk: continue the loop if this turn asked for one. */
     protected async resumeLoop(session: AgentSession): Promise<void> {
-        if (this.modelLoops.has(session.id) || !this.loopOf(session).wants) {
+        const loop = this.loopOf(session);
+        if (this.modelLoops.has(session.id)) {
+            return;
+        }
+        if (loop.promised) {
+            loop.promised = false;
+            session.messages.push({ role: 'user', text: CONTINUE_NUDGE, hidden: true });
+            await this.runModel(session);
+            return;
+        }
+        if (!loop.wants) {
             return;
         }
         if (await this.nudgeLoop(session, this.rootFor(session))) {
@@ -2086,7 +3589,11 @@ export class AgentStore {
     /** Live editor view while an edit block streams (IDEA-102): the file fills in as the model types. */
     protected streamEdit(session: AgentSession, messageIndex: number, path: string | undefined, content: string | undefined): void {
         const root = this.rootFor(session);
-        if (!path || content === undefined || !root || !modeInfo(session.mode).canEdit || !isSafeRelativePath(path) || this.lockedFor(session, path)) {
+        if (!path || content === undefined || !root || !modeInfo(session.mode).canEdit || !isSafeRelativePath(path) || this.lockedFor(session, path) || this.frozen.isFileFrozen(path)) {
+            return;
+        }
+        // IDEA-288: an edit the sandbox stops shows only once it is approved.
+        if (checkSandbox(this.sandbox.peek(root), editIntent([path], root.path.fsPath())).verdict === 'outside') {
             return;
         }
         const key = `${session.id}\u0000${messageIndex}\u0000${path}`;
@@ -2111,12 +3618,29 @@ export class AgentStore {
         const ids: string[] = [];
         // IDEA-105: many files pause for review at checkpoints of `reviewPauseThreshold` files.
         const batches = checkpoints(edits, review.pauseThreshold);
+        const rootPath = root?.path.fsPath();
+        const policy = await this.policy.load(rootPath);
+        const editCall = (path: string): AgentToolCall => ({ server: BUILTIN_TOOL_SERVER, tool: 'edit', args: { path } });
         let applied = 0;
         for (const [b, batch] of batches.entries()) {
             for (const edit of batch) {
                 applied++;
                 if (!root || !isSafeRelativePath(edit.path)) {
                     session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": agents can only change files inside the project.` });
+                    this.recordTool(session, editCall(edit.path), rootPath, { decision: 'denied', outcome: 'blocked', summary: `Edit ${edit.path}`, reason: 'outside the project' });
+                    continue;
+                }
+                // IDEA-263: `paths.writable` / `paths.readOnly` in `.ingot/policy.json`.
+                const write = checkEdit(policy, edit.path);
+                if (write.verdict === 'deny') {
+                    session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": ${POLICY_FILE} ${write.reason}.` });
+                    this.recordTool(session, editCall(edit.path), rootPath, { decision: 'denied', outcome: 'blocked', summary: `Edit ${edit.path}`, reason: `${POLICY_FILE} ${write.reason}` });
+                    await this.tracker.cancelStream(session.id, edit.path);
+                    continue;
+                }
+                if ((await this.agentIgnore(root)).agent(edit.path.replace(/^\.\/+/, ''))) {
+                    session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": it is in .ingotignore.` });
+                    await this.tracker.cancelStream(session.id, edit.path);
                     continue;
                 }
                 const locked = this.lockedFor(session, edit.path);
@@ -2133,8 +3657,13 @@ export class AgentStore {
                 // Wait for the live view of this file (if it streamed) so the final text lands on the same change.
                 await this.streamingEdits.get(`${session.id}\u0000${messageIndex}\u0000${edit.path}`);
                 const change = await this.tracker.finalize(origin, edit.path, root.resolve(edit.path), edit.content);
+                void this.runEventHook(session, 'afterFileEdit', { file_path: root.resolve(edit.path).path.fsPath(), edits: [{ old_string: change.oldText, new_string: edit.content }] });
                 this.loopOf(session).edits.push(edit.path);
+                this.dooms.set(session.id, observeEdit(this.doomOf(session), edit.path, edit.content));
                 const stats = this.tracker.stats(change);
+                this.recordTool(session, editCall(edit.path), rootPath, {
+                    decision: 'auto', outcome: 'ok', summary: `Edit ${edit.path} (+${stats.added} −${stats.removed})`, ...(review.autoAccept ? { output: 'Accepted automatically.' } : {})
+                });
                 session.steps = [...session.steps, { kind: 'edit', target: edit.path, done: true, added: stats.added, removed: stats.removed }];
                 ids.push(change.id);
                 if (review.autoAccept) {
@@ -2164,14 +3693,18 @@ export class AgentStore {
             if (changes.length) {
                 session.messages.push({ role: 'system', text: `Review finished: ${kept.length} of ${total} change(s) kept.` });
             }
-            if (kept.length && this.loopOf(session).wants && !this.modelLoops.has(session.id)) {
-                void this.resumeLoop(session);
+            const resume = kept.length && (this.loopOf(session).wants || this.loopOf(session).promised) && !this.modelLoops.has(session.id);
+            if (resume) {
+                void this.resumeLoop(session).then(() => this.afterGoalTurn(session));
             }
             if (session.status === 'review') {
                 session.status = kept.length ? 'done' : 'idle';
             }
             session.updatedAt = Date.now();
             this.changed();
+            if (!resume) {
+                this.afterGoalTurn(session);
+            }
             return true;
         };
         if (check()) {
@@ -2185,10 +3718,10 @@ export class AgentStore {
     }
 
     /**
-     * Edit a sent user message in place: restore files to before that turn, drop it and everything after it,
-     * then send the new text so the agent runs again from there.
+     * Edit a sent user message in place: restore files to before that turn (unless `revert` is false, IDEA-280),
+     * drop it and everything after it, then send the new text so the agent runs again from there.
      */
-    async editUserMessage(sessionId: string, index: number, text: string): Promise<void> {
+    async editUserMessage(sessionId: string, index: number, text: string, revert = true): Promise<void> {
         const session = this.items.find(s => s.id === sessionId);
         const message = session?.messages[index];
         const trimmed = text.trim();
@@ -2198,7 +3731,9 @@ export class AgentStore {
         this.stop(sessionId);
         this.selected = sessionId;
         try {
-            await this.tracker.revertTo(sessionId, index, restorePlan(this.tracker.checkpoints, sessionId, index));
+            if (revert) {
+                await this.tracker.revertTo(sessionId, index, restorePlan(this.tracker.checkpoints, sessionId, index));
+            }
         } catch (error) {
             session.messages.push({ role: 'system', text: `Could not restore files: ${error instanceof Error ? error.message : String(error)}` });
             session.status = 'error';
@@ -2210,6 +3745,7 @@ export class AgentStore {
         session.plan = [];
         session.changes = session.changes.filter(change => this.tracker.changes.some(tracked => tracked.uri === change.uri && tracked.sessionId === sessionId));
         this.loops.delete(sessionId);
+        this.testIterations.delete(sessionId);
         session.status = 'idle';
         this.changed();
         this.send(trimmed);
@@ -2244,14 +3780,28 @@ export class AgentStore {
         this.changed();
     }
 
-    /** Saves facts the model marked with REMEMBER: (when Generate memories is on) and shows them with Undo. */
-    protected async saveMemories(session: AgentSession, facts: readonly string[], root: URI | undefined): Promise<void> {
-        if (!facts.length || !this.memoryStore.generate) {
+    /** IDEA-267: suggested next prompts on the last visible reply of the turn (the model's, or ones that fit what happened). */
+    protected attachFollowUps(session: AgentSession, fromModel: readonly string[], edited: boolean): void {
+        if (session.parent || session.status === 'error') {
             return;
         }
-        for (const fact of facts) {
-            const scope = root ? 'project' : 'global';
-            const memory = await this.memoryStore.save(scope, fact, root).catch(() => undefined);
+        const index = session.messages.map((m, i) => ({ m, i })).reverse().find(({ m }) => m.role === 'agent' && !m.hidden && m.text)?.i;
+        if (index === undefined) {
+            return;
+        }
+        const latest = new Map(this.loopOf(session).checks.map(check => [check.command, check.passed]));
+        const checks: CheckOutcome = !latest.size ? 'none' : [...latest.values()].every(Boolean) ? 'passed' : 'failed';
+        session.messages[index] = { ...session.messages[index], followUps: followUpsFor(fromModel, { edited, checks }) };
+    }
+
+    /** Saves repo facts (REMEMBER:) and preferences (PREFERENCE:) when Generate memories is on, and shows them with Undo. */
+    protected async saveMemories(session: AgentSession, notes: readonly MemoryNote[], root: URI | undefined): Promise<void> {
+        if (!notes.length || !this.memoryStore.generate) {
+            return;
+        }
+        for (const note of notes) {
+            const scope = root ? DEFAULT_SCOPE[note.kind] : 'global';
+            const memory = await this.memoryStore.save(scope, note.text, root, note.kind).catch(() => undefined);
             if (memory) {
                 session.messages.push({ role: 'system', text: memory.text, memory: { id: memory.id, scope: memory.scope } });
             }
@@ -2270,6 +3820,27 @@ export class AgentStore {
         this.changed();
     }
 
+    /** IDEA-296: a "Saved to Habits" note in the open chat (none is open: nothing to show it in). */
+    /** IDEA-296: Habits learned or saved a pattern: a "Saved to Habits" note in the current chat that opens it, with Undo. */
+    addHabitNote(event: HabitEvent): void {
+        const session = this.current;
+        if (!session) {
+            return;
+        }
+        this.addNote(session, { kind: 'habit', text: HABIT_NOTE_LABELS.saved, detail: habitNoteDetail(event), focus: event.focus, undo: event.undo });
+    }
+
+    /** A note whose Undo ran elsewhere (Habits put the pattern back): shown as undone. */
+    markNoteUndone(sessionId: string, index: number): void {
+        const session = this.items.find(s => s.id === sessionId);
+        const message = session?.messages[index];
+        if (!session || !message?.note) {
+            return;
+        }
+        session.messages[index] = { ...message, note: { ...message.note, undone: true } };
+        this.changed();
+    }
+
     /** Plan mode: Build runs the plan in Agent mode in the same chat. */
     build(sessionId: string): void {
         const session = this.items.find(s => s.id === sessionId);
@@ -2279,7 +3850,25 @@ export class AgentStore {
         this.selected = session.id;
         session.mode = 'agent';
         session.messages = session.messages.map(m => m.buildable ? { ...m, buildable: false } : m);
+        this.approvePlan(session);
+        this.noRoute.add(session.id);
         this.send(BUILD_PROMPT);
+    }
+
+    /** IDEA-306: Build approves the plan: saved under .ingot/plans/, reviewed against the diff after the run, learned as a template. */
+    protected approvePlan(session: AgentSession): void {
+        const steps = session.plan.map(p => p.text).filter(Boolean);
+        if (!steps.length) {
+            return;
+        }
+        const asked = [...session.messages].reverse().find(m => m.role === 'user' && !m.hidden && m.text !== BUILD_PROMPT)?.text ?? session.title;
+        const plan = this.planReview.approve(session.title, asked, steps);
+        session.approvedPlan = plan;
+        const root = this.rootFor(session);
+        if (root) {
+            void this.planReview.save(root, plan).catch(() => undefined);
+        }
+        void this.planReview.learnTemplate(root, plan).then(saved => saved && this.noteSaved(session, saved)).catch(() => undefined);
     }
 
     /** IDEA-180 Harmony mode: Zaprex's offer per lead chat (the bubble under the title bar T-rex). */
@@ -2301,6 +3890,36 @@ export class AgentStore {
     /** The open offer for one chat. */
     harmonyOfferFor(sessionId: string): HarmonyPiece | undefined {
         return this.harmonyOffers.get(sessionId);
+    }
+
+    /** The current chat, while its run is heavy enough to hand off to Rex (many files, a multi-step plan or a long run). */
+    get heavyRun(): AgentSession | undefined {
+        const session = this.current;
+        if (!session || session.parent || session.agent === 'zaprex') {
+            return undefined;
+        }
+        const started = this.isRunning(session.id) ? this.runStarted.get(session.id) : undefined;
+        const prompt = [...session.messages].reverse().find(m => m.role === 'user')?.text ?? '';
+        return isHeavyRunWeight(runWeight(session, Date.now(), started, parseMentions(prompt))) ? session : undefined;
+    }
+
+    /** "Hand off to Rex": Zaprex takes the open Harmony offer, else one scoped piece of the run; with nothing left to take, the Zaprex app opens. */
+    handOffToRex(sessionId: string): AgentSession | undefined {
+        const session = this.find(sessionId);
+        if (!session) {
+            return undefined;
+        }
+        if (!this.harmonyOffers.has(sessionId)) {
+            const goal = [...session.messages].reverse().find(m => m.role === 'user')?.text ?? session.title;
+            const taken = this.zaprexPieces(sessionId).map(p => p.piece).filter(k => !!k);
+            const piece = pickHarmonyPiece(session.plan.map(p => p.text), goal, taken);
+            if (!piece) {
+                void this.zaprex.openApp();
+                return undefined;
+            }
+            this.harmonyOffers.set(sessionId, piece);
+        }
+        return this.acceptHarmony(sessionId);
     }
 
     /** IDEA-181: a chat's subagents (Multi-agent subtasks and Zaprex pieces), oldest first. */
@@ -2539,6 +4158,101 @@ export class AgentStore {
         return undefined;
     }
 
+    /**
+     * IDEA-291: the `ingot/task` calls of one reply run as parallel subagents. Each starts with only its prompt
+     * (clean context), optionally in its own git worktree; its card in the lead chat fills in with the summary.
+     */
+    protected async runTasks(lead: AgentSession, calls: readonly AgentToolCall[], rootPath: string | undefined): Promise<void> {
+        const from = `${BUILTIN_TOOL_SERVER}/${TASK_TOOL}`;
+        const card = (call: AgentToolCall): AgentMessage => {
+            const message: AgentMessage = { role: 'tool', from, text: '', tool: { server: call.server, tool: call.tool, args: call.args, state: 'running', startedAt: Date.now() } };
+            lead.messages.push(message);
+            return message;
+        };
+        const settle = (message: AgentMessage, text: string, isError: boolean): void => {
+            const done: AgentMessage = { ...message, text: `${isError ? 'Error: ' : ''}${text}`, ...(message.tool ? { tool: { ...message.tool, state: isError ? 'error' : 'done', endedAt: Date.now() } } : {}) };
+            const at = lead.messages.indexOf(message);
+            if (at >= 0) {
+                lead.messages[at] = done;
+            } else {
+                lead.messages.push(done);
+            }
+        };
+        if (lead.parent) {
+            calls.forEach(call => settle(card(call), NESTED_TASK_ERROR, true));
+            this.changed();
+            return;
+        }
+        calls.slice(MAX_PARALLEL_TASKS).forEach(call => settle(card(call), TOO_MANY_TASKS, true));
+        const jobs = calls.slice(0, MAX_PARALLEL_TASKS).map(call => ({ message: card(call), task: parseTaskArgs(call.args) }));
+        const started = jobs.flatMap(job => 'error' in job.task ? [] : [{ job, run: this.startTask(lead, job.task, rootPath) }]);
+        jobs.filter(job => 'error' in job.task).forEach(job => settle(job.message, (job.task as { error: string }).error, true));
+        if (started.length) {
+            lead.messages.push({ role: 'system', text: `Started ${started.length} ${started.length === 1 ? 'subagent' : 'subagents'}: ${started.map(s => s.run.child.title).join(' · ')}`, refs: started.map(s => s.run.child.id) });
+            lead.steps = [...lead.steps, ...started.map(s => ({ kind: 'run' as const, target: `${SUBAGENT_STEP_PREFIX}${s.run.child.title}`, done: false }))];
+        }
+        lead.status = 'thinking';
+        this.changed();
+        await Promise.all(started.map(async ({ job, run }) => {
+            const outcome = await run.done;
+            settle(job.message, taskResultText(outcome), outcome.status === 'error');
+            lead.steps = lead.steps.map(s => s.target === `${SUBAGENT_STEP_PREFIX}${run.child.title}` ? { ...s, done: true } : s);
+            this.changed();
+        }));
+    }
+
+    protected startTask(lead: AgentSession, task: TaskRequest, rootPath: string | undefined): { child: AgentSession; done: Promise<TaskOutcome> } {
+        const child: AgentSession = {
+            id: newChatId(), title: task.description, status: 'thinking', updatedAt: Date.now(), mode: 'agent', model: lead.model,
+            messages: [{ role: 'user', text: task.prompt, expanded: taskChildPrompt(task) }],
+            plan: [], steps: [], changes: [], project: lead.project, open: false, openedAt: Date.now(), parent: lead.id, agent: 'ingot'
+        };
+        this.items = [child, ...this.items];
+        const fail = (error: string): TaskOutcome => {
+            child.status = 'error';
+            child.messages.push({ role: 'system', text: error });
+            this.changed();
+            return { title: child.title, status: 'error', reply: '', files: [], error };
+        };
+        let worktree: TaskOutcome['worktree'];
+        const done = (async (): Promise<TaskOutcome> => {
+            if (task.worktree) {
+                if (!rootPath) {
+                    return fail('Open a project folder to run a subagent in a worktree.');
+                }
+                try {
+                    const name = worktreeName(child.id);
+                    const branch = worktreeBranch(name);
+                    const path = (await this.git.run(rootPath, { kind: 'worktreeAdd', name, branch })).output.trim();
+                    worktree = { path, branch };
+                    child.worktree = { path: URI.fromFilePath(path).toString(), branch };
+                    child.project = child.worktree.path;
+                    child.messages[0] = { ...child.messages[0], expanded: taskChildPrompt(task, worktree) };
+                    this.changed();
+                } catch (error) {
+                    return fail(`Could not create a git worktree: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }
+            await this.runModel(child).catch((error: unknown) => {
+                child.status = 'error';
+                child.messages.push({ role: 'system', text: `The subagent stopped: ${error instanceof Error ? error.message : String(error)}` });
+            });
+            const stopped = this.cancelled.has(child.id);
+            if (!stopped && (child.status === 'thinking' || child.status === 'editing' || child.status === 'idle')) {
+                child.status = 'done';
+            }
+            child.updatedAt = Date.now();
+            this.changed();
+            const reply = [...child.messages].reverse().find(m => m.role === 'agent' && !m.hidden && m.text)?.text ?? '';
+            const files = [...new Set([...child.changes.map(c => c.label), ...child.steps.filter(s => s.kind === 'edit').map(s => s.target)])];
+            return {
+                title: child.title, reply, files, ...(worktree ? { worktree } : {}),
+                status: stopped ? 'stopped' : child.status === 'error' ? 'error' : child.status === 'review' ? 'review' : 'done'
+            };
+        })();
+        return { child, done };
+    }
+
     /** Multi-agent: one Agent-mode chat per subtask, run in parallel in their own tabs; the lead chat reports progress. */
     protected spawnSubAgents(lead: AgentSession, plan: readonly string[], goal: string): void {
         const subtasks = plan.slice(0, MAX_SUB_AGENTS);
@@ -2595,6 +4309,7 @@ export class AgentStore {
                 const replacement = this.resolveModel(AUTO_MODEL_ID);
                 if (replacement !== AUTO_MODEL_ID && replacement !== session.model) {
                     session.model = replacement;
+                    session.route = undefined;
                     fallback = this.models.label(replacement);
                 }
             }
@@ -2704,6 +4419,15 @@ export class AgentStore {
     changed(): void {
         this.onDidChangeEmitter.fire();
         clearTimeout(this.persistTimer);
-        this.persistTimer = setTimeout(() => localStorage.setItem(CHATS_STORAGE_KEY, serializeChats(this.items)), 300);
+        this.persistTimer = setTimeout(() => this.persist(), 300);
+    }
+
+    protected persist(): void {
+        const workspace = this.windowWorkspace;
+        if (!workspace) {
+            return;
+        }
+        const stored = parseChats(localStorage.getItem(CHATS_STORAGE_KEY));
+        localStorage.setItem(CHATS_STORAGE_KEY, serializeChats(mergeWindowChats(stored, this.items, workspace)));
     }
 }

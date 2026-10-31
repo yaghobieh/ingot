@@ -6,6 +6,8 @@ export const ZaprexDesktopService = Symbol('ZaprexDesktopService');
 /** IDEA-185: backend side of the Zaprex desktop handoff (detects the app, opens deep links, serves pieces on loopback). */
 export interface ZaprexDesktopService {
     detect(): Promise<ZaprexDesktopInfo>;
+    /** IDEA-266: starts the Zaprex desktop app itself; false when it is not installed (the caller opens the website). */
+    launch(): Promise<boolean>;
     /** Opens a `zaprex://` link or the web fallback with the OS handler. */
     open(url: string): Promise<void>;
     /** Puts a piece on the loopback endpoint and returns its deep link (the token is in the link only). */

@@ -30,16 +30,24 @@ export const ACTIVE_STATUSES: readonly AgentStatus[] = ['thinking', 'editing', '
 
 /** Signed out with no own keys (IDEA-101): Ingot models need an account, not API keys. */
 export const SIGN_IN_MESSAGE = 'Sign in to use Ingot models — no API keys needed. Or turn on “Use my own API key (BYOK)” in Settings › Models.';
-export const NO_MODEL_MESSAGE = 'No model is connected yet, so this request was not sent. Choose a model, or sign in for Ingot models. API keys stay in your OS keychain.';
+export const NO_MODEL_MESSAGE = 'No model is connected yet, so this request was not sent. Choose a model, or sign in for Ingot models. API keys stay in Ingot\'s local key file (~/.ingot/keystore.json).';
 export const NEW_AGENT_TITLE = 'New chat';
 export const COMPOSER_PLACEHOLDER = 'Ask anything, @ to mention, / for actions';
 export const AGENT_TITLE = 'Ingot Agent';
 export const WORKED_FOR = 'worked for';
+/** The shimmering status line at the end of a running chat. */
+export const WORKING_LABEL = 'Getting it done…';
+export const EDITING_LABEL = 'Editing';
 export const EDITED_WORD = 'Edited';
 export const REVIEW_WORD = 'Review';
 export const REJECT_ALL = 'Reject all';
 export const ACCEPT_ALL = 'Accept all';
 export const FILE_BADGE_LABELS = {
-    ts: 'TS', tsx: 'TSX', js: 'JS', jsx: 'JSX', json: 'JSON', html: 'HTML', css: 'CSS', md: 'MD', file: 'FILE'
+    ts: 'TS', tsx: 'TSX', js: 'JS', jsx: 'JSX', json: 'JSON', html: 'HTML', css: 'CSS', md: 'MD', file: 'FILE', dir: 'DIR'
 } as const;
 export const MAX_TITLE_LENGTH = 48;
+
+/** IDEA-282: output budget of one agent reply. Whole-file edit blocks need far more than a chat answer. */
+export const AGENT_MAX_TOKENS = 16_000;
+/** The window function a headless run calls to read the active chat. */
+export const AGENT_TRACE_GLOBAL = 'ingotAgentTrace';

@@ -36,10 +36,19 @@ describe('tool cards (IDEA-177)', () => {
         expect(toolCard(info('search_code', { query: 'foo' }, 'github'), '[]')).toMatchObject({ title: 'Ran search_code', detail: 'foo' });
     });
 
+    it('IDEA-259: code tools get their own title, icon and symbol detail', () => {
+        expect(toolCard(info('rename_symbol', { path: 'src/math.ts', symbol: 'add', new_name: 'sum' }), 'Renamed add to sum'))
+            .toMatchObject({ kind: 'generic', title: 'Renamed symbol', detail: 'add → sum · src/math.ts', icon: 'symbol-key' });
+        expect(toolCard(info('find_references', { path: 'src/math.ts', symbol: 'add' }), 'Error: No references found.'))
+            .toMatchObject({ title: 'Found references', icon: 'references', output: 'No references found.' });
+        expect(toolCard(info('diagnostics', {}, 'github'), '[]')).toMatchObject({ title: 'Ran diagnostics' });
+    });
+
     it('summarises explored files and searches', () => {
         const steps = [{ kind: 'read', target: 'a.ts, b.ts' }, { kind: 'read', target: 'rules: x' }, { kind: 'run', target: 'ingot/web_search' }, { kind: 'search', target: 'q' }];
-        expect(exploredLine(steps, false)).toBe('Explored 2 files, 2 searches');
-        expect(exploredLine(steps, true)).toBe('Exploring 2 files, 2 searches');
+        expect(exploredLine(steps, false)).toBe('Explored 3 files, 2 searches');
+        expect(exploredLine(steps, true)).toBe('Exploring 3 files, 2 searches');
+        expect(exploredLine([{ kind: 'read', target: 'rules: AGENTS.md, engineering' }], false)).toBe('Explored 2 files');
         expect(exploredLine([{ kind: 'read', target: './' }, { kind: 'read', target: 'a.ts' }], false)).toBe('Explored 1 file, 1 folder');
         expect(exploredLine([{ kind: 'read', target: 'one.ts' }], false)).toBe('Explored 1 file');
         expect(exploredLine([], false)).toBeUndefined();
@@ -52,7 +61,14 @@ describe('tool cards (IDEA-177)', () => {
         ])).toEqual([
             { kind: 'read', target: './' },
             { kind: 'read', target: 'package.json' },
+            { kind: 'rule', target: 'style' },
             { kind: 'search', target: 'total' }
+        ]);
+        expect(exploredItems([{ kind: 'read', target: 'a.ts, b.ts' }, { kind: 'read', target: 'rules: AGENTS.md, engineering' }])).toEqual([
+            { kind: 'read', target: 'a.ts' },
+            { kind: 'read', target: 'b.ts' },
+            { kind: 'rule', target: 'AGENTS.md' },
+            { kind: 'rule', target: 'engineering' }
         ]);
     });
 
@@ -69,5 +85,11 @@ describe('tool cards (IDEA-177)', () => {
         expect(tokens.some(t => t.kind === 'flag' && t.text === '-C')).toBe(true);
         expect(tokens.at(-1)).toEqual({ text: '# note', kind: 'comment' });
         expect(tokens.map(t => t.text).join('')).toBe('git -C "$d" status | head -2 # note');
+    });
+
+    it('IDEA-261: a run_tests card shows the pass/fail line', () => {
+        const card = toolCard(info('run_tests', {}), 'Error: Tests FAILED: 1 failed, 2 passed, 0 skipped (vitest, 0.4s). Iteration 1 of 5.\n{"status":"failed"}');
+        expect(card).toMatchObject({ kind: 'generic', title: 'Ran tests', detail: '1 failed · 2 passed' });
+        expect(toolCard(info('run_tests', {}), 'Error: Tests could not run (vitest). Iteration 1 of 5.')).toMatchObject({ detail: 'Tests could not run (vitest). Iteration 1 of 5.' });
     });
 });

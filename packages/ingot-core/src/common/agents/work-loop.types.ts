@@ -51,6 +51,10 @@ export interface LoopState extends LoopSnapshot {
     committed: boolean;
     verifiedEdits: number;
     required: string[];
+    /** IDEA-282: hidden "continue" nudges sent this turn. */
+    continues?: number;
+    /** IDEA-282: the last reply promised more work while its edits wait for review. */
+    promised?: boolean;
 }
 
 export interface SummaryInput {

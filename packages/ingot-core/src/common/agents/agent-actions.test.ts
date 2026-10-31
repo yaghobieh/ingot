@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
-    builtinToolEnabled, builtinToolProtocol, actionLine, activityLine, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap, updateAlwaysRun, updateAlwaysRunCommands
+    BUILTIN_TOOLS, RUN_TESTS_COMMAND, builtinToolEnabled, builtinToolProtocol, actionLine, activityLine, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap, unknownToolResult, updateAlwaysRun, updateAlwaysRunCommands
 } from './agent-actions';
+
+describe('unknownToolResult', () => {
+    it('names the real tools and the block format', () => {
+        const text = unknownToolResult('$FUNCTION_NAME', ['list_dir', 'read_file']);
+        expect(text).toContain('Unknown Ingot tool "$FUNCTION_NAME". Use one of: list_dir, read_file.');
+        expect(text).toContain('<<<TOOL ingot/<name>');
+        expect(text).toContain('>>>END');
+    });
+});
 
 const git = (args: Record<string, unknown>) => ({ server: 'ingot', tool: 'git', args });
 
@@ -88,5 +97,24 @@ describe('IDEA-109 agent actions', () => {
         expect(describeAction({ server: 'ingot', tool: 'create_library', args: { path: '/tmp/library' } })).toBeUndefined();
         expect(describeAction({ server: 'ingot', tool: 'open_workspace', args: { path: '/tmp/library' } })).toMatchObject({ kind: 'terminal', label: 'Open folder' });
         expect(describeAction({ server: 'ingot', tool: 'run', args: { command: 'npm test', cwd: '/tmp/library' } })?.detail).toBe('npm test (/tmp/library)');
+    });
+
+    it('IDEA-259: code tools are in the built-in list and need no approval card', () => {
+        const names = BUILTIN_TOOLS.map(tool => tool.name);
+        expect(names).toEqual(expect.arrayContaining(['go_to_definition', 'find_references', 'rename_symbol', 'organize_imports', 'diagnostics']));
+        const off = builtinToolProtocol({ terminal: false, browser: false });
+        expect(off).toContain('ingot/rename_symbol:');
+        expect(off).toContain('ingot/diagnostics:');
+        expect(off).toContain('Prefer ingot/rename_symbol');
+        expect(describeAction({ server: 'ingot', tool: 'rename_symbol', args: { path: 'a.ts', symbol: 'x', new_name: 'y' } })).toBeUndefined();
+        expect(describeAction({ server: 'ingot', tool: 'find_references', args: { path: 'a.ts', symbol: 'x' } })).toBeUndefined();
+    });
+
+    it('IDEA-261: run_tests asks once per project, follows the terminal switch and is in the protocol', () => {
+        expect(describeAction({ server: 'ingot', tool: 'run_tests', args: {} })).toEqual({ kind: 'terminal', label: 'Run tests', detail: 'all tests', command: RUN_TESTS_COMMAND });
+        expect(describeAction({ server: 'ingot', tool: 'run_tests', args: { files: ['src/a.test.ts'], grep: 'adds', failedOnly: true } })?.detail).toBe('src/a.test.ts "adds" failed only');
+        expect(builtinToolEnabled('run_tests', { terminal: false, browser: true })).toBe(false);
+        expect(builtinToolProtocol()).toContain('ingot/run_tests:');
+        expect(builtinToolProtocol({ terminal: false, browser: true })).not.toContain('ingot/run_tests:');
     });
 });

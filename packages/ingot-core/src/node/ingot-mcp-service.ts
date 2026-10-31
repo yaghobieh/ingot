@@ -1,9 +1,13 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
 import { DEFAULT_KEYCHAIN_SERVICE } from '../common/models/models.consts';
 import { expandArgs, headerSecretName, mcpSecretKey } from '../common/project-config/project-config.utils';
 import { MAX_TOOL_RESULT_CHARS } from '../common/project-config/project-config.consts';
 import type { McpServerConfig, McpServerStatus, McpService, McpToolResult } from '../common/project-config/project-config.types';
+import { parseDotenv, resolveMcpVariables } from '../common/mcp/mcp-vars.utils';
 import { McpConnection } from './mcp-connection';
 
 interface Entry {
@@ -22,7 +26,7 @@ export class IngotMcpService implements McpService {
     protected readonly keychain = process.env.INGOT_KEYCHAIN_SERVICE || DEFAULT_KEYCHAIN_SERVICE;
 
     async setSecret(server: string, name: string, value: string): Promise<void> {
-        if (!/^[A-Za-z0-9_.-]+$/.test(server) || !/^[A-Z0-9_]+$/i.test(name)) {
+        if (!/^[A-Za-z0-9_.-]+$/.test(server) || !/^(?:[A-Z0-9_]+|header:[A-Z0-9-]+)$/i.test(name)) {
             throw new Error('Invalid MCP secret name.');
         }
         await this.keyStore.setPassword(this.keychain, mcpSecretKey(server, name), value);
@@ -93,16 +97,36 @@ export class IngotMcpService implements McpService {
         return { env, headers, missing };
     }
 
-    protected async start(base: McpServerConfig, cwd: string): Promise<void> {
+    /** IDEA-287: `envFile` (dotenv, relative to the project) as in Cursor's mcp.json. */
+    protected async readEnvFile(file: string | undefined, cwd: string): Promise<Record<string, string>> {
+        if (!file) {
+            return {};
+        }
+        const full = path.resolve(cwd || os.homedir(), file);
+        const text = await fs.promises.readFile(full, 'utf8').catch(() => undefined);
+        if (text === undefined) {
+            throw new Error(`envFile not found: ${file}`);
+        }
+        return parseDotenv(text);
+    }
+
+    protected async start(raw: McpServerConfig, cwd: string): Promise<void> {
+        // IDEA-287: ${workspaceFolder}, ${userHome}, ${env:NAME} and the rest, as in Cursor's mcp.json.
+        const base = resolveMcpVariables(raw, { workspaceFolder: cwd, userHome: os.homedir(), pathSeparator: path.sep, env: process.env });
         const secrets = await this.resolveSecrets(base);
-        const env = { ...(base.env ?? {}), ...secrets.env };
+        const fromFile = await this.readEnvFile(base.envFile, cwd).catch((error: unknown) => error instanceof Error ? error : new Error(String(error)));
+        const env = { ...(fromFile instanceof Error ? {} : fromFile), ...(base.env ?? {}), ...secrets.env };
         const headers = base.headers || base.secretHeaders ? { headers: { ...(base.headers ?? {}), ...secrets.headers } } : {};
         const config: McpServerConfig = { ...base, env, ...headers, ...(base.args ? { args: expandArgs(base.args, env) } : {}) };
         const connection = new McpConnection(config, cwd);
-        const entry: Entry = { key: this.keyOf(base, cwd), connection, status: { name: base.name, state: 'starting', tools: [] } };
+        const entry: Entry = { key: this.keyOf(raw, cwd), connection, status: { name: base.name, state: 'starting', tools: [] } };
         this.entries.set(base.name, entry);
         if (secrets.missing.length) {
             entry.status = { name: base.name, state: 'needs-auth', tools: [], missingSecrets: secrets.missing };
+            return;
+        }
+        if (fromFile instanceof Error) {
+            entry.status = { name: base.name, state: 'error', tools: [], error: fromFile.message };
             return;
         }
         try {

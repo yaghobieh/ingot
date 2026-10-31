@@ -10,13 +10,13 @@ import { restoreFromHead } from '../src/git-restore';
 
 const MATH = path.join(FIXTURE_WORKSPACE, 'src', 'math.ts');
 const CHAT_REPLY = 'Hello from your local model';
-const COMPLETION = 'tract(a: number, b: number): number {';
 // Built at runtime so the repository secret scan does not flag this obviously fake key.
 const FAKE_KEY = ['sk', 'e2e', 'not', 'a', 'real', 'key', '0000000000'].join('-');
 
-const reply = (system: string): string => (system.includes('code completion engine') ? COMPLETION : CHAT_REPLY);
+/** Tab predictions (IDEA-285) are covered in tab.spec.ts; here they stay empty. */
+const reply = (system: string): string => (system.includes('Ingot Tab') ? '' : CHAT_REPLY);
 
-test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
+test.describe('IDEA-25/26 models (BYOK)', () => {
     let server: FakeOllama;
 
     test.beforeEach(async () => { server = await startFakeOllama(reply); });
@@ -40,30 +40,7 @@ test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
         expect(server.requests.at(-1)?.user).toBe('Say hello');
     });
 
-    test('shows ghost text, Ctrl+Right accepts a word and Tab accepts the rest', async ({ page }) => {
-        await openIngot(page);
-        await connectOllama(page, server);
-        await models(page).locator('#ingot-autocomplete-model').selectOption('ollama-local');
-        await expect(page.locator('#theia-statusBar [id$="ingot-autocomplete-status"]')).toHaveText(/\bAI\s*$/);
-
-        await page.locator('#files').getByText('src', { exact: true }).click();
-        await page.locator('#files').getByText('math.ts', { exact: true }).dblclick();
-        const editor = page.locator('.monaco-editor[data-uri$="math.ts"], .monaco-editor').first();
-        await editor.click();
-        await page.keyboard.press('Control+End');
-        await page.keyboard.press('Enter');
-        await page.keyboard.type('export function sub');
-        const ghost = page.locator('.ghost-text-decoration, .ghost-text').first();
-        await expect(ghost).toBeVisible({ timeout: 15_000 });
-        expect(server.requests.at(-1)?.system).toContain('code completion engine');
-
-        await page.keyboard.press('Control+ArrowRight');
-        await expect(page.locator('.view-lines')).toContainText('export function subtract');
-        await page.keyboard.press('Tab');
-        await expect(page.locator('.view-lines')).toContainText('export function subtract(a: number, b: number): number {');
-    });
-
-    test('stores an API key only in the OS keychain', async ({ page }) => {
+    test('stores an API key only in the local key file', async ({ page }) => {
         await openIngot(page);
         await runCommand(page, 'Ingot: Models');
         await expect(models(page)).toBeVisible();
@@ -72,8 +49,8 @@ test.describe('IDEA-25/26 models (BYOK) and inline completion', () => {
 
         await models(page).locator('#ingot-model-key-openai').fill(FAKE_KEY);
         await models(page).locator('#ingot-model-save-openai').click();
-        await expect(models(page).locator('#ingot-model-result-openai')).toHaveText('Key saved in your OS keychain.');
-        await expect(models(page).locator('#ingot-model-status-openai')).toHaveText('Key in keychain');
+        await expect(models(page).locator('#ingot-model-result-openai')).toHaveText("Key saved in Ingot's local key file.");
+        await expect(models(page).locator('#ingot-model-status-openai')).toHaveText('Key saved');
         await expect(models(page).locator('#ingot-model-key-openai')).toHaveValue('');
         expect(await page.content()).not.toContain(FAKE_KEY);
         const configFiles = fs.readdirSync(E2E_CONFIG_DIR, { recursive: true }).map(f => path.join(E2E_CONFIG_DIR, String(f))).filter(f => fs.statSync(f).isFile());

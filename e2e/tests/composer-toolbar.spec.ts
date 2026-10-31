@@ -3,10 +3,10 @@ import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { dismissNotifications, openIngot } from '../src/app.utils';
 import { tokenColor } from '../src/agent-tools.e2e-utils';
+import { saveArtifact } from '../src/artifacts.e2e-utils';
 
-/** IDEA-175 / IDEA-248: one height for the inline controls, theme-colored send, extras in the overflow menu. */
+/** IDEA-175 / IDEA-248, agent panel mock: 28px icon buttons, 26px pills, 30px accent send, Agent mode in the bar, extras in the overflow menu. */
 const SHOTS_DIR = process.env.INGOT_SHOTS_DIR;
-const ARTIFACTS = '/opt/cursor/artifacts/screenshots';
 const BAR = '.ingot-agents .ingot-composer-bar';
 const GOLD = 'rgb(217, 160, 78)';
 
@@ -23,8 +23,7 @@ const style = (page: Page, selector: string, prop: string): Promise<string> =>
     page.locator(selector).first().evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
 
 const saveShot = async (page: Page, name: string): Promise<void> => {
-    fs.mkdirSync(ARTIFACTS, { recursive: true });
-    await page.locator('.ingot-agents').screenshot({ path: path.join(ARTIFACTS, name), animations: 'disabled' });
+    await saveArtifact(page.locator('.ingot-agents'), name);
     if (SHOTS_DIR) {
         fs.mkdirSync(SHOTS_DIR, { recursive: true });
         await page.locator('.ingot-agents').screenshot({ path: path.join(SHOTS_DIR, name), animations: 'disabled' });
@@ -37,35 +36,35 @@ for (const scheme of ['light', 'dark'] as const) {
         await page.locator('#ingot-agents-new').click();
         const bar = page.locator(BAR);
         await expect(bar).toBeVisible();
-        const sendColor = await tokenColor(page, '--ingot-primary');
-        const sendText = await tokenColor(page, '--ingot-primary-text');
+        const sendColor = await tokenColor(page, '--ingot-agent-accent');
+        const sendText = await tokenColor(page, '--ingot-agent-accent-text');
+        const card = await tokenColor(page, '--ingot-agent-card');
         const surface = await tokenColor(page, '--ingot-surface');
+        const heights: Record<string, number> = { '#ingot-composer-attach': 28, '#ingot-composer-mode': 26, '#ingot-composer-more': 28, '#ingot-composer-model': 26, '#ingot-composer-send': 30 };
 
-        const controls = ['#ingot-composer-attach', '#ingot-composer-more', '#ingot-composer-model', '#ingot-composer-send'];
+        const controls = ['#ingot-composer-attach', '#ingot-composer-mode', '#ingot-composer-more', '#ingot-composer-model', '#ingot-composer-send'];
         for (const id of controls) {
             const box = await page.locator(id).boundingBox();
             expect(box, id).not.toBeNull();
-            expect(Math.round(box!.height), `${id} height`).toBe(26);
+            expect(Math.round(box!.height), `${id} height`).toBe(heights[id]);
             expect(await page.locator(id).getAttribute('title'), `${id} tooltip`).toBeTruthy();
         }
 
         expect(await style(page, '#ingot-composer-model', 'border-top-color')).toBe('rgba(0, 0, 0, 0)');
         expect(await style(page, '#ingot-composer-model', 'background-color')).toBe('rgba(0, 0, 0, 0)');
         expect(await style(page, '#ingot-composer-more', 'background-color')).toBe('rgba(0, 0, 0, 0)');
-        await expect(page.locator('.ingot-composer-bar #ingot-composer-mode')).toHaveCount(0);
+        await expect(page.locator('.ingot-composer-bar #ingot-composer-mode .ingot-pill-label')).toHaveText('Agent');
         await expect(page.locator('#ingot-composer-review')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
-        await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
+        // Signed out: the Zaprex app entry is PRO+ only.
+        await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0);
 
-        const modelColor = await style(page, '#ingot-composer-model', 'color');
-        const textColor = await style(page, '.ingot-agents .ingot-composer-input', 'color');
-        expect(modelColor).toBe(textColor);
-        await expect(page.locator('.ingot-agents .ingot-composer')).toHaveCSS('background-color', surface);
+        expect(await style(page, '#ingot-composer-model', 'color')).toBe(await tokenColor(page, '--ingot-agent-text-2'));
+        await expect(page.locator('.ingot-agents .ingot-composer')).toHaveCSS('background-color', card);
 
         await page.locator('#ingot-composer-more').click();
         await expect(page.locator('#ingot-composer-more-menu')).toBeVisible();
-        await expect(page.locator('#ingot-composer-mode')).toBeVisible();
-        await expect(page.locator('#ingot-composer-mode .ingot-pill-label')).toHaveText('Agent');
+        await expect(page.locator('#ingot-composer-more-menu #ingot-composer-mode')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-review')).toBeVisible();
         await expect(page.locator('#ingot-composer-more-menu')).toHaveCSS('background-color', surface);
         await saveShot(page, `composer-rex-menu-${scheme}.png`);
@@ -73,8 +72,9 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(page.locator('#ingot-composer-more-menu')).toBeHidden();
 
         const send = page.locator('#ingot-composer-send');
+        // Send keeps the accent as in the mock; it stays disabled until there is text.
         await expect(send).toBeDisabled();
-        expect(await style(page, '#ingot-composer-send', 'background-color')).not.toBe(sendColor);
+        expect(await style(page, '#ingot-composer-send', 'background-color')).toBe(sendColor);
         expect(sendColor).not.toBe(GOLD);
         await expect(send).toHaveAttribute('title', 'Type a message to send');
         await page.locator('#ingot-composer-input').click();

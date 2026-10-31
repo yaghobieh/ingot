@@ -1,0 +1,62 @@
+/* IDEA-291: Agent Manager: chats and subagents, approvals queue, jump to next approval. Design tokens only. */
+.ingot-agent-manager { background: var(--ingot-bg); color: var(--ingot-text); font-size: 13px; }
+.ingot-am-root { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto; }
+.ingot-am-root .ingot-flex { flex: 1; }
+.ingot-am-toolbar {
+    display: flex; align-items: center; gap: var(--ingot-space-2); min-height: 32px; padding: 0 var(--ingot-space-3); flex: none;
+    background: var(--ingot-toolbar); border-bottom: 1px solid var(--ingot-border); position: sticky; top: 0; z-index: 1;
+}
+.ingot-am-summary { color: var(--ingot-text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingot-am-btn, .ingot-am-text-btn {
+    all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; border-radius: 4px; color: var(--ingot-text-muted);
+}
+.ingot-am-btn { width: 22px; height: 22px; flex: none; }
+.ingot-am-text-btn { height: 24px; padding: 0 var(--ingot-space-2); font-size: 12px; border: 1px solid var(--ingot-border); color: var(--ingot-text); background: var(--ingot-surface); }
+.ingot-am-btn:hover, .ingot-am-text-btn:hover { background: var(--ingot-selection); color: var(--ingot-text); }
+.ingot-am-text-btn.primary { background: var(--ingot-primary); border-color: var(--ingot-primary); color: var(--ingot-primary-text); }
+.ingot-am-text-btn.primary:hover { background: var(--ingot-primary-hover); color: var(--ingot-primary-text); }
+.ingot-am-text-btn:disabled { opacity: .5; cursor: default; }
+.ingot-am-btn:focus-visible, .ingot-am-text-btn:focus-visible { outline: 2px solid var(--ingot-focus-ring); outline-offset: 1px; }
+
+.ingot-am-section { padding: var(--ingot-space-2) 0; }
+.ingot-am-heading {
+    margin: 0; padding: 0 var(--ingot-space-3) var(--ingot-space-1); font-size: 11px; font-weight: 600; color: var(--ingot-text-muted);
+    text-transform: uppercase; letter-spacing: .04em; display: flex; align-items: center; gap: 6px;
+}
+.ingot-am-count { min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; display: inline-grid; place-items: center; font-size: 10px; background: var(--ingot-warning); color: var(--ingot-primary-text); }
+.ingot-am-approvals, .ingot-am-list { list-style: none; margin: 0; padding: 0; }
+
+.ingot-am-approval {
+    display: flex; align-items: center; gap: var(--ingot-space-2); margin: 0 var(--ingot-space-3) 4px; padding: 6px var(--ingot-space-2);
+    border-radius: 6px; background: var(--ingot-surface); border: 1px solid var(--ingot-border); border-left: 3px solid var(--ingot-warning);
+}
+.ingot-am-approval.focused { border-color: var(--ingot-primary); border-left-color: var(--ingot-primary); background: var(--ingot-selection); }
+.ingot-am-approval-icon { color: var(--ingot-warning); }
+.ingot-am-approval-text { flex: 1; min-width: 0; display: grid; }
+.ingot-am-approval-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-am-approval-line { color: var(--ingot-text-muted); font-family: 'JetBrains Mono', monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ingot-am-row { display: flex; align-items: center; gap: var(--ingot-space-2); min-height: 36px; padding-right: var(--ingot-space-3); border-bottom: 1px solid var(--ingot-border); }
+.ingot-am-row:hover { background: var(--ingot-editor-line-highlight); }
+.ingot-am-row.focused { background: var(--ingot-selection); }
+.ingot-am-row > .ingot-am-dot:first-child { margin-left: var(--ingot-space-3); }
+.ingot-am-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ingot-text-muted); }
+.ingot-am-dot.running { background: var(--ingot-accent); animation: ingot-am-pulse 1.2s ease-in-out infinite; }
+.ingot-am-dot.approval, .ingot-am-dot.question, .ingot-am-dot.paused { background: var(--ingot-warning); }
+.ingot-am-dot.review { background: var(--ingot-info); }
+.ingot-am-dot.done { background: var(--ingot-success); }
+.ingot-am-dot.error { background: var(--ingot-danger); }
+@keyframes ingot-am-pulse { 50% { opacity: .35; } }
+.ingot-am-sub { color: var(--ingot-text-muted); font-size: 12px; }
+.ingot-am-main { flex: 1; min-width: 0; display: grid; }
+.ingot-am-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-am-step { color: var(--ingot-text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-am-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--ingot-text-muted); border: 1px solid var(--ingot-border); border-radius: 10px; padding: 0 6px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-am-state { font-size: 11px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; color: var(--ingot-text-muted); background: var(--ingot-panel); }
+.ingot-am-state.running { color: var(--ingot-accent); }
+.ingot-am-state.approval, .ingot-am-state.question, .ingot-am-state.paused { color: var(--ingot-warning); }
+.ingot-am-state.review { color: var(--ingot-info); }
+.ingot-am-state.done { color: var(--ingot-success); }
+.ingot-am-state.error { color: var(--ingot-danger); }
+.ingot-am-empty { padding: var(--ingot-space-3); color: var(--ingot-text-muted); }
+@media (prefers-reduced-motion: reduce) { .ingot-am-dot.running { animation: none; } }

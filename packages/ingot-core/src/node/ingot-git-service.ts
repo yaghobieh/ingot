@@ -9,10 +9,14 @@ import { BRANCH_FORMAT, LOG_FORMAT } from '../common/git/git.consts';
 import type { GitBlameLine, GitBranch, GitCommit, GitFileChange, GitService } from '../common/git/git.types';
 import { cloneTarget, isCloneUrl } from '../common/welcome/welcome.utils';
 import { isRepoRelativePath, isValidBranchName, isValidRef, parseBlame, parseBranches, parseLog, parseNameStatus } from '../common/git/git.utils';
+import { isValidWorktreeName, worktreeBranch, worktreeFolder } from '../common/threads/threads.utils';
+import type { WorktreeCreated } from '../common/threads/threads.types';
 
 const GIT_TIMEOUT_MS = 15_000;
 const CLONE_TIMEOUT_MS = 10 * 60_000;
 const MAX_BUFFER = 16 * 1024 * 1024;
+/** IDEA-291: subagent worktrees live under the OS temp folder, never inside the project. */
+const WORKTREES_DIR = 'ingot-worktrees';
 
 /** Runs a fixed set of git commands with validated arguments (no shell). */
 /** IDEA-178: tells the installed git hook that Ingot already ran the agent hooks. */
@@ -76,6 +80,13 @@ export class IngotGitService implements GitService {
                 return { output: (await this.git(root, args).catch(() => '')).trim() };
             case 'isAncestorOfHead':
                 return { output: await this.git(root, args).then(() => 'yes', () => 'no') };
+            case 'worktreeAdd': {
+                const parent = path.join(fs.realpathSync(os.tmpdir()), WORKTREES_DIR);
+                fs.mkdirSync(parent, { recursive: true });
+                const folder = path.join(parent, `${path.basename(root).replace(/[^\w.-]+/g, '-')}-${args[args.length - 1]}`);
+                await this.git(root, [...args.slice(0, -1), folder, 'HEAD'], { timeout: 120_000 });
+                return { output: folder };
+            }
             case 'reword': {
                 const head = (await this.git(root, ['rev-parse', 'HEAD'])).trim();
                 const target = (await this.git(root, ['rev-parse', op.commit])).trim();
@@ -193,6 +204,20 @@ export class IngotGitService implements GitService {
         }
         await this.git(parent, ['clone', '--', value, target], { timeout: CLONE_TIMEOUT_MS });
         return target;
+    }
+
+    async addWorktree(root: string, name: string): Promise<WorktreeCreated> {
+        if (!isValidWorktreeName(name)) {
+            throw new Error(`Invalid worktree name "${name}".`);
+        }
+        const top = (await this.git(root, ['rev-parse', '--show-toplevel'])).trim();
+        const folder = worktreeFolder(path.normalize(top), name);
+        if (fs.existsSync(folder)) {
+            throw new Error(`${folder} already exists.`);
+        }
+        const branch = worktreeBranch(name);
+        await this.git(top, ['worktree', 'add', '-b', branch, '--', folder, 'HEAD']);
+        return { folder, branch };
     }
 
     async remote(root: string): Promise<{ url: string; commit: string; branch?: string } | undefined> {

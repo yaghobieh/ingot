@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { distanceFromBottom, latestUserIndex, scrollTopAfterUpdate, showJumpToLatest, truncateForEdit, userJumpTargets } from './chat-thread';
-import { JUMP_FROM_BOTTOM_PX } from './chat-thread.consts';
+import { distanceFromBottom, followAfterScroll, isAtBottom, latestUserIndex, scrollTopAfterUpdate, showJumpToLatest, truncateForEdit, userJumpTargets } from './chat-thread';
+import { AT_BOTTOM_PX, JUMP_FROM_BOTTOM_PX } from './chat-thread.consts';
 
 describe('chat thread', () => {
     const messages = [
@@ -33,5 +33,23 @@ describe('chat thread', () => {
         expect(truncateForEdit(messages, 3)).toHaveLength(3);
         expect(truncateForEdit(messages, 0)).toEqual([]);
         expect(truncateForEdit(messages, -1)).toHaveLength(messages.length);
+    });
+
+    it('counts a pixel or two of rounding as the bottom', () => {
+        expect(isAtBottom(0)).toBe(true);
+        expect(isAtBottom(AT_BOTTOM_PX)).toBe(true);
+        expect(isAtBottom(AT_BOTTOM_PX + 1)).toBe(false);
+    });
+
+    it('keeps following through its own scrolls and stops only when the reader moves up', () => {
+        // Content grew under a following thread: scrollTop stayed, the bottom moved away.
+        expect(followAfterScroll(true, 500, 500, 120)).toBe(true);
+        // A smooth jump down is still on its way.
+        expect(followAfterScroll(true, 650, 500, 300)).toBe(true);
+        // The reader scrolled up.
+        expect(followAfterScroll(true, 480, 500, 140)).toBe(false);
+        // Not following: scrolling down short of the bottom does not start it, reaching the bottom does.
+        expect(followAfterScroll(false, 600, 500, 40)).toBe(false);
+        expect(followAfterScroll(false, 640, 600, 0)).toBe(true);
     });
 });

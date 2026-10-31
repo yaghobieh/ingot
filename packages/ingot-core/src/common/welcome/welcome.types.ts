@@ -7,4 +7,8 @@ export interface RecentProject {
     readonly kind: 'folder' | 'workspace' | 'group';
 }
 
-export type SuggestionState = 'idle' | 'installing' | 'installed' | 'failed';
+/** IDEA-266: where Connect via SSH connects (`user@host`, optional port). */
+export interface SshTarget {
+    readonly destination: string;
+    readonly port?: number;
+}

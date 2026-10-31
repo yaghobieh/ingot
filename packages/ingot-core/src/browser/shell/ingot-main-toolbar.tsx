@@ -15,8 +15,13 @@ import type { HarmonyPiece } from '../../common/agents/harmony';
 import { HarmonyBubble } from '../agents/harmony-bubble';
 import { AGENT_COMMANDS, AGENTS_WIDGET_ID } from '../agents/agents.consts';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
-import { ZAPREX_LINK_LABEL } from '../agents/zaprex-link.consts';
 import { ZaprexLauncher } from '../agents/zaprex-launcher';
+import type { AgentSession } from '../../common/agents/agents.types';
+import { showRexHandoff } from '../../common/agents/rex-handoff';
+import { REX_HANDOFF_BUSY_LABEL, REX_HANDOFF_LABEL } from '../../common/agents/rex-handoff.consts';
+import { IngotAccountService } from '../account/account-service';
+import { IngotPlanService } from '../plan/plan-service';
+import { PLAN_COMMANDS, PLAN_TEXT } from '../plan/plan.browser-consts';
 import { TITLEBAR_COMMANDS, TITLEBAR_REFRESH_DELAYS_MS, TITLEBAR_TEXT, TOGGLE_BOTTOM_PANEL_COMMAND } from '../workbench/titlebar.consts';
 import { pickRunScript } from '../../common/vcs/vcs.utils';
 import { IngotDebugLauncher } from '../debug/ingot-debug-launcher';
@@ -29,7 +34,8 @@ import { toRecentProjects } from '../../common/welcome/welcome.utils';
 import type { RecentProject } from '../../common/welcome/welcome.types';
 import { projectDisplayName } from '../../common/workspace/workspace.utils';
 import { PROJECT_POPUP_ACTIONS, PROJECT_POPUP_RECENT_LIMIT } from './ingot-shell.consts';
-import { MAIN_TOOLBAR_CLASS, MAIN_TOOLBAR_ID, NO_PROJECT_LABEL, NO_VCS_LABEL, RUN_CONFIGURATION_LABEL, TOOLBAR_COMMANDS } from './ingot-shell.consts';
+import { MAIN_TOOLBAR_CLASS, MAIN_TOOLBAR_ID, NO_PROJECT_LABEL, NO_VCS_LABEL, RUN_CONFIGURATION_LABEL, TOOLBAR_COMMANDS, TOOLBAR_LOGO_SIZE } from './ingot-shell.consts';
+import { RexMark } from '../brand/rex-mark';
 
 interface ToolbarButtonProps {
     readonly id: string;
@@ -41,11 +47,8 @@ interface ToolbarButtonProps {
     readonly className?: string;
 }
 
-/** Monochrome Ingot mark drawn on the accent logo square. */
-const LOGO_GLYPH = <svg viewBox='0 0 256 256' width='14' height='14' aria-hidden='true'>
-    <polygon points='88,76 168,76 186,110 70,110' fill='currentColor' opacity='.75' />
-    <polygon points='70,110 186,110 210,190 46,190' fill='currentColor' />
-</svg>;
+/** The Rex </> glyph of the app icon, no tile behind it. */
+const LOGO_GLYPH = <RexMark size={TOOLBAR_LOGO_SIZE} />;
 
 const ToolbarButton = ({ id, icon, title, onClick, label, dropdown, className }: ToolbarButtonProps): React.ReactElement => (
     <button id={id} type='button' className={`ingot-tb-button ${label ? 'ingot-tb-widget' : ''} ${className ?? ''}`} title={title} aria-label={title} onClick={onClick}>
@@ -83,10 +86,12 @@ export class IngotMainToolbar extends ReactWidget {
     @inject(AgentStore) protected readonly agents: AgentStore;
     @inject(WindowService) protected readonly windows: WindowService;
     @inject(ZaprexLauncher) protected readonly zaprex: ZaprexLauncher;
+    @inject(IngotAccountService) protected readonly account: IngotAccountService;
     @inject(FileService) protected readonly files: FileService;
     @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
     @inject(ApplicationShell) protected readonly shell: ApplicationShell;
     @inject(IngotDebugLauncher) protected readonly debugLauncher: IngotDebugLauncher;
+    @inject(IngotPlanService) protected readonly plan: IngotPlanService;
 
     protected runScript?: string;
     protected projectPopupOpen = false;
@@ -114,7 +119,9 @@ export class IngotMainToolbar extends ReactWidget {
         this.toDispose.push(this.workspace.onWorkspaceLocationChanged(() => this.update()));
         this.toDispose.push(this.branches.onDidChange(() => this.update()));
         this.toDispose.push(this.agents.onDidChange(() => this.update()));
+        this.toDispose.push(this.account.onDidChange(() => this.update()));
         this.toDispose.push(this.debugLauncher.onDidChange(() => this.update()));
+        this.toDispose.push(this.plan.onDidChange(() => this.update()));
         // Stop is enabled only while a run session is alive.
         this.toDispose.push(this.commands.onDidExecuteCommand(() => this.update()));
         this.loadRunScript();
@@ -252,15 +259,15 @@ export class IngotMainToolbar extends ReactWidget {
 
     /**
      * IDEA-179: the one Zaprex entry point in the IDE (the Manage gear stays at the bottom of the left stripe).
-     * A transparent T-rex that idles with a slow sway; it opens the separate Zaprex app.
+     * A transparent T-rex that idles with a slow sway. It only shows during a heavy run and hands a piece of it to Rex.
      */
-    protected renderZaprex(): React.ReactNode {
+    protected renderZaprex(run: AgentSession): React.ReactNode {
         const offer = this.agents.harmonyEnabled ? this.agents.harmonyOffer : undefined;
         const busy = this.agents.zaprexBusy;
-        const label = busy ? `${ZAPREX_LINK_LABEL} · Zaprex is working on a piece (Harmony mode)` : ZAPREX_LINK_LABEL;
+        const label = busy ? REX_HANDOFF_BUSY_LABEL : REX_HANDOFF_LABEL;
         return <span className='ingot-tb-zaprex-anchor'>
             <button id='ingot-tb-zaprex' type='button' className={`ingot-tb-button ingot-tb-icon ingot-tb-zaprex${offer || busy ? ' thinking' : ''}`} title={label} aria-label={label}
-                onClick={() => void this.zaprex.openApp()}>
+                onClick={() => this.agents.handOffToRex(run.id)}>
                 <span className='ingot-zaprex-link-icon ingot-zaprex-trex' aria-hidden='true' />
                 {busy && <span className='ingot-tb-zaprex-busy' aria-hidden='true' />}
             </button>
@@ -277,12 +284,28 @@ export class IngotMainToolbar extends ReactWidget {
             onAccept={() => this.agents.acceptHarmony(sessionId)} onDismiss={() => this.agents.dismissHarmony(sessionId)} />;
     }
 
-    /** Bottom panel and chat icons, the Zaprex T-rex, then the Agents Window pill (IDEA-118, IDEA-179). */
+    /** The run the T-rex would hand off: PRO+ (admins count) with Rex on the plan, the button on, and the current run heavy. */
+    protected get rexHandoffRun(): AgentSession | undefined {
+        const run = this.agents.heavyRun;
+        return showRexHandoff({ enabled: this.agents.zaprexButtonVisible, proPlus: this.account.proPlus, canRex: this.plan.can('rex'), heavy: !!run }) ? run : undefined;
+    }
+
+    /** Bottom panel and chat icons, the Zaprex T-rex (PRO+, heavy runs only), then the Agents Window pill (IDEA-118, IDEA-179). On free: one "Upgrade to Pro" pill (IDEA-271). */
     protected renderWindowActions(): React.ReactNode {
+        const panel = <IconButton id='ingot-tb-panel' codicon='layout-panel' title={TITLEBAR_TEXT.bottomPanel} pressed={this.bottomPanelOpen} onClick={() => this.toggle(TOGGLE_BOTTOM_PANEL_COMMAND)} />;
+        if (!this.plan.can('chat')) {
+            return <div className='ingot-tb-window-actions'>
+                {panel}
+                <button id='ingot-tb-upgrade' type='button' className='ingot-tb-pill' title={PLAN_TEXT.statusTooltip} onClick={() => this.run(PLAN_COMMANDS.upgrade.id)}>
+                    <span className='codicon codicon-sparkle' aria-hidden='true' /><span>{PLAN_TEXT.upgrade}</span>
+                </button>
+            </div>;
+        }
+        const rexRun = this.rexHandoffRun;
         return <div className='ingot-tb-window-actions'>
-            <IconButton id='ingot-tb-panel' codicon='layout-panel' title={TITLEBAR_TEXT.bottomPanel} pressed={this.bottomPanelOpen} onClick={() => this.toggle(TOGGLE_BOTTOM_PANEL_COMMAND)} />
+            {panel}
             <IconButton id='ingot-tb-chat' codicon='comment' title={TITLEBAR_TEXT.chat} pressed={this.chatOpen} onClick={() => this.toggle(AGENT_COMMANDS.toggle.id)} />
-            {this.agents.zaprexButtonVisible && this.renderZaprex()}
+            {rexRun && this.renderZaprex(rexRun)}
             <button id='ingot-tb-agents-window' type='button' className='ingot-tb-pill' title={TITLEBAR_TEXT.agentsWindowTitle} onClick={() => this.run(TITLEBAR_COMMANDS.agentsWindow.id)}>
                 <span>{TITLEBAR_TEXT.agentsWindow}</span><span className='ingot-tb-pill-arrow' aria-hidden='true'>↗</span>
             </button>

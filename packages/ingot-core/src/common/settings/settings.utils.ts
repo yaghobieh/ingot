@@ -7,6 +7,7 @@ export const flattenPages = (pages: readonly SettingsPage[], parents: readonly s
 /** Labels that read better than the key's last segment. */
 const SETTING_LABELS: Record<string, string> = {
     'ingot.account.syncSettings': 'Sync settings',
+    'ingot.chat.attachActiveFile': 'Attach active file automatically',
     // IDEA-133: Agent tools.
     'ingot.agent.terminal.enabled': 'Let the agent run commands',
     'ingot.agent.terminal.requireApproval': 'Ask before running commands',
@@ -14,6 +15,7 @@ const SETTING_LABELS: Record<string, string> = {
     'ingot.agent.terminal.maxOutputChars': 'Output sent to the agent (characters)',
     'ingot.agent.processes.showInChat': 'Show background processes in the chat',
     'ingot.agent.browser.enabled': 'Let the agent use the browser',
+    'ingot.agent.browser.everyRun': 'Offer the browser in every run (off: only with /browser)',
     'ingot.agent.browser.requireApproval': 'Ask before browser actions',
     'ingot.agent.browser.approveReads': 'Also ask before reading pages and screenshots',
     'ingot.agent.workLoop': 'Run checks, fix, and commit after a task',

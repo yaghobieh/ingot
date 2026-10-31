@@ -3,20 +3,15 @@ export const MAX_INITIALS = 2;
 export const FILE_SCHEME_PREFIX = 'file://';
 export const HOME_TILDE = '~';
 
-/** IDEA-165: recent workspaces shown before "Show More..." on the new-window welcome page. */
-export const WELCOME_WORKSPACES_VISIBLE = 3;
+/** IDEA-266: recent projects listed on the empty-window welcome screen before "View all". */
+export const WELCOME_RECENT_VISIBLE = 5;
 
-export interface SuggestedExtension {
-    /** Open VSX id: `namespace.name`. */
-    readonly id: string;
-    readonly label: string;
-    readonly description: string;
-    readonly icon: string;
-}
+export const KIND_LABELS = { folder: '', workspace: 'Workspace', group: 'Group' } as const;
 
-/** IDEA-165: a short, curated list from Open VSX. Labels and blurbs are ours; Open VSX supplies the icon and the package. */
-export const SUGGESTED_EXTENSIONS: readonly SuggestedExtension[] = [
-    { id: 'esbenp.prettier-vscode', label: 'Prettier', description: 'Format JavaScript, TypeScript, CSS and more on save.', icon: 'codicon-wand' },
-    { id: 'dbaeumer.vscode-eslint', label: 'ESLint', description: 'Find and fix problems in JavaScript and TypeScript.', icon: 'codicon-checklist' },
-    { id: 'redhat.java', label: 'Java', description: 'Java language support: completion, navigation, refactoring.', icon: 'codicon-coffee' }
-];
+/** Shown next to the logo when the account has no named plan. */
+export const PLAN_FREE = 'Free';
+export const PLAN_SIGNED_OUT = 'Not signed in';
+
+export const SSH_URL_PREFIX = 'ssh://';
+export const SSH_PORT_FLAG = '-p';
+export const SSH_MAX_PORT = 65535;

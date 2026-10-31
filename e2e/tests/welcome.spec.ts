@@ -1,17 +1,32 @@
+import * as fs from 'fs';
 import * as path from 'path';
-import { expect, test } from '@playwright/test';
-import { actUntilVisible, openIngot } from '../src/app.utils';
+import { expect, test, type Page } from '@playwright/test';
+import { actUntilVisible, openIngot, runCommand } from '../src/app.utils';
 import { CONFIG_PROJECT, FIXTURES_DIR, FIXTURE_WORKSPACE, MULTI_ROOT_WORKSPACE } from '../src/e2e.consts';
-import { mockOpenVsx } from '../src/fake-open-vsx';
 
 /** The URL fragment New Window uses: the window opens without a folder. */
 const NO_FOLDER = '!empty';
 const SECOND_PROJECT = path.join(FIXTURES_DIR, 'second-project');
+const SHOTS = process.env.INGOT_SCREENSHOT_DIR;
+const CHATS_KEY = 'ingot.chats.v1';
+const FIXTURE_CHAT = 'Chat from the sample project window';
 
-test.describe('IDEA-165 new-window welcome page', () => {
-    test('a window without a folder shows the welcome page and the agent chat', async ({ page }) => {
-        await mockOpenVsx(page);
-        // Four recent workspaces, so "Show More..." has something to expand.
+const setScheme = async (page: Page, theme: 'Ingot Light' | 'Ingot Dark'): Promise<void> => {
+    await runCommand(page, 'Preferences: Color Theme');
+    await page.locator('.quick-input-widget input').fill(theme);
+    await page.locator('.quick-input-list .monaco-list-row', { hasText: theme }).first().click();
+    await expect(page.locator('body')).toHaveClass(theme === 'Ingot Dark' ? /theia-dark/ : /theia-light/);
+};
+
+const shot = async (page: Page, name: string): Promise<void> => {
+    if (SHOTS) {
+        fs.mkdirSync(SHOTS, { recursive: true });
+        await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
+    }
+};
+
+test.describe('IDEA-266 empty-window welcome screen', () => {
+    test('a window without a folder shows only the welcome screen, with no agent chat', async ({ page }) => {
         for (const workspace of [CONFIG_PROJECT, MULTI_ROOT_WORKSPACE, SECOND_PROJECT, FIXTURE_WORKSPACE]) {
             await openIngot(page, workspace);
         }
@@ -21,32 +36,63 @@ test.describe('IDEA-165 new-window welcome page', () => {
         await expect(welcome).toBeVisible();
         await expect(welcome.locator('.ingot-welcome-title')).toHaveText('Ingot');
         await expect(welcome.locator('svg.ingot-mark').first()).toBeAttached();
-        await expect(welcome.locator('#ingot-welcome-open')).toHaveText(/Open Folder/);
-        await expect(welcome.locator('#ingot-welcome-clone')).toHaveText(/Clone Repository/);
+        await expect(welcome.locator('#ingot-welcome-plan')).not.toBeEmpty();
+        await expect(welcome.locator('#ingot-welcome-settings')).toHaveText('Settings');
+        await expect(welcome.locator('.ingot-welcome-card')).toHaveText(['Open project', 'Clone repo', 'Connect via SSH']);
 
-        // Recent workspaces: name plus a shortened path, three until Show More.
+        // Recent projects: name (with the kind for workspaces) and the folder it lives in.
         const projects = welcome.locator('#ingot-welcome-workspaces .ingot-welcome-project');
-        await expect(projects).toHaveCount(3);
         await expect(projects.first()).toContainText('sample-project');
-        await welcome.locator('#ingot-welcome-more').click();
-        await expect.poll(() => projects.count()).toBeGreaterThan(3);
-        await expect(welcome.locator('#ingot-welcome-more')).toHaveCount(0);
+        await expect(projects.first().locator('.ingot-welcome-project-path')).toHaveText(/fixtures$/);
+        await expect(projects.filter({ hasText: 'multi-root' })).toContainText('(Workspace)');
+        await expect(welcome.locator('#ingot-welcome-view-all')).toHaveText(/View all \(\d+\)/);
 
-        // Suggested extensions from Open VSX, each with an Install button.
-        const extensions = welcome.locator('#ingot-welcome-suggested .ingot-welcome-ext');
-        await expect(extensions).toHaveCount(3);
-        await expect(extensions.first().locator('.ingot-welcome-install')).toBeVisible();
+        // No agent chat, tool window stripes or tab strip: the window is the welcome screen only.
+        await expect(page.locator('#ingot-agents')).toHaveCount(0);
+        await expect(page.locator('#theia-left-content-panel')).toBeHidden();
+        await expect(page.locator('#theia-right-content-panel')).toBeHidden();
+        await expect(page.locator('#ingot-tb-chat')).toBeHidden();
+        await expect(page.locator('#ingot-tb-agents-window')).toBeHidden();
+        await expect(page.locator('body')).toHaveClass(/ingot-no-folder/);
+        await expect(page.locator('#theia-main-content-panel .lm-TabBar').first()).toBeHidden();
 
-        // The agent chat is open on the right with the Ingot empty state and the model picker.
-        const chat = page.locator('#theia-right-content-panel #ingot-agents');
-        await expect(chat).toBeVisible();
-        await expect(chat.locator('.ingot-agents-empty-title')).toHaveText('Ingot');
-        await expect(chat.locator('.ingot-composer-input')).toHaveAttribute('data-placeholder', 'Ask anything, @ to mention, / for actions');
-        await expect(chat.locator('.ingot-composer')).toBeVisible();
-        await expect(page.locator('#ingot-welcome')).not.toContainText(/WebStorm|VS Code|JetBrains|IntelliJ|Cursor|Windsurf/);
+        await setScheme(page, 'Ingot Dark');
+        await shot(page, 'welcome-dark');
+        await setScheme(page, 'Ingot Light');
+        await shot(page, 'welcome-light');
+
+        // View all opens the full recent list.
+        await welcome.locator('#ingot-welcome-view-all').click();
+        await expect(page.locator('.quick-input-list .monaco-list-row', { hasText: 'second-project' }).first()).toBeVisible();
+        await page.keyboard.press('Escape');
     });
 
-    test('Clone Repository asks for a URL and rejects odd ones', async ({ page }) => {
+    test('a new window does not copy the previous window chats', async ({ page }) => {
+        await openIngot(page, FIXTURE_WORKSPACE);
+        const workspace = `file://${FIXTURE_WORKSPACE}`;
+        await page.evaluate(({ key, title, uri }) => {
+            const chat = { id: 'e2e-266', title, status: 'idle', updatedAt: Date.now(), mode: 'agent', model: 'auto', messages: [{ role: 'user', text: title }], plan: [], steps: [], changes: [], open: true, openedAt: 1, workspace: uri };
+            localStorage.setItem(key, JSON.stringify([chat]));
+        }, { key: CHATS_KEY, title: FIXTURE_CHAT, uri: workspace });
+
+        // The same project shows its chat.
+        await openIngot(page, FIXTURE_WORKSPACE);
+        await expect(page.locator('#ingot-agents .ingot-chat-tab', { hasText: FIXTURE_CHAT })).toBeVisible();
+
+        // File > New Window: no chat panel at all.
+        await openIngot(page, NO_FOLDER);
+        await expect(page.locator('#ingot-welcome')).toBeVisible();
+        await expect(page.locator('#ingot-agents')).toHaveCount(0);
+
+        // Another project opened in a new window starts with its own (empty) chats, and the first project keeps its chat.
+        await openIngot(page, SECOND_PROJECT);
+        await expect(page.locator('#ingot-agents')).toBeVisible();
+        await expect(page.locator('#ingot-agents .ingot-chat-tab', { hasText: FIXTURE_CHAT })).toHaveCount(0);
+        const stored = await page.evaluate(key => localStorage.getItem(key) ?? '', CHATS_KEY);
+        expect(stored).toContain(FIXTURE_CHAT);
+    });
+
+    test('Clone repo asks for a URL and rejects odd ones', async ({ page }) => {
         await openIngot(page, NO_FOLDER);
         const input = page.locator('.quick-input-widget input.input');
         await actUntilVisible(() => page.locator('#ingot-welcome-clone').click(), input);
@@ -57,10 +103,23 @@ test.describe('IDEA-165 new-window welcome page', () => {
         await expect(input).toBeHidden();
     });
 
-    test('opening a recent workspace from the welcome page loads it', async ({ page }) => {
+    test('Connect via SSH asks for a host and rejects ssh options', async ({ page }) => {
+        await openIngot(page, NO_FOLDER);
+        const input = page.locator('.quick-input-widget input.input');
+        await actUntilVisible(() => page.locator('#ingot-welcome-ssh').click(), input);
+        await expect(page.locator('.quick-input-widget')).toContainText('SSH host');
+        await input.fill('-oProxyCommand=evil');
+        await expect(page.locator('.quick-input-widget')).toContainText('Enter a host like user@host');
+        await page.keyboard.press('Escape');
+        await expect(input).toBeHidden();
+    });
+
+    test('opening a recent project from the welcome screen loads it, with the agent chat', async ({ page }) => {
         await openIngot(page, FIXTURE_WORKSPACE);
         await openIngot(page, NO_FOLDER);
         await page.locator('#ingot-welcome-workspaces .ingot-welcome-project', { hasText: 'sample-project' }).first().click();
         await expect(page.locator('#ingot-tb-project')).toContainText('sample-project', { timeout: 60_000 });
+        await expect(page.locator('#ingot-agents')).toBeVisible();
+        await expect(page.locator('body')).not.toHaveClass(/ingot-no-folder/);
     });
 });

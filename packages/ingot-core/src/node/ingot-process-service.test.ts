@@ -48,6 +48,16 @@ describe.skipIf(isWin)('IDEA-131 process service', () => {
         expect(await service.list()).toEqual([]);
     });
 
+    it('IDEA-294: runs a hook command with JSON on stdin and kills it at the timeout', async () => {
+        const echo = await service.runHook({ cwd: os.tmpdir(), command: 'cat; echo; echo "dir=$INGOT_PROJECT_DIR" >&2; exit 2', input: '{"command":"rm -rf /"}', timeoutMs: 5_000 });
+        expect(echo.stdout.trim()).toBe('{"command":"rm -rf /"}');
+        expect(echo.stderr).toContain(`dir=${os.tmpdir()}`);
+        expect(echo).toMatchObject({ exitCode: 2, timedOut: false });
+        const slow = await service.runHook({ cwd: os.tmpdir(), command: 'sleep 20', input: '{}', timeoutMs: 200 });
+        expect(slow.timedOut).toBe(true);
+        expect(await service.list()).toEqual([]);
+    });
+
     it('reads package.json scripts and the package manager', async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-scripts-'));
         fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { dev: 'vite', test: 'vitest' } }));
@@ -55,5 +65,26 @@ describe.skipIf(isWin)('IDEA-131 process service', () => {
         expect(await service.scripts(dir)).toEqual({ manager: 'pnpm', scripts: { dev: 'vite', test: 'vitest' } });
         expect(await service.scripts(path.join(dir, 'missing'))).toBeUndefined();
         fs.rmSync(dir, { recursive: true, force: true });
+    });
+});
+
+describe.runIf(process.platform === 'darwin')('IDEA-263 sandboxed commands', () => {
+    const service = new IngotProcessService();
+    afterEach(() => service.dispose());
+
+    it('writes inside the project but the sandbox refuses a write outside it', async () => {
+        const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-sbx-project-'));
+        const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-sbx-outside-'));
+        const sandbox = { writable: [project], network: 'allow' as const };
+        const inside = await service.run({ cwd: project, command: 'echo ok > inside.txt && cat inside.txt', sandbox });
+        expect(inside.output.trim()).toBe('ok');
+        expect(inside.info.sandboxed).toBe(true);
+        expect(inside.sandboxDenied).toBeUndefined();
+        const escaped = await service.run({ cwd: project, command: `echo nope > ${path.join(outside, 'escaped.txt')}`, sandbox });
+        expect(escaped.info.exitCode).not.toBe(0);
+        expect(escaped.sandboxDenied).toBe(true);
+        expect(fs.existsSync(path.join(outside, 'escaped.txt'))).toBe(false);
+        fs.rmSync(project, { recursive: true, force: true });
+        fs.rmSync(outside, { recursive: true, force: true });
     });
 });

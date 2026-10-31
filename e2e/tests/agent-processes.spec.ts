@@ -59,6 +59,7 @@ test.describe('IDEA-132 background processes in the chat', () => {
         await expect(row).toHaveAttribute('data-status', 'running');
         await expect(row.locator('.ingot-process-port')).toHaveText(':4567');
         await expect(row.locator('.ingot-process-origin')).toHaveAttribute('title', 'Started by the agent');
+        await expect(row.locator('.ingot-process-origin svg.ingot-rex-mark')).toBeVisible();
         await expect(page.locator('#ingot-processes-count')).toHaveText('1 running');
         // Uptime ticks live.
         const first = await row.locator('.ingot-process-uptime').innerText();
@@ -80,7 +81,8 @@ test.describe('IDEA-132 background processes in the chat', () => {
     test('the user runs a script from the list; the agent sees it in ingot/processes', async ({ page }) => {
         await start(page);
         await setAppearance(page, 'dark');
-        // The header button shows the (empty) list; + runs a package.json script.
+        // Header More › Processes shows the (empty) list; + runs a package.json script.
+        await page.locator('#ingot-agents-more').click();
         await page.locator('#ingot-agents-processes').click();
         await expect(page.locator('.ingot-processes-empty')).toBeVisible();
         await page.locator('#ingot-processes-run').click();
@@ -104,6 +106,7 @@ test.describe('IDEA-132 background processes in the chat', () => {
         await shot(page, 'idea-132-processes-dark.png');
         await serve.locator('.ingot-process-stop').click();
         await expect(serve).toHaveAttribute('data-status', 'stopped');
+        await page.locator('#ingot-agents-more').click();
         await page.locator('#ingot-agents-processes').click();
         await setAppearance(page, 'light');
     });

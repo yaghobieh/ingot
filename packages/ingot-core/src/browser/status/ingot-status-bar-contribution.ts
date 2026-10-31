@@ -1,14 +1,14 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import type { FrontendApplicationContribution } from '@theia/core/lib/browser';
 import { StatusBar, StatusBarAlignment } from '@theia/core/lib/browser/status-bar';
-import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
-import { FileSearchService } from '@theia/file-search/lib/common/file-search-service';
 import { IngotBranchService } from '../vcs/ingot-branch-service';
 import { AgentStore } from '../agents/agent-store';
 import { AGENT_COMMANDS } from '../agents/agents.consts';
+import { CodebaseIndexStore } from '../codebase-index/codebase-index-store';
+import { INDEX_COMMANDS, INDEX_STATUS_ID, INDEX_STATUS_PRIORITY } from '../../common/codebase-index/codebase-index.consts';
+import { indexStatusView } from '../../common/codebase-index/codebase-index.utils';
 
 const BRANCH_ID = 'ingot-branch';
-const INDEX_ID = 'ingot-index';
 const AGENTS_ID = 'ingot-agents-active';
 
 /** Status bar from the design reference: branch, index state and active agents on the left (IDEA-13). */
@@ -16,15 +16,14 @@ const AGENTS_ID = 'ingot-agents-active';
 export class IngotStatusBarContribution implements FrontendApplicationContribution {
 
     @inject(StatusBar) protected readonly statusBar: StatusBar;
-    @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(IngotBranchService) protected readonly branches: IngotBranchService;
     @inject(AgentStore) protected readonly agents: AgentStore;
-    @inject(FileSearchService) protected readonly fileSearch: FileSearchService;
+    @inject(CodebaseIndexStore) protected readonly index: CodebaseIndexStore;
 
     onStart(): void {
         this.branches.onDidChange(() => this.updateBranch());
         this.agents.onDidChange(() => this.updateAgents());
-        this.workspace.onWorkspaceChanged(() => this.updateIndex());
+        this.index.onDidChange(() => this.updateIndex());
         this.updateBranch();
         this.updateAgents();
         this.updateIndex();
@@ -42,21 +41,18 @@ export class IngotStatusBarContribution implements FrontendApplicationContributi
         });
     }
 
-    /** "Indexing…" until the workspace file index answers a query, then "Index ready". */
-    protected async updateIndex(): Promise<void> {
-        await this.workspace.ready;
-        const roots = this.workspace.tryGetRoots().map(r => r.resource.toString());
-        if (!roots.length) {
-            this.statusBar.removeElement(INDEX_ID);
+    /** IDEA-260: the codebase index of the first root: progress while indexing, "Index ready" after; a click rebuilds. */
+    protected updateIndex(): void {
+        const status = this.index.enabled ? this.index.primary : undefined;
+        if (!status) {
+            this.statusBar.removeElement(INDEX_STATUS_ID);
             return;
         }
-        this.statusBar.setElement(INDEX_ID, { text: 'Indexing…', alignment: StatusBarAlignment.LEFT, priority: 990, className: 'ingot-status-index' });
-        try {
-            await this.fileSearch.find('', { rootUris: roots, limit: 1 });
-            this.statusBar.setElement(INDEX_ID, { text: 'Index ready', tooltip: 'Project files indexed for search', alignment: StatusBarAlignment.LEFT, priority: 990, className: 'ingot-status-index' });
-        } catch {
-            this.statusBar.setElement(INDEX_ID, { text: 'Index unavailable', alignment: StatusBarAlignment.LEFT, priority: 990, className: 'ingot-status-index' });
-        }
+        const view = indexStatusView(status);
+        this.statusBar.setElement(INDEX_STATUS_ID, {
+            text: view.text, tooltip: view.tooltip, className: view.className, alignment: StatusBarAlignment.LEFT, priority: INDEX_STATUS_PRIORITY,
+            command: INDEX_COMMANDS.rebuild.id
+        });
     }
 
     protected updateAgents(): void {

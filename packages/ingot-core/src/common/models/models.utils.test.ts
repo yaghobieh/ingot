@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStreamEvent, parseStreamLine, toolCallsToProtocol, buildCompletionMessages, buildProviderRequest, cleanCompletion, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel, groupModelsByFamily, supportsVision } from './models.utils';
+import { nativeToolSuffix, parseStreamEvent, parseStreamLine, toolCallsToProtocol, buildProviderRequest, parseProviderError, parseProviderResponse, redactSecrets, resolveModelName, resolveOllamaUrl, findModel, groupModelsByFamily, supportsVision } from './models.utils';
 import { MODEL_CATALOG } from './models.consts';
 import type { CompletionRequest } from './models.types';
 
@@ -68,12 +68,6 @@ describe('safety and completions', () => {
         expect(out).not.toContain('abcdefghijklmnop');
         expect(out).not.toContain(looksLikeKey);
     });
-
-    it('cleans completions', () => {
-        expect(cleanCompletion('```ts\nreturn a - b;\n```')).toBe('return a - b;');
-        expect(cleanCompletion('export const sub = 1', 'export const ')).toBe('sub = 1');
-        expect(buildCompletionMessages('a', 'b', 'typescript', 'S')[1].content).toBe('Language: typescript\n\na<CURSOR>b');
-    });
 });
 
 describe('streaming', () => {
@@ -89,6 +83,12 @@ describe('streaming', () => {
         expect(parseStreamLine('ingot', call)).toBeUndefined();
         expect(parseStreamEvent('ingot', call)?.toolDeltas?.[0]).toMatchObject({ index: 0, name: 'create_library' });
         expect(toolCallsToProtocol([{ name: 'create_library', arguments: '{"path":"/tmp/x"}' }])).toContain('<<<TOOL ingot/create_library');
+    });
+
+    it('drops native tool calls the reply text already makes', () => {
+        const calls = [{ name: 'list_dir', arguments: '{}' }];
+        expect(nativeToolSuffix('Looking.\n<<<TOOL ingot/list_dir\n{}\n>>>END', calls)).toBe('');
+        expect(nativeToolSuffix('Looking.', calls)).toContain('<<<TOOL ingot/list_dir');
     });
 
     it('sends the system prompt and tool definitions to the Ingot gateway', () => {

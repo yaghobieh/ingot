@@ -6,7 +6,7 @@ import { AUTO_MODEL_ID, AUTO_MODEL_LABEL, SIGN_IN_FOR_MODELS } from '../../commo
 import type { CatalogModel, ModelFamilyGroup } from '../../common/models/models.types';
 import { groupModelsByFamily } from '../../common/models/models.utils';
 import { MODEL_PICKER_TEXT } from './agents.consts';
-import type { Memory, MemoryScope } from '../../common/memories/memories';
+import { DEFAULT_SCOPE, MEMORIES_DIR, MEMORY_KIND_LABELS, MEMORY_KINDS, type Memory, type MemoryKind, type MemoryScope } from '../../common/memories/memories';
 import type { MemoryStore } from './memory-store';
 import { formatTokens, usageRatio, type ContextSegment, type ContextUsage } from '../../common/agents/context-usage';
 
@@ -262,22 +262,32 @@ export class MemoriesManager extends React.Component<MemoriesManagerProps, Memor
         this.listener?.dispose();
     }
 
+    protected readonly textRef = React.createRef<HTMLTextAreaElement>();
+    protected readonly kindRef = React.createRef<HTMLSelectElement>();
+    protected readonly scopeRef = React.createRef<HTMLSelectElement>();
+
+    /** The form is uncontrolled: parent re-renders (editor focus, context changes) must not reset what was typed. */
     protected editor(memory: Memory | undefined, done: () => void): React.ReactNode {
-        let text = memory?.text ?? '';
-        let scope: MemoryScope = memory?.scope ?? 'project';
         const save = async () => {
+            const text = this.textRef.current?.value ?? memory?.text ?? '';
+            const kind = (this.kindRef.current?.value ?? memory?.kind ?? 'fact') as MemoryKind;
+            const scope = (this.scopeRef.current?.value || memory?.scope) as MemoryScope | undefined;
             if (memory) {
-                await this.props.store.update(memory, text, scope);
+                await this.props.store.update(memory, { text, scope, kind });
             } else {
-                await this.props.store.save(scope, text);
+                await this.props.store.save(scope ?? DEFAULT_SCOPE[kind], text, undefined, kind);
             }
             done();
         };
         return <div className='ingot-memory-edit'>
-            <textarea id='ingot-memory-text' className='ingot-input' rows={3} autoFocus defaultValue={text} onChange={e => { text = e.currentTarget.value; }}
+            <textarea id='ingot-memory-text' ref={this.textRef} className='ingot-input' rows={3} autoFocus defaultValue={memory?.text ?? ''}
                 onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); } if (e.key === 'Escape') { e.stopPropagation(); done(); } }} />
             <div className='ingot-memory-edit-bar'>
-                <select id='ingot-memory-scope' className='ingot-select' defaultValue={scope} aria-label='Scope' onChange={e => { scope = e.currentTarget.value as MemoryScope; }}>
+                <select id='ingot-memory-kind' ref={this.kindRef} className='ingot-select' defaultValue={memory?.kind ?? 'fact'} aria-label='Kind'>
+                    {MEMORY_KINDS.map(k => <option key={k} value={k}>{MEMORY_KIND_LABELS[k]}</option>)}
+                </select>
+                <select id='ingot-memory-scope' ref={this.scopeRef} className='ingot-select' defaultValue={memory?.scope ?? ''} aria-label='Scope'>
+                    {!memory && <option value=''>Default scope</option>}
                     <option value='project'>Project</option>
                     <option value='global'>Global</option>
                 </select>
@@ -317,12 +327,13 @@ export class MemoriesManager extends React.Component<MemoriesManagerProps, Memor
                     ? <React.Fragment key={m.id}>{this.editor(m, () => this.setState({ editing: undefined }))}</React.Fragment>
                     : <div key={m.id} className='ingot-memory-row' data-id={m.id}>
                         <span className={`ingot-memory-scope ingot-memory-scope-${m.scope}`}>{m.scope === 'project' ? 'Project' : 'Global'}</span>
+                        <span className={`ingot-memory-kind ingot-memory-kind-${m.kind}`}>{MEMORY_KIND_LABELS[m.kind]}</span>
                         <span className='ingot-memory-text'>{m.text}</span>
                         <button type='button' className='codicon codicon-edit' aria-label='Edit memory' onClick={() => this.setState({ editing: m.id, adding: false })} />
                         <button type='button' className='codicon codicon-trash' aria-label='Delete memory' onClick={() => store.remove(m)} />
                     </div>)}
             </div>
-            <div className='ingot-dim ingot-memories-note'>Project memories live in <code>.ingot/memories</code> (git-ignored); global ones in <code>~/.ingot/memories</code>.</div>
+            <div className='ingot-dim ingot-memories-note'>Repo facts live in <code>.ingot/{MEMORIES_DIR}</code> (git-ignored); preferences and other global ones in <code>~/.ingot/{MEMORIES_DIR}</code>. Agents read them at the start of every chat.</div>
         </div>;
     }
 }

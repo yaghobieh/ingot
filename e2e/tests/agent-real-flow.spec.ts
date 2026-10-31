@@ -8,12 +8,12 @@ import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
+import { saveArtifact } from '../src/artifacts.e2e-utils';
 
 /**
  * IDEA-248: a scripted local model (the same HTTP path a real model uses) reads this repo, runs a failing
  * check, fixes it, and commits a small change. Tool calls arrive as JSON and as printed shell, not only <<<TOOL.
  */
-const ARTIFACTS = '/opt/cursor/artifacts/screenshots';
 const REPO_ROOT = path.resolve(__dirname, '../..');
 const RANK_FILE = 'packages/ingot-core/src/common/agents/chat-thread.ts';
 const RANK_MARKER = 'showJumpToLatest';
@@ -61,8 +61,7 @@ const initRepo = (prefix: string): string => {
 };
 
 const saveShot = async (page: Page, name: string): Promise<void> => {
-    fs.mkdirSync(ARTIFACTS, { recursive: true });
-    await page.locator('.ingot-agents').screenshot({ path: path.join(ARTIFACTS, name), animations: 'disabled' });
+    await saveArtifact(page.locator('.ingot-agents'), name);
     await shot(page, name);
 };
 

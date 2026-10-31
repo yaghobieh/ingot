@@ -11,6 +11,8 @@ export interface ContextChip {
     readonly text: string;
     /** A whole file dropped into the composer (IDEA-100): labelled by name only. */
     readonly whole?: boolean;
+    /** IDEA-287: a project rule attached with @ (its body is the text). */
+    readonly rule?: string;
 }
 
 export const MAX_CHIP_PREVIEW_LINES = 12;
@@ -18,8 +20,8 @@ export const MAX_CHIP_PREVIEW_LINES = 12;
 const baseName = (p: string): string => p.split('/').pop() ?? p;
 
 /** `cart.ts (25-28)`, or `cart.ts (7)` for one line. */
-export const chipLabel = (chip: Pick<ContextChip, 'path' | 'start' | 'end' | 'whole'>): string =>
-    chip.whole ? baseName(chip.path) : `${baseName(chip.path)} (${chip.start === chip.end ? chip.start : `${chip.start}-${chip.end}`})`;
+export const chipLabel = (chip: Pick<ContextChip, 'path' | 'start' | 'end' | 'whole' | 'rule'>): string =>
+    chip.rule ? `@${baseName(chip.rule)}` : chip.whole ? baseName(chip.path) : `${baseName(chip.path)} (${chip.start === chip.end ? chip.start : `${chip.start}-${chip.end}`})`;
 
 export const lineCount = (text: string): number => text.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n').length;
 
@@ -83,7 +85,7 @@ export const expandWithChips = (prompt: string, chips: readonly ContextChip[]): 
 };
 
 /** Composer height (IDEA-67): ~4 lines minimum, auto-grow up to half the panel, then scroll. */
-export const COMPOSER_MIN_HEIGHT = 38;
+export const COMPOSER_MIN_HEIGHT = 40;
 export const COMPOSER_MAX_RATIO = 0.5;
 export const composerHeight = (content: number, panel: number, manual?: number): number => {
     const max = Math.max(COMPOSER_MIN_HEIGHT, Math.floor(panel * COMPOSER_MAX_RATIO));

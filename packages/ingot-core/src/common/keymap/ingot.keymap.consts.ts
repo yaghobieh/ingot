@@ -1,6 +1,14 @@
 import type { KeymapEntry } from './keymap.types';
 import { CHANGES_PENDING_KEY } from '../changes/changes.consts';
 import { RULES_INSIGHT_COMMANDS } from '../rules-insight/rules-insight.consts';
+import { TEST_COMMAND_IDS } from '../testing/testing.consts';
+import { INLINE_EDIT_COMMANDS } from '../inline-edit/inline-edit.consts';
+import { LOCAL_HISTORY_COMMANDS } from '../local-history/local-history.consts';
+import { INDEX_COMMANDS } from '../codebase-index/codebase-index.consts';
+import { AUDIT_LOG_COMMAND_ID } from '../audit/agent-audit.consts';
+import { BROWSER_FOCUS_KEY } from '../browser-tool/browser-tool.consts';
+import { DECISION_COMMANDS } from '../decisions/decisions.consts';
+import { FROZEN_COMMANDS } from '../frozen/frozen.consts';
 
 /** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
@@ -24,7 +32,11 @@ const EDITOR = 'editorTextFocus';
 const IN_DEBUG = 'inDebugMode';
 /** Focus is inside the Agents tool window (chat). */
 const AGENTS_FOCUS = 'ingotAgentsFocus';
+/** Focus is inside the Browser panel. */
+const BROWSER_FOCUS = BROWSER_FOCUS_KEY;
 const EDITOR_NOT_REVIEWING = `${EDITOR} && ${NOT_REVIEWING}`;
+/** Code is selected in the focused editor; Theia prefers this editor-local binding over a global one on the same key. */
+const EDITOR_SELECTION = `${EDITOR} && editorHasSelection`;
 
 /**
  * Ingot default keymap (IDEA-18): "macOS" and "Windows/Linux" variants.
@@ -81,6 +93,8 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Expand', command: 'editor.unfold', mac: 'ctrlcmd+=', other: 'ctrl+=', when: EDITOR },
     { action: 'Collapse All', command: 'editor.foldAll', mac: 'ctrlcmd+shift+-', other: 'ctrl+shift+-', when: EDITOR },
     { action: 'Expand All', command: 'editor.unfoldAll', mac: 'ctrlcmd+shift+=', other: 'ctrl+shift+=', when: EDITOR },
+    // IDEA-286
+    { action: 'Toggle Modal Editing', command: 'ingot.editor.toggleModalEditing', mac: 'ctrlcmd+alt+shift+v', other: 'ctrl+alt+shift+v' },
     // Refactoring (IDEA-23)
     { action: 'Rename', command: 'editor.action.rename', mac: 'shift+f6', other: 'shift+f6', when: EDITOR },
     { action: 'Refactor This', command: 'editor.action.refactor', mac: 'ctrl+t', other: 'ctrl+alt+shift+t', when: EDITOR },
@@ -90,6 +104,9 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Run', command: INGOT_RUN_COMMANDS.run.id, mac: 'ctrl+r', other: 'shift+f10' },
     { action: 'Debug', command: INGOT_RUN_COMMANDS.debug.id, mac: 'ctrl+d', other: 'shift+f9' },
     { action: 'Stop', command: INGOT_RUN_COMMANDS.stop.id, mac: 'ctrlcmd+f2', other: 'ctrl+f2' },
+    // Tests (IDEA-261)
+    { action: 'Run All Tests', command: TEST_COMMAND_IDS.runAll, mac: 'ctrl+shift+r', other: 'ctrl+shift+f10' },
+    { action: 'Rerun Failed Tests', command: TEST_COMMAND_IDS.rerunFailed, mac: 'ctrl+alt+shift+r', other: 'ctrl+alt+shift+f10' },
     // Debugger (IDEA-138)
     { action: 'Run/Debug Configurations', command: 'ingot.debug.selectConfiguration', mac: 'ctrl+alt+r', other: 'alt+shift+f10' },
     { action: 'Toggle Line Breakpoint', command: 'editor.debug.action.toggleBreakpoint', mac: 'ctrlcmd+f8', other: 'ctrl+f8', when: EDITOR },
@@ -105,8 +122,12 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Push…', command: 'ingot.commit.push', mac: 'ctrlcmd+shift+k', other: 'ctrl+shift+k' },
     { action: 'Annotate with Git Blame', command: 'ingot.annotate.toggle', mac: 'ctrlcmd+alt+shift+b', other: 'ctrl+alt+shift+b', when: EDITOR },
     { action: 'Commit Message History', command: 'ingot.commit.messageHistory', mac: 'ctrlcmd+alt+h', other: 'ctrl+alt+h', when: 'ingotLocalChangesFocus' },
+    // Local History (IDEA-262)
+    { action: 'Show Local History', command: LOCAL_HISTORY_COMMANDS.show.id, mac: 'ctrlcmd+alt+shift+h', other: 'ctrl+alt+shift+h' },
     // Agent chat (IDEA-65)
     { action: 'Add Selection to Agent Chat', command: 'ingot.agents.addSelectionToChat', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: EDITOR },
+    // Inline edit (IDEA-262): Cmd+K with code selected; Commit keeps Cmd+K everywhere else.
+    { action: 'Edit Selection with Agent', command: INLINE_EDIT_COMMANDS.start.id, mac: 'ctrlcmd+k', other: 'ctrl+k', when: EDITOR_SELECTION },
     { action: 'Cycle Chat Mode', command: 'ingot.agents.cycleMode', mac: 'ctrlcmd+.', other: 'ctrl+.', when: AGENTS_FOCUS },
     { action: 'New Chat', command: 'ingot.agents.new', mac: 'ctrlcmd+alt+n', other: 'ctrl+alt+n', when: AGENTS_FOCUS },
     { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS },
@@ -114,7 +135,32 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: RULES_INSIGHT_COMMANDS.doctor.label, command: RULES_INSIGHT_COMMANDS.doctor.id, mac: 'ctrlcmd+alt+shift+d', other: 'ctrl+alt+shift+d' },
     { action: RULES_INSIGHT_COMMANDS.ruleHits.label, command: RULES_INSIGHT_COMMANDS.ruleHits.id, mac: 'ctrlcmd+alt+shift+r', other: 'ctrl+alt+shift+r' },
     { action: RULES_INSIGHT_COMMANDS.effective.label, command: RULES_INSIGHT_COMMANDS.effective.id, mac: 'ctrlcmd+alt+shift+e', other: 'ctrl+alt+shift+e' },
-    { action: RULES_INSIGHT_COMMANDS.globPreview.label, command: RULES_INSIGHT_COMMANDS.globPreview.id, mac: 'ctrlcmd+alt+shift+g', other: 'ctrl+alt+shift+g', when: EDITOR }
+    { action: RULES_INSIGHT_COMMANDS.globPreview.label, command: RULES_INSIGHT_COMMANDS.globPreview.id, mac: 'ctrlcmd+alt+shift+g', other: 'ctrl+alt+shift+g', when: EDITOR },
+    // Review, threads and disk sync (IDEA-268)
+    { action: 'Review Agent Changes', command: 'ingot.agents.reviewChanges', mac: 'ctrlcmd+alt+shift+y', other: 'ctrl+alt+shift+y' },
+    { action: 'New Thread in Git Worktree', command: 'ingot.threads.newWorktree', mac: 'ctrlcmd+alt+shift+w', other: 'ctrl+alt+shift+w' },
+    { action: 'Reload All from Disk', command: 'ingot.files.reloadFromDisk', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: `!${AGENTS_FOCUS}` },
+    // Codebase index (IDEA-260)
+    { action: INDEX_COMMANDS.rebuild.label, command: INDEX_COMMANDS.rebuild.id, mac: 'ctrlcmd+alt+shift+i', other: 'ctrl+alt+shift+i' },
+    // Agent policy and audit (IDEA-263)
+    { action: 'Agent Audit Log', command: AUDIT_LOG_COMMAND_ID, mac: 'ctrlcmd+alt+shift+a', other: 'ctrl+alt+shift+a' },
+    // Agent sandbox (IDEA-288) and AI code review (IDEA-293)
+    { action: 'Agent Sandbox and Approvals', command: 'ingot.agents.sandboxPreset', mac: 'ctrlcmd+alt+shift+s', other: 'ctrl+alt+shift+s' },
+    { action: 'Review Changes', command: 'ingot.codeReview.changes', mac: 'ctrlcmd+alt+shift+u', other: 'ctrl+alt+shift+u' },
+    { action: 'Review GitHub PR', command: 'ingot.codeReview.githubPr', mac: 'ctrlcmd+alt+shift+t', other: 'ctrl+alt+shift+t' },
+    // Artifacts and Agent Manager (IDEA-290, IDEA-291)
+    { action: 'Artifacts', command: 'ingot.artifacts.open', mac: 'ctrlcmd+alt+shift+k', other: 'ctrl+alt+shift+k' },
+    { action: 'Agent Manager', command: 'ingot.agentManager.toggle', mac: 'ctrlcmd+alt+shift+m', other: 'ctrl+alt+shift+m' },
+    { action: 'Jump to Next Agent Approval', command: 'ingot.agentManager.nextApproval', mac: 'ctrlcmd+alt+shift+j', other: 'ctrl+alt+shift+j' },
+    // Browser panel (IDEA-289); page shortcuts reach Ingot from the web build's frame, the desktop page keeps its keys.
+    { action: 'Open Browser', command: 'ingot.browser.open', mac: 'ctrlcmd+alt+shift+p', other: 'ctrl+alt+shift+p' },
+    { action: 'Quote Page Selection in Agent Chat', command: 'ingot.browser.quoteSelection', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: BROWSER_FOCUS },
+    { action: 'Comment on Page Selection in Agent Chat', command: 'ingot.browser.commentSelection', mac: 'ctrlcmd+alt+shift+m', other: 'ctrl+alt+shift+m', when: BROWSER_FOCUS },
+    { action: 'Open Page in External Browser', command: 'ingot.browser.openExternal', mac: 'ctrlcmd+alt+shift+o', other: 'ctrl+alt+shift+o', when: BROWSER_FOCUS },
+    // Decisions and Frozen Zones (IDEA-302/303)
+    { action: 'Lock a Decision…', command: DECISION_COMMANDS.lock.id, mac: 'ctrlcmd+alt+shift+l', other: 'ctrl+alt+shift+l' },
+    { action: 'Freeze for Agents', command: FROZEN_COMMANDS.freezeFile.id, mac: 'ctrlcmd+alt+shift+z', other: 'ctrl+alt+shift+z' },
+    { action: 'Freeze Function for Agents', command: FROZEN_COMMANDS.freezeSymbol.id, mac: 'ctrlcmd+alt+shift+x', other: 'ctrl+alt+shift+x', when: EDITOR }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';

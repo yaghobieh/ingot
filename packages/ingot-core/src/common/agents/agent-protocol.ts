@@ -2,9 +2,9 @@
  * Provider-neutral agent protocol (IDEA-27/28): the model answers in plain text and proposes file edits as
  * whole-file blocks, which Ingot shows in the inline review. Works with every provider, no native tool calling needed.
  */
-export const EDIT_OPEN = '<<<EDIT ';
-export const EDIT_CLOSE = '>>>END';
-export const TOOL_OPEN = '<<<TOOL ';
+import { BUILTIN_TOOLS } from './agent-actions';
+import { EDIT_CLOSE, EDIT_OPEN, TOOL_OPEN } from './agent-protocol.consts';
+export { EDIT_CLOSE, EDIT_OPEN, TOOL_OPEN };
 
 export const AGENT_PROTOCOL = [
     'You can change files in the user\'s project. To change a file, output the COMPLETE new file content in a block:',
@@ -19,6 +19,15 @@ export const AGENT_PROTOCOL = [
     '- step two'
 ].join('\n');
 
+/** IDEA-282: the tool block syntax, shown whenever the agent has tools (MCP or built-in). */
+export const TOOL_CALL_FORMAT = [
+    'To call a tool, output this block exactly (no code fence around it), then STOP; the result comes back in the next message:',
+    `${TOOL_OPEN}ingot/run`,
+    '{"command": "npm test", "cwd": "server"}',
+    EDIT_CLOSE,
+    'One reply may hold several edit blocks and tool blocks; they run in order. Never put a tool call in a ``` fence.'
+].join('\n');
+
 export interface AgentEdit {
     readonly path: string;
     readonly content: string;
@@ -30,13 +39,12 @@ export interface AgentToolCall {
     readonly args: Record<string, unknown>;
 }
 
+const toolCallFormat = (lead: string): string => [lead, `${TOOL_OPEN}server/tool`, '{"json": "arguments"}', EDIT_CLOSE].join('\n');
+
 /** Describes the MCP tools the agent may call with `<<<TOOL server/tool` blocks. */
 export const toolProtocol = (tools: readonly { server: string; name: string; description?: string; inputSchema?: unknown }[]): string =>
     tools.length ? [
-        'You can call these tools. To call one, output a block and STOP; the result comes back in the next message:',
-        `${TOOL_OPEN}server/tool`,
-        '{"json": "arguments"}',
-        EDIT_CLOSE,
+        toolCallFormat('You can call these tools. To call one, output a block and STOP; the result comes back in the next message:'),
         'Tools:',
         ...tools.map(t => `- ${t.server}/${t.name}: ${t.description ?? ''}${t.inputSchema ? ` Input schema: ${JSON.stringify(t.inputSchema)}` : ''}`)
     ].join('\n') : '';
@@ -59,8 +67,13 @@ const CALLS_TAG_RE = /<\/?(?:antml:)?function_calls>/g;
 const PARTIAL_CALL_RE = /<(?:antml:)?(?:function_calls|invoke|tool_call)\b[\s\S]*$/;
 const TOOL_JSON_RE = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/gi;
 const FENCED_TOOL_RE = /```(?:tool|json)\s*\n([\s\S]*?)```/gi;
-const INLINE_TOOL_RE = /^[ \t]*(?:ingot\/)?(read_file|list_dir|glob|grep|run|git)\s+(\{[\s\S]*?\})\s*$/gm;
-const KNOWN_INLINE_TOOLS = new Set(['read_file', 'list_dir', 'glob', 'grep', 'run', 'git']);
+const INLINE_TOOL_RE = /^[ \t]*(?:ingot\/)?(read_file|list_dir|glob|grep|codebase_search|run|git)\s+(\{[\s\S]*?\})\s*$/gm;
+const KNOWN_INLINE_TOOLS = new Set(['read_file', 'list_dir', 'glob', 'grep', 'codebase_search', 'run', 'git']);
+/** IDEA-282: a fence named after the tool, e.g. ```ingot/list_dir or ```run, holding the JSON arguments. */
+const NAMED_FENCE_RE = /```([\w-]+\/[\w-]+|[a-z_]+)[ \t]*\n(\{[\s\S]*?\})\s*```/g;
+const NAMED_FENCE_OPEN = /```(?:tool|json|[\w-]+\/[\w-]+|[a-z_]+)[ \t]*\n/g;
+const KNOWN_TOOLS = new Set([...KNOWN_INLINE_TOOLS, ...BUILTIN_TOOLS.map(tool => tool.name)]);
+const isToolFence = (name: string): boolean => name === 'tool' || name === 'json' || name.includes('/') || KNOWN_TOOLS.has(name);
 
 const paramValue = (raw: string): unknown => {
     const value = raw.trim();
@@ -107,11 +120,13 @@ const toolFromJson = (raw: string): string | undefined => {
 
 /** An unclosed ```tool / ```json fence at the end is still streaming; a finished fence stays. */
 const hidePartialFence = (text: string): string => {
-    const re = /```(?:tool|json)\s*\n/g;
+    const re = new RegExp(NAMED_FENCE_OPEN.source, 'g');
     let last = -1;
     let match: RegExpExecArray | null;
     while ((match = re.exec(text))) {
-        last = match.index;
+        if (isToolFence(match[0].slice(3).trim())) {
+            last = match.index;
+        }
     }
     if (last < 0) {
         return text;
@@ -142,6 +157,17 @@ export const normalizeToolCalls = (text: string): string => {
     }
     next = next.replace(TOOL_JSON_RE, (all, body: string) => toolFromJson(body) ?? all);
     next = next.replace(FENCED_TOOL_RE, (all, body: string) => toolFromJson(body) ?? all);
+    next = next.replace(NAMED_FENCE_RE, (all, name: string, json: string) => {
+        if (name === 'tool' || name === 'json' || !isToolFence(name)) {
+            return all;
+        }
+        try {
+            const args = argsRecord(JSON.parse(json));
+            return args ? toolBlock(name, args) : all;
+        } catch {
+            return all;
+        }
+    });
     next = next.replace(INLINE_TOOL_RE, (all, name: string, json: string) => {
         if (!KNOWN_INLINE_TOOLS.has(name)) {
             return all;
@@ -154,6 +180,33 @@ export const normalizeToolCalls = (text: string): string => {
         }
     });
     return hidePartialFence(next.replace(PARTIAL_CALL_RE, ''));
+};
+
+/**
+ * Ends a reply after its first group of tool calls (blocks separated only by whitespace). Models often keep writing
+ * after a call: invented results, then edits to files they never read. Nothing after the group has seen a result,
+ * so it is dropped. Edits before the first call (edit, then run the tests) stay.
+ */
+export const cutAfterToolCalls = (raw: string): string => {
+    const text = normalizeToolCalls(raw);
+    let at = 0;
+    let groupEnd = -1;
+    for (;;) {
+        const editAt = text.indexOf(EDIT_OPEN, at);
+        const toolAt = text.indexOf(TOOL_OPEN, at);
+        if (toolAt < 0 || (groupEnd >= 0 && text.slice(groupEnd, toolAt).trim())) {
+            return groupEnd >= 0 ? text.slice(0, groupEnd) : text;
+        }
+        const blockAt = groupEnd < 0 && editAt >= 0 && editAt < toolAt ? editAt : toolAt;
+        const close = text.indexOf(EDIT_CLOSE, blockAt);
+        if (close < 0) {
+            return text;
+        }
+        at = close + EDIT_CLOSE.length;
+        if (blockAt === toolAt) {
+            groupEnd = at;
+        }
+    }
 };
 
 /** Parses (possibly partial, streaming) agent output. */

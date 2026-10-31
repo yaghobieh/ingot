@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { applicableRules, commandFolder, commandFromFile, expandCommand, matchGlob, mergeByName, parseFrontmatter, parseMcpJson, ruleFromFile } from './project-config.utils';
+import {
+    applicableRules, commandFolder, commandFromFile, expandCommand, findRule, formatRuleIndex, formatRules, matchGlob, mentionableRules, mergeByName, nestedRuleScope,
+    parseFrontmatter, parseMcpJson, requestableRules, ruleFromFile, ruleFileName, ruleFileText, ruleKindLabel, ruleMentionItems
+} from './project-config.utils';
 
 describe('project config', () => {
     it('parses frontmatter with lists and booleans', () => {
@@ -47,6 +50,72 @@ describe('project config', () => {
         expect(servers[0]).toMatchObject({ command: 'node', args: ['s.mjs'], env: { TOKEN: 'x' } });
         expect(parseMcpJson('nope', 'ingot')).toEqual([]);
         expect(mergeByName([{ name: 'a', v: 1 }], [{ name: 'a', v: 2 }, { name: 'b', v: 3 }])).toEqual([{ name: 'a', v: 2 }, { name: 'b', v: 3 }]);
+    });
+});
+
+describe('IDEA-287 rule kinds and nested rules', () => {
+    it('reads Cursor rule types from frontmatter', () => {
+        expect(ruleFromFile('.ingot/rules/a.md', '---\nalwaysApply: true\n---\nA', 'ingot').kind).toBe('always');
+        expect(ruleFromFile('.ingot/rules/b.md', '---\nglobs: "**/*.ts"\n---\nB', 'ingot').kind).toBe('auto');
+        const requested = ruleFromFile('.ingot/rules/api.md', '---\ndescription: How to write API handlers\nalwaysApply: false\n---\nUse zod.', 'ingot');
+        expect(requested).toMatchObject({ kind: 'agent', alwaysApply: false, description: 'How to write API handlers' });
+        expect(ruleFromFile('.ingot/rules/c.md', '---\ndescription: \nglobs: \nalwaysApply: false\n---\nC', 'ingot').kind).toBe('manual');
+        expect(ruleFromFile('.ingot/rules/plain.md', 'Plain', 'ingot').kind).toBe('always');
+        expect(ruleFromFile('AGENTS.md', '---\nalwaysApply: false\n---\nHi', 'agents').kind).toBe('always');
+        expect(ruleKindLabel(requested)).toBe('agent requested');
+    });
+
+    it('lists agent-requested rules in an index and finds them by name', () => {
+        const api = ruleFromFile('.ingot/rules/api.md', '---\ndescription: API handlers\n---\nUse zod.', 'ingot');
+        const manual = ruleFromFile('.ingot/rules/bear.md', '---\nalwaysApply: false\n---\nUse Bear.', 'ingot');
+        expect(applicableRules([api, manual], ['src/a.ts'])).toEqual([]);
+        expect(requestableRules([api, manual])).toEqual([api]);
+        const index = formatRuleIndex([api], 'ingot/fetch_rule');
+        expect(index).toContain('ingot/fetch_rule');
+        expect(index).toContain('- api: API handlers');
+        expect(findRule([api, manual], '@Bear')).toBe(manual);
+        expect(mentionableRules([ruleFromFile('.ingot/rules/z.md', 'Z', 'ingot'), manual]).map(r => r.name)).toEqual(['bear', 'z']);
+    });
+
+    it('writes rule files that load back as the chosen kind (IDEA-295)', () => {
+        expect(ruleFileName('API style!')).toBe('api-style.md');
+        expect(ruleFileName('  ')).toBeUndefined();
+        for (const kind of ['always', 'auto', 'agent', 'manual'] as const) {
+            const text = ruleFileText({ name: 'x', kind, description: 'When writing APIs', globs: 'src/**/*.ts, *.tsx', body: 'Body' });
+            const rule = ruleFromFile('.ingot/rules/x.md', text, 'ingot');
+            expect(rule.kind).toBe(kind);
+            expect(rule.body).toBe('Body');
+        }
+        expect(ruleFromFile('x.md', ruleFileText({ name: 'x', kind: 'auto', globs: 'src/**/*.ts, *.tsx', body: 'B' }), 'ingot').globs).toEqual(['src/**/*.ts', '*.tsx']);
+    });
+
+    it('offers rules in the @ menu, matching name or description', () => {
+        const api = ruleFromFile('.ingot/rules/api.md', '---\ndescription: API handlers\n---\nUse zod.', 'ingot');
+        const bear = ruleFromFile('.ingot/rules/bear.md', '---\nalwaysApply: false\n---\nUse Bear.', 'ingot');
+        expect(ruleMentionItems([api, bear], 'be')).toEqual(['rule:bear']);
+        expect(ruleMentionItems([api, bear], 'handlers')).toEqual(['rule:api']);
+        expect(ruleMentionItems([api, bear], '')).toEqual(['rule:api', 'rule:bear']);
+        expect(ruleMentionItems([api, bear], 'zzz')).toEqual([]);
+    });
+
+    it('applies nested rules only under their folder; the closest AGENTS.md wins', () => {
+        expect(nestedRuleScope('packages/web/.ingot/rules/react.md')).toEqual({ scope: 'packages/web', source: 'ingot' });
+        expect(nestedRuleScope('packages/web/.cursor/rules/deep/x.mdc')).toEqual({ scope: 'packages/web', source: 'external' });
+        expect(nestedRuleScope('packages/web/AGENTS.md')).toEqual({ scope: 'packages/web', source: 'agents' });
+        expect(nestedRuleScope('.ingot/rules/root.md')).toBeUndefined();
+        expect(nestedRuleScope('AGENTS.md')).toBeUndefined();
+
+        const root = ruleFromFile('AGENTS.md', 'Root', 'agents');
+        const pkg = ruleFromFile('packages/AGENTS.md', 'Packages', 'agents', 'packages');
+        const web = ruleFromFile('packages/web/AGENTS.md', 'Web', 'agents', 'packages/web');
+        const tsx = ruleFromFile('packages/web/.ingot/rules/tsx.md', '---\nglobs: src/**/*.tsx\n---\nTSX', 'ingot', 'packages/web');
+        expect(web.name).toBe('packages/web/AGENTS.md');
+        const all = [web, tsx, pkg, root];
+        expect(applicableRules(all, ['README.md'])).toEqual([root]);
+        expect(applicableRules(all, ['packages/web/src/App.tsx'])).toEqual([root, web, tsx]);
+        expect(applicableRules(all, ['packages/api/index.ts'])).toEqual([root, pkg]);
+        expect(applicableRules(all, ['packages/web/README.md'])).toEqual([root, web]);
+        expect(formatRules([web])).toContain('(for files under packages/web/)');
     });
 });
 

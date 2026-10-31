@@ -46,7 +46,7 @@
 @media (prefers-reduced-motion: reduce) { .ingot-agents .ingot-composer-bar .ingot-composer-zaprex .ingot-zaprex-trex { animation: none !important; } }
 
 /* Mic while listening keeps its pulse, inside the same square. */
-.ingot-agents .ingot-composer-bar .ingot-composer-mic.listening { color: #fff; background: var(--ingot-danger, #E5484D); border-radius: var(--ingot-cb-radius); }
+.ingot-agents .ingot-composer-bar .ingot-composer-mic.listening { color: var(--ingot-danger); background: color-mix(in srgb, var(--ingot-danger) 16%, transparent); border-radius: var(--ingot-cb-radius); }
 
 .ingot-agents .ingot-composer-bar .ingot-composer-divider { width: 1px; height: 14px; margin: 0 3px; background: var(--ingot-cb-line); flex: none; }
 

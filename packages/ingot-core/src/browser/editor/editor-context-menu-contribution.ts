@@ -13,6 +13,8 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { MonacoEditor } from '@theia/monaco/lib/browser/monaco-editor';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { CONFIG_DIRS, RULES_DIR } from '../../common/project-config/project-config.consts';
+import { INLINE_EDIT_COMMANDS } from '../../common/inline-edit/inline-edit.consts';
+import { LOCAL_HISTORY_COMMANDS } from '../../common/local-history/local-history.consts';
 import { GitService } from '../../common/git/git.types';
 import { relativeDate, remoteFileUrl } from '../../common/git/git.utils';
 import { AGENT_COMMANDS } from '../agents/agents.consts';
@@ -302,6 +304,7 @@ export class IngotEditorContextMenuContribution implements CommandContribution, 
         add(n, EDITOR_COMMANDS.addSymbolToChat.id, 'Add Symbol to Current Chat', 'f');
         add(n, EDITOR_COMMANDS.addSymbolToNewChat.id, 'Add Symbol to New Chat', 'g');
         add(n, EDITOR_COMMANDS.createRule.id, 'Create Rule', 'h');
+        add(EDITOR_MENU.ai, INLINE_EDIT_COMMANDS.start.id, 'Edit Selection with Agent…', 'a');
         menus.registerSubmenu(EDITOR_SUBMENUS.peek, 'Peek', { sortString: 'i' });
         add(EDITOR_SUBMENUS.peek, MONACO_ACTIONS.peekDefinition, 'Peek Definition', 'a');
         add(EDITOR_SUBMENUS.peek, MONACO_ACTIONS.peekTypeDefinition, 'Peek Type Definition', 'b');
@@ -332,6 +335,7 @@ export class IngotEditorContextMenuContribution implements CommandContribution, 
         menus.registerSubmenu(EDITOR_SUBMENUS.fileHistory, 'File History', { sortString: 'b' });
         add(EDITOR_SUBMENUS.fileHistory, 'ingot.git.fileHistory', 'Show File History', 'a');
         add(EDITOR_SUBMENUS.fileHistory, EDITOR_COMMANDS.quickFileHistory.id, 'Quick File History…', 'b');
+        add(EDITOR_SUBMENUS.fileHistory, LOCAL_HISTORY_COMMANDS.show.id, 'Show Local History', 'c');
         menus.registerSubmenu(EDITOR_SUBMENUS.git, 'Git', { sortString: 'c' });
         this.gitActions.registerGitSubmenu(menus, EDITOR_SUBMENUS.git);
 

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
-import { APP_READY_TIMEOUT_MS, E2E_KEYCHAIN_SERVICE, E2E_USER_SETTINGS, FAKE_INGOT_URL, FAKE_OPENROUTER_URL, IMPORT_HOME, SHELL_SELECTOR } from './e2e.consts';
+import { APP_CLOSE_TIMEOUT_MS, APP_READY_TIMEOUT_MS, E2E_KEYCHAIN_SERVICE, E2E_USER_SETTINGS, FAKE_INGOT_URL, FAKE_OPENROUTER_URL, IMPORT_HOME, MOCK_KEYCHAIN_ARG, SHELL_SELECTOR } from './e2e.consts';
 
 const ROOT = path.resolve(__dirname, '..', '..');
 export const ELECTRON_APP_DIR = path.join(ROOT, 'applications', 'electron');
@@ -13,18 +13,26 @@ export interface DesktopApp {
     close(): Promise<void>;
 }
 
-/** Launches the desktop app on `workspace` with an isolated config dir, Electron profile and keychain service. */
-export const launchDesktop = async (workspace: string, extraEnv: Record<string, string> = {}, settings: Record<string, unknown> = {}): Promise<DesktopApp> => {
+/** A throwaway config dir + Electron profile; pass it to several launches to test what the app remembers between them. */
+export const makeDesktopProfile = (settings: Record<string, unknown> = {}): string => {
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-electron-e2e-'));
     fs.mkdirSync(path.join(profile, 'config'), { recursive: true });
     fs.writeFileSync(path.join(profile, 'config', 'settings.json'), JSON.stringify({ ...E2E_USER_SETTINGS, ...settings }));
+    return profile;
+};
+
+/**
+ * Starts Electron on `workspace` with the profile's config dir and Electron data, an isolated keychain service and a
+ * file key store; `--use-mock-keychain` keeps Chromium off the macOS keychain too. Does not wait for the workbench.
+ */
+export const startElectron = (workspace: string, profile: string, extraEnv: Record<string, string> = {}): Promise<ElectronApplication> => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const executablePath = require(path.join(ROOT, 'node_modules', 'electron')) as unknown as string;
-    const app = await electron.launch({
+    return electron.launch({
         executablePath,
         // Playwright adds its own switches before the app path, which shifts Theia's argv parsing so the app folder would be
         // taken as the workspace. A leading `--ingot-e2e` switch makes the app path its value; Chromium ignores it.
-        args: ['--ingot-e2e', ELECTRON_APP_DIR, `--user-data-dir=${path.join(profile, 'electron')}`, workspace],
+        args: ['--ingot-e2e', ELECTRON_APP_DIR, MOCK_KEYCHAIN_ARG, `--user-data-dir=${path.join(profile, 'electron')}`, workspace],
         cwd: workspace,
         env: {
             ...process.env,
@@ -43,7 +51,16 @@ export const launchDesktop = async (workspace: string, extraEnv: Record<string, 
         },
         timeout: APP_READY_TIMEOUT_MS
     });
-    // The first window can be a splash or a reloading frame: wait for the one that hosts the workbench.
+};
+
+/**
+ * Launches the desktop app on `workspace` and waits for the workbench. Without a `shared` profile it gets a fresh one
+ * that is removed on close; a shared profile is kept (the caller removes it).
+ */
+export const launchDesktop = async (workspace: string, extraEnv: Record<string, string> = {}, settings: Record<string, unknown> = {}, shared?: string): Promise<DesktopApp> => {
+    const profile = shared ?? makeDesktopProfile(settings);
+    const app = await startElectron(workspace, profile, extraEnv);
+    // The first window can be a reloading frame: wait for the one that hosts the workbench.
     let page: Page | undefined;
     await expect.poll(async () => {
         for (const w of app.windows()) {
@@ -60,8 +77,15 @@ export const launchDesktop = async (workspace: string, extraEnv: Record<string, 
     return {
         app, page,
         close: async () => {
-            await app.close().catch(() => undefined);
-            fs.rmSync(profile, { recursive: true, force: true });
+            // A failed test can leave a prompt (unsaved changes) that blocks quitting: kill the app after a while.
+            const closed = app.close().catch(() => undefined);
+            const timedOut = new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), APP_CLOSE_TIMEOUT_MS));
+            if (await Promise.race([closed, timedOut]) === 'timeout') {
+                app.process().kill('SIGKILL');
+            }
+            if (!shared) {
+                fs.rmSync(profile, { recursive: true, force: true });
+            }
         }
     };
 };

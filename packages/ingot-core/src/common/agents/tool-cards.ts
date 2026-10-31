@@ -3,6 +3,8 @@
  * a terminal block (title, highlighted command, exit status, output), a profile card (GitHub-style user results),
  * or a compact generic card. Also the "Explored N files, M searches" and "Thought" rows.
  */
+import { codeToolDetail, isCodeTool } from './code-tools';
+import { CODE_TOOL_ICONS, CODE_TOOL_TITLES } from './code-tools.consts';
 
 export type ToolRunState = 'running' | 'done' | 'error';
 
@@ -45,7 +47,7 @@ export interface TerminalCard {
 export type ToolCard =
     | TerminalCard
     | { readonly kind: 'profile'; readonly title: string; readonly profile: ProfileCard }
-    | { readonly kind: 'generic'; readonly title: string; readonly detail: string; readonly output: string };
+    | { readonly kind: 'generic'; readonly title: string; readonly detail: string; readonly output: string; readonly icon?: string };
 
 export const TOOL_OUTPUT_PREVIEW_LINES = 12;
 const MAX_TITLE = 64;
@@ -145,7 +147,13 @@ export const parseProfile = (text: string): ProfileCard | undefined => {
 
 const TOOL_TITLES: Record<string, string> = {
     git: 'Git', web_search: 'Searched the web', web_fetch: 'Fetched', delete: 'Deleted', scripts: 'Listed scripts',
-    processes: 'Listed processes', process_output: 'Read process output', process_stop: 'Stopped process', summary: 'Summary'
+    processes: 'Listed processes', process_output: 'Read process output', process_stop: 'Stopped process', summary: 'Summary', run_tests: 'Ran tests'
+};
+
+/** "1 failed · 2 passed" from a run_tests result, or its first line when the tests could not run. */
+const testsDetail = (text: string): string => {
+    const counts = /(\d+) failed, (\d+) passed/.exec(text);
+    return counts ? `${counts[1]} failed · ${counts[2]} passed` : shorten(text.replace(/^Error: /, '').split('\n')[0], 48);
 };
 
 /** What card a finished (or running) tool message gets. */
@@ -161,45 +169,62 @@ export const toolCard = (info: ToolCallInfo, text: string, builtinServer = 'ingo
             title: shorten(description || command.split('\n')[0] || 'Run command')
         };
     }
+    if (builtin && isCodeTool(info.tool)) {
+        return {
+            kind: 'generic', title: CODE_TOOL_TITLES[info.tool], detail: shorten(codeToolDetail(info.tool, info.args), MAX_TITLE),
+            output: text.replace(/^Error: /, ''), icon: CODE_TOOL_ICONS[info.tool]
+        };
+    }
     const profile = info.state === 'running' ? undefined : parseProfile(text);
     if (profile) {
         return { kind: 'profile', title: `Ran ${info.tool}`, profile };
     }
     const firstArg = Object.values(info.args).find(v => typeof v === 'string' && v.trim()) as string | undefined;
     const title = builtin ? (TOOL_TITLES[info.tool] ?? info.tool) : `Ran ${info.tool}`;
-    const detail = builtin && info.tool === 'git' ? shorten([str(info.args.op), str(info.args.branch) || str(info.args.message)].filter(Boolean).join(' '), 48)
+    const detail = builtin && info.tool === 'run_tests' ? testsDetail(text)
+        : builtin && info.tool === 'git' ? shorten([str(info.args.op), str(info.args.branch) || str(info.args.message)].filter(Boolean).join(' '), 48)
         : firstArg ? shorten(firstArg, 48) : '';
     return { kind: 'generic', title, detail, output: text.replace(/^Error: /, '') };
 };
 
-/** Read and search steps for the Explored list. The same file read twice (a recovered shell read, then the tool) is one row. */
+const RULES_PREFIX = 'rules:';
+const readTargets = (target: string): string[] => target.replace(RULES_PREFIX, '').split(',').map(s => s.trim()).filter(Boolean);
+
+/**
+ * Read, rule and search steps for the Explored list. A comma-joined read is one row per file; the same file read
+ * twice (a recovered shell read, then the tool) is one row. Rules are `kind: 'rule'`.
+ */
 export const exploredItems = (steps: readonly { kind: string; target: string }[]): { kind: string; target: string }[] => {
     const seen = new Set<string>();
     const items: { kind: string; target: string }[] = [];
+    const add = (kind: string, target: string): void => {
+        const key = `${kind}\u0000${target}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            items.push({ kind, target });
+        }
+    };
     for (const step of steps) {
-        if (!((step.kind === 'read' && !step.target.startsWith('rules:')) || step.kind === 'search')) {
-            continue;
+        if (step.kind === 'search') {
+            add(step.kind, step.target);
+        } else if (step.kind === 'read') {
+            const kind = step.target.startsWith(RULES_PREFIX) ? 'rule' : 'read';
+            readTargets(step.target).forEach(target => add(kind, target));
         }
-        const key = `${step.kind}\u0000${step.target}`;
-        if (seen.has(key)) {
-            continue;
-        }
-        seen.add(key);
-        items.push({ kind: step.kind, target: step.target });
     }
-    const rank = (item: { kind: string; target: string }): number => item.kind === 'search' ? 2 : item.target.endsWith('/') ? 0 : 1;
+    const rank = (item: { kind: string; target: string }): number => item.kind === 'search' ? 3 : item.kind === 'rule' ? 2 : item.target.endsWith('/') ? 0 : 1;
     return items.sort((a, b) => rank(a) - rank(b));
 };
 
-/** "Explored 3 files, 2 searches" from the run's read / search steps (past tense once the run is over). */
+/** "Explored 3 files, 2 searches" from the run's read / rule / search steps (past tense once the run is over). */
 export const exploredLine = (steps: readonly { kind: string; target: string }[], running: boolean): string | undefined => {
     const files = new Set<string>();
     const folders = new Set<string>();
     let searches = 0;
     for (const step of steps) {
-        if (step.kind === 'read' && !step.target.startsWith('rules:')) {
-            // IDEA-186: a target ending in "/" is a listed folder.
-            step.target.split(',').map(s => s.trim()).filter(Boolean).forEach(f => (f.endsWith('/') ? folders : files).add(f));
+        if (step.kind === 'read') {
+            // IDEA-186: a target ending in "/" is a listed folder. Rules count as files read.
+            readTargets(step.target).forEach(f => (f.endsWith('/') ? folders : files).add(f));
         } else if (step.kind === 'search' || (step.kind === 'run' && /\/(?:web_search|search|search_code|grep)/.test(step.target))) {
             searches++;
         }

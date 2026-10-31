@@ -29,14 +29,16 @@
     "@theia/preferences": "1.76.0",
     "@theia/process": "1.76.0",
     "@theia/scm": "1.76.0",
+    "@theia/search-in-workspace": "1.76.0",
     "@theia/terminal": "1.76.0",
     "@theia/userstorage": "1.76.0",
     "@theia/variable-resolver": "1.76.0",
     "@theia/workspace": "1.76.0",
     "electron-updater": "^6.8.11",
+    "jsonc-parser": "^3.3.1",
     "mermaid": "12.2.0",
-    "pdfjs-dist": "6.4.299",
-    "jsonc-parser": "^3.3.1"
+    "monaco-vim": "^0.4.4",
+    "pdfjs-dist": "6.4.299"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
@@ -58,6 +60,9 @@
       "electronMain": "lib/electron-main/ingot-electron-main-module"
     },
     {
+      "frontendPreload": "lib/browser/preload/ingot-preload-module"
+    },
+    {
       "frontendElectron": "lib/electron-browser/ingot-electron-frontend-module"
     },
     {
@@ -68,6 +73,13 @@
     },
     {
       "frontend": "lib/browser/rules-insight/rules-insight-frontend-module"
+    },
+    {
+      "frontend": "lib/browser/sandbox/sandbox-frontend-module"
+    },
+    {
+      "frontend": "lib/browser/code-review/code-review-frontend-module",
+      "backend": "lib/node/code-review-backend-module"
     }
   ]
 }

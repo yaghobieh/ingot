@@ -10,7 +10,7 @@ import { AccountAvatar } from '../account/account-avatar';
 import { GEAR_COMMANDS } from '../workbench/gear-menu.consts';
 import { BOTTOM_STRIPE, STRIPE_WIDGET_ID, type StripeButton } from './ingot-stripe.consts';
 
-/** Bottom group of the left tool window stripe (Terminal, Run, Problems, Ports, Git). */
+/** Bottom of the left tool window stripe: optional bottom-panel tool windows, then Account and Settings. */
 @injectable()
 export class IngotStripeWidget extends ReactWidget {
 
@@ -55,7 +55,7 @@ export class IngotStripeWidget extends ReactWidget {
     }
 
     protected render(): React.ReactNode {
-        return <><div className='ingot-stripe-group'>
+        return <>{BOTTOM_STRIPE.length > 0 && <div className='ingot-stripe-group'>
             {BOTTOM_STRIPE.map(b => (
                 <button key={b.id} id={`ingot-stripe-${b.id}`} type='button' title={b.title} aria-label={b.title}
                     className={`ingot-stripe-button ${this.isSelected(b) ? 'selected' : ''}`}
@@ -63,7 +63,7 @@ export class IngotStripeWidget extends ReactWidget {
                     <span className={`ingot-icon ingot-icon-${b.icon}`} />
                 </button>
             ))}
-        </div>
+        </div>}
         <span className='ingot-flex' />
         {this.renderAccount()}</>;
     }
