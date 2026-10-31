@@ -8,7 +8,7 @@ import {
     TESTS_GREEN_TEXT, TESTS_RED_TEXT
 } from './testing.consts';
 import type {
-    DiscoveredTest, ExplorerFile, ExplorerTest, ProjectManifest, RunnerCommand, TestLoopStep, TestResult, TestRunner, TestRunRequest,
+    DiscoveredTest, ExplorerFile, ExplorerTest, JsTestRunner, ProjectManifest, RunnerCommand, TestLoopStep, TestResult, TestRunner, TestRunRequest,
     TestRunResult, TestState
 } from './testing.types';
 import { stripAnsi } from '../processes/processes.utils';
@@ -97,13 +97,16 @@ const scanSource = (source: string): { depths: Int32Array; comments: Uint8Array 
 
 const lineAt = (source: string, index: number): number => source.slice(0, index).split('\n').length;
 
-/** Tests named in a file's source (`describe` / `it` / `test`, Playwright's `test.describe`), with their suites. */
-export const discoverTests = (file: string, source: string): DiscoveredTest[] => {
+/**
+ * Tests named in a file's source (`describe` / `it` / `test`, Playwright's `test.describe`), with their suites.
+ * IDEA-313: brace languages with the same shape (Dart's `group` / `test`) pass their own call pattern.
+ */
+export const discoverTests = (file: string, source: string, call: RegExp = TEST_CALL, suiteCalls: ReadonlySet<string> = SUITE_CALLS): DiscoveredTest[] => {
     const { depths, comments } = scanSource(source);
     const suites: { title: string; depth: number; end: number }[] = [];
     const tests: DiscoveredTest[] = [];
     const seen = new Set<string>();
-    for (const match of source.matchAll(TEST_CALL)) {
+    for (const match of source.matchAll(call)) {
         const index = match.index ?? 0;
         if (comments[index]) {
             continue;
@@ -113,7 +116,7 @@ export const discoverTests = (file: string, source: string): DiscoveredTest[] =>
             suites.pop();
         }
         const title = match[3].replace(/\\(.)/g, '$1');
-        if (SUITE_CALLS.has(match[1])) {
+        if (suiteCalls.has(match[1])) {
             let end = index + match[0].length;
             while (end < source.length && depths[end] <= depth) {
                 end++;
@@ -143,7 +146,7 @@ export const titlePattern = (titles: readonly string[]): string | undefined => {
 };
 
 /** The runner binary, its arguments (JSON report to `outputFile`) and extra environment. */
-export const runnerCommand = (runner: TestRunner, request: TestRunRequest, outputFile: string): RunnerCommand => {
+export const runnerCommand = (runner: JsTestRunner, request: TestRunRequest, outputFile: string): RunnerCommand => {
     const files = [...(request.files ?? [])];
     const pattern = titlePattern(request.titles ?? []);
     switch (runner) {
@@ -316,7 +319,7 @@ export const scopeToRequest = (tests: readonly TestResult[], request: TestRunReq
 };
 
 /** Results from a runner's JSON report, or undefined when the report is not one. */
-export const parseReport = (runner: TestRunner, raw: unknown, root: string): TestResult[] | undefined => {
+export const parseReport = (runner: JsTestRunner, raw: unknown, root: string): TestResult[] | undefined => {
     const report = record(raw);
     if (runner === 'vitest' || runner === 'jest') {
         return Array.isArray(report.testResults) ? parseJestReport(report, root) : undefined;

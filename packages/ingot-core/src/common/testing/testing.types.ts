@@ -1,5 +1,11 @@
+import type { LanguageId, ToolchainId } from '../languages/languages.types';
+
 /** IDEA-261: Test Explorer and the agent's run_tests tool. */
-export type TestRunner = 'vitest' | 'jest' | 'mocha' | 'playwright';
+export type JsTestRunner = 'vitest' | 'jest' | 'mocha' | 'playwright';
+/** IDEA-313: runners of the other languages. */
+export type LanguageTestRunner =
+    'pytest' | 'unittest' | 'go' | 'cargo' | 'dotnet' | 'maven' | 'gradle' | 'phpunit' | 'rspec' | 'minitest' | 'dart' | 'flutter' | 'swift' | 'ctest';
+export type TestRunner = JsTestRunner | LanguageTestRunner;
 export type TestState = 'passed' | 'failed' | 'skipped';
 export type TestRunStatus = 'passed' | 'failed' | 'error';
 
@@ -32,6 +38,48 @@ export interface ProjectManifest {
     readonly files: readonly string[];
     /** Raw package.json text, or empty. */
     readonly packageJson: string;
+    /** IDEA-313: text of the other root manifests that name a runner (pyproject.toml, Gemfile, composer.json, pubspec.yaml, CMakeLists.txt). */
+    readonly manifests?: Readonly<Record<string, string>>;
+}
+
+/** IDEA-313: how a language runner reports its results. */
+export type TestReportFormat = 'junit' | 'junit-dir' | 'trx' | 'go-json' | 'dart-json' | 'rspec-json' | 'cargo-text' | 'unittest-text' | 'minitest-text' | 'swift-text';
+
+export interface LanguageTestRunnerSpec {
+    readonly runner: LanguageTestRunner;
+    readonly label: string;
+    readonly language: LanguageId;
+    readonly toolchains: readonly ToolchainId[];
+    /** Project-relative paths of test sources. */
+    readonly testFile: RegExp;
+    readonly format: TestReportFormat;
+    /** Report folder in the project (Maven and Gradle write one XML file per class). */
+    readonly reportDir?: string;
+}
+
+export interface RunnerHint {
+    readonly runners: readonly LanguageTestRunner[];
+    readonly pattern: RegExp;
+    readonly text: string;
+}
+
+/** A result as a language runner reports it, before it is matched to a discovered test. */
+export interface RawTestCase {
+    readonly name: string;
+    /** Class, module or group the runner names (last segment is matched against the discovered suite). */
+    readonly suite?: string;
+    readonly state: TestState;
+    readonly file?: string;
+    readonly line?: number;
+    readonly durationMs?: number;
+    readonly message?: string;
+}
+
+/** A language runner's command: optional steps first (configure, build), then the test command. */
+export interface LanguageRunnerCommand extends RunnerCommand {
+    readonly before?: readonly RunnerCommand[];
+    /** Where the runner writes its report (absolute), when it writes a file. */
+    readonly reportFile?: string;
 }
 
 export interface TestRunRequest {
