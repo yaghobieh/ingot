@@ -18,6 +18,8 @@ describe('convert Cursor config into .ingot', () => {
         expect(cursorTargetFor('.cursorrules')?.target).toBe('.ingot/rules/cursorrules.md');
         expect(cursorTargetFor('.cursor/commands/review.md')?.target).toBe('.ingot/commands/review.md');
         expect(cursorTargetFor('.cursor/skills/pdf/SKILL.md')).toMatchObject({ kind: 'skill', target: '.ingot/skills/pdf/SKILL.md' });
+        expect(cursorTargetFor('.cursor/skills/shipping/land-it/SKILL.md')?.target).toBe('.ingot/skills/shipping/land-it/SKILL.md');
+        expect(cursorTargetFor('apps/web/.cursor/skills/deploy-web/scripts/run.sh')).toMatchObject({ kind: 'skill', target: 'apps/web/.ingot/skills/deploy-web/scripts/run.sh' });
         expect(cursorTargetFor('.cursor/hooks/guard.sh')).toMatchObject({ kind: 'hookScript', target: '.ingot/hooks/guard.sh' });
         expect(cursorTargetFor('.cursor/BUGBOT.md')?.target).toBe('.ingot/BUGBOT.md');
         expect(cursorTargetFor('api/.cursor/BUGBOT.md')?.target).toBe('api/.ingot/BUGBOT.md');

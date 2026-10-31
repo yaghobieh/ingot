@@ -102,6 +102,10 @@ export const cursorTargetFor = (path: string): Mapping | undefined => {
     if (path === '.cursorrules') {
         return { kind: 'rule', target: CURSORRULES_TARGET, convert: convertCursorrules };
     }
+    const nestedSkill = /^(.+\/)\.cursor\/skills\/(.+)$/.exec(path);
+    if (nestedSkill) {
+        return { kind: 'skill', target: `${nestedSkill[1]}.ingot/skills/${nestedSkill[2]}` };
+    }
     const folder = /^\.cursor\/(commands|skills|hooks|habits|agents)\/(.+)$/.exec(path);
     if (folder) {
         const kinds: Record<string, CursorItemKind> = { commands: 'command', skills: 'skill', hooks: 'hookScript', habits: 'habit', agents: 'subagent' };

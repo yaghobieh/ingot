@@ -113,6 +113,60 @@ test.describe('IDEA-287 Cursor docs re-audit', () => {
         }
     });
 
+    test('the agent is offered skills (category folders, paths, nested folders, not manual-only) and reads one with fetch_rule', async ({ page }) => {
+        write(dir, '.cursor/skills/workflow/tdd/SKILL.md', '---\nname: tdd\ndescription: Test-driven workflow\n---\nTDD-SKILL-MARKER: write the failing test first.\n');
+        write(dir, '.cursor/skills/release/SKILL.md', '---\nname: release\ndescription: Cut a release\ndisable-model-invocation: true\n---\nRELEASE-SKILL-MARKER\n');
+        write(dir, '.agents/skills/react/SKILL.md', '---\nname: react\ndescription: React component patterns\npaths:\n  - "**/*.tsx"\n---\nREACT-SKILL-MARKER\n');
+        write(dir, 'apps/web/.cursor/skills/deploy-web/SKILL.md', '---\nname: deploy-web\ndescription: Deploy the web app\n---\nDEPLOY-WEB-MARKER\n');
+        write(dir, 'apps/web/src/App.tsx', 'export const App = () => null;\n');
+        reply = (_system, user) => {
+            if (user.startsWith('Tool result (ingot/fetch_rule)')) {
+                return 'Following the tdd skill.';
+            }
+            if (user.startsWith('Tool result (ingot/read_file)')) {
+                return 'Read the web app.';
+            }
+            if (user.includes('open the web app')) {
+                return toolBlock('read_file', { path: 'apps/web/src/App.tsx' });
+            }
+            return user.includes('pick a workflow') ? toolBlock('fetch_rule', { name: 'tdd' }) : 'Skills checked.';
+        };
+        await start(page);
+
+        await send(page, 'pick a workflow');
+        await expect(agentReplies(page).filter({ hasText: 'Following the tdd skill.' })).toBeVisible({ timeout: 60_000 });
+        const first = server.requests.find(r => r.user.includes('pick a workflow'))!;
+        expect(first.system).toContain('Available skills');
+        expect(first.system).toContain('- tdd: Test-driven workflow');
+        expect(first.system).not.toContain('- release:');
+        expect(first.system).not.toContain('- react:');
+        expect(first.system).not.toContain('- deploy-web:');
+        expect(server.requests.find(r => r.user.startsWith('Tool result (ingot/fetch_rule)'))!.user).toContain('TDD-SKILL-MARKER');
+        await shots(page, 'cursor-skills-fetched');
+
+        await send(page, 'open the web app');
+        await expect(agentReplies(page).last()).toContainText('Read the web app.', { timeout: 60_000 });
+        await send(page, 'check skills again');
+        await expect(agentReplies(page).last()).toContainText('Skills checked.', { timeout: 60_000 });
+        const later = server.requests.find(r => r.user.includes('check skills again'))!.system;
+        expect(later).toContain('- react: React component patterns');
+        expect(later).toContain('- deploy-web: Deploy the web app (for files under apps/web/)');
+        expect(later).not.toContain('- release:');
+
+        for (const theme of ['light', 'dark'] as const) {
+            await setAppearance(page, theme);
+            await composer(page).focus();
+            await page.keyboard.type('/');
+            const menu = page.locator('#ingot-slash-menu');
+            for (const name of ['/tdd', '/release', '/react', '/deploy-web']) {
+                await expect(menu).toContainText(name);
+            }
+            await shot(page, `cursor-skills-menu-${theme}.png`);
+            await page.keyboard.press('Escape');
+            await composer(page).fill('');
+        }
+    });
+
     test('a .cursor/agents subagent runs read-only with its instructions, in a worktree set up by .cursor/worktrees.json', async ({ page }) => {
         write(dir, '.cursor/agents/reviewer.md', REVIEWER);
         write(dir, '.cursor/worktrees.json', JSON.stringify({ 'setup-worktree': ['echo "$ROOT_WORKTREE_PATH" > setup-root.txt'] }));
@@ -167,6 +221,7 @@ test.describe('IDEA-287 Cursor docs re-audit', () => {
         await send(page, 'clean the build folder');
         await expect(agentReplies(page).last()).toContainText('Policy respected.', { timeout: 60_000 });
         expect(server.requests.some(r => r.user.startsWith('Tool result (ingot/run)') && r.user.includes('commands.deny "rm"'))).toBe(true);
+        expect(server.requests.some(r => r.user.startsWith('Tool result (ingot/run)') && r.user.includes('Blocked by .cursor/cli.json'))).toBe(true);
 
         const audit = page.locator('#ingot-audit');
         await actUntilVisible(() => page.keyboard.press('Control+Alt+Shift+A'), audit);

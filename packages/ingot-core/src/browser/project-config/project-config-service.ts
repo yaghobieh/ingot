@@ -5,8 +5,8 @@ import { PreferenceService } from '@theia/core/lib/common/preferences';
 import URI from '@theia/core/lib/common/uri';
 import {
     AGENT_MD_FILES, AGENTS_FILES, BUGBOT_FILE, BUGBOT_GLOBS, COMMANDS_DIR, CONFIG_DIRS, ENVIRONMENT_FILE, EXTRA_COMMAND_DIRS, EXTRA_SKILL_DIRS, IMPORT_HOME_ENV, MCP_FILE, NESTED_RULE_GLOBS,
-    NESTED_RULES_MAX_DEPTH, NESTED_RULES_MAX_FILES, NESTED_RULES_TTL_MS, RULE_EXTENSIONS, RULES_DIR, SKILL_FILE, SKILLS_DIR, SUBAGENTS_DIR, TEAM_RULES_CONFIG_KEY,
-    TEAM_RULES_DISABLED_PREF
+    NESTED_RULES_MAX_DEPTH, NESTED_RULES_MAX_FILES, NESTED_RULES_TTL_MS, NESTED_SKILL_GLOBS, RULE_EXTENSIONS, RULES_DIR, SKILL_FILE, SKILLS_DIR, SKILLS_MAX_DEPTH,
+    SUBAGENTS_DIR, TEAM_RULES_CONFIG_KEY, TEAM_RULES_DISABLED_PREF
 } from '../../common/project-config/project-config.consts';
 import { SUBAGENT_CURSOR_DIR, SUBAGENT_INGOT_DIR, SUBAGENT_OTHER_DIRS } from '../../common/agents/custom-subagents.consts';
 import type { CustomSubagent, SubagentScope } from '../../common/agents/custom-subagents.types';
@@ -14,7 +14,7 @@ import { isSubagentFile, mergeSubagents, parseSubagentFile } from '../../common/
 import type {
     ConfigSource, IgnoreRules, McpServerConfig, ProjectCommand, ProjectConfig, ProjectEnvironment, ProjectRule, RuleReference
 } from '../../common/project-config/project-config.types';
-import { commandFromFile, mergeByName, nestedRuleScope, parseMcpJson, ruleFromFile } from '../../common/project-config/project-config.utils';
+import { commandFromFile, mergeByName, nestedRuleScope, nestedSkillScope, parseMcpJson, ruleFromFile } from '../../common/project-config/project-config.utils';
 import { withoutImportedCursorrules } from '../../common/import/cursor-rules-import.utils';
 import { AGENTS_RULE_NAME } from '../../common/import/cursor-convert.consts';
 import { agentIgnoreFileNames, indexIgnoreFileNames, readsCursor } from '../../common/import/cursor-mode.utils';
@@ -51,10 +51,14 @@ export class ProjectConfigService {
     @inject(TeamRulesAdminService) protected readonly teamRulesAdmin: TeamRulesAdminService;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
     protected readonly nestedCache = new Map<string, { at: number; rules: Promise<ProjectRule[]> }>();
+    protected readonly nestedSkillCache = new Map<string, { at: number; skills: Promise<ProjectCommand[]> }>();
 
     @postConstruct()
     protected watchCursorMode(): void {
-        this.cursorModes.onDidChange(() => this.nestedCache.clear());
+        this.cursorModes.onDidChange(() => {
+            this.nestedCache.clear();
+            this.nestedSkillCache.clear();
+        });
     }
 
     /** IDEA-287: the workspace's Cursor answer (convert / keep / off); undefined when never asked. */
@@ -111,7 +115,7 @@ export class ProjectConfigService {
         const mode = await this.cursorModes.modeFor(root);
         // IDEA-287: `.cursor`, `.cursorrules` and nested `.cursor/rules` are read live only while the workspace keeps them.
         const live = readsCursor(mode);
-        const [external, legacy, ingot, agents, projectExtra, projectSkills, nested, bugbot] = root ? await Promise.all([
+        const [external, legacy, ingot, agents, projectExtra, projectSkills, nested, bugbot, nestedSkills] = root ? await Promise.all([
             live ? this.loadDir(root.resolve(CONFIG_DIRS.external), 'external', rel) : Promise.resolve(EMPTY_DIR),
             this.loadDir(root.resolve(CONFIG_DIRS.legacy), 'legacy', rel),
             this.loadDir(root.resolve(CONFIG_DIRS.ingot), 'ingot', rel),
@@ -119,8 +123,9 @@ export class ProjectConfigService {
             this.loadExtraCommands(root, 'external', rel),
             this.loadExtraSkills(root, 'external', rel),
             this.loadNested(root).then(list => list.filter(rule => live || rule.source !== 'external')),
-            this.loadBugbot(root, live)
-        ]) : [EMPTY_DIR, EMPTY_DIR, EMPTY_DIR, [], [], [], [], []];
+            this.loadBugbot(root, live),
+            this.loadNestedSkills(root, live)
+        ]) : [EMPTY_DIR, EMPTY_DIR, EMPTY_DIR, [], [], [], [], [], []];
         // IDEA-287: after "Convert to .ingot", an AGENTS.md whose copy is `<folder>/.ingot/rules/agents.md` is read from the copy only.
         const converted = (rule: ProjectRule): boolean => mode === 'convert' && rule.source === 'agents'
             && [...ingot.rules, ...nested].some(r => r.source === 'ingot' && r.name === (rule.scope ? `${rule.scope}/${AGENTS_RULE_NAME}` : AGENTS_RULE_NAME));
@@ -134,8 +139,11 @@ export class ProjectConfigService {
         const review = bugbotCommand(bugbot);
         return {
             rules: root ? await Promise.all(rules.map(rule => this.withReferencedFiles(rule, root))) : rules,
-            // Later wins: other editors' folders (home, then project) < imported < legacy < `.ingot` (IDEA-249).
-            commands: mergeByName(review ? [review] : [], globalExtra, globalSkills, importedGlobal.commands, global.commands, projectExtra, projectSkills, external.commands, legacy.commands, ingot.commands),
+            // Later wins: nested skills < other editors' folders (home, then project) < imported < legacy < `.ingot` (IDEA-249).
+            commands: mergeByName(
+                review ? [review] : [], nestedSkills, globalExtra, globalSkills, importedGlobal.commands, global.commands, projectExtra, projectSkills,
+                external.commands, legacy.commands, ingot.commands
+            ),
             mcpServers: mergeByName(external.mcpServers, legacy.mcpServers, ingot.mcpServers)
         };
     }
@@ -322,8 +330,8 @@ export class ProjectConfigService {
     protected async loadDir(base: URI, source: ConfigSource, relative: (u: URI) => string): Promise<DirConfig> {
         const isRule = (u: URI) => RULE_EXTENSIONS.some(ext => u.path.base.toLowerCase().endsWith(ext));
         const rulesDir = base.resolve(RULES_DIR);
-        const [ruleFiles, commandFiles, skillDirs, mcpText] = await Promise.all([
-            this.ruleFilesIn(rulesDir), this.children(base.resolve(COMMANDS_DIR)), this.children(base.resolve(SKILLS_DIR)), this.read(base.resolve(MCP_FILE))
+        const [ruleFiles, commandFiles, skillFiles, mcpText] = await Promise.all([
+            this.ruleFilesIn(rulesDir), this.children(base.resolve(COMMANDS_DIR)), this.skillFilesIn(base.resolve(SKILLS_DIR)), this.read(base.resolve(MCP_FILE))
         ]);
         const rules = (await Promise.all(ruleFiles.map(async u => {
             const text = await this.read(u);
@@ -335,12 +343,53 @@ export class ProjectConfigService {
             const text = await this.read(u);
             return text === undefined ? undefined : { ...commandFromFile(relative(u), text, source), uri: u.toString() };
         }))).filter((c): c is ProjectCommand & { uri: string } => !!c);
-        const skills = (await Promise.all(skillDirs.map(async d => {
-            const file = d.resolve(SKILL_FILE);
+        const skills = await this.readSkills(skillFiles, source, relative);
+        return { rules, commands: [...commands, ...skills], mcpServers: mcpText ? parseMcpJson(mcpText, source) : [] };
+    }
+
+    /** IDEA-287: the `SKILL.md` files of a skills folder, also inside category folders (`skills/shipping/land-it/SKILL.md`). */
+    protected async skillFilesIn(dir: URI, depth = 0): Promise<URI[]> {
+        const stat = depth > SKILLS_MAX_DEPTH ? undefined : await this.files.resolve(dir).catch(() => undefined);
+        const children = stat?.children ?? [];
+        if (depth && children.some(c => !c.isDirectory && c.name === SKILL_FILE)) {
+            return [dir.resolve(SKILL_FILE)];
+        }
+        return (await Promise.all(children.filter(c => c.isDirectory).map(c => this.skillFilesIn(c.resource, depth + 1)))).flat();
+    }
+
+    protected async readSkills(files: readonly URI[], source: ConfigSource, relative: (u: URI) => string): Promise<(ProjectCommand & { uri: string })[]> {
+        const skills = await Promise.all(files.map(async file => {
             const text = await this.read(file);
             return text === undefined ? undefined : { ...commandFromFile(relative(file), text, source, 'skill'), uri: file.toString() };
-        }))).filter((c): c is ProjectCommand & { uri: string } => !!c);
-        return { rules, commands: [...commands, ...skills], mcpServers: mcpText ? parseMcpJson(mcpText, source) : [] };
+        }));
+        return skills.filter((c): c is ProjectCommand & { uri: string } => !!c);
+    }
+
+    /**
+     * IDEA-287: skills in subfolders (`apps/web/.cursor/skills/deploy-web/SKILL.md`), scoped to that subfolder.
+     * `.cursor` ones only while the workspace reads `.cursor` live. Found with ripgrep, cached like nested rules.
+     */
+    async loadNestedSkills(root: URI, live: boolean): Promise<ProjectCommand[]> {
+        const key = root.toString();
+        const cached = this.nestedSkillCache.get(key);
+        const all = cached && Date.now() - cached.at < NESTED_RULES_TTL_MS ? cached.skills : this.findNestedSkills(root);
+        if (all !== cached?.skills) {
+            this.nestedSkillCache.set(key, { at: Date.now(), skills: all });
+        }
+        return (await all).filter(skill => live || !skill.path.split('/').includes(CONFIG_DIRS.external));
+    }
+
+    protected async findNestedSkills(root: URI): Promise<ProjectCommand[]> {
+        const cwd = root.path.fsPath();
+        const found = cwd ? await this.processes.workspaceSearch({ cwd, files: true, globs: [...NESTED_SKILL_GLOBS], agentIgnore: true }).catch(() => undefined) : undefined;
+        const paths = found?.engine === 'ripgrep' ? parseRgFiles(found.text, NESTED_RULES_MAX_FILES).map(p => p.replace(/\\/g, '/')) : [];
+        const skills = await Promise.all(paths.map(async path => {
+            const scope = nestedSkillScope(path);
+            const text = scope ? await this.read(root.resolve(path)) : undefined;
+            const source: ConfigSource = path.split('/').includes(CONFIG_DIRS.ingot) ? 'ingot' : 'external';
+            return scope && text !== undefined ? { ...commandFromFile(path, text, source, 'skill'), scope, uri: root.resolve(path).toString() } : undefined;
+        }));
+        return skills.filter((s): s is ProjectCommand & { uri: string; scope: string } => !!s);
     }
 
     /** IDEA-249: Markdown commands from other editors' folders under `base`; the file name is the command. */
@@ -359,14 +408,7 @@ export class ProjectConfigService {
 
     /** IDEA-287: `<dir>/<name>/SKILL.md` skills from the shared folders (`.agents/skills`, `.claude/skills`, `.codex/skills`) under `base`. */
     protected async loadExtraSkills(base: URI, source: ConfigSource, relative: (u: URI) => string): Promise<ProjectCommand[]> {
-        const lists = await Promise.all(EXTRA_SKILL_DIRS.map(async dir => {
-            const skills = await Promise.all((await this.children(base.resolve(dir))).map(async folder => {
-                const file = folder.resolve(SKILL_FILE);
-                const text = await this.read(file);
-                return text === undefined ? undefined : { ...commandFromFile(relative(file), text, source, 'skill'), uri: file.toString() };
-            }));
-            return skills.filter((c): c is ProjectCommand & { uri: string } => !!c);
-        }));
+        const lists = await Promise.all(EXTRA_SKILL_DIRS.map(async dir => this.readSkills(await this.skillFilesIn(base.resolve(dir)), source, relative)));
         return mergeByName(...lists);
     }
 

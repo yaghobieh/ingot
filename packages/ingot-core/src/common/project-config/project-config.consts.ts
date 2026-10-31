@@ -36,6 +36,12 @@ export const EXTRA_COMMAND_DIRS = ['.github/prompts', '.windsurf/workflows', '.c
 export const EXTRA_SKILL_DIRS = ['.codex/skills', '.claude/skills', '.agents/skills'] as const;
 export const SKILLS_DIR = 'skills';
 export const SKILL_FILE = 'SKILL.md';
+/** IDEA-287: how deep category folders in a skills folder go (`skills/shipping/land-it/SKILL.md`). */
+export const SKILLS_MAX_DEPTH = 4;
+/** IDEA-287: skill folders in subfolders of the project, scoped to that subfolder (as Cursor reads them). */
+export const NESTED_SKILL_GLOBS = ['**/.ingot/skills/**/SKILL.md', '**/.cursor/skills/**/SKILL.md', '**/.agents/skills/**/SKILL.md'] as const;
+/** IDEA-287: most skills listed to the agent as "Available skills". */
+export const MAX_SKILL_INDEX = 50;
 export const MCP_FILE = 'mcp.json';
 /** IDEA-287: plain-markdown instruction files read at the root and in subfolders in every mode (CLAUDE.md as Cursor reads it). */
 export const AGENT_MD_FILES = ['AGENTS.md', 'CLAUDE.md'] as const;

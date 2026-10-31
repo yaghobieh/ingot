@@ -78,7 +78,9 @@ import { ChangeTracker, type ChangeOrigin } from '../changes/change-tracker';
 import { restorePlan } from '../../common/changes/changes.utils';
 import { ProjectConfigService } from '../project-config/project-config-service';
 import { IngotMcpClient } from '../project-config/mcp-client';
-import { applicableRules, expandCommand, findRule, formatRuleIndex, formatRules, requestableRules } from '../../common/project-config/project-config.utils';
+import {
+    applicableRules, expandCommand, findRule, findSkill, formatRuleIndex, formatRules, formatSkillIndex, offeredSkills, requestableRules
+} from '../../common/project-config/project-config.utils';
 import { formatEnvironment } from '../../common/project-config/environment.utils';
 import type { IgnoreRules, ProjectCommand, ProjectRule } from '../../common/project-config/project-config.types';
 import { FETCH_RULE_TOOL } from '../../common/project-config/project-config.consts';
@@ -284,6 +286,8 @@ export class AgentStore {
     protected readonly handedOff = new Set<string>();
     /** IDEA-287: the rules loaded for a chat's last turn, for ingot/fetch_rule. */
     protected readonly sessionRules = new Map<string, readonly ProjectRule[]>();
+    /** IDEA-287: the skills loaded for a chat's last turn, for ingot/fetch_rule. */
+    protected readonly sessionSkills = new Map<string, readonly ProjectCommand[]>();
     /** IDEA-287: chats whose sessionStart hook ran, with the env and context it returned. */
     protected readonly hookSessions = new Map<string, { startedAt: number; env?: Readonly<Record<string, string>>; context?: string }>();
     /** IDEA-287: chats whose next run checks the prompt with beforeSubmitPrompt (set by send). */
@@ -1300,10 +1304,11 @@ export class AgentStore {
         const active = this.editors.currentEditor?.editor.uri;
         const activePath = active && root?.isEqualOrParent(active) ? root.relative(active)?.toString() : undefined;
         // IDEA-287: nested rules also follow files the agent read or edited earlier in this chat.
-        const ruleFiles = [...new Set([...context.paths, ...(activePath ? [activePath] : []), ...this.touchedPaths(session)])];
-        const rules = applicableRules(config.rules, ruleFiles);
+        const contextFiles = [...new Set([...context.paths, ...(activePath ? [activePath] : []), ...this.touchedPaths(session)])];
+        const rules = applicableRules(config.rules, contextFiles);
         this.sessionRules.set(session.id, config.rules);
-        this.ruleHits?.record({ sessionId: session.id, prompt, files: ruleFiles, rules, root: root?.path.fsPath() });
+        this.sessionSkills.set(session.id, config.commands.filter(c => c.kind === 'skill'));
+        this.ruleHits?.record({ sessionId: session.id, prompt, files: contextFiles, rules, root: root?.path.fsPath() });
         this.recordRuleHits(root, rules);
         const info = session.subagent?.readonly ? { ...modeInfo(session.mode), canEdit: false } : modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
@@ -1321,8 +1326,10 @@ export class AgentStore {
             session.parent ? '' : FOLLOW_UPS_PROTOCOL
         ].filter(Boolean).join('\n\n');
         const environment = await this.projectConfig.loadEnvironment(root).catch(() => undefined);
+        const fetchTool = `${BUILTIN_TOOL_SERVER}/${FETCH_RULE_TOOL}`;
         const rulesText = [
-            formatRules(rules), info.canUseTools ? formatRuleIndex(requestableRules(config.rules), `${BUILTIN_TOOL_SERVER}/${FETCH_RULE_TOOL}`) : '',
+            formatRules(rules), info.canUseTools ? formatRuleIndex(requestableRules(config.rules), fetchTool) : '',
+            info.canUseTools ? formatSkillIndex(offeredSkills(config.commands, contextFiles), fetchTool) : '',
             formatEnvironment(environment?.environment, environment?.source ?? ''), this.hookSessions.get(session.id)?.context ?? ''
         ].filter(Boolean).join('\n\n');
         const habitText = await this.habitRunner.prepare(session, {
@@ -3027,8 +3034,12 @@ export class AgentStore {
         const rules = this.sessionRules.get(session.id) ?? [];
         const rule = findRule(rules, name);
         if (!rule) {
+            const skill = findSkill(this.sessionSkills.get(session.id) ?? [], name);
+            if (skill) {
+                return { text: `Skill ${skill.name} (${skill.path})${skill.scope ? `, for files under ${skill.scope}/` : ''}:\n\n${skill.body}`, isError: false };
+            }
             const known = requestableRules(rules).map(r => r.name).join(', ');
-            return { text: `No rule "${name}".${known ? ` Rules: ${known}.` : ''}`, isError: true };
+            return { text: `No rule or skill "${name}".${known ? ` Rules: ${known}.` : ''}`, isError: true };
         }
         return { text: `Rule ${rule.name} (${rule.path})${rule.scope ? `, for files under ${rule.scope}/` : ''}:\n\n${rule.body}`, isError: false };
     }

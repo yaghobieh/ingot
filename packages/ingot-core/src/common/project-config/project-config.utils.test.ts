@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-    applicableRules, commandFolder, commandFromFile, expandCommand, findRule, formatRuleIndex, formatRules, matchGlob, mentionableRules, mergeByName, nestedRuleScope,
-    parseFrontmatter, parseMcpJson, requestableRules, ruleFromFile, ruleFileName, ruleFileText, ruleKindLabel, ruleMentionItems
+    applicableRules, commandFolder, commandFromFile, expandCommand, findRule, findSkill, formatRuleIndex, formatRules, formatSkillIndex, matchGlob, mentionableRules,
+    mergeByName, nestedRuleScope, nestedSkillScope, offeredSkills, parseFrontmatter, parseMcpJson, requestableRules, ruleFromFile, ruleFileName, ruleFileText,
+    ruleKindLabel, ruleMentionItems
 } from './project-config.utils';
 
 describe('project config', () => {
@@ -130,5 +131,46 @@ describe('IDEA-249 command folders', () => {
         expect(commandFolder(notes)).toBe('.github/prompts');
         expect(commandFolder(commandFromFile('~/.claude/commands/standup.md', 'Standup.', 'global-imported'))).toBe('~/.claude/commands');
         expect(commandFolder(commandFromFile('.ingot/skills/pdf/SKILL.md', '---\nname: pdf\n---\nPDF.', 'ingot', 'skill'))).toBe('.ingot/skills');
+    });
+});
+
+describe('IDEA-287 skills the agent picks on its own', () => {
+    const skill = (path: string, front: string, scope?: string) =>
+        ({ ...commandFromFile(path, `---\n${front}\n---\nSteps.`, 'external', 'skill'), ...(scope ? { scope } : {}) });
+    const tdd = skill('.cursor/skills/workflow/tdd/SKILL.md', 'name: tdd\ndescription: Test first');
+    const react = skill('.agents/skills/react/SKILL.md', 'name: react\ndescription: React patterns\npaths:\n  - "**/*.tsx"');
+    const python = skill('.cursor/skills/py/SKILL.md', 'name: py\ndescription: Python\nglobs: "**/*.py, scripts/**"');
+    const deploy = skill('.cursor/skills/deploy/SKILL.md', 'name: deploy\ndescription: Deploy\ndisable-model-invocation: true');
+    const web = skill('apps/web/.cursor/skills/deploy-web/SKILL.md', 'name: deploy-web\ndescription: Deploy the web app\npaths: "src/**"', 'apps/web');
+
+    it('reads paths (or legacy globs) and disable-model-invocation; names come from the skill folder, not the category', () => {
+        expect(react.paths).toEqual(['**/*.tsx']);
+        expect(python.paths).toEqual(['**/*.py', 'scripts/**']);
+        expect(deploy.manualOnly).toBe(true);
+        expect(skill('.cursor/skills/shipping/land-it/SKILL.md', 'description: Land it').name).toBe('land-it');
+        expect(commandFromFile('.ingot/commands/x.md', '---\npaths: "**/*.ts"\n---\nX', 'ingot').paths).toBeUndefined();
+    });
+
+    it('offers skills by paths and folder, never manual-only ones, and lists them with the fetch tool', () => {
+        const all = [tdd, react, python, deploy, web, commandFromFile('.ingot/commands/x.md', 'X', 'ingot')];
+        expect(offeredSkills(all, []).map(s => s.name)).toEqual(['tdd']);
+        expect(offeredSkills(all, ['src/App.tsx']).map(s => s.name)).toEqual(['tdd', 'react']);
+        expect(offeredSkills(all, ['apps/web/src/main.ts', 'tools/a.py']).map(s => s.name)).toEqual(['tdd', 'py', 'deploy-web']);
+        expect(offeredSkills(all, ['apps/web/README.md']).map(s => s.name)).toEqual(['tdd']);
+        const index = formatSkillIndex([tdd, web], 'ingot/fetch_rule');
+        expect(index).toContain('ingot/fetch_rule');
+        expect(index).toContain('- tdd: Test first');
+        expect(index).toContain('- deploy-web: Deploy the web app (for files under apps/web/)');
+        expect(formatSkillIndex([], 'ingot/fetch_rule')).toBe('');
+        expect(findSkill(all, '/TDD')).toBe(tdd);
+        expect(findSkill(all, 'x')).toBeUndefined();
+    });
+
+    it('finds the folder of a nested skill', () => {
+        expect(nestedSkillScope('apps/web/.cursor/skills/deploy-web/SKILL.md')).toBe('apps/web');
+        expect(nestedSkillScope('packages/api/.agents/skills/ops/db/SKILL.md')).toBe('packages/api');
+        expect(nestedSkillScope('packages/api/.ingot/skills/x/SKILL.md')).toBe('packages/api');
+        expect(nestedSkillScope('.cursor/skills/tdd/SKILL.md')).toBeUndefined();
+        expect(nestedSkillScope('apps/web/.claude/skills/x/SKILL.md')).toBeUndefined();
     });
 });

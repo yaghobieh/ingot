@@ -75,7 +75,7 @@ export const BUILTIN_TOOLS = [
     { name: 'browser_scroll', description: 'Scroll the page. Arguments: {"direction": "down" | "up" | "top" | "bottom"}.' },
     { name: 'browser_back', description: 'Go back one page. No arguments.' },
     { name: 'browser_screenshot', description: 'Take a screenshot of the browser panel (shown to the user; sent to you when the model reads images). No arguments.' },
-    { name: 'fetch_rule', description: 'Read the full text of a project rule from "Available rules". Arguments: {"name": "api-style"}. Runs at once.' },
+    { name: 'fetch_rule', description: 'Read the full text of a project rule from "Available rules" or a skill from "Available skills". Arguments: {"name": "api-style"}. Runs at once.' },
     { name: 'use_habit', description: 'Follow a habit (a team playbook) from "Habits": returns its steps, tool limits and done criteria. Arguments: {"name": "Payments bug"}. Runs at once.' },
     { name: 'browser_console', description: 'Read the page\'s console messages and uncaught errors (latest last). Arguments: {"level"?: "error" | "warning" | "all"}. Runs at once.' },
     { name: 'browser_network', description: 'List failed requests of the page: HTTP 4xx/5xx and requests with no response (page, assets, fetch / XHR). No arguments. Runs at once.' },

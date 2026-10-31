@@ -44,5 +44,5 @@ export const CURSOR_COPIED_DIRS = ['rules', 'commands', 'skills', 'hooks', 'habi
 export const CURSOR_COPIED_FILES = ['mcp.json', 'hooks.json', 'BUGBOT.md', 'environment.json', 'worktrees.json', 'cli.json', 'sandbox.json'] as const;
 export const CURSOR_ROOT_FILES = ['.cursorrules', '.cursorignore', '.cursorindexingignore', 'AGENTS.md'] as const;
 /** Nested Cursor files found anywhere below the root. */
-export const CURSOR_NESTED_GLOBS = ['**/AGENTS.md', '**/.cursor/rules/**/*.md', '**/.cursor/rules/**/*.mdc', '**/.cursor/BUGBOT.md'] as const;
+export const CURSOR_NESTED_GLOBS = ['**/AGENTS.md', '**/.cursor/rules/**/*.md', '**/.cursor/rules/**/*.mdc', '**/.cursor/BUGBOT.md', '**/.cursor/skills/**'] as const;
 export const CURSOR_WALK_MAX_FILES = 500;

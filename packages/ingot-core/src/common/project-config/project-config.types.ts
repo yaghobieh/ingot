@@ -95,6 +95,12 @@ export interface ProjectCommand {
     readonly uri?: string;
     /** Argument hint from frontmatter `args` (IDEA-249), shown after the name in the `/` menu. */
     readonly args?: string;
+    /** IDEA-287: skill frontmatter `paths` (or the legacy `globs`): the agent is offered the skill only for matching files. */
+    readonly paths?: readonly string[];
+    /** IDEA-287: skill frontmatter `disable-model-invocation: true`: only `/name` uses it, the agent is not offered it. */
+    readonly manualOnly?: boolean;
+    /** IDEA-287: folder of a nested skill (`apps/web` for `apps/web/.cursor/skills/deploy/SKILL.md`), offered only for files under it. */
+    readonly scope?: string;
 }
 
 export interface McpServerConfig {

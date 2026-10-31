@@ -1,5 +1,5 @@
 import type { ConfigSource, McpServerConfig, ProjectCommand, ProjectRule, RuleDraft, RuleKind } from './project-config.types';
-import { MAX_RULE_MENTIONS, RULE_FILE_EXT, RULE_MENTION_PREFIX } from './project-config.consts';
+import { MAX_RULE_MENTIONS, MAX_SKILL_INDEX, RULE_FILE_EXT, RULE_MENTION_PREFIX } from './project-config.consts';
 import { stripExportBlock } from '../rules-kit';
 
 export interface Frontmatter {
@@ -79,12 +79,21 @@ export const ruleFromFile = (path: string, text: string, source: ConfigSource, s
     };
 };
 
+/** IDEA-287: a skill's `paths` (legacy `globs`) and `disable-model-invocation`, as Cursor reads them. */
+const skillFields = (data: Frontmatter['data']): Pick<ProjectCommand, 'paths' | 'manualOnly'> => {
+    const paths = asList(data.paths ?? data.globs);
+    return { ...(paths.length ? { paths } : {}), ...(data['disable-model-invocation'] === true ? { manualOnly: true } : {}) };
+};
+
 export const commandFromFile = (path: string, text: string, source: ConfigSource, kind: ProjectCommand['kind'] = 'command'): ProjectCommand => {
     const { data, body } = parseFrontmatter(text);
     const name = kind === 'skill' ? (typeof data.name === 'string' && data.name ? data.name : path.split('/').slice(-2)[0]) : baseName(path);
     const description = typeof data.description === 'string' && data.description ? data.description : body.split('\n').find(l => l.trim())?.replace(/^#+\s*/, '').slice(0, 80);
     const args = asList(data.args ?? data['argument-hint']).join(' ');
-    return { name: name.toLowerCase().replace(/[^a-z0-9-_]+/g, '-'), path, source, kind, body, ...(description ? { description } : {}), ...(args ? { args } : {}) };
+    return {
+        name: name.toLowerCase().replace(/[^a-z0-9-_]+/g, '-'), path, source, kind, body, ...(description ? { description } : {}), ...(args ? { args } : {}),
+        ...(kind === 'skill' ? skillFields(data) : {})
+    };
 };
 
 const toGlobRegExp = (glob: string): RegExp => {
@@ -163,6 +172,37 @@ export const formatRuleIndex = (rules: readonly ProjectRule[], tool: string): st
     ? [`Available rules: read one with ${tool} {"name": "<rule name>"} before working on something it describes.`,
         ...rules.map(r => `- ${r.name}: ${r.description ?? ''}${scopeNote(r)}`)].join('\n')
     : '';
+
+/**
+ * IDEA-287: skills the agent may pick on its own this turn: not `disable-model-invocation`, a nested skill only when a
+ * context file is under its folder, a skill with `paths` only when a context file matches (relative to its folder).
+ */
+export const offeredSkills = (commands: readonly ProjectCommand[], files: readonly string[]): ProjectCommand[] =>
+    commands.filter(skill => {
+        if (skill.kind !== 'skill' || skill.manualOnly) {
+            return false;
+        }
+        const scoped = skill.scope ? files.filter(f => isUnder(f, skill.scope!)).map(f => f.slice(skill.scope!.length + 1)) : [...files];
+        if (skill.scope && !scoped.length) {
+            return false;
+        }
+        return !skill.paths?.length || skill.paths.some(glob => scoped.some(file => matchGlob(glob, file)));
+    }).slice(0, MAX_SKILL_INDEX);
+
+export const formatSkillIndex = (skills: readonly ProjectCommand[], tool: string): string => skills.length
+    ? [`Available skills: when the task matches one, read it with ${tool} {"name": "<skill name>"} and follow it.`,
+        ...skills.map(s => `- ${s.name}: ${s.description ?? ''}${s.scope ? ` (for files under ${s.scope}/)` : ''}`)].join('\n')
+    : '';
+
+/** A skill by name (case-insensitive, `/` optional), for `fetch_rule`. */
+export const findSkill = (commands: readonly ProjectCommand[], name: string): ProjectCommand | undefined => {
+    const wanted = name.trim().toLowerCase().replace(/^\//, '');
+    return commands.find(c => c.kind === 'skill' && c.name === wanted);
+};
+
+/** IDEA-287: `apps/web/.cursor/skills/deploy/SKILL.md` → `apps/web`; undefined at the project root. */
+export const nestedSkillScope = (path: string): string | undefined =>
+    /^(.+?)\/\.(?:ingot|cursor|agents)\/skills\/(?:.+\/)?SKILL\.md$/.exec(path.replace(/\\/g, '/').replace(/^\.\//, ''))?.[1];
 
 /** A rule by name (case-insensitive), for `fetch_rule` and @-mentions. */
 export const findRule = (rules: readonly ProjectRule[], name: string): ProjectRule | undefined => {
