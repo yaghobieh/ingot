@@ -199,14 +199,14 @@ export class IngotSchemaContribution implements FrontendApplicationContribution,
 
     protected globMarkdown(preview: GlobAtPosition): string {
         if (preview.error) {
-            return `**${preview.glob}** — ${preview.error}`;
+            return `\`${preview.glob}\` — ${preview.error}`;
         }
         if (!preview.matches.length) {
-            return `**${preview.glob}** matches no files, so this part of the rule never loads.`;
+            return `\`${preview.glob}\` matches no files, so this part of the rule never loads.`;
         }
         const shown = preview.matches.slice(0, GLOB_PREVIEW_LIMIT).map(f => `- \`${f}\``).join('\n');
         const more = preview.matches.length > GLOB_PREVIEW_LIMIT ? `\n\n…and ${preview.matches.length - GLOB_PREVIEW_LIMIT} more` : '';
-        return `**${preview.glob}** matches ${preview.matches.length} file${preview.matches.length === 1 ? '' : 's'}:\n\n${shown}${more}`;
+        return `\`${preview.glob}\` matches ${preview.matches.length} file${preview.matches.length === 1 ? '' : 's'}:\n\n${shown}${more}`;
     }
 
     protected inlayHints(model: monaco.editor.ITextModel): monaco.languages.InlayHint[] {
