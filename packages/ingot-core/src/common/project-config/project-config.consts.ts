@@ -94,6 +94,7 @@ export const MAX_BUGBOT_CHARS = 12_000;
 
 /** IDEA-287: project environment (install, start, terminals), as Cursor's `.cursor/environment.json`. */
 export const ENVIRONMENT_FILE = 'environment.json';
+export const MAX_PORT = 65_535;
 export const ENVIRONMENT_COMMAND = { id: 'ingot.environment.start', label: 'Project Environment: Install and Start', category: 'Ingot' } as const;
 /** The install step may take a while (dependencies); start and terminals keep running in the background. */
 export const ENVIRONMENT_INSTALL_TIMEOUT_MS = 15 * 60 * 1000;

@@ -43,7 +43,17 @@ export interface ProjectEnvironment {
     readonly snapshot?: string;
     /** IDEA-287: the image to build, as written (`dockerfile` / `context` relative to the folder of environment.json). */
     readonly build?: EnvironmentBuild;
+    /** IDEA-287: a prebuilt image (`node:22`), the environment's name, the user commands run as, and ports it exposes. */
+    readonly image?: string;
+    readonly name?: string;
+    readonly user?: string;
+    readonly ports?: readonly EnvironmentPort[];
     readonly errors: readonly string[];
+}
+
+export interface EnvironmentPort {
+    readonly port: number;
+    readonly name?: string;
 }
 
 export interface EnvironmentBuild {

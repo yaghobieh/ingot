@@ -1,5 +1,5 @@
-import { CONFIG_DIRS, ENVIRONMENT_IMAGE_PREFIX, ENVIRONMENT_ROOT_PATHS } from './project-config.consts';
-import type { EnvironmentBuild, ProjectEnvironment, ResolvedEnvironmentBuild } from './project-config.types';
+import { CONFIG_DIRS, ENVIRONMENT_IMAGE_PREFIX, ENVIRONMENT_ROOT_PATHS, MAX_PORT } from './project-config.consts';
+import type { EnvironmentBuild, EnvironmentPort, ProjectEnvironment, ResolvedEnvironmentBuild } from './project-config.types';
 
 const command = (value: unknown): string | undefined => typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
@@ -16,6 +16,20 @@ const parseBuild = (value: unknown, source: string, errors: string[]): Environme
     const context = command(build?.context);
     return { dockerfile, ...(context ? { context } : {}) };
 };
+
+const isPort = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= MAX_PORT;
+
+/** `ports`: numbers, or `{ "port": 3000, "name": "web" }` entries; anything else is reported. */
+const parsePorts = (value: unknown, source: string, errors: string[]): EnvironmentPort[] => (Array.isArray(value) ? value : []).flatMap((item: unknown, i) => {
+    const entry = item && typeof item === 'object' ? item as Record<string, unknown> : { port: item };
+    const port = typeof entry.port === 'string' ? Number(entry.port) : entry.port;
+    if (!isPort(port)) {
+        errors.push(`${source}: port ${i + 1} needs a "port" number.`);
+        return [];
+    }
+    const name = command(entry.name);
+    return [{ port, ...(name ? { name } : {}) }];
+});
 
 /**
  * IDEA-287: `environment.json` as Cursor writes it: `{ "install": "npm ci", "start": "docker compose up -d",
@@ -48,7 +62,14 @@ export const parseEnvironmentJson = (text: string | undefined, source: string): 
     const start = command(json.start);
     const snapshot = command(json.snapshot);
     const build = parseBuild(json.build, source, errors);
-    return { ...(install ? { install } : {}), ...(start ? { start } : {}), terminals, ...(snapshot ? { snapshot } : {}), ...(build ? { build } : {}), errors };
+    const image = command(json.image);
+    const name = command(json.name);
+    const user = command(json.user);
+    const ports = parsePorts(json.ports, source, errors);
+    return {
+        ...(install ? { install } : {}), ...(start ? { start } : {}), terminals, ...(snapshot ? { snapshot } : {}), ...(build ? { build } : {}),
+        ...(image ? { image } : {}), ...(name ? { name } : {}), ...(user ? { user } : {}), ...(ports.length ? { ports } : {}), errors
+    };
 };
 
 const normalize = (path: string): string => {
@@ -98,16 +119,19 @@ export const dockerBuildCommand = (bin: string, build: ResolvedEnvironmentBuild,
 
 /** A short note for the agent: how this project is installed and started. */
 export const formatEnvironment = (env: ProjectEnvironment | undefined, source: string): string => {
-    if (!env || (!env.install && !env.start && !env.terminals.length && !env.build && !env.snapshot)) {
+    if (!env || (!env.install && !env.start && !env.terminals.length && !env.build && !env.snapshot && !env.image && !env.ports?.length)) {
         return '';
     }
     const build = env.build && resolveEnvironmentBuild(env.build, environmentConfigDir(source));
     return [
-        `Project environment (${source}):`,
+        `Project environment${env.name ? ` "${env.name}"` : ''} (${source}):`,
         ...(env.install ? [`- install: \`${env.install}\``] : []),
         ...(env.start ? [`- start: \`${env.start}\``] : []),
         ...env.terminals.map(t => `- ${t.name}: \`${t.command}\`${t.description ? ` (${t.description})` : ''}`),
         ...(build ? [`- container image: \`${build.dockerfile}\` (build context \`${build.context}\`)`] : []),
+        ...(env.image ? [`- prebuilt image: \`${env.image}\``] : []),
+        ...(env.user ? [`- runs as user: ${env.user}`] : []),
+        ...(env.ports?.length ? [`- ports: ${env.ports.map(p => p.name ? `${p.port} (${p.name})` : String(p.port)).join(', ')}`] : []),
         ...(env.snapshot ? [`- Cursor cloud snapshot: ${env.snapshot} (cloud agents only, not available locally)`] : [])
     ].join('\n');
 };

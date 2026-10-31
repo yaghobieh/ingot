@@ -24,6 +24,20 @@ describe('IDEA-287 environment.json snapshot and build', () => {
         expect(environmentConfigDir('.cursor/environment.json')).toBe('.cursor');
     });
 
+    it('reads name, user, prebuilt image and ports and tells the agent about them', () => {
+        const env = parseEnvironmentJson(JSON.stringify({
+            name: 'web', user: 'ubuntu', image: 'node:22', agentCanUpdateSnapshot: true,
+            ports: [3000, { port: 5432, name: 'postgres' }, { port: '8080' }, { name: 'bad' }, 70_000]
+        }), '.cursor/environment.json')!;
+        expect(env).toMatchObject({ name: 'web', user: 'ubuntu', image: 'node:22', ports: [{ port: 3000 }, { port: 5432, name: 'postgres' }, { port: 8080 }] });
+        expect(env.errors).toEqual(['.cursor/environment.json: port 4 needs a "port" number.', '.cursor/environment.json: port 5 needs a "port" number.']);
+        const text = formatEnvironment(env, '.cursor/environment.json');
+        expect(text).toContain('Project environment "web" (.cursor/environment.json):');
+        expect(text).toContain('- prebuilt image: `node:22`');
+        expect(text).toContain('- runs as user: ubuntu');
+        expect(text).toContain('- ports: 3000, 5432 (postgres), 8080');
+    });
+
     it('builds a safe docker command and tag', () => {
         expect(environmentImageTag('My Shop!')).toBe('ingot-env-my-shop');
         expect(environmentImageTag('...')).toBe('ingot-env-project');
