@@ -51,7 +51,7 @@ describe('IDEA-287 Cursor parity', () => {
         const env = parseEnvironmentJson(JSON.stringify({ snapshot: 'x', install: 'npm ci', start: 'docker compose up -d', terminals: [{ name: 'web', command: 'npm run dev' }, { name: 'bad' }] }), '.cursor/environment.json')!;
         expect(env).toMatchObject({ install: 'npm ci', start: 'docker compose up -d', terminals: [{ name: 'web', command: 'npm run dev' }] });
         expect(env.errors).toEqual(['.cursor/environment.json: terminal 2 needs a "command".']);
-        expect(formatEnvironment(env, '.cursor/environment.json')).toBe('Project environment (.cursor/environment.json):\n- install: `npm ci`\n- start: `docker compose up -d`\n- web: `npm run dev`');
+        expect(formatEnvironment(env, '.cursor/environment.json')).toBe('Project environment (.cursor/environment.json):\n- install: `npm ci`\n- start: `docker compose up -d`\n- web: `npm run dev`\n- Cursor cloud snapshot: x (cloud agents only, not available locally)');
         expect(parseEnvironmentJson('{', 'e.json')?.errors[0]).toContain('not valid JSON');
         expect(parseEnvironmentJson('', 'e.json')).toBeUndefined();
         expect(formatEnvironment(undefined, '')).toBe('');

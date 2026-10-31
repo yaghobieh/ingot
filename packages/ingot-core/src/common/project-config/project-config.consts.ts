@@ -93,3 +93,12 @@ export const ENVIRONMENT_FILE = 'environment.json';
 export const ENVIRONMENT_COMMAND = { id: 'ingot.environment.start', label: 'Project Environment: Install and Start', category: 'Ingot' } as const;
 /** The install step may take a while (dependencies); start and terminals keep running in the background. */
 export const ENVIRONMENT_INSTALL_TIMEOUT_MS = 15 * 60 * 1000;
+/** IDEA-287: builds environment.json's `build` image locally with Docker. */
+export const ENVIRONMENT_BUILD_COMMAND = { id: 'ingot.environment.buildImage', label: 'Project Environment: Build Container Image', category: 'Ingot' } as const;
+export const DOCKER_BIN = 'docker';
+/** Overrides the docker binary (e2e uses a fake one). */
+export const DOCKER_BIN_ENV = 'INGOT_DOCKER_BIN';
+/** Local image tag: `ingot-env-<project folder>`. */
+export const ENVIRONMENT_IMAGE_PREFIX = 'ingot-env-';
+/** Paths that mean the project root in `build` (as in Cursor). */
+export const ENVIRONMENT_ROOT_PATHS: readonly string[] = ['.', './', '..', '../'];

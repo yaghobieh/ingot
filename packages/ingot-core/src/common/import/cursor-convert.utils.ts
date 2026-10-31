@@ -1,7 +1,9 @@
 import { parseFrontmatter } from '../project-config/project-config.utils';
 import {
-    AGENTS_RULE_NAME, CONVERTED_RULE_EXT, CURSOR_HOOKS_PATH, CURSOR_ITEM_LABELS, CURSORRULES_TARGET, INGOT_HOOKS_PATH, MERGE_TARGETS
+    AGENTS_RULE_NAME, CONVERTED_RULE_EXT, CURSOR_DIR_PREFIX, CURSOR_ENVIRONMENT_PATH, CURSOR_HOOKS_PATH, CURSOR_ITEM_LABELS, CURSORRULES_TARGET, INGOT_DIR_PREFIX,
+    INGOT_HOOKS_PATH, MERGE_TARGETS
 } from './cursor-convert.consts';
+import { parseEnvironmentJson, resolveEnvironmentBuild } from '../project-config/environment.utils';
 import type { CursorConversionInput, CursorConversionPlan, CursorConversionStep, CursorItemKind, CursorSourceFile } from './cursor-convert.types';
 import { convertCursorRule, convertCursorrules } from './cursor-rules-import.utils';
 
@@ -101,10 +103,21 @@ export const cursorTargetFor = (path: string): Mapping | undefined => {
         const kind: CursorItemKind = folder[1] === 'commands' ? 'command' : folder[1] === 'skills' ? 'skill' : folder[1] === 'hooks' ? 'hookScript' : 'habit';
         return { kind, target: `.ingot/${folder[1]}/${folder[2]}`, ...(kind === 'command' ? { convert: (text: string) => text } : {}) };
     }
-    if (path === '.cursor/environment.json') {
+    if (path === CURSOR_ENVIRONMENT_PATH) {
         return { kind: 'environment', target: '.ingot/environment.json', convert: text => text };
     }
     return undefined;
+};
+
+/** A `.cursor/…` Dockerfile of environment.json's `build`: copied as is to the same place under `.ingot` (relative paths keep working). */
+const environmentFileTarget = (path: string): Mapping | undefined =>
+    path.startsWith(CURSOR_DIR_PREFIX) ? { kind: 'environmentFile', target: `${INGOT_DIR_PREFIX}${path.slice(CURSOR_DIR_PREFIX.length)}` } : undefined;
+
+/** Project-relative paths of the files `.cursor/environment.json` needs besides itself (its `build` Dockerfile under `.cursor`). */
+export const environmentBuildFiles = (text: string | undefined): string[] => {
+    const build = parseEnvironmentJson(text, CURSOR_ENVIRONMENT_PATH)?.build;
+    const dockerfile = build && resolveEnvironmentBuild(build, CURSOR_DIR_PREFIX.slice(0, -1)).dockerfile;
+    return dockerfile?.startsWith(CURSOR_DIR_PREFIX) ? [dockerfile] : [];
 };
 
 /**
@@ -145,7 +158,7 @@ export const planCursorConversion = (input: CursorConversionInput): CursorConver
             }
             continue;
         }
-        const mapping = cursorTargetFor(source.path);
+        const mapping = source.buildFile ? environmentFileTarget(source.path) : cursorTargetFor(source.path);
         if (!mapping || taken(mapping.target)) {
             continue;
         }

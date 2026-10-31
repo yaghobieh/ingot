@@ -7,7 +7,8 @@ import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
-import { SYSTEM_HOOKS_DIR } from '../src/e2e.consts';
+import { E2E_CONFIG_DIR, SYSTEM_HOOKS_DIR } from '../src/e2e.consts';
+import { startOpenPlanServer, type FakeIngotServer } from '../src/fake-ingot-server';
 
 /**
  * IDEA-287: the rest of Cursor's hook events from hooks.json: sessionStart (context + env), beforeSubmitPrompt (block),
@@ -69,8 +70,10 @@ test.describe('IDEA-287 every Cursor hook event', () => {
     test.setTimeout(180_000);
     let dir = '';
     let server: FakeOllama;
+    let account: FakeIngotServer;
 
     test.beforeEach(async () => {
+        account = await startOpenPlanServer();
         dir = makeProject();
         server = await startFakeOllama((_system, user) => {
             if (user.includes('POST-TOOL-MARKER') || user.startsWith('Tool result (ingot/read_file)')) {
@@ -88,6 +91,8 @@ test.describe('IDEA-287 every Cursor hook event', () => {
 
     test.afterEach(async () => {
         await server.close();
+        await account.close();
+        fs.rmSync(path.join(E2E_CONFIG_DIR, 'remote-config.json'), { force: true });
         fs.rmSync(path.join(SYSTEM_HOOKS_DIR, 'hooks.json'), { force: true });
         fs.rmSync(dir, { recursive: true, force: true });
     });
@@ -95,6 +100,7 @@ test.describe('IDEA-287 every Cursor hook event', () => {
     for (const scheme of ['light', 'dark'] as const) {
         test(`sessionStart, beforeSubmitPrompt, preToolUse, postToolUse, stop follow-up and enterprise hooks (${scheme})`, async ({ page }) => {
             await openIngot(page, dir);
+            await expect.poll(() => account.configCalls.length).toBeGreaterThan(0);
             await setAppearance(page, scheme);
             await connectOllama(page, server);
             await page.locator('#ingot-agents-new').click();
@@ -106,6 +112,7 @@ test.describe('IDEA-287 every Cursor hook event', () => {
             await composer(page).press('Enter');
             await expect(page.locator('#ingot-agents')).toContainText('Remove the key first', { timeout: 30_000 });
             expect(server.requests.some(r => r.users.some(u => u.includes('SECRET-KEY')))).toBe(false);
+            await expect(page.locator('#ingot-agents')).not.toContainText('Deploy with SECRET');
             await shot(page, `hook-events-prompt-blocked-${scheme}.png`);
 
             // preToolUse rewrites the path; postToolUse adds context; stop sends one follow-up (loop_limit 1).

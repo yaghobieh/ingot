@@ -4,6 +4,8 @@ import { FAKE_INGOT_PORT } from './e2e.consts';
 const STREAM_DELAY_MS = 20;
 const ALLOWANCE = 1_000_000;
 const FAKE_DEFAULT_PLAN = 'pro';
+/** IDEA-271 remote flag that gates AI features behind a paid plan. */
+const PLAN_GATE_FLAG = 'plan_gate';
 
 export interface FakeIngotServer {
     readonly url: string;
@@ -232,3 +234,10 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
     return state;
 };
 
+
+/** IDEA-287: a signed-out e2e user is on the free plan; this serves `plan_gate: false` so agent chat opens without an account. */
+export const startOpenPlanServer = async (): Promise<FakeIngotServer> => {
+    const server = await startFakeIngotServer();
+    server.flags = { ...server.flags, [PLAN_GATE_FLAG]: false };
+    return server;
+};

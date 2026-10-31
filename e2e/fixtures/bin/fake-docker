@@ -1,0 +1,6 @@
+#!/usr/bin/env node
+// e2e stand-in for docker (INGOT_DOCKER_BIN): records its arguments in the project and prints a docker-like result.
+const fs = require('fs');
+const path = require('path');
+fs.appendFileSync(path.join(process.cwd(), 'fake-docker.log'), `${process.argv.slice(2).join(' ')}\n`);
+console.log('Successfully built fake-image');

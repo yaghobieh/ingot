@@ -9,6 +9,7 @@ export const CURSOR_ITEM_LABELS = {
     ignore: ['ignore file', 'ignore files'],
     bugbot: ['BUGBOT.md', 'BUGBOT.md files'],
     environment: ['environment.json', 'environment.json'],
+    environmentFile: ['Dockerfile', 'Dockerfiles'],
     habit: ['habit', 'habits']
 } as const;
 
@@ -24,6 +25,10 @@ export const MERGE_TARGETS = {
     '.cursorignore': '.ingotignore',
     '.cursorindexingignore': '.ingotindexingignore'
 } as const;
+
+export const CURSOR_DIR_PREFIX = '.cursor/';
+export const INGOT_DIR_PREFIX = '.ingot/';
+export const CURSOR_ENVIRONMENT_PATH = '.cursor/environment.json';
 
 /** Hook commands that call scripts in `.cursor/hooks/` are pointed at the copies in `.ingot/hooks/`. */
 export const CURSOR_HOOKS_PATH = '.cursor/hooks/';

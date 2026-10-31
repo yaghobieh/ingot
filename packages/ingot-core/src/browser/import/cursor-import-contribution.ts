@@ -15,10 +15,10 @@ import {
 import type { CursorMode } from '../../common/import/cursor-mode.types';
 import { shouldAskCursorMode } from '../../common/import/cursor-mode.utils';
 import {
-    CURSOR_COPIED_DIRS, CURSOR_COPIED_FILES, CURSOR_NESTED_GLOBS, CURSOR_ROOT_FILES, CURSOR_WALK_MAX_FILES, MERGE_TARGETS
+    CURSOR_COPIED_DIRS, CURSOR_COPIED_FILES, CURSOR_ENVIRONMENT_PATH, CURSOR_NESTED_GLOBS, CURSOR_ROOT_FILES, CURSOR_WALK_MAX_FILES, MERGE_TARGETS
 } from '../../common/import/cursor-convert.consts';
 import type { CursorConversionPlan, CursorSourceFile } from '../../common/import/cursor-convert.types';
-import { conversionSummary, cursorTargetFor, planCursorConversion } from '../../common/import/cursor-convert.utils';
+import { conversionSummary, cursorTargetFor, environmentBuildFiles, planCursorConversion } from '../../common/import/cursor-convert.utils';
 import { parseRgFiles } from '../../common/agents/workspace-tools';
 import { ProcessService } from '../../common/processes/processes.types';
 import { IngotMcpClient } from '../project-config/mcp-client';
@@ -200,6 +200,7 @@ export class CursorImportContribution implements FrontendApplicationContribution
     /** Every Cursor file of the workspace: the root `.cursor` folder, root files and nested rules / AGENTS.md / BUGBOT.md. */
     protected async sources(root: URI): Promise<CursorSourceFile[]> {
         const paths = new Set<string>();
+        const buildFiles = new Set<string>();
         const cursor = root.resolve(CONFIG_DIRS.external);
         await Promise.all([
             ...CURSOR_COPIED_DIRS.map(dir => this.walk(cursor.resolve(dir), `${CONFIG_DIRS.external}/${dir}`, paths, 0)),
@@ -209,16 +210,24 @@ export class CursorImportContribution implements FrontendApplicationContribution
                 }
             })
         ]);
+        if (paths.has(CURSOR_ENVIRONMENT_PATH)) {
+            const builds = environmentBuildFiles(await this.read(root.resolve(CURSOR_ENVIRONMENT_PATH)));
+            const present = await Promise.all(builds.map(async path => await this.files.exists(root.resolve(path)) ? path : undefined));
+            present.forEach(path => path && buildFiles.add(path));
+        }
         const cwd = root.path.fsPath();
         const nested = cwd ? await this.processes.workspaceSearch({ cwd, files: true, globs: [...CURSOR_NESTED_GLOBS] }).catch(() => undefined) : undefined;
         if (nested?.engine === 'ripgrep') {
             parseRgFiles(nested.text, CURSOR_WALK_MAX_FILES).forEach(path => paths.add(path.replace(/\\/g, '/').replace(/^\.\//, '')));
         }
-        return Promise.all([...paths].map(async path => {
-            const mapping = cursorTargetFor(path);
-            const copied = mapping && COPIED_AS_IS.has(mapping.kind);
-            return copied ? { path } : { path, text: await this.read(root.resolve(path)) ?? '' };
-        }));
+        return Promise.all([
+            ...[...paths].filter(path => !buildFiles.has(path)).map(async path => {
+                const mapping = cursorTargetFor(path);
+                const copied = mapping && COPIED_AS_IS.has(mapping.kind);
+                return copied ? { path } : { path, text: await this.read(root.resolve(path)) ?? '' };
+            }),
+            ...[...buildFiles].map(path => ({ path, buildFile: true }))
+        ]);
     }
 
     protected async walk(dir: URI, prefix: string, into: Set<string>, depth: number): Promise<void> {

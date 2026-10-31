@@ -39,7 +39,22 @@ export interface ProjectEnvironment {
     readonly install?: string;
     readonly start?: string;
     readonly terminals: readonly { readonly name: string; readonly command: string; readonly description?: string }[];
+    /** IDEA-287: a Cursor cloud snapshot id (cloud agents only; shown, not used locally). */
+    readonly snapshot?: string;
+    /** IDEA-287: the image to build, as written (`dockerfile` / `context` relative to the folder of environment.json). */
+    readonly build?: EnvironmentBuild;
     readonly errors: readonly string[];
+}
+
+export interface EnvironmentBuild {
+    readonly dockerfile: string;
+    readonly context?: string;
+}
+
+/** IDEA-287: `build` paths resolved to project-relative paths. */
+export interface ResolvedEnvironmentBuild {
+    readonly dockerfile: string;
+    readonly context: string;
 }
 
 /** IDEA-295: a rule written from the User Rules settings page. */

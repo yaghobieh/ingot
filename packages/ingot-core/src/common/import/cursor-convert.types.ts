@@ -6,6 +6,8 @@ export type CursorItemKind = keyof typeof CURSOR_ITEM_LABELS;
 export interface CursorSourceFile {
     readonly path: string;
     readonly text?: string;
+    /** IDEA-287: the Dockerfile that `.cursor/environment.json`'s `build` points at (copied next to the converted file). */
+    readonly buildFile?: boolean;
 }
 
 export interface CursorConversionInput {

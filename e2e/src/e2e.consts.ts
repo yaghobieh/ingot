@@ -19,6 +19,8 @@ export const ZAPREX_DETECT_FILE = path.join(E2E_CONFIG_DIR, `zaprex-detect-${pro
 export const ZAPREX_LINK_LOG = path.join(E2E_CONFIG_DIR, `zaprex-links-${process.env.INGOT_PORT ?? 3100}.log`);
 /** IDEA-287: system-wide (enterprise) hooks folder for e2e; empty unless a spec writes hooks.json into it. */
 export const SYSTEM_HOOKS_DIR = path.join(E2E_CONFIG_DIR, `system-hooks-${process.env.INGOT_PORT ?? 3100}`);
+/** IDEA-287: fake docker for "Project Environment: Build Container Image" (records its arguments). */
+export const FAKE_DOCKER_BIN = path.join(FIXTURES_DIR, 'bin', 'fake-docker');
 /** Stands in for the home folder whose imported global config (rules, mcp.json) Ingot reads. */
 export const IMPORT_HOME = path.join(FIXTURES_DIR, 'import-home');
 export const CALC_SERVER = path.join(FIXTURES_DIR, 'mcp', 'calc-server.mjs');

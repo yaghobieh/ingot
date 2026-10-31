@@ -1926,6 +1926,9 @@ export class AgentStore {
             return true;
         }
         session.messages.push({ role: 'system', text: `${HOOK_TEXT.promptBlocked}${outcome.decision.userMessage ? `: ${outcome.decision.userMessage}` : '.'}` });
+        if (session.messages.filter(m => m.role === 'user' && !m.hidden).length === 1) {
+            session.title = NEW_AGENT_TITLE;
+        }
         session.status = 'idle';
         session.updatedAt = Date.now();
         this.changed();
