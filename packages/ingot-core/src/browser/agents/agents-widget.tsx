@@ -58,7 +58,7 @@ import type { AutoContextItem } from '../../common/agents/auto-context.types';
 import { CommandRegistry } from '@theia/core/lib/common/command';
 import { IngotModelClient } from '../models/model-client';
 import { MODELS_OPEN_COMMAND } from '../models/models.browser-consts';
-import type { AgentSession } from '../../common/agents/agents.types';
+import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
 import { changesSummary, editedFilesLabel, fileBadge, fileWord, formatWorked, stepText, workingLabel } from '../../common/agents/agents.utils';
 import { AgentStore } from './agent-store';
 import { EditorManager } from '@theia/editor/lib/browser';
@@ -71,6 +71,8 @@ import { tabContextLevel, tabLabel, UNTITLED_TAB_TOOLTIP } from '../../common/ag
 import { InlineComposer, readImage } from './inline-composer';
 import { COMPOSER_INPUT_ID, MAX_DROPPED_FILE_CHARS } from './inline-composer.consts';
 import { AgentMarkdownRenderer } from './markdown-renderer';
+import { BetaPill, ResearchCard } from './research-card';
+import { RESEARCH_TITLE } from '../../common/research/research.consts';
 import { COPIED_LABEL, COPY_LABEL } from './markdown.consts';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
@@ -169,6 +171,8 @@ export class IngotAgentsWidget extends ReactWidget {
     protected costConfirm?: CostForecast;
 
     protected readonly markdown = new AgentMarkdownRenderer(() => this.update());
+    /** The mode the Deep research toggle returns to. */
+    protected modeBeforeResearch: AgentMode = 'agent';
     /** Expanded "Read rules" step rows, by session id + step index. */
     protected expandedSteps = new Set<string>();
 
@@ -1065,6 +1069,9 @@ export class IngotAgentsWidget extends ReactWidget {
         if (m.refs?.length) {
             return this.renderSubagentRef(session, m, i);
         }
+        if (m.role === 'tool' && m.research) {
+            return <ResearchCard key={i} view={m.research} variant='tool' openLink={url => this.windows.openNewWindow(url, { external: true })} />;
+        }
         if (m.role === 'tool' && m.tool) {
             const key = `${session.id}:tool:${i}`;
             return <React.Fragment key={i}>
@@ -1220,7 +1227,10 @@ export class IngotAgentsWidget extends ReactWidget {
                     {m.parts ? this.renderParts(m.parts, m.images) : m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className={`ingot-chip ingot-chip-sent ingot-chip-${c.kind ?? 'code'}`} title={c.kind === 'memory' ? 'Memory' : c.kind === 'rule' ? `Rule ${c.path}` : c.path}>
                         {c.kind === 'memory' && <span className='codicon codicon-lightbulb' />}{c.kind === 'rule' && <span className='codicon codicon-law' />}{c.label}</span>)}</div>}
                     {m.role === 'agent' && this.renderReplyHead(session, i, layout)}
-                    {m.parts ? '' : m.role === 'agent'
+                    {m.parts ? '' : m.role === 'agent' && m.research
+                        ? <ResearchCard view={m.research} variant='reply' answerHtml={m.research.stage === 'done' && m.text ? this.markdown.render(m.text) : undefined}
+                            onAnswerClick={e => this.onMarkdownClick(e)} openLink={url => this.windows.openNewWindow(url, { external: true })} />
+                        : m.role === 'agent'
                         ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} /> : '')
                         : this.editingIndex === i ? this.renderEditForm(session, i) : m.text}
                     {m.role === 'user' && !!m.auto?.length && this.editingIndex !== i && <div className='ingot-chat-auto' title='IDE context sent with this message'>
@@ -1666,6 +1676,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     <span className='ingot-pill-label'>{info.label}</span><ChevronIcon className='ingot-pill-caret' size={AGENT_ICON_SIZE.caret} />
                 </button>
                 {this.renderModelPill()}
+                {this.renderResearchToggle(info)}
                 {this.renderCustomModePill()}
                 {this.renderSandboxPill()}
                 <span className='ingot-flex' />
@@ -1681,6 +1692,26 @@ export class IngotAgentsWidget extends ReactWidget {
             </div>
             {this.renderComposerPopovers(info)}
         </div>;
+    }
+
+    /** IDEA-314: Deep research on or off for this chat; off goes back to the mode used before. */
+    protected renderResearchToggle(info: ReturnType<typeof modeInfo>): React.ReactNode {
+        const on = info.id === 'research';
+        return <button type='button' id='ingot-composer-research' className={`ingot-composer-research${on ? ' on' : ''}`} aria-pressed={on}
+            title={on ? `${RESEARCH_TITLE} is on: questions are researched across the web with cited sources. Click to turn off.` : `${RESEARCH_TITLE}: read 15-40 web sources and answer with citations`}
+            onClick={() => {
+                if (on) {
+                    this.store.mode = this.modeBeforeResearch;
+                } else {
+                    this.modeBeforeResearch = info.id;
+                    this.store.mode = 'research';
+                }
+                this.store.changed();
+            }}>
+            <span className='codicon codicon-telescope' aria-hidden='true' />
+            <span className='ingot-pill-label'>{RESEARCH_TITLE}</span>
+            {on && <BetaPill />}
+        </button>;
     }
 
     protected renderComposerPopovers(info: ReturnType<typeof modeInfo>): React.ReactNode {

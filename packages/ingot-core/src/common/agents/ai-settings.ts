@@ -14,7 +14,7 @@ export const ATTACH_ACTIVE_FILE_DEFAULT = false;
 
 export const attachActiveFileOn = (value: unknown): boolean => typeof value === 'boolean' ? value : ATTACH_ACTIVE_FILE_DEFAULT;
 
-export const DEFAULT_AGENT_MODES: readonly AgentMode[] = ['agent', 'ask', 'plan', 'debug', 'multi'];
+export const DEFAULT_AGENT_MODES: readonly AgentMode[] = ['agent', 'ask', 'plan', 'debug', 'multi', 'research'];
 
 /** A valid mode from the setting, else `fallback` (a typo in settings.json never breaks new chats). */
 export const defaultAgentMode = (value: unknown, fallback: AgentMode): AgentMode =>

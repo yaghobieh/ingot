@@ -1,5 +1,5 @@
 export type AgentStatus = 'idle' | 'thinking' | 'editing' | 'review' | 'paused' | 'approval' | 'done' | 'error';
-export type AgentMode = 'agent' | 'multi' | 'ask' | 'plan' | 'debug';
+export type AgentMode = 'agent' | 'multi' | 'ask' | 'plan' | 'debug' | 'research';
 export type PlanState = 'done' | 'active' | 'todo';
 export type StepKind = 'read' | 'edit' | 'run' | 'search';
 
@@ -54,6 +54,8 @@ export interface AgentMessage {
     readonly note?: import('../habits/habits.types').HabitNoteInfo;
     /** IDEA-306: the run's diff checked against the approved plan, drawn as a review card. */
     readonly planReview?: import('../plan-review/plan-review.types').PlanReview;
+    /** IDEA-314: a Deep research run (live progress, then the cited answer in `text`). */
+    readonly research?: import('../research/research.types').ResearchView;
 }
 
 /** What went into the last request of a chat (IDEA-77): shown as chips and in the usage ring. */

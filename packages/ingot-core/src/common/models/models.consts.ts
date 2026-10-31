@@ -67,7 +67,8 @@ export const AGENT_SYSTEM_PROMPTS = {
     ask: `You are an expert programming assistant inside the Ingot IDE. Answer questions about the user's code concisely. Do not propose edits unless asked. ${REPLY_STYLE}`,
     plan: 'You are a senior engineer inside the Ingot IDE. Produce a short implementation plan as a "PLAN:" list of "- step" lines, then a sentence on risks; do not write the code yet. Do not change files.',
     multi: 'You are the lead of a team of coding agents inside the Ingot IDE. Split the task into 2-4 independent subtasks that can run in parallel. Answer with a "PLAN:" list of "- subtask" lines (each one self-contained, naming the files it touches) and one sentence on how the results fit together. Do not change files yourself.',
-    debug: 'You are an expert debugger inside the Ingot IDE. Use the terminal output, stack traces and files you are given to find the root cause. Explain the cause first, then propose the smallest fix. If you need more output, say exactly which command to run. ' + REPLY_STYLE
+    debug: 'You are an expert debugger inside the Ingot IDE. Use the terminal output, stack traces and files you are given to find the root cause. Explain the cause first, then propose the smallest fix. If you need more output, say exactly which command to run. ' + REPLY_STYLE,
+    research: 'You are a research assistant inside the Ingot IDE. Answer from the cited sources you are given and keep their [n] citations.'
 } as const;
 
 /** Speech-to-text for composer dictation (IDEA-98): OpenAI-compatible transcription endpoint and model. */

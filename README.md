@@ -61,6 +61,11 @@ Ingot also reads rule folders and `mcp.json` files that other AI editors left in
 
 Debug Java, PHP (Xdebug), JavaScript / TypeScript and Python with breakpoints, conditional breakpoints, logpoints, step controls, Variables, Watch, Call Stack and the Debug Console. Ingot detects run/debug configurations from Maven / Gradle, PHP and npm projects. See [`docs/debugging.md`](docs/debugging.md).
 
+## Deep research (Beta)
+
+Turn on **Deep research** in the chat composer to research a question across the web, Reddit, Hacker News, GitHub and
+Stack Exchange: it reads 15–40 pages and answers with clickable citations. See [`docs/deep-research.md`](docs/deep-research.md).
+
 ## Keymap
 
 See [`docs/keymap.md`](docs/keymap.md) for every default shortcut (macOS and Windows/Linux). Switch to the platform defaults with **Settings › Keymap › Alternative**.

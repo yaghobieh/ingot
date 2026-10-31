@@ -188,6 +188,9 @@ import { briefPath, briefPrompt, buildBrief, changesDiff, countFailures, countTu
 import { reviewHeadline } from '../../common/plan-review/plan-review.utils';
 import { classifyTask, taskTypeLabel } from '../../common/router/router.utils';
 import { DEFAULT_SYSTEM_TOKENS } from '../../common/cost/cost.consts';
+import { DEFAULT_RESEARCH_COST_USD, RESEARCH_POLL_MS, RESEARCH_STOPPED, RESEARCH_TOOL } from '../../common/research/research.consts';
+import { ResearchService, type ResearchPoll, type ResearchView } from '../../common/research/research.types';
+import { applyResearchEvent, emptyResearch, researchErrorText, researchToolResult, stripResearchFooter } from '../../common/research/research.utils';
 
 let nextId = 1;
 const newChatId = (): string => `chat-${Date.now().toString(36)}-${nextId++}`;
@@ -221,6 +224,7 @@ export class AgentStore {
     @inject(TestStore) protected readonly tests: TestStore;
     /** IDEA-261: red run_tests results in the current user turn, capped by the max-iterations setting. */
     protected readonly testIterations = new Map<string, number>();
+    @inject(ResearchService) protected readonly research: ResearchService;
     /** IDEA-109: runs waiting on the approval card, per session. */
     protected readonly approvals = new Map<string, (choice: { decision: ApprovalDecision; reason?: string; stopped?: boolean }) => void>();
     /** IDEA-105: paused runs waiting for Continue (or the countdown), per session. */
@@ -706,6 +710,10 @@ export class AgentStore {
             session.status = 'idle';
             session.updatedAt = Date.now();
             this.changed();
+            return session;
+        }
+        if (session.mode === 'research') {
+            this.startResearchTurn(session, asked);
             return session;
         }
         if (session.model !== AUTO_MODEL_ID && this.models.isGatewayModelGone(session.model)) {
@@ -2617,7 +2625,9 @@ export class AgentStore {
             const tool: ToolCallInfo = { server: call.server, tool: call.tool, args: call.args, state: 'running', startedAt: Date.now() };
             const at = session.messages.push({ role: 'tool', from: target, text: '', tool }) - 1;
             this.changed();
-            const execute = (box?: SandboxSpec): Promise<AgentActionResult & { images?: ImageChip[] }> => (isBrowser ? this.runBrowser(session, call)
+            const isResearch = call.server === BUILTIN_TOOL_SERVER && call.tool === RESEARCH_TOOL;
+            const execute = (box?: SandboxSpec): Promise<AgentActionResult & { images?: ImageChip[]; research?: ResearchView }> => (isBrowser ? this.runBrowser(session, call)
+                : isResearch ? this.researchTool(session, call, at)
                 : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(session, this.withMadeWithTrailer(session, call), root, hooksRan, box, sandboxed.offline) : this.mcp.callTool(call.server, call.tool, call.args))
                 .catch((error: unknown) => ({ text: error instanceof Error ? error.message : String(error), isError: true }));
             // IDEA-263: restricted mode runs commands in the OS sandbox; one the user approved to leave the project runs without it.
@@ -2649,6 +2659,7 @@ export class AgentStore {
             const after = await this.afterToolHooks(session, call, result, Date.now() - ranAt, toolUseId);
             const done: AgentMessage = {
                 role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${after.text ?? result.text}`, ...(result.images?.length ? { images: result.images } : {}),
+                ...(result.research ? { research: result.research } : {}),
                 tool: { ...tool, state: result.isError ? 'error' : 'done', endedAt: Date.now() }
             };
             if (session.messages[at] && session.messages[at].tool === tool) {
@@ -3201,6 +3212,109 @@ export class AgentStore {
                 }
                 const result = await this.codeTools.renameEdits(uri, at, newName);
                 return this.applyCodeEdits(session, root, result, `Renamed ${target.symbol ?? where} to ${newName}`, 'The language server returned no edits.');
+            }
+        }
+    }
+
+    /** IDEA-314: a chat in Deep research mode sends the question to the Ingot server instead of a chat model. */
+    protected startResearchTurn(session: AgentSession, question: string): void {
+        if (!this.models.isProviderConfigured('ingot')) {
+            session.messages.push({ role: 'system', text: SIGN_IN_MESSAGE });
+            session.status = 'idle';
+            session.updatedAt = Date.now();
+            this.changed();
+            return;
+        }
+        const generation = (this.loopGeneration.get(session.id) ?? 0) + 1;
+        this.loopGeneration.set(session.id, generation);
+        this.cancelled.delete(session.id);
+        const index = session.messages.push({ role: 'agent', text: '', research: emptyResearch(question, DEFAULT_RESEARCH_COST_USD) }) - 1;
+        session.status = 'thinking';
+        session.updatedAt = Date.now();
+        this.changed();
+        void this.runResearch(session, question, view => {
+            if (!this.stale(session.id, generation) && session.messages[index]) {
+                session.messages[index] = { ...session.messages[index], research: view };
+                session.updatedAt = Date.now();
+                this.poke();
+            }
+        }).then(({ view, markdown }) => {
+            if (this.stale(session.id, generation) && view.stage !== 'stopped') {
+                return;
+            }
+            const text = view.stage === 'done' ? stripResearchFooter(markdown) : view.error ?? (view.stage === 'stopped' ? RESEARCH_STOPPED : '');
+            if (session.messages[index]) {
+                session.messages[index] = { ...session.messages[index], text, research: view };
+            }
+            session.status = view.stage === 'error' ? 'error' : 'idle';
+            session.updatedAt = Date.now();
+            this.changed();
+        });
+    }
+
+    /** ingot/deep_research: the same run, drawn live on the tool card; the agent gets the cited answer and the sources. */
+    protected async researchTool(session: AgentSession, call: AgentToolCall, at: number): Promise<AgentActionResult & { research?: ResearchView }> {
+        const question = typeof call.args.question === 'string' ? call.args.question.trim() : '';
+        if (!question) {
+            return { text: 'A question is required.', isError: true };
+        }
+        const tool = session.messages[at]?.tool;
+        const { view, answer } = await this.runResearch(session, question, live => {
+            if (session.messages[at]?.tool === tool) {
+                session.messages[at] = { ...session.messages[at], research: live };
+                this.poke();
+            }
+        });
+        return view.stage === 'done'
+            ? { text: researchToolResult(view, answer), isError: false, research: view }
+            : { text: view.error ?? RESEARCH_STOPPED, isError: true, research: view };
+    }
+
+    /** Starts a run on the server and polls its events until it ends or the chat is stopped. */
+    protected async runResearch(session: AgentSession, question: string, update: (view: ResearchView) => void): Promise<{ view: ResearchView; markdown: string; answer: string }> {
+        let view = emptyResearch(question, DEFAULT_RESEARCH_COST_USD);
+        let markdown = '';
+        let answer = '';
+        let id: string | undefined;
+        let stopped = false;
+        const stop = (): void => {
+            stopped = true;
+            if (id) {
+                void this.research.cancel(id).catch(() => undefined);
+            }
+        };
+        this.running.set(session.id, stop);
+        try {
+            id = await this.research.start(question);
+            for (let from = 0; ;) {
+                const poll: ResearchPoll = stopped ? { events: [], done: false } : await this.research.poll(id, from);
+                from += poll.events.length;
+                for (const event of poll.events) {
+                    view = applyResearchEvent(view, event);
+                    if (event.type === 'answer') {
+                        markdown = event.markdown;
+                        answer = event.answer;
+                    }
+                }
+                if (stopped || this.cancelled.has(session.id)) {
+                    stop();
+                    view = { ...view, stage: 'stopped', status: RESEARCH_STOPPED };
+                } else if (poll.done && view.stage !== 'done' && view.stage !== 'error') {
+                    view = { ...view, stage: 'error', status: '', error: poll.error ?? researchErrorText('research_failed') };
+                }
+                update(view);
+                if (poll.done || view.stage === 'stopped') {
+                    return { view, markdown, answer };
+                }
+                await new Promise(resolve => setTimeout(resolve, RESEARCH_POLL_MS));
+            }
+        } catch (error) {
+            view = { ...view, stage: 'error', status: '', error: error instanceof Error ? error.message : String(error) };
+            update(view);
+            return { view, markdown, answer };
+        } finally {
+            if (this.running.get(session.id) === stop) {
+                this.running.delete(session.id);
             }
         }
     }
