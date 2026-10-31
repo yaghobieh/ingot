@@ -51,3 +51,7 @@
 .ingot-rules-diff .add { color: var(--ingot-success); background: color-mix(in srgb, var(--ingot-success) 10%, transparent); }
 .ingot-rules-diff .ctx { color: var(--ingot-text-muted); }
 .ingot-rules-dialog textarea { width: 100%; min-height: 64px; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--ingot-border); border-radius: 4px; background: var(--ingot-surface); color: var(--ingot-text); font-family: var(--theia-code-font-family); font-size: 12px; resize: vertical; }
+.ingot-rules-pill-icon.ok { color: var(--ingot-success); }
+.ingot-rules-pill-icon.warn { color: var(--ingot-warning); }
+.ingot-rules-pill-icon.fail { color: var(--ingot-danger); }
+#ingot-rules-test-rate { font-size: 18px; }

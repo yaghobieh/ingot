@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test';
-import { APP_READY_TIMEOUT_MS, E2E_KEYCHAIN_SERVICE, E2E_USER_SETTINGS, FAKE_INGOT_URL, IMPORT_HOME, SHELL_SELECTOR } from './e2e.consts';
+import { APP_READY_TIMEOUT_MS, E2E_KEYCHAIN_SERVICE, E2E_USER_SETTINGS, FAKE_INGOT_URL, FAKE_OPENROUTER_URL, IMPORT_HOME, SHELL_SELECTOR } from './e2e.consts';
 
 const ROOT = path.resolve(__dirname, '..', '..');
 export const ELECTRON_APP_DIR = path.join(ROOT, 'applications', 'electron');
@@ -36,6 +36,8 @@ export const launchDesktop = async (workspace: string, extraEnv: Record<string, 
             // Never the developer's local ingot-server: account specs start the fake one on this URL.
             INGOT_SERVER_URL: FAKE_INGOT_URL,
             INGOT_PORTAL_URL: FAKE_INGOT_URL,
+            INGOT_OPENROUTER_BASE_URL: FAKE_OPENROUTER_URL,
+            OPENROUTER_API_KEY: '',
             INGOT_NO_PROTOCOL_CLIENT: '1',
             ...extraEnv
         },

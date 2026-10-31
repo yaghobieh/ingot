@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { KeyStoreService } from '@theia/core/lib/common/key-store';
 import { IngotRulesToolsService } from './ingot-rules-tools-service';
 import { applyWrites, listProjectFiles, writeState } from './rules-project';
 
@@ -12,22 +13,44 @@ const write = (file: string, text: string): void => {
 };
 const read = (file: string): string => fs.readFileSync(path.join(root, file), 'utf8');
 
+const TESTS = `tests:
+  - name: Uses tabs
+    prompt: How do I indent?
+    assert:
+      - contains: tabs
+    mock: Use tabs.
+  - name: Mentions types file
+    prompt: Where do types go?
+    assert:
+      - contains: types.ts
+    mock: Anywhere.
+`;
+
+const service = (key?: string): IngotRulesToolsService => {
+    const instance = new IngotRulesToolsService();
+    const keyStore = { getPassword: async () => key } as unknown as KeyStoreService;
+    Object.assign(instance, { keyStore });
+    return instance;
+};
+
 beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-rules-tools-'));
     write('.ingot/rules/style.md', '---\ndescription: House style\nalwaysApply: true\n---\nUse tabs.\n');
     write('.ingot/rules/react.md', '---\nglobs: src/**/*.tsx\n---\nUse function components.\n');
     write('AGENTS.md', '# Shop\n\nRun `npm test`.\n');
 });
-afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    fs.rmSync(root, { recursive: true, force: true });
+});
 
 describe('IngotRulesToolsService export', () => {
-    const service = new IngotRulesToolsService();
-
     it('plans without bodies, applies, and is then up to date', async () => {
-        const plan = await service.planExport(root);
+        const plan = await service().planExport(root);
         expect(plan.drift).toBe(true);
         expect(plan.files.every(file => file.content === undefined && file.before === undefined)).toBe(true);
-        const after = await service.applyExport(root);
+        const after = await service().applyExport(root);
         expect(after.drift).toBe(false);
         expect(read('AGENTS.md')).toMatch(/^# Shop\n\nRun `npm test`\.\n/);
         expect(read('AGENTS.md')).toContain('Use tabs.');
@@ -36,13 +59,65 @@ describe('IngotRulesToolsService export', () => {
     });
 
     it('limits the export to the chosen targets', async () => {
-        await service.applyExport(root, ['cursor']);
+        await service().applyExport(root, ['cursor']);
         expect(fs.existsSync(path.join(root, '.cursor/rules/style.mdc'))).toBe(true);
         expect(read('AGENTS.md')).not.toContain('Use tabs.');
     });
 
     it('rejects a missing project folder', async () => {
-        await expect(service.planExport(path.join(root, 'nope'))).rejects.toThrow('is not a folder');
+        await expect(service().planExport(path.join(root, 'nope'))).rejects.toThrow('is not a folder');
+    });
+});
+
+describe('IngotRulesToolsService rule tests', () => {
+    beforeEach(() => {
+        write('.ingot/tests/style.yaml', TESTS);
+        vi.stubEnv('OPENROUTER_API_KEY', '');
+    });
+
+    it('lists tests and whether a key is configured, without the key', async () => {
+        const listing = await service('fake-openrouter-key').listRuleTests(root);
+        expect(listing.cases.map(c => c.name)).toEqual(['Uses tabs', 'Mentions types file']);
+        expect(listing.keyConfigured).toBe(true);
+        expect(JSON.stringify(listing)).not.toContain('fake-openrouter-key');
+        expect((await service().listRuleTests(root)).keyConfigured).toBe(false);
+    });
+
+    it('runs with the mock model and saves the report the CLI also writes', async () => {
+        const report = await service().runRuleTests(root, { model: 'mock', maxCostUsd: 0.05 });
+        expect(report.passed).toBe(1);
+        expect(report.total).toBe(2);
+        expect(report.costUsd).toBe(0);
+        expect(JSON.parse(read('.ingot/.state/rules-test-report.json')).passRate).toBe(0.5);
+        expect((await service().listRuleTests(root)).lastReport?.passed).toBe(1);
+    });
+
+    it('needs a key for real models', async () => {
+        await expect(service().runRuleTests(root, { model: 'google/gemini-2.5-flash-lite', maxCostUsd: 0.05 })).rejects.toThrow('No OpenRouter key');
+    });
+
+    it('calls OpenRouter with the keychain key and stops at the cost cap', async () => {
+        const calls: { auth: string; model: string }[] = [];
+        vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+            const body = JSON.parse(String(init.body));
+            calls.push({ auth: (init.headers as Record<string, string>).authorization, model: body.model });
+            return new Response(JSON.stringify({ choices: [{ message: { content: 'Use tabs in types.ts' } }], usage: { prompt_tokens: 100, completion_tokens: 10, cost: 0.00002 } }));
+        });
+        const report = await service('fake-openrouter-key').runRuleTests(root, { model: 'google/gemini-2.5-flash-lite', maxCostUsd: 0.05 });
+        expect(report.passRate).toBe(1);
+        expect(calls).toHaveLength(2);
+        expect(calls[0]).toEqual({ auth: 'Bearer fake-openrouter-key', model: 'google/gemini-2.5-flash-lite' });
+
+        calls.length = 0;
+        const capped = await service('fake-openrouter-key').runRuleTests(root, { model: 'google/gemini-2.5-flash-lite', maxCostUsd: 0.00001 });
+        expect(capped.capped).toBe(true);
+        expect(capped.skipped).toBe(2);
+        expect(calls).toHaveLength(0);
+    });
+
+    it('never lets the cap go above the ceiling', async () => {
+        const report = await service().runRuleTests(root, { model: 'mock', maxCostUsd: 50 });
+        expect(report.maxCostUsd).toBe(1);
     });
 });
 

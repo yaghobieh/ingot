@@ -36,6 +36,9 @@ export const LEFT_PANEL = '#theia-left-side-panel';
 /** Fake ingot-server + portal for the account / gateway e2e (IDEA-101); the browser app is started pointing at it. */
 export const FAKE_INGOT_PORT = Number(process.env.INGOT_FAKE_SERVER_PORT ?? 3398);
 export const FAKE_INGOT_URL = `http://127.0.0.1:${FAKE_INGOT_PORT}`;
+/** Fake OpenRouter for rule tests (IDEA-320); the app reads INGOT_OPENROUTER_BASE_URL, so e2e never calls the real API. */
+export const FAKE_OPENROUTER_PORT = Number(process.env.INGOT_FAKE_OPENROUTER_PORT ?? FAKE_INGOT_PORT + 1);
+export const FAKE_OPENROUTER_URL = `http://127.0.0.1:${FAKE_OPENROUTER_PORT}`;
 /** e2e user settings: BYOK / Local models on, so specs can use the fake Ollama and key-based models. */
 export const E2E_USER_SETTINGS = {
     'ingot.models.byok': true,
