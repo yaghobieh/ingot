@@ -30,7 +30,7 @@
 .ingot-handoff-offer-text, .ingot-cost-confirm-text { flex: 1 1 200px; min-width: 0; }
 .ingot-handoff-offer-actions, .ingot-cost-confirm-actions { display: inline-flex; gap: 6px; }
 
-.ingot-cost-forecast { display: inline-flex; align-items: center; gap: 3px; height: 20px; margin-right: 6px; padding: 0 6px; border-radius: 999px; color: var(--ingot-text-muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: default; }
+.ingot-cost-forecast { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 6px; border-radius: 999px; color: var(--ingot-text-muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: default; }
 .ingot-cost-forecast .codicon { font-size: 12px; }
 .ingot-cost-forecast.routed .codicon-arrow-swap { color: var(--ingot-silver); }
 .ingot-cost-forecast.over { color: var(--ingot-warning); background: color-mix(in srgb, var(--ingot-warning) 12%, transparent); }

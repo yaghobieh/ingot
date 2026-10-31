@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MODEL_CATALOG } from '../models/models.consts';
 import { toCatalogModel } from '../account/gateway.utils';
-import { approxUsd, blendedPrice, estimateRunCost, formatPrice, formatUsd, isOverBudget, priceOf } from './cost.utils';
+import { approxUsd, blendedPrice, estimateRunCost, formatPrice, formatUsd, isOverBudget, priceOf, showsForecast } from './cost.utils';
 
 const byId = (id: string) => MODEL_CATALOG.find(m => m.id === id)!;
 
@@ -46,5 +46,13 @@ describe('IDEA-307 cost forecast', () => {
         expect(isOverBudget(0.6, 0.5)).toBe(true);
         expect(isOverBudget(0.5, 0.5)).toBe(false);
         expect(isOverBudget(100, 0)).toBe(false);
+    });
+
+    it('hides the composer estimate for a free run unless it was routed or is over the warning', () => {
+        const estimate = (usd: number) => ({ inputTokens: 100, outputTokens: 50, usd });
+        expect(showsForecast({ estimate: estimate(0), over: false })).toBe(false);
+        expect(showsForecast({ estimate: estimate(0.02), over: false })).toBe(true);
+        expect(showsForecast({ estimate: estimate(0), over: true })).toBe(true);
+        expect(showsForecast({ estimate: estimate(0), over: false, routed: { from: 'a', to: 'b', taskType: 'rename', learned: false, saving: 0.5 } })).toBe(true);
     });
 });

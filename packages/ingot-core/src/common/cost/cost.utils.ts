@@ -3,7 +3,7 @@ import {
     COST_BADGE_PRICES, DEFAULT_OUTPUT_TOKENS, DEFAULT_ROUNDS, GATEWAY_DEFAULT_PRICE, GATEWAY_PRICE_TIERS, MIN_SHOWN_USD, MIN_SMALL_USD, MODE_OUTPUT_TOKENS, MODE_ROUNDS,
     MODEL_PRICES, SMALL_USD_DIGITS, TOKENS_PER_MILLION, WHOLE_DOLLARS_FROM
 } from './cost.consts';
-import type { CostEstimate, CostInput, ModelPrice } from './cost.types';
+import type { CostEstimate, CostForecast, CostInput, ModelPrice } from './cost.types';
 
 /** USD per 1M tokens: the price table, the gateway tier for Ingot models, else the picker's cost badge. */
 export const priceOf = (model: Pick<CatalogModel, 'id' | 'provider' | 'model' | 'cost'>): ModelPrice => {
@@ -58,6 +58,10 @@ export const approxUsd = (usd: number): string => {
     const text = formatUsd(usd);
     return text.startsWith('$') ? `~${text}` : text;
 };
+
+/** A free run (a local model) shows no estimate in the composer, unless it was routed or is over the warning. */
+export const showsForecast = (forecast: Pick<CostForecast, 'estimate' | 'routed' | 'over'>): boolean =>
+    forecast.estimate.usd > 0 || forecast.over || !!forecast.routed;
 
 export const formatPrice = (price: ModelPrice): string => price.input === 0 && price.output === 0 ? 'free' : `$${price.input} in / $${price.output} out per 1M tokens`;
 

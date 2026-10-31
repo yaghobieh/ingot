@@ -118,7 +118,7 @@ import { presetLabel, presetTitle } from '../../common/sandbox/sandbox.utils';
 import { PlanReviewCard } from '../plan-review/plan-review-card';
 import { CostForecastService } from '../cost/cost-forecast';
 import type { CostForecast } from '../../common/cost/cost.types';
-import { approxUsd, formatPrice, formatUsd } from '../../common/cost/cost.utils';
+import { approxUsd, formatPrice, formatUsd, showsForecast } from '../../common/cost/cost.utils';
 import { rotSummary } from '../../common/fresh-context/fresh-context.utils';
 import { FRESH_HANDOFF_COMMAND } from '../../common/fresh-context/fresh-context.consts';
 import { ModelRouter } from '../router/model-router';
@@ -1174,7 +1174,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected renderCostForecast(): React.ReactNode {
         const f = this.forecast();
-        if (!f) {
+        if (!f || !showsForecast(f)) {
             return undefined;
         }
         return <span id='ingot-cost-forecast' className={`ingot-cost-forecast${f.over ? ' over' : ''}${f.routed ? ' routed' : ''}`} data-usd={f.estimate.usd.toFixed(4)} data-model={f.model}
