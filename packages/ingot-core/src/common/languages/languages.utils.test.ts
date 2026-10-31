@@ -182,14 +182,14 @@ describe('run and build commands', () => {
     });
 
     it('runs a file with its language command', () => {
-        expect(runCommandFor('/p/hello.py', '/tmp')).toMatchObject({ command: 'python3 /p/hello.py', toolchains: ['python'] });
-        expect(runCommandFor('/p/hello.ts', '/tmp')?.command).toBe('node --experimental-strip-types /p/hello.ts');
-        expect(runCommandFor('/p/hello.js', '/tmp')?.command).toBe('node /p/hello.js');
+        expect(runCommandFor('/p/hello.py', '/tmp')).toMatchObject({ command: 'python3 "/p/hello.py"', toolchains: ['python'] });
+        expect(runCommandFor('/p/hello.ts', '/tmp')?.command).toBe('node --experimental-strip-types "/p/hello.ts"');
+        expect(runCommandFor('/p/hello.js', '/tmp')?.command).toBe('node "/p/hello.js"');
         expect(runCommandFor('/p/hello.c', '/tmp')?.command).toBe('cc "/p/hello.c" -o "/tmp/hello" && "/tmp/hello"');
         expect(runCommandFor('/p/hello.cpp', '/tmp')?.command).toBe('c++ -std=c++17 "/p/hello.cpp" -o "/tmp/hello" && "/tmp/hello"');
         expect(runCommandFor('/p/q.sql', '/tmp')?.command).toBe('sqlite3 :memory: < "/p/q.sql"');
-        expect(runCommandFor('/p/App.java', '/tmp')?.command).toBe('java /p/App.java');
-        expect(runCommandFor('/p/App.java', '/tmp', javaLauncher('/ext/jre/25', false))?.command).toBe('"/ext/jre/25/bin/java" /p/App.java');
+        expect(runCommandFor('/p/App.java', '/tmp')?.command).toBe('java "/p/App.java"');
+        expect(runCommandFor('/p/App.java', '/tmp', javaLauncher('/ext/jre/25', false))?.command).toBe('"/ext/jre/25/bin/java" "/p/App.java"');
         expect(javaLauncher('C:\\jre', true)).toBe('"C:\\jre\\bin\\java.exe"');
         expect(javaLauncher(undefined, false)).toBeUndefined();
         expect(runCommandFor('/p/index.html', '/tmp')).toBeUndefined();

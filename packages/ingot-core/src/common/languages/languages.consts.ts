@@ -265,7 +265,7 @@ export const LANGUAGES: readonly LanguageSpec[] = [
             tests: { toolchains: ['php'], note: 'PHPUnit (vendor/bin/phpunit).' },
             run: { toolchains: ['php'] }
         },
-        run: { toolchains: ['php'], commands: { '*': `php ${RUN_FILE}` } },
+        run: { toolchains: ['php'], commands: { '*': `php "${RUN_FILE}"` } },
         prompt: ['php']
     },
     {
@@ -289,7 +289,7 @@ export const LANGUAGES: readonly LanguageSpec[] = [
             tests: { toolchains: ['node'], note: 'vitest, jest, mocha and Playwright.' },
             run: { toolchains: ['node'] }
         },
-        run: { toolchains: ['node'], commands: { '.ts': `node --experimental-strip-types ${RUN_FILE}`, '.mts': `node --experimental-strip-types ${RUN_FILE}`, '*': `node ${RUN_FILE}` } },
+        run: { toolchains: ['node'], commands: { '.ts': `node --experimental-strip-types "${RUN_FILE}"`, '.mts': `node --experimental-strip-types "${RUN_FILE}"`, '*': `node "${RUN_FILE}"` } },
         build: [{ marker: 'package.json', command: 'npm run build', toolchains: ['node'] }],
         prompt: ['node']
     },
@@ -303,7 +303,7 @@ export const LANGUAGES: readonly LanguageSpec[] = [
             tests: { toolchains: ['jdk'], note: 'JUnit / TestNG through Maven or Gradle (wrapper or installed).' },
             run: { toolchains: ['jdk'] }
         },
-        run: { toolchains: ['jdk'], commands: { '*': `${JAVA} ${RUN_FILE}` } },
+        run: { toolchains: ['jdk'], commands: { '*': `${JAVA} "${RUN_FILE}"` } },
         build: [
             { marker: 'mvnw', command: './mvnw -q package', toolchains: ['jdk'] },
             { marker: 'pom.xml', command: 'mvn -q package', toolchains: ['jdk', 'maven'] },
@@ -343,7 +343,7 @@ export const LANGUAGES: readonly LanguageSpec[] = [
             tests: { toolchains: ['python'], note: 'pytest (when configured) or unittest.' },
             run: { toolchains: ['python'] }
         },
-        run: { toolchains: ['python'], commands: { '*': `python3 ${RUN_FILE}` } },
+        run: { toolchains: ['python'], commands: { '*': `python3 "${RUN_FILE}"` } },
         prompt: ['python']
     },
     {
@@ -356,7 +356,7 @@ export const LANGUAGES: readonly LanguageSpec[] = [
             tests: { toolchains: ['go'], note: 'go test.' },
             run: { toolchains: ['go'] }
         },
-        run: { toolchains: ['go'], commands: { '*': `go run ${RUN_FILE}` } },
+        run: { toolchains: ['go'], commands: { '*': `go run "${RUN_FILE}"` } },
         build: [{ marker: 'go.mod', command: 'go build ./...', toolchains: ['go'] }],
         prompt: ['go']
     },
@@ -398,7 +398,7 @@ export const LANGUAGES: readonly LanguageSpec[] = [
             tests: { toolchains: ['ruby'], note: 'Minitest or RSpec.' },
             run: { toolchains: ['ruby'] }
         },
-        run: { toolchains: ['ruby'], commands: { '*': `ruby ${RUN_FILE}` } },
+        run: { toolchains: ['ruby'], commands: { '*': `ruby "${RUN_FILE}"` } },
         prompt: ['ruby']
     },
     {
@@ -428,7 +428,7 @@ export const LANGUAGES: readonly LanguageSpec[] = [
             tests: { toolchains: ['swift'], note: 'swift test (XCTest).' },
             run: { toolchains: ['swift'] }
         },
-        run: { toolchains: ['swift'], commands: { '*': `swift ${RUN_FILE}` } },
+        run: { toolchains: ['swift'], commands: { '*': `swift "${RUN_FILE}"` } },
         build: [{ marker: 'Package.swift', command: 'swift build', toolchains: ['swift'] }],
         prompt: ['swift']
     },
@@ -442,7 +442,7 @@ export const LANGUAGES: readonly LanguageSpec[] = [
             tests: { toolchains: ['dart'], note: 'dart test (package:test).' },
             run: { toolchains: ['dart'] }
         },
-        run: { toolchains: ['dart'], commands: { '*': `dart run ${RUN_FILE}` } },
+        run: { toolchains: ['dart'], commands: { '*': `dart run "${RUN_FILE}"` } },
         build: [{ marker: 'pubspec.yaml', command: 'dart compile exe bin/main.dart', toolchains: ['dart'] }],
         prompt: ['dart']
     },
@@ -482,7 +482,7 @@ export const LANGUAGES: readonly LanguageSpec[] = [
             formatting: { extension: 'mads-hartmann.bash-ide-vscode', toolchains: ['shfmt'] },
             run: { toolchains: ['bash'] }
         },
-        run: { toolchains: ['bash'], commands: { '*': `bash ${RUN_FILE}` } }
+        run: { toolchains: ['bash'], commands: { '*': `bash "${RUN_FILE}"` } }
     },
     {
         id: 'yaml', label: 'YAML', monacoIds: ['yaml'], fileExtensions: ['.yaml', '.yml'],
