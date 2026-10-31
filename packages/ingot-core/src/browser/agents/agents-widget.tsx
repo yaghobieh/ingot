@@ -1409,10 +1409,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     /** Remember the reading position, then render. Follow only if the reader was already at the bottom. */
     protected holdScroll(): void {
-        const thread = this.chatScroll;
-        if (thread && !this.applyingScroll) {
-            this.savedScroll = thread.scrollTop;
-        }
+        this.noticeReaderScroll();
         this.pendingFollow = this.stickToLatest;
         this.update();
     }
@@ -1422,13 +1419,23 @@ export class IngotAgentsWidget extends ReactWidget {
         if (!node) {
             return;
         }
+        this.noticeReaderScroll();
         const next = scrollTopAfterUpdate(this.savedScroll, node.scrollHeight, node.clientHeight, follow && this.stickToLatest);
         if (node.scrollTop === next) {
             return;
         }
         this.applyingScroll = true;
         node.scrollTop = next;
+        this.savedScroll = node.scrollTop;
         this.applyingScroll = false;
+    }
+
+    /** The scroll event lands a frame late; a render in between must not pull a reader who scrolled away back to the bottom. */
+    protected noticeReaderScroll(): void {
+        const thread = this.chatScroll;
+        if (thread && !this.applyingScroll && thread.scrollTop !== this.savedScroll) {
+            this.onChatScroll();
+        }
     }
 
     protected bindChat(el: HTMLDivElement | null): void {
@@ -1449,7 +1456,7 @@ export class IngotAgentsWidget extends ReactWidget {
         el.addEventListener('scroll', this.onChatScrollBound, { passive: true });
     }
 
-    protected readonly onChatScrollBound = (): void => this.onChatScroll();
+    protected readonly onChatScrollBound = (): void => this.noticeReaderScroll();
 
     protected onChatScroll(): void {
         const thread = this.chatScroll;

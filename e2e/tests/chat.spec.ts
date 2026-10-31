@@ -7,7 +7,7 @@ import { pickMode, pickModel } from '../src/chat.e2e-utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama, modelsPanel } from '../src/models.e2e-utils';
 
-/** IDEA-77: chat tabs + History, five modes, model picker, per-chat context, memories. */
+/** IDEA-77: chat tabs + History, six modes (Deep research IDEA-314), model picker, per-chat context, memories. */
 const agents = (page: Page) => page.locator('#ingot-agents');
 const tabs = (page: Page) => agents(page).locator('.ingot-chat-tab');
 
@@ -102,7 +102,7 @@ test.describe('IDEA-77 chat redesign', () => {
         await expect(tabs(page).first().locator('.ingot-chat-tab-title')).toHaveText('Cart work v2', { timeout: 60_000 });
     });
 
-    test('five modes with permissions, Ctrl+. cycles, per-tab memory, Plan → Build', async ({ page }) => {
+    test('six modes with permissions, Ctrl+. cycles, per-tab memory, Plan → Build', async ({ page }) => {
         reply = (system, user) => user.startsWith('Implement the plan') ? 'Building now.' : system.includes('implementation plan')
             ? 'PLAN:\n- Add qty to addItem\n- Update tests\n\nLow risk.' : 'Plain answer.';
         await openIngot(page, project);
@@ -113,8 +113,10 @@ test.describe('IDEA-77 chat redesign', () => {
 
         await page.locator('#ingot-composer-more').click();
         await page.locator('#ingot-composer-mode').click();
-        await expect(page.locator('#ingot-mode-menu .ingot-mode-item')).toHaveCount(5);
+        await expect(page.locator('#ingot-mode-menu .ingot-mode-item')).toHaveCount(6);
         await expect(page.locator('#ingot-mode-menu')).toContainText('Multi-agent');
+        await expect(page.locator('#ingot-mode-research')).toContainText('Deep research');
+        await expect(page.locator('#ingot-mode-research .ingot-beta-pill')).toHaveText('Beta');
         await expect(page.locator('#ingot-mode-debug')).toContainText('terminal output');
         await page.locator('#ingot-mode-ask').click();
         await expect(page.locator('#ingot-composer-more')).toHaveAttribute('data-mode', 'ask');
