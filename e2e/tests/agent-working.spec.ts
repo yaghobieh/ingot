@@ -109,6 +109,16 @@ test.describe('Agent working state shimmer', () => {
             await expect(text).toHaveText('Getting it done…', { timeout: 30_000 });
             await expect(working).toHaveCount(0, { timeout: 60_000 });
 
+            // The same "Thinking…" row in light.
+            await setAppearance(page, 'light');
+            await composer.fill('think about the coupon');
+            await composer.press('Enter');
+            await expect(thinking).toHaveClass(/ingot-shimmer/);
+            await expect(thinking).toHaveCSS('animation-name', 'ingot-shimmer-sweep');
+            await shot(page, 'agent-thinking-light.png');
+            await expect(text).toHaveText('Getting it done…', { timeout: 30_000 });
+            await expect(working).toHaveCount(0, { timeout: 60_000 });
+
             // Reduced motion: no sweep, plain muted text.
             await page.emulateMedia({ reducedMotion: 'reduce' });
             await composer.fill('one more pass');
