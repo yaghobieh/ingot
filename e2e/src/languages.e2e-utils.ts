@@ -51,11 +51,19 @@ export const activeEditor = (page: Page): Locator => page.locator('#theia-main-c
 const fileInput = (page: Page): Locator => page.locator('.quick-input-widget .quick-input-box input');
 const fileOptions = (page: Page): Locator => page.locator('.quick-input-widget .monaco-list-row');
 
-/** Go to File (Ctrl+Shift+N) like a user: type the name, pick it. */
+const PICK_ATTEMPT_MS = 5_000;
+const PICK_TIMEOUT_MS = 60_000;
+
+/** Go to File (Ctrl+Shift+N) like a user: type the name, pick it. The picker can close under the click, so the whole pick is retried. */
 export const goToFile = async (page: Page, name: string): Promise<void> => {
-    await actUntilVisible(() => page.keyboard.press('Control+Shift+N'), fileInput(page));
-    await page.keyboard.type(name);
-    await fileOptions(page).filter({ hasText: name }).first().click();
+    await expect(async () => {
+        if (await fileInput(page).isVisible()) {
+            await page.keyboard.press('Escape');
+        }
+        await actUntilVisible(() => page.keyboard.press('Control+Shift+N'), fileInput(page));
+        await page.keyboard.type(name);
+        await fileOptions(page).filter({ hasText: name, visible: true }).first().click({ timeout: PICK_ATTEMPT_MS });
+    }).toPass({ timeout: PICK_TIMEOUT_MS });
     await expect(editorTab(page, name).first()).toBeVisible();
 };
 
