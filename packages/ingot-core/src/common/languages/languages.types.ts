@@ -142,4 +142,6 @@ export interface ToolchainService {
 export interface RunContext {
     readonly tmpdir: string;
     readonly path: string;
+    /** The backend's OS: Run, toolchains and install commands are about that machine, not the browser's. */
+    readonly platform: GuidePlatform;
 }

@@ -55,7 +55,7 @@ export class IngotToolchainService implements ToolchainService {
     async runContext(): Promise<RunContext> {
         const tmpdir = path.join(os.tmpdir(), RUN_TMP_FOLDER);
         await fs.promises.mkdir(tmpdir, { recursive: true });
-        return { tmpdir, path: this.searchPath().join(path.delimiter) };
+        return { tmpdir, path: this.searchPath().join(path.delimiter), platform: guidePlatform(process.platform) };
     }
 
     protected status(id: ToolchainId): Promise<ToolchainStatus> {

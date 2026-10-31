@@ -1,7 +1,10 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { Emitter } from '@theia/core/lib/common/event';
 import { DisposableCollection } from '@theia/core/lib/common/disposable';
+import { isOSX, isWindows } from '@theia/core/lib/common/os';
 import { PreferenceSchemaService } from '@theia/core/lib/common/preferences';
+import { guidePlatform } from '../../common/debug/debug.utils';
+import type { GuidePlatform } from '../../common/debug/debug.types';
 import { JAVA_HOME_SETTINGS } from '../../common/languages/languages.consts';
 import { ToolchainService, type LanguageReport, type ToolchainId, type ToolchainStatus } from '../../common/languages/languages.types';
 import { languageReports, missingToolchainSettings } from '../../common/languages/languages.utils';
@@ -10,6 +13,7 @@ interface LanguageState {
     readonly installed: ReadonlySet<string>;
     readonly toolchains: ReadonlyMap<ToolchainId, ToolchainStatus>;
     readonly reports: readonly LanguageReport[];
+    readonly platform: GuidePlatform;
 }
 
 /** IDEA-313: what each language can do here (installed extensions + toolchains on this machine), for the page, prompts and Run. */
@@ -38,6 +42,11 @@ export class LanguageSupportStore {
         return this.state?.toolchains ?? new Map();
     }
 
+    /** The backend's OS (where toolchains are looked up and Run runs); the browser's until loaded. */
+    get platform(): GuidePlatform {
+        return this.state?.platform ?? guidePlatform(isOSX ? 'mac' : isWindows ? 'windows' : 'linux');
+    }
+
     toolchain(id: ToolchainId): ToolchainStatus | undefined {
         return this.state?.toolchains.get(id);
     }
@@ -56,12 +65,13 @@ export class LanguageSupportStore {
     }
 
     protected async fetch(): Promise<LanguageState> {
-        const [installed, statuses] = await Promise.all([this.service.installedExtensions(), this.service.check()]);
+        const [installed, statuses, context] = await Promise.all([this.service.installedExtensions(), this.service.check(), this.service.runContext()]);
         const installedSet = new Set(installed);
         const state: LanguageState = {
             installed: installedSet,
             toolchains: new Map(statuses.map(s => [s.id, s] as const)),
-            reports: languageReports(installedSet, statuses)
+            reports: languageReports(installedSet, statuses),
+            platform: context.platform
         };
         this.state = state;
         this.applyJavaHome(state.toolchains.get('jre'));

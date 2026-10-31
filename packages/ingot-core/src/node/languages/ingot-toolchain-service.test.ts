@@ -4,6 +4,7 @@ import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FileUri } from '@theia/core/lib/common/file-uri';
 import type { PluginDeployerHandler } from '@theia/plugin-ext/lib/common/plugin-protocol';
+import { guidePlatform } from '../../common/debug/debug.utils';
 import { TOOLCHAIN_OVERRIDES_ENV } from '../../common/languages/languages.consts';
 import { IngotToolchainService } from './ingot-toolchain-service';
 
@@ -65,10 +66,11 @@ describe.skipIf(IS_WINDOWS)('IngotToolchainService', () => {
         expect((await service.check(['go']))[0].found).toBe(true);
     });
 
-    it('gives Run a temp folder and the searched PATH', async () => {
+    it('gives Run a temp folder, the searched PATH and the backend OS', async () => {
         const context = await new TestToolchainService([dir, '/extra/bin']).runContext();
         expect(fs.existsSync(context.tmpdir)).toBe(true);
         expect(context.path).toBe([dir, '/extra/bin'].join(path.delimiter));
+        expect(context.platform).toBe(guidePlatform(process.platform));
     });
 
     it('applies the override file', async () => {

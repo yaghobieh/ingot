@@ -8,7 +8,6 @@ import { FEATURE_STATE_ICONS, LANGUAGES_DOM } from './languages.browser-consts';
 
 export interface LanguagesManagerProps {
     readonly store: LanguageSupportStore;
-    readonly platform: GuidePlatform;
     readonly copy: (text: string) => void;
     readonly openUrl: (url: string) => void;
 }
@@ -40,7 +39,7 @@ const FeatureCell = ({ report }: { readonly report: FeatureReport }): React.Reac
     </td>;
 
 /** IDEA-313: Settings › Languages: what each language can do here, its extensions with licences, and what to install. */
-export const LanguagesManager = ({ store, platform, copy, openUrl }: LanguagesManagerProps): React.ReactElement => {
+export const LanguagesManager = ({ store, copy, openUrl }: LanguagesManagerProps): React.ReactElement => {
     const [, setVersion] = React.useState(0);
     const [open, setOpen] = React.useState<string | undefined>();
     const [busy, setBusy] = React.useState(false);
@@ -64,7 +63,7 @@ export const LanguagesManager = ({ store, platform, copy, openUrl }: LanguagesMa
             <p className='ingot-dim' id={LANGUAGES_DOM.loading}>Checking languages and toolchains…</p>
         </section>;
     }
-    const reports = store.reports;
+    const { reports, platform } = store;
     const count = (level: LanguageReport['level']): number => reports.filter(r => r.level === level).length;
 
     return <section className='ingot-settings-card ingot-languages' id={LANGUAGES_DOM.root}>
@@ -118,7 +117,7 @@ export const LanguagesManager = ({ store, platform, copy, openUrl }: LanguagesMa
     </section>;
 };
 
-const LanguageDetails = ({ report, store, platform, copy, openUrl }: { readonly report: LanguageReport } & LanguagesManagerProps): React.ReactElement =>
+const LanguageDetails = ({ report, store, platform, copy, openUrl }: { readonly report: LanguageReport; readonly platform: GuidePlatform } & LanguagesManagerProps): React.ReactElement =>
     <div className='ingot-lang-detail-body'>
         <div className='ingot-lang-extensions'>
             {report.extensions.map(e => <div key={e.id} className='ingot-lang-extension' data-extension={e.id} data-installed={e.installed}>

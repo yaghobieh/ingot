@@ -9,8 +9,6 @@ import { ThemeService } from '@theia/core/lib/browser/theming';
 import { IconThemeService } from '@theia/core/lib/browser/icon-theme-service';
 import { ClipboardService } from '@theia/core/lib/browser/clipboard-service';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
-import { isOSX, isWindows } from '@theia/core/lib/common/os';
-import { guidePlatform } from '../../common/debug/debug.utils';
 import { SETTINGS_PREFS, SETTINGS_TREE } from '../../common/settings/settings.consts';
 import type { SettingInfo, SettingsAction, SettingsPage } from '../../common/settings/settings.types';
 import { coerceSetting, flattenPages, searchPages, settingLabel, visiblePreferences } from '../../common/settings/settings.utils';
@@ -253,7 +251,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
             {page.custom === 'habits' && <HabitsManager store={this.habitStore} playbooks={this.playbookService} learned={this.learnedStore} modelLabel={id => findModel(id)?.label ?? id} />}
             {page.custom === 'decisions' && <DecisionsManager ledger={this.decisionLedger} />}
             {page.custom === 'frozen' && <FrozenManager store={this.frozenStore} runCommand={id => { this.close(); void this.commands.executeCommand(id); }} />}
-            {page.custom === 'languages' && <LanguagesManager store={this.languages} platform={guidePlatform(isOSX ? 'mac' : isWindows ? 'windows' : 'linux')}
+            {page.custom === 'languages' && <LanguagesManager store={this.languages}
                 copy={text => this.clipboard.writeText(text)} openUrl={url => this.windows.openNewWindow(url, { external: true })} />}
             {page.custom === 'memories' && <section className='ingot-settings-card ingot-settings-memories'><MemoriesManager store={this.memoryStore} /></section>}
             {this.groupsFor(page, keys).map(group => <section key={group.label} className='ingot-settings-card'>

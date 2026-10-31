@@ -1,7 +1,6 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { CommandContribution, CommandRegistry } from '@theia/core/lib/common/command';
 import { MessageService } from '@theia/core/lib/common/message-service';
-import { isOSX, isWindows } from '@theia/core/lib/common/os';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { FrontendApplicationContribution, Saveable } from '@theia/core/lib/browser';
 import { ClipboardService } from '@theia/core/lib/browser/clipboard-service';
@@ -10,8 +9,6 @@ import type URI from '@theia/core/lib/common/uri';
 import { EditorManager } from '@theia/editor/lib/browser';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
-import { guidePlatform } from '../../common/debug/debug.utils';
-import type { GuidePlatform } from '../../common/debug/debug.types';
 import { LANGUAGE_COMMANDS, LANGUAGE_PREFS, LANGUAGE_TEXT, LANGUAGES_SETTINGS_PAGE, TOOLCHAINS } from '../../common/languages/languages.consts';
 import type { LanguageId, ToolchainId } from '../../common/languages/languages.types';
 import {
@@ -40,10 +37,6 @@ export class LanguagesContribution implements CommandContribution, FrontendAppli
 
     /** Languages already prompted for in this session. */
     protected readonly prompted = new Set<LanguageId>();
-
-    get platform(): GuidePlatform {
-        return guidePlatform(isOSX ? 'mac' : isWindows ? 'windows' : 'linux');
-    }
 
     registerCommands(registry: CommandRegistry): void {
         registry.registerCommand(LANGUAGE_COMMANDS.open, {
@@ -89,11 +82,11 @@ export class LanguagesContribution implements CommandContribution, FrontendAppli
     }
 
     protected async showInstallPrompt(language: string, id: ToolchainId, offerDismiss: boolean): Promise<void> {
-        const message = missingToolchainMessage(language, id, this.store.toolchain(id), this.platform);
+        const message = missingToolchainMessage(language, id, this.store.toolchain(id), this.store.platform);
         const actions: string[] = [LANGUAGE_TEXT.copy, LANGUAGE_TEXT.download, LANGUAGE_TEXT.languages, ...(offerDismiss ? [LANGUAGE_TEXT.dontAsk] : [])];
         const action = await this.messages.warn(message, ...actions);
         if (action === LANGUAGE_TEXT.copy) {
-            this.clipboard.writeText(installCommand(id, this.platform));
+            this.clipboard.writeText(installCommand(id, this.store.platform));
             this.messages.info(LANGUAGE_TEXT.copied);
         } else if (action === LANGUAGE_TEXT.download) {
             this.windows.openNewWindow(TOOLCHAINS[id].url, { external: true });
@@ -124,7 +117,7 @@ export class LanguagesContribution implements CommandContribution, FrontendAppli
         const uri = widget.editor.uri;
         const [context] = await Promise.all([this.store.service.runContext(), this.store.load()]);
         const jdk = this.store.toolchain('jdk');
-        const java = jdk?.bundled ? javaLauncher(jdk.path, isWindows) : undefined;
+        const java = jdk?.bundled ? javaLauncher(jdk.path, context.platform === 'windows') : undefined;
         const run = runCommandFor(uri.path.fsPath(), context.tmpdir, java);
         if (!run) {
             this.messages.info(LANGUAGE_TEXT.noRun);
