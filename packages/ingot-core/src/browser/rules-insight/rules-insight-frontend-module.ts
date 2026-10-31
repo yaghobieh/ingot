@@ -5,6 +5,7 @@ import { ServiceConnectionProvider } from '@theia/core/lib/browser/messaging/ser
 import { RulesInsightService } from '../../common/rules-insight/rules-insight.types';
 import { RULES_INSIGHT_SERVICE_PATH } from '../../common/rules-insight/rules-insight.consts';
 import { RulesDoctorContribution } from './rules-doctor-contribution';
+import { IngotSchemaContribution } from './ingot-schema-contribution';
 
 /**
  * Rules insight (IDEA-316 epic): Rules Doctor, Rule Hits, `.ingot` schemas and Effective Rules. Its own module keeps
@@ -16,4 +17,8 @@ export default new ContainerModule(bind => {
     bind(RulesDoctorContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(RulesDoctorContribution);
     bind(CommandContribution).toService(RulesDoctorContribution);
+
+    bind(IngotSchemaContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(IngotSchemaContribution);
+    bind(CommandContribution).toService(IngotSchemaContribution);
 });
