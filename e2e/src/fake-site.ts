@@ -16,6 +16,13 @@ export const startFakeSite = async (): Promise<FakeSite> => {
         res.setHeader('content-type', 'text/html; charset=utf-8');
         if (url.pathname === '/cart') {
             res.end(page('Cart', '<h1>Your cart</h1><p>2 items: socks, red shoes.</p><a href="/">Back to the shop</a>'));
+        } else if (url.pathname === '/broken') {
+            // IDEA-289: a page with an image that 404s, for the agent's failed-requests tool.
+            res.end(page('Broken', '<h1>Broken page</h1><p>The logo is missing.</p><img src="/missing-logo.png" alt="Logo">'));
+        } else if (url.pathname.endsWith('.png')) {
+            res.statusCode = 404;
+            res.setHeader('content-type', 'text/plain');
+            res.end('Not found');
         } else if (url.pathname === '/search') {
             const q = (url.searchParams.get('q') ?? '').replace(/[<>&"]/g, '');
             res.end(page('Search', `<h1>Results for ${q}</h1><ul><li>${q} — 49 €</li></ul>`));

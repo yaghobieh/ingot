@@ -57,7 +57,7 @@ test.describe('IDEA-133 agent tools settings', () => {
         await expect(body.locator('.ingot-setting-label')).toHaveText([
             'Let the agent run commands', 'Ask before running commands', 'Foreground timeout (seconds)', 'Output sent to the agent (characters)',
             'Show background processes in the chat',
-            'Let the agent use the browser', 'Ask before browser actions', 'Also ask before reading pages and screenshots',
+            'Let the agent use the browser', 'Offer the browser in every run (off: only with /browser)', 'Ask before browser actions', 'Also ask before reading pages and screenshots',
             'Run checks, fix, and commit after a task', 'Most tool rounds in one turn', 'Tool result kept for the model (characters)'
         ]);
         // Defaults (a failed earlier run may have left them off: preferences persist in the e2e config).
@@ -90,7 +90,7 @@ test.describe('IDEA-133 agent tools settings', () => {
             }
             return user.includes('run it') ? toolBlock('run', { command: 'node -v' }) : toolBlock('browser_open', { url: site.url });
         };
-        await ask(page, 'open the shop');
+        await ask(page, '/browser open the shop');
         await expect(lastReply(page)).toContainText('Opened the shop without asking.', { timeout: 30_000 });
         await expect(page.locator('#ingot-approval-line')).toHaveCount(0);
         expect(systemHadRun).toBe(false);

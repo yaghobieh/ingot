@@ -85,7 +85,8 @@ import { AttachIcon, CheckIcon, ChevronIcon, HistoryIcon, MoreIcon, PlusIcon, Se
 import { AGENT_ICON_SIZE } from './agent-icons.consts';
 import { ProcessStore } from '../processes/process-store';
 import { ProcessesPanel } from '../processes/processes-panel';
-import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
+import { BROWSER_COMMANDS } from '../browser-tool/browser-tool.browser-consts';
+import { BROWSER_RUN_COMMAND } from '../../common/browser-tool/browser-tool.consts';
 import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
@@ -216,7 +217,8 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected acceptSlash(item: { name: string; action?: SlashBuiltinAction }): void {
         this.slashIndex = 0;
-        if (!item.action || item.action.kind === 'goal') {
+        // IDEA-289 / IDEA-292: /browser and /goal prefix the text typed after them, like a project command.
+        if (!item.action || item.action.kind === 'goal' || item.action.kind === 'browser') {
             this.inline?.setText(`/${item.name} `);
             this.focusComposer();
             return;
@@ -251,6 +253,9 @@ export class IngotAgentsWidget extends ReactWidget {
                 return;
             case 'prompt':
                 this.store.send(action.prompt);
+                break;
+            case 'browser':
+                this.inline?.setText(`/${BROWSER_RUN_COMMAND} `);
                 break;
         }
         this.update();
@@ -1017,9 +1022,12 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         if (m.role === 'tool' && m.tool) {
             const key = `${session.id}:tool:${i}`;
-            return <ToolCardView key={i} info={m.tool} text={m.text} from={m.from} expanded={this.expandedSteps.has(key)}
-                onToggle={() => { if (!this.expandedSteps.delete(key)) { this.expandedSteps.add(key); } this.update(); }}
-                openLink={url => this.windows.openNewWindow(url, { external: true })} />;
+            return <React.Fragment key={i}>
+                <ToolCardView info={m.tool} text={m.text} from={m.from} expanded={this.expandedSteps.has(key)}
+                    onToggle={() => { if (!this.expandedSteps.delete(key)) { this.expandedSteps.add(key); } this.update(); }}
+                    openLink={url => this.windows.openNewWindow(url, { external: true })} />
+                {this.renderToolImages(m)}
+            </React.Fragment>;
         }
         const thought = m.role === 'agent' && !m.parts ? extractThought(m.text) : undefined;
         if (thought?.thought !== undefined) {
@@ -1052,6 +1060,14 @@ export class IngotAgentsWidget extends ReactWidget {
         </>;
     }
 
+    /** IDEA-130 / IDEA-289: screenshots a tool returned (browser_screenshot), as thumbnails that open in the lightbox. */
+    protected renderToolImages(m: AgentSession['messages'][number]): React.ReactNode {
+        const images = (m.images ?? []).filter(img => img.data);
+        return images.length > 0 && <div className='ingot-chat-tool-images'>{images.map(img =>
+            <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
+                onClick={() => { this.lightbox = img; this.update(); }} />)}</div>;
+    }
+
     protected renderMessageBody(session: AgentSession, m: AgentSession['messages'][number], i: number, layout: ThreadLayout): React.ReactNode {
         return m.memory
             ? <div key={i} className={`ingot-chat-memory${m.memory.undone ? ' undone' : ''}`}>
@@ -1075,9 +1091,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     {m.role === 'user' && !!m.auto?.length && this.editingIndex !== i && <div className='ingot-chat-auto' title='IDE context sent with this message'>
                         {m.auto.map((a, j) => <span key={j} className='ingot-chat-auto-item'><span className={`codicon codicon-${AUTO_CONTEXT_ICONS[a.kind]}`} />{a.label}</span>)}
                     </div>}
-                    {m.role === 'tool' && !!m.images?.length && <div className='ingot-chat-tool-images'>{m.images.filter(img => img.data).map(img =>
-                        <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
-                            onClick={() => { this.lightbox = img; this.update(); }} />)}</div>}
+                    {m.role === 'tool' && this.renderToolImages(m)}
                     {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && !this.tracker.forMessage(session.id, i).length && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
                     {m.role === 'agent' && this.tracker.forMessage(session.id, i).filter(change => change.status === 'streaming').map(change => <CodeChangeBlock key={change.id} change={change}
                         expanded={!this.collapsedChanges.has(change.id)}

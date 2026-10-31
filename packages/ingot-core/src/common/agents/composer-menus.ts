@@ -2,8 +2,9 @@
 import type { AgentMode } from './agents.types';
 import { INIT_COMMAND } from '../project-config/init-agents.consts';
 
-/** `goal` fills in `/goal ` for the objective instead of running right away (IDEA-292). */
-export type SlashBuiltinAction = { kind: 'mode'; mode: AgentMode } | { kind: 'new' } | { kind: 'compact' } | { kind: 'model' } | { kind: 'history' } | { kind: 'memories' } | { kind: 'prompt'; prompt: string } | { kind: 'goal' };
+/** `goal` (IDEA-292) and `browser` (IDEA-289) fill in `/goal ` or `/browser ` for the text instead of running right away. */
+export type SlashBuiltinAction = { kind: 'mode'; mode: AgentMode } | { kind: 'new' } | { kind: 'compact' } | { kind: 'model' } | { kind: 'history' } | { kind: 'memories' } | { kind: 'prompt'; prompt: string } | { kind: 'goal' }
+    | { kind: 'browser' };
 
 export interface SlashBuiltin {
     readonly name: string;
@@ -23,7 +24,8 @@ export const SLASH_BUILTINS: readonly SlashBuiltin[] = [
     { name: 'model', description: 'Pick the model', action: { kind: 'model' } },
     { name: 'history', description: 'Open chat history', action: { kind: 'history' } },
     { name: 'memories', description: 'Manage memories', action: { kind: 'memories' } },
-    { name: 'init', description: 'Write AGENTS.md for this repo (stack, scripts, layout)', action: { kind: 'prompt', prompt: INIT_COMMAND } }
+    { name: 'init', description: 'Write AGENTS.md for this repo (stack, scripts, layout)', action: { kind: 'prompt', prompt: INIT_COMMAND } },
+    { name: 'browser', description: 'Let the agent use the Browser panel for this run: navigate, click, type, screenshots, console and failed requests', action: { kind: 'browser' } }
 ];
 
 /** The `@query` right before the caret, if one is being typed (start of text or after a space). */

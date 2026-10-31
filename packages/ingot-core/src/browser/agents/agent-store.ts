@@ -96,8 +96,9 @@ import { BrowserController } from '../browser-tool/browser-controller';
 import { TestStore } from '../testing/test-store';
 import { DEFAULT_TEST_ITERATIONS, RUN_TESTS_TOOL, TEST_LOOP_PREFS, TESTS_CAPPED_TEXT } from '../../common/testing/testing.consts';
 import { clampIterations, formatForAgent, requestFromArgs, testLoopStep } from '../../common/testing/testing.utils';
-import { BROWSER_READ_TOOLS, browserNeedsCard, browserToolSettings } from '../../common/browser-tool/browser-settings';
-import { toTarget } from '../../common/browser-tool/browser-tool.utils';
+import { BROWSER_READ_TOOLS, browserNeedsCard, browserToolSettings, browserToolsOn } from '../../common/browser-tool/browser-settings';
+import { browserRunTask, consoleFilter, toTarget } from '../../common/browser-tool/browser-tool.utils';
+import { BROWSER_RUN_COMMAND, BROWSER_RUN_NOTE, BROWSER_RUN_ONLY_TEXT } from '../../common/browser-tool/browser-tool.consts';
 import { describeProcesses, isSafeScriptName, scriptCommand } from '../../common/processes/processes.utils';
 import { OUTPUT_POLL_MS } from '../../common/processes/processes.consts';
 import { truncateForEdit } from '../../common/agents/chat-thread';
@@ -186,6 +187,8 @@ export class AgentStore {
     protected readonly steers = new Map<string, string[]>();
     /** IDEA-280: steer messages the model has not read yet (shown with a "Queued" chip). */
     protected readonly queuedSteers = new SteerQueue<AgentMessage>();
+    /** IDEA-289: chats whose current run was started with /browser (the browser tools are on until it ends). */
+    protected readonly browserRuns = new Set<string>();
     /** Nested runModel calls for one chat. The set stays until the outermost call returns. */
     protected readonly loopDepth = new Map<string, number>();
     /** Bumped by send and stop so a replaced or stopped turn cannot keep writing. */
@@ -525,6 +528,7 @@ export class AgentStore {
             return session;
         }
         if (askedNow && this.isRunning(session.id)) {
+            this.startBrowserRun(session, askedNow);
             const steer: AgentMessage = { role: 'user', text: askedNow };
             session.messages.push(steer);
             this.queuedSteers.add(session.id, steer);
@@ -566,6 +570,12 @@ export class AgentStore {
                 : { role: 'user', text: prompt.trim() });
         }
         this.attachAutoContext(session, auto);
+        this.browserRuns.delete(session.id);
+        if (this.startBrowserRun(session, askedNow)) {
+            const sent = session.messages[session.messages.length - 1];
+            const full = sent.expanded ?? sent.text;
+            session.messages[session.messages.length - 1] = { ...sent, expanded: `${BROWSER_RUN_NOTE}\n\n${browserRunTask(full) ?? full}` };
+        }
         const asked = prompt.trim();
         this.testIterations.delete(session.id);
         this.loops.set(session.id, {
@@ -609,7 +619,12 @@ export class AgentStore {
         this.loopGeneration.set(session.id, generation);
         this.cancelled.delete(session.id);
         this.changed();
-        this.runModel(session, generation).finally(() => this.browser.endAgentRun(session.id));
+        this.runModel(session, generation).finally(() => {
+            if (this.generationFor(session.id) === generation) {
+                this.browserRuns.delete(session.id);
+            }
+            this.browser.endAgentRun(session.id);
+        });
         return session;
     }
 
@@ -624,6 +639,23 @@ export class AgentStore {
         if (auto.items.length && session.messages[last]?.role === 'user') {
             session.messages[last] = { ...session.messages[last], auto: sentAutoContext(auto.items) };
         }
+    }
+
+    /** IDEA-289: a message starting with /browser turns the browser tools on for this run and shows the panel. */
+    protected startBrowserRun(session: AgentSession, prompt: string): boolean {
+        if (browserRunTask(prompt) === undefined || this.projectCommands.some(c => c.name === BROWSER_RUN_COMMAND)) {
+            return false;
+        }
+        this.browserRuns.add(session.id);
+        if (browserToolSettings(key => this.preferences.get(key)).enabled) {
+            void this.browser.open(false);
+        }
+        return true;
+    }
+
+    /** IDEA-289: whether this chat's run gets the browser tools (Settings, plus /browser unless offered in every run). */
+    protected browserOn(session: AgentSession): boolean {
+        return browserToolsOn(browserToolSettings(key => this.preferences.get(key)), this.browserRuns.has(session.id));
     }
 
     isRunning(id: string | undefined): boolean {
@@ -677,6 +709,7 @@ export class AgentStore {
         this.answers.delete(id);
         this.steers.delete(id);
         this.queuedSteers.take(id);
+        this.browserRuns.delete(id);
         const session = this.items.find(s => s.id === id);
         if (session) {
             session.ask = undefined;
@@ -1059,7 +1092,7 @@ export class AgentStore {
             session.goal?.state === 'running' ? goalProtocol(session.goal) : '',
             info.canEdit ? AGENT_WORKFLOW : '', info.canEdit ? AGENT_PROTOCOL : '', info.canUseTools ? TOOL_CALL_FORMAT : '',
             info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools),
-            info.canUseTools ? builtinToolProtocol(this.toolSwitches()) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : '', session.parent ? '' : FOLLOW_UPS_PROTOCOL
+            info.canUseTools ? builtinToolProtocol(this.toolSwitches(session)) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : '', session.parent ? '' : FOLLOW_UPS_PROTOCOL
         ].filter(Boolean).join('\n\n');
         const rulesText = [formatRules(rules), info.canUseTools ? formatRuleIndex(requestableRules(config.rules), `${BUILTIN_TOOL_SERVER}/${FETCH_RULE_TOOL}`) : ''].filter(Boolean).join('\n\n');
         const habitText = await this.habitRunner.prepare(session, {
@@ -1511,7 +1544,7 @@ export class AgentStore {
         let final = '';
         try {
             const tools = modeInfo(session.mode).canUseTools
-                ? BUILTIN_TOOLS.filter(tool => builtinToolEnabled(tool.name, this.toolSwitches()))
+                ? BUILTIN_TOOLS.filter(tool => builtinToolEnabled(tool.name, this.toolSwitches(session)))
                     .filter(tool => this.habitRunner.allows(session, BUILTIN_TOOL_SERVER, tool.name))
                     .map(tool => ({ name: tool.name, description: tool.description }))
                 : [];
@@ -1697,7 +1730,7 @@ export class AgentStore {
                 : isBrowser ? browserNeedsCard(call.tool, browserToolSettings(key => this.preferences.get(key))) : true;
             // IDEA-133: a tool turned off in Settings › Agent tools is refused at once, without a card.
             const turnedOff = call.server === BUILTIN_TOOL_SERVER
-                && !builtinToolEnabled(call.tool, this.toolSwitches());
+                && !builtinToolEnabled(call.tool, this.toolSwitches(session));
             const policyCard = action && outside ? outsideApproval(action) : action;
             // A `.ingot/policy.json` "ask" or a hook's "ask" always shows the card, whatever the sandbox preset says.
             const mustAsk = !!policyCard && !turnedOff && (outside || !!gate.ask);
@@ -2390,6 +2423,9 @@ export class AgentStore {
         if (!browserToolSettings(key => this.preferences.get(key)).enabled) {
             return { text: 'The browser tool is turned off in Settings › Tools › Agent tools.', isError: true };
         }
+        if (!this.browserOn(session)) {
+            return { text: BROWSER_RUN_ONLY_TEXT, isError: true };
+        }
         const a = call.args;
         const str = (v: unknown): string => typeof v === 'string' ? v : '';
         const text = (t: string): AgentActionResult => ({ text: t, isError: /^(Browser error|Cannot open|No element|No field|Invalid selector|Stopped while)/.test(t) });
@@ -2411,6 +2447,8 @@ export class AgentStore {
                 }
                 return { ...text(shot.text), ...(data ? { images: [{ id: `shot-${Date.now().toString(36)}`, name: 'screenshot.png', mediaType: 'image/png', data }] } : {}) };
             }
+            case 'browser_console': return text(await this.browser.agentConsole(session.id, consoleFilter(a.level)));
+            case 'browser_network': return text(await this.browser.agentNetwork(session.id));
             default: return { text: `Unknown browser tool "${call.tool}". Tools: ${['browser_open', 'browser_click', 'browser_type', 'browser_scroll', 'browser_back', ...BROWSER_READ_TOOLS].join(', ')}.`, isError: true };
         }
     }
@@ -2641,10 +2679,10 @@ export class AgentStore {
         };
     }
 
-    protected toolSwitches(): BuiltinToolSwitches {
+    protected toolSwitches(session: AgentSession): BuiltinToolSwitches {
         return {
             terminal: this.runSettings.enabled,
-            browser: browserToolSettings(key => this.preferences.get(key)).enabled,
+            browser: this.browserOn(session),
             template: this.libraryTemplateOn()
         };
     }

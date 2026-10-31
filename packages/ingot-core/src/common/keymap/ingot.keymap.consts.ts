@@ -5,6 +5,7 @@ import { INLINE_EDIT_COMMANDS } from '../inline-edit/inline-edit.consts';
 import { LOCAL_HISTORY_COMMANDS } from '../local-history/local-history.consts';
 import { INDEX_COMMANDS } from '../codebase-index/codebase-index.consts';
 import { AUDIT_LOG_COMMAND_ID } from '../audit/agent-audit.consts';
+import { BROWSER_FOCUS_KEY } from '../browser-tool/browser-tool.consts';
 
 /** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
@@ -28,6 +29,8 @@ const EDITOR = 'editorTextFocus';
 const IN_DEBUG = 'inDebugMode';
 /** Focus is inside the Agents tool window (chat). */
 const AGENTS_FOCUS = 'ingotAgentsFocus';
+/** Focus is inside the Browser panel. */
+const BROWSER_FOCUS = BROWSER_FOCUS_KEY;
 const EDITOR_NOT_REVIEWING = `${EDITOR} && ${NOT_REVIEWING}`;
 /** Code is selected in the focused editor; Theia prefers this editor-local binding over a global one on the same key. */
 const EDITOR_SELECTION = `${EDITOR} && editorHasSelection`;
@@ -140,7 +143,12 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     // Artifacts and Agent Manager (IDEA-290, IDEA-291)
     { action: 'Artifacts', command: 'ingot.artifacts.open', mac: 'ctrlcmd+alt+shift+k', other: 'ctrl+alt+shift+k' },
     { action: 'Agent Manager', command: 'ingot.agentManager.toggle', mac: 'ctrlcmd+alt+shift+m', other: 'ctrl+alt+shift+m' },
-    { action: 'Jump to Next Agent Approval', command: 'ingot.agentManager.nextApproval', mac: 'ctrlcmd+alt+shift+j', other: 'ctrl+alt+shift+j' }
+    { action: 'Jump to Next Agent Approval', command: 'ingot.agentManager.nextApproval', mac: 'ctrlcmd+alt+shift+j', other: 'ctrl+alt+shift+j' },
+    // Browser panel (IDEA-289); page shortcuts reach Ingot from the web build's frame, the desktop page keeps its keys.
+    { action: 'Open Browser', command: 'ingot.browser.open', mac: 'ctrlcmd+alt+shift+p', other: 'ctrl+alt+shift+p' },
+    { action: 'Quote Page Selection in Agent Chat', command: 'ingot.browser.quoteSelection', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: BROWSER_FOCUS },
+    { action: 'Comment on Page Selection in Agent Chat', command: 'ingot.browser.commentSelection', mac: 'ctrlcmd+alt+shift+m', other: 'ctrl+alt+shift+m', when: BROWSER_FOCUS },
+    { action: 'Open Page in External Browser', command: 'ingot.browser.openExternal', mac: 'ctrlcmd+alt+shift+o', other: 'ctrl+alt+shift+o', when: BROWSER_FOCUS }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';

@@ -32,7 +32,11 @@ export const agentToolsPreferenceSchema: PreferenceSchema = {
         },
         [BROWSER_PREFS.enabled]: {
             type: 'boolean', default: BROWSER_DEFAULTS.enabled,
-            description: 'The agent can open pages in the Ingot browser panel, read them, click, type, scroll and take screenshots. Off: the browser tools are hidden from the agent.'
+            description: 'The agent can open pages in the Ingot browser panel, read them, click, type, scroll, take screenshots and read the console and failed requests. Off: the browser tools are hidden from the agent, even with /browser.'
+        },
+        [BROWSER_PREFS.everyRun]: {
+            type: 'boolean', default: BROWSER_DEFAULTS.everyRun,
+            description: 'Offer the browser tools in every agent run. Off (default): only runs started with the /browser command get them.'
         },
         [BROWSER_PREFS.requireApproval]: {
             type: 'boolean', default: BROWSER_DEFAULTS.requireApproval,

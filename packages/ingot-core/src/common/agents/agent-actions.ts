@@ -77,6 +77,8 @@ export const BUILTIN_TOOLS = [
     { name: 'browser_screenshot', description: 'Take a screenshot of the browser panel (shown to the user; sent to you when the model reads images). No arguments.' },
     { name: 'fetch_rule', description: 'Read the full text of a project rule from "Available rules". Arguments: {"name": "api-style"}. Runs at once.' },
     { name: 'use_habit', description: 'Follow a habit (a team playbook) from "Habits": returns its steps, tool limits and done criteria. Arguments: {"name": "Payments bug"}. Runs at once.' },
+    { name: 'browser_console', description: 'Read the page\'s console messages and uncaught errors (latest last). Arguments: {"level"?: "error" | "warning" | "all"}. Runs at once.' },
+    { name: 'browser_network', description: 'List failed requests of the page: HTTP 4xx/5xx and requests with no response (page, assets, fetch / XHR). No arguments. Runs at once.' },
     { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' },
     ...CODE_TOOLS,
     { name: 'ask_user', description: 'Ask the user a clarifying question and wait for the answer before continuing. Arguments: {"question": "…", "options"?: ["a", "b"]}. The user can also type their own answer. Runs at once and pauses the run.' },
@@ -176,6 +178,8 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
         case 'browser_scroll': return { kind: 'browser', label: 'Scroll', detail: str(a.direction) || 'down' };
         case 'browser_back': return { kind: 'browser', label: 'Go back', detail: '' };
         case 'browser_screenshot': return { kind: 'browser', label: 'Screenshot', detail: '' };
+        case 'browser_console': return { kind: 'browser', label: 'Read console', detail: str(a.level) || 'all' };
+        case 'browser_network': return { kind: 'browser', label: 'Read failed requests', detail: '' };
         default: return { kind: 'mcp', label: capitalize(call.tool), detail: '' };
     }
 };

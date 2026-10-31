@@ -2,9 +2,10 @@ import { inject, injectable } from '@theia/core/shared/inversify';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { environment } from '@theia/core/shared/@theia/application-package/lib/environment';
 import { ApplicationShell, WidgetManager } from '@theia/core/lib/browser';
-import type { BrowserControl, BrowserScreenshot, BrowserTarget, PageActionResult } from '../../common/browser-tool/browser-tool.types';
+import { WindowService } from '@theia/core/lib/browser/window/window-service';
+import type { BrowserControl, BrowserScreenshot, BrowserTarget, PageActionResult, PageSelection } from '../../common/browser-tool/browser-tool.types';
 import { BROWSER_WIDGET_ID, PAGE_MAX_ELEMENTS, PAGE_TEXT_CHARS } from '../../common/browser-tool/browser-tool.consts';
-import { formatSnapshot, normalizeUrl } from '../../common/browser-tool/browser-tool.utils';
+import { formatConsole, formatNetworkErrors, formatSnapshot, normalizeUrl, type ConsoleFilter } from '../../common/browser-tool/browser-tool.utils';
 import { FrameEngine, WebviewEngine, type BrowserEngine } from './browser-engine';
 import { clickTarget, scrollPage, snapshotPage, typeInto } from './page-scripts';
 
@@ -17,8 +18,12 @@ export class BrowserController {
 
     @inject(WidgetManager) protected readonly widgets: WidgetManager;
     @inject(ApplicationShell) protected readonly shell: ApplicationShell;
+    @inject(WindowService) protected readonly windows: WindowService;
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
+    /** IDEA-289: text the user selected on the page, for Quote / Comment. */
+    protected selected?: PageSelection;
+    protected commentOpen = false;
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
     protected engineInstance?: BrowserEngine;
     protected controlState: BrowserControl = 'agent';
@@ -31,8 +36,45 @@ export class BrowserController {
         if (!this.engineInstance) {
             this.engineInstance = environment.electron.is() ? new WebviewEngine() : new FrameEngine();
             this.engineInstance.onDidNavigate(() => this.changed());
+            this.engineInstance.onDidSelect(selection => {
+                if (!this.commentOpen || selection) {
+                    this.commentOpen = this.commentOpen && !!selection && selection.text === this.selected?.text;
+                    this.selected = selection;
+                    this.changed();
+                }
+            });
         }
         return this.engineInstance;
+    }
+
+    get selection(): PageSelection | undefined {
+        return this.selected;
+    }
+
+    /** The Comment box is open under the selection. */
+    get commenting(): boolean {
+        return this.commentOpen && !!this.selected;
+    }
+
+    startComment(): void {
+        this.commentOpen = true;
+        this.changed();
+    }
+
+    clearSelection(): void {
+        this.commentOpen = false;
+        this.selected = undefined;
+        this.changed();
+    }
+
+    /** IDEA-289: the current page in the system browser. */
+    openExternal(): boolean {
+        const url = this.engine.current.url;
+        if (!normalizeUrl(url) || url === 'about:blank') {
+            return false;
+        }
+        this.windows.openNewWindow(url, { external: true });
+        return true;
     }
 
     get control(): BrowserControl {
@@ -135,6 +177,24 @@ export class BrowserController {
             return image ? `Screenshot of ${engine.current.url} (${image.width}×${image.height}).` : 'Screenshots need the desktop app; read the page instead (ingot/browser_read).';
         });
         return { text, image };
+    }
+
+    /** IDEA-289: console messages and uncaught errors of the current page. */
+    agentConsole(sessionId: string, filter: ConsoleFilter): Promise<string> {
+        return this.agentAct(sessionId, async engine => {
+            if (engine.current.url === 'about:blank') {
+                return 'The browser is empty. Open a page with ingot/browser_open.';
+            }
+            const note = engine.kind === 'frame' ? '\n(The web build shows pages without running their scripts, so only the desktop app has console messages; use ingot/browser_network for failed requests.)' : '';
+            return formatConsole(engine.consoleEntries, filter, engine.current.url) + note;
+        });
+    }
+
+    /** IDEA-289: failed requests (HTTP errors and no response) of the current page. */
+    agentNetwork(sessionId: string): Promise<string> {
+        return this.agentAct(sessionId, async engine => engine.current.url === 'about:blank'
+            ? 'The browser is empty. Open a page with ingot/browser_open.'
+            : formatNetworkErrors(engine.networkErrors, engine.current.url));
     }
 
     /** Runs an agent action: opens the panel, waits while the user has control, shows the "agent is driving" overlay. */

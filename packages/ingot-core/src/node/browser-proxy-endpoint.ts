@@ -1,8 +1,10 @@
 import { injectable } from '@theia/core/shared/inversify';
 import type { BackendApplicationContribution } from '@theia/core/lib/node/backend-application';
 import type { Application, Request, Response } from '@theia/core/shared/express';
-import { BROWSER_PROXY_PATH, PROXY_MAX_BYTES, PROXY_TIMEOUT_MS } from '../common/browser-tool/browser-tool.consts';
-import { injectBase, normalizeUrl } from '../common/browser-tool/browser-tool.utils';
+import { BROWSER_PROXY_PATH, BROWSER_STATUS_META, HTTP_ERROR_MIN, PROXY_MAX_BYTES, PROXY_TIMEOUT_MS } from '../common/browser-tool/browser-tool.consts';
+import { injectBase, injectStatus, normalizeUrl } from '../common/browser-tool/browser-tool.utils';
+
+const BAD_GATEWAY = 502;
 
 /**
  * IDEA-130: the web build's browser panel loads pages through this route so they are same-origin with Ingot and the
@@ -30,12 +32,14 @@ export class BrowserProxyEndpoint implements BackendApplicationContribution {
             res.setHeader('x-content-type-options', 'nosniff');
             res.setHeader('cache-control', 'no-store');
             if (/html/i.test(type)) {
-                res.type('text/html; charset=utf-8').send(injectBase(body.toString('utf8'), upstream.url || url));
+                // IDEA-289: the frame cannot read the status; the page carries it for the agent's failed-requests list.
+                const html = injectBase(body.toString('utf8'), upstream.url || url);
+                res.type('text/html; charset=utf-8').send(upstream.status >= HTTP_ERROR_MIN ? injectStatus(html, BROWSER_STATUS_META, upstream.status) : html);
             } else {
                 res.type(type).send(body);
             }
         } catch (error) {
-            res.status(502).type('text/html').send(`<!doctype html><title>Could not open page</title><body style="font:13px system-ui;padding:24px">`
+            res.status(BAD_GATEWAY).type('text/html').send(`<!doctype html><meta name="${BROWSER_STATUS_META}" content="${BAD_GATEWAY}"><title>Could not open page</title><body style="font:13px system-ui;padding:24px">`
                 + `<h3>Could not open ${url.replace(/[<>&"]/g, '')}</h3><p>${String(error instanceof Error ? error.message : error).replace(/[<>&"]/g, '')}</p></body>`);
         }
     }
