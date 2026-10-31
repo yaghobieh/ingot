@@ -8,9 +8,7 @@ export const modelPreferenceSchema: PreferenceSchema = {
         [MODEL_PREFERENCES.byok]: { type: 'boolean', default: false, description: 'Use my own API keys (BYOK) and local models (Ollama) in addition to Ingot models.' },
         [MODEL_PREFERENCES.ollamaUrl]: { type: 'string', default: DEFAULT_OLLAMA_URL, description: 'Base URL of the local Ollama server.' },
         [MODEL_PREFERENCES.overrides]: { type: 'object', default: {}, description: 'Provider model name overrides, e.g. { "ollama": "llama3.2" }.' },
-        [MODEL_PREFERENCES.autocompleteEnabled]: { type: 'boolean', default: true, description: 'Show inline AI completions (ghost text) in the editor.' },
-        [MODEL_PREFERENCES.autocompleteModel]: { type: 'string', default: '', enum: ['', ...MODEL_CATALOG.map(m => m.id)], description: 'Model for inline completions; empty picks the first connected model.' },
-        [MODEL_PREFERENCES.autocompleteDebounce]: { type: 'number', default: 300, minimum: 50, description: 'Delay (ms) after typing before asking for a completion.' }
+        [MODEL_PREFERENCES.autocompleteModel]: { type: 'string', default: '', enum: ['', ...MODEL_CATALOG.map(m => m.id)], description: 'Model for Tab predictions; empty picks the first connected fast model (Ingot Fast when signed in).' }
     }
 };
 

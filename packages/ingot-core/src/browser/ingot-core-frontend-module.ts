@@ -82,8 +82,8 @@ import { ModelService } from '../common/models/models.types';
 import { IngotModelClient } from './models/model-client';
 import { IngotModelsWidget } from './models/models-widget';
 import { IngotModelsContribution } from './models/models-contribution';
-import { IngotInlineCompletions } from './models/inline-completions';
 import { bindModelPreferences } from './models/model-preferences';
+import { IngotTabCompletions, IngotTabContribution, IngotTabIgnore, IngotTabNextEdit, IngotTabUsage, bindTabPreferences } from './tab';
 import { bindAccountPreferences } from './account/account-preferences';
 import { IngotAccountClient } from './account/account-client';
 import { ACCOUNT_SERVICE_PATH, AccountBackend } from '../common/account/account-protocol';
@@ -218,6 +218,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         bind(id).toService(IngotGroupsContribution);
     }
     bindModelPreferences(bind);
+    bindTabPreferences(bind);
     bindAccountPreferences(bind);
     bind(PreferenceContribution).toConstantValue({ schema: keymapPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: appearancePreferenceSchema });
@@ -356,11 +357,16 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bindViewContribution(bind, IngotDebugContribution);
     bind(ModelService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ModelService>(ctx.container, MODEL_SERVICE_PATH)).inSingletonScope();
     bind(IngotModelClient).toSelf().inSingletonScope();
-    bind(IngotInlineCompletions).toSelf().inSingletonScope();
     bind(IngotModelsWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: MODELS_WIDGET_ID, createWidget: () => ctx.container.get(IngotModelsWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotModelsContribution);
-    bind(FrontendApplicationContribution).toService(IngotModelsContribution);
+    // Tab next-edit prediction (IDEA-285)
+    for (const service of [IngotTabUsage, IngotTabIgnore, IngotTabNextEdit, IngotTabCompletions, IngotTabContribution]) {
+        bind(service).toSelf().inSingletonScope();
+    }
+    for (const id of [FrontendApplicationContribution, CommandContribution, KeybindingContribution]) {
+        bind(id).toService(IngotTabContribution);
+    }
     bind(GroupChannel).toSelf().inSingletonScope();
     bind(IngotGroupChatWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: GROUP_CHAT_WIDGET_ID, createWidget: () => ctx.container.get(IngotGroupChatWidget) })).inSingletonScope();

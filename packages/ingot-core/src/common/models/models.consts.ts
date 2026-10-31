@@ -49,9 +49,8 @@ export const DEFAULT_CONTEXT_WINDOW = 128_000;
 export const MODEL_PREFERENCES = {
     ollamaUrl: 'ingot.models.ollamaUrl',
     overrides: 'ingot.models.overrides',
-    autocompleteEnabled: 'ingot.autocomplete.enabled',
+    /** Model for Tab predictions (IDEA-285); on/off, debounce and caps live under `ingot.tab.*`. */
     autocompleteModel: 'ingot.autocomplete.model',
-    autocompleteDebounce: 'ingot.autocomplete.debounceMs',
     /** Use my own API keys (BYOK) / Local (Ollama). Off by default: signed-in users use Ingot models (IDEA-101). */
     byok: 'ingot.models.byok'
 } as const;
@@ -70,8 +69,6 @@ export const AGENT_SYSTEM_PROMPTS = {
     multi: 'You are the lead of a team of coding agents inside the Ingot IDE. Split the task into 2-4 independent subtasks that can run in parallel. Answer with a "PLAN:" list of "- subtask" lines (each one self-contained, naming the files it touches) and one sentence on how the results fit together. Do not change files yourself.',
     debug: 'You are an expert debugger inside the Ingot IDE. Use the terminal output, stack traces and files you are given to find the root cause. Explain the cause first, then propose the smallest fix. If you need more output, say exactly which command to run. ' + REPLY_STYLE
 } as const;
-
-export const AUTOCOMPLETE_SYSTEM_PROMPT = 'You are a code completion engine. Continue the code at <CURSOR>. Reply with only the text to insert at the cursor: no explanations, no markdown fences, no repetition of the existing code.';
 
 /** Speech-to-text for composer dictation (IDEA-98): OpenAI-compatible transcription endpoint and model. */
 export const TRANSCRIBE_PATH = '/audio/transcriptions';

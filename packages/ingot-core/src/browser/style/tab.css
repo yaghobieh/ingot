@@ -1,0 +1,11 @@
+/* Tab next-edit hint (IDEA-285): theme tokens only, so it follows Ingot Light, Ingot Dark and System. */
+.monaco-editor .ingot-tab-next-line {
+  background: var(--ingot-selection);
+  box-shadow: inset 2px 0 0 var(--ingot-primary);
+}
+
+.monaco-editor .ingot-tab-next-hint {
+  color: var(--ingot-primary);
+  font-style: italic;
+  opacity: 0.85;
+}
