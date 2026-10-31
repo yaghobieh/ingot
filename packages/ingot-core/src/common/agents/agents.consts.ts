@@ -30,7 +30,7 @@ export const ACTIVE_STATUSES: readonly AgentStatus[] = ['thinking', 'editing', '
 
 /** Signed out with no own keys (IDEA-101): Ingot models need an account, not API keys. */
 export const SIGN_IN_MESSAGE = 'Sign in to use Ingot models — no API keys needed. Or turn on “Use my own API key (BYOK)” in Settings › Models.';
-export const NO_MODEL_MESSAGE = 'No model is connected yet, so this request was not sent. Choose a model, or sign in for Ingot models. API keys stay in your OS keychain.';
+export const NO_MODEL_MESSAGE = 'No model is connected yet, so this request was not sent. Choose a model, or sign in for Ingot models. API keys stay in Ingot\'s local key file (~/.ingot/keystore.json).';
 export const NEW_AGENT_TITLE = 'New chat';
 export const COMPOSER_PLACEHOLDER = 'Ask anything, @ to mention, / for actions';
 export const AGENT_TITLE = 'Ingot Agent';

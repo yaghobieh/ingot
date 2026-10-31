@@ -55,7 +55,7 @@ export const SLACK_TEXT = {
     cancel: 'Cancel',
     tokenLabel: 'Slack token',
     tokenPlaceholder: 'xoxp-…',
-    tokenHint: 'Paste a user token (xoxp-…) or bot token (xoxb-…) from your Slack app’s OAuth & Permissions page. It is stored in the OS keychain, never in files.',
+    tokenHint: 'Paste a user token (xoxp-…) or bot token (xoxb-…) from your Slack app’s OAuth & Permissions page. It is stored in Ingot’s local key file (~/.ingot/keystore.json), never in project or config files.',
     createApp: 'Create a Slack app',
     tokenRequired: 'Paste your Slack token.',
     tokenInvalid: 'Slack tokens start with xoxp-, xoxb- or xoxe.xoxp-.',

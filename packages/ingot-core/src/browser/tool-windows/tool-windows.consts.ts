@@ -36,3 +36,13 @@ export const RIGHT_STRIPE_TOP: readonly RightStripeItem[] = [
 export const RIGHT_STRIPE_BOTTOM: readonly RightStripeItem[] = [
     { id: 'theme', icon: 'color-mode', title: 'Theme: Light, Dark or System', kind: 'command', command: 'ingot.appearance.pick' }
 ];
+
+/** MCP form copy: secrets go to Ingot's local key file, never the OS keychain or mcp.json. */
+export const MCP_SECRET_TEXT = {
+    fieldNote: " · stored in Ingot's local key file (~/.ingot/keystore.json)",
+    authNote: "Secrets are stored in Ingot's local key file (~/.ingot/keystore.json), never in project or config files.",
+    formHint: "Values marked Secret are saved in Ingot's local key file (~/.ingot/keystore.json); mcp.json only gets a placeholder.",
+    secretTitle: "Store the value in Ingot's local key file (~/.ingot/keystore.json)",
+    secretPlaceholder: 'stored in key file',
+    detailNote: '(local key file)'
+} as const;
