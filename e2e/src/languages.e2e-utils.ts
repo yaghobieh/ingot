@@ -1,0 +1,85 @@
+import { expect, type Browser, type Locator, type Page } from '@playwright/test';
+import { actUntilVisible, dismissNotifications, openIngot } from './app.utils';
+import { LANGUAGE_FIXTURES } from './e2e.consts';
+
+/** IDEA-313: what the Languages page says about this machine, read once per spec. */
+export interface LanguageSupport {
+    /** `<language>/<feature>` → feature state (ready, needs-toolchain, …). */
+    readonly features: Readonly<Record<string, string>>;
+    /** Toolchain id → usable here. */
+    readonly toolchains: Readonly<Record<string, boolean>>;
+}
+
+export const LANGUAGES_PAGE = '#ingot-languages';
+export const OUTPUT_VIEW = '#outputView';
+export const RUN_FILE_KEY = 'Control+Alt+Shift+F9';
+export const LANGUAGES_KEY = 'Control+Alt+Shift+L';
+export const LANGUAGE_IDS = [
+    'php', 'cobol', 'javascript', 'java', 'cpp', 'python', 'go', 'rust', 'csharp', 'ruby', 'kotlin', 'swift', 'dart', 'sql', 'html', 'shell', 'yaml', 'json', 'markdown'
+] as const;
+/** Language servers start on first use; Java and COBOL boot a JVM. */
+export const SERVER_TIMEOUT_MS = 120_000;
+export const RUN_TIMEOUT_MS = 90_000;
+
+/** A toast (the notification center keeps a hidden copy of each one). */
+export const notification = (page: Page, text: string | RegExp): Locator => page.locator('.theia-notification-toasts .theia-notification-list-item', { hasText: text });
+
+export const openLanguagesPage = async (page: Page): Promise<Locator> => {
+    const root = page.locator(LANGUAGES_PAGE);
+    await actUntilVisible(() => page.keyboard.press(LANGUAGES_KEY), root);
+    await expect(root.locator('.ingot-lang-row')).toHaveCount(LANGUAGE_IDS.length, { timeout: 60_000 });
+    return root;
+};
+
+export const closeSettings = async (page: Page): Promise<void> => {
+    await page.locator('#ingot-settings-cancel').click();
+    await expect(page.locator('#ingot-settings')).toBeHidden();
+};
+
+export const readSupport = async (page: Page): Promise<LanguageSupport> => {
+    const root = await openLanguagesPage(page);
+    const features = await root.locator('.ingot-lang-row').evaluateAll(rows => Object.fromEntries(rows.flatMap(row =>
+        [...row.querySelectorAll<HTMLElement>('[data-feature]')].map(cell => [`${row.getAttribute('data-language')}/${cell.dataset.feature}`, cell.dataset.state ?? '']))));
+    const toolchains = await root.locator('.ingot-toolchain').evaluateAll(items => Object.fromEntries(items.map(item =>
+        [item.getAttribute('data-toolchain') ?? '', item.getAttribute('data-found') === 'true'])));
+    await closeSettings(page);
+    return { features, toolchains };
+};
+
+/** Opens Ingot once on the language fixtures and reads the page (for `beforeAll`). */
+export const loadSupport = async (browser: Browser): Promise<LanguageSupport> => {
+    const page = await browser.newPage();
+    try {
+        await openIngot(page, LANGUAGE_FIXTURES);
+        await dismissNotifications(page);
+        return await readSupport(page);
+    } finally {
+        await page.close();
+    }
+};
+
+export const editorTab = (page: Page, label: string): Locator => page.locator('#theia-main-content-panel .lm-TabBar-tab', { hasText: label });
+export const activeEditor = (page: Page): Locator => page.locator('#theia-main-content-panel .lm-DockPanel-widget:not(.lm-mod-hidden) .monaco-editor').first();
+
+const fileInput = (page: Page): Locator => page.locator('.quick-input-widget .quick-input-box input');
+const fileOptions = (page: Page): Locator => page.locator('.quick-input-widget .monaco-list-row');
+
+/** Go to File (Ctrl+Shift+N) like a user: type the name, pick it. */
+export const goToFile = async (page: Page, name: string): Promise<void> => {
+    await actUntilVisible(() => page.keyboard.press('Control+Shift+N'), fileInput(page));
+    await page.keyboard.type(name);
+    await fileOptions(page).filter({ hasText: name }).first().click();
+    await expect(editorTab(page, name).first()).toBeVisible();
+};
+
+/** Distinct token colours in the visible editor lines: plain text is one (`mtk1`), a grammar adds more. */
+export const tokenClasses = async (page: Page): Promise<number> =>
+    activeEditor(page).locator('.view-lines span[class^="mtk"]').evaluateAll(spans => new Set(spans.map(s => s.className)).size);
+
+/** The token span showing `word` (the last one: usually a call site). */
+export const tokenSpan = (page: Page, word: string): Locator =>
+    activeEditor(page).locator('.view-lines span[class^="mtk"]').filter({ hasText: new RegExp(`^${word}$`) }).last();
+
+/** The text of the Output view (the Run channel's editor). */
+export const outputText = async (page: Page): Promise<string> =>
+    page.locator(`${OUTPUT_VIEW} .view-lines`).innerText().catch(() => '');

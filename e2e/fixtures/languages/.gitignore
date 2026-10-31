@@ -1,0 +1,10 @@
+# Output of the language toolchains when the e2e specs run them.
+.dart_tool/
+pubspec.lock
+__pycache__/
+.build/
+target/
+obj/
+bin/Debug/
+# Dart keeps its library code in lib/ (ignored at the repo root).
+!dart/lib/

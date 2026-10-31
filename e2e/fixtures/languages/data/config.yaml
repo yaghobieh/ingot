@@ -1,0 +1,6 @@
+name: hello
+greeting: Hello, Ingot!
+languages:
+  - yaml
+  - json
+  - markdown

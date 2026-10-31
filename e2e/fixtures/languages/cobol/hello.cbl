@@ -1,0 +1,8 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. HELLO.
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01 WS-NAME PIC X(5) VALUE "Ingot".
+       PROCEDURE DIVISION.
+           DISPLAY "Hello, " WS-NAME "!".
+           STOP RUN.

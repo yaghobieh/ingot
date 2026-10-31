@@ -1,0 +1,5 @@
+name: hello
+environment:
+  sdk: ^3.0.0
+dev_dependencies:
+  test: any

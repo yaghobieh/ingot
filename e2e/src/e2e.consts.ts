@@ -17,6 +17,9 @@ export const MOCK_KEYCHAIN_ARG = '--use-mock-keychain';
 /** IDEA-185: Zaprex desktop detection override ("installed" / "missing"; real detection when absent) and the link log (links are recorded, never opened). */
 export const ZAPREX_DETECT_FILE = path.join(E2E_CONFIG_DIR, `zaprex-detect-${process.env.INGOT_PORT ?? 3100}`);
 export const ZAPREX_LINK_LOG = path.join(E2E_CONFIG_DIR, `zaprex-links-${process.env.INGOT_PORT ?? 3100}.log`);
+/** IDEA-313: per-toolchain "missing" / "found" overrides the app reads on every toolchain check (test seam). */
+export const TOOLCHAIN_OVERRIDES_FILE = path.join(E2E_CONFIG_DIR, `toolchain-overrides-${process.env.INGOT_PORT ?? 3100}.json`);
+export const LANGUAGE_FIXTURES = path.join(FIXTURES_DIR, 'languages');
 /** Stands in for the home folder whose imported global config (rules, mcp.json) Ingot reads. */
 export const IMPORT_HOME = path.join(FIXTURES_DIR, 'import-home');
 export const CALC_SERVER = path.join(FIXTURES_DIR, 'mcp', 'calc-server.mjs');
