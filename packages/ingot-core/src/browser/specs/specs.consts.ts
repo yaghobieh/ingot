@@ -27,6 +27,7 @@ export const SPECS_TEXT = {
     exists: 'A spec with that name already exists.',
     runNext: 'Run next task',
     runTask: 'Run this task with the agent',
+    requirements: 'Requirements',
     allDone: 'All tasks done',
     noTasks: 'No tasks yet: add a checklist to tasks.md',
     refresh: 'Refresh',

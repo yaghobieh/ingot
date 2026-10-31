@@ -83,7 +83,6 @@ export class IngotSpecsWidget extends ReactWidget {
         const hasProject = !!this.specs.root();
         return <div className='ingot-specs-root'>
             <div className='ingot-dot-toolbar'>
-                <span className='ingot-dot-title'>{SPECS_WIDGET_LABEL}</span>
                 <span className='ingot-beta-pill'>{SPECS_TEXT.beta}</span>
                 <span className='ingot-dot-spacer' />
                 <button type='button' id='ingot-specs-new' className='ingot-dot-button' disabled={!hasProject}
@@ -142,8 +141,10 @@ export class IngotSpecsWidget extends ReactWidget {
         return <li key={`${task.id}-${task.line}`} className={`ingot-spec-task ${task.done ? 'done' : ''}`} data-task={task.id} style={{ paddingLeft: `${task.depth * 14 + 4}px` }}>
             <input type='checkbox' checked={task.done} aria-label={`Task ${task.id}: ${task.title}`} onChange={() => this.toggle(spec, task)} />
             <span className='ingot-spec-task-id'>{task.id}</span>
-            <span className='ingot-spec-task-title'>{task.title}</span>
-            {task.requirements.length > 0 && <span className='ingot-spec-task-req' title='Requirements'>R{task.requirements.join(', ')}</span>}
+            <span className='ingot-spec-task-body'>
+                <span className='ingot-spec-task-title'>{task.title}</span>
+                {task.requirements.length > 0 && <span className='ingot-spec-task-req' title={SPECS_TEXT.requirements}>R{task.requirements.join(', ')}</span>}
+            </span>
             {leaf && !task.done && <button type='button' className='ingot-dot-iconbtn ingot-spec-task-run' title={SPECS_TEXT.runTask} aria-label={`${SPECS_TEXT.runTask}: ${task.id}`}
                 onClick={() => this.runner.runTask(spec, task)}>
                 <span className='codicon codicon-play' />
