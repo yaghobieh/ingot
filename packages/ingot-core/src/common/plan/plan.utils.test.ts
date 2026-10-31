@@ -11,6 +11,10 @@ describe('plan gate', () => {
         expect(planTierOf(signedIn('team'))).toBe('pro');
         expect(planTierOf(signedIn('Pro+'))).toBe('proplus');
         expect(planTierOf(signedIn('ultra'))).toBe('proplus');
+        expect(planTierOf({ signedIn: true, user: { name: 'Admin', email: 'admin@ingot.dev', plan: 'free', role: 'admin' } })).toBe('proplus');
+        expect(planTierOf({ signedIn: true, user: { name: 'Owner', email: 'Yaghobieh@gmail.com', plan: 'free' } })).toBe('proplus');
+        expect(planTierOf({ signedIn: true, user: { name: 'Owner', email: 'yaghobieh@gmail.com', plan: '' } })).toBe('proplus');
+        expect(planTierOf({ signedIn: true, blocked: true, user: { name: 'Owner', email: 'yaghobieh@gmail.com', plan: 'free' } })).toBe('free');
 
         expect(isEntitled('free', 'chat')).toBe(false);
         expect(isEntitled('free', 'agent')).toBe(false);
