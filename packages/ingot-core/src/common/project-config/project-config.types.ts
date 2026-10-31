@@ -28,6 +28,13 @@ export interface ProjectRule {
     readonly enforced?: boolean;
 }
 
+/** IDEA-287: one rule of a review (a team rule, a BUGBOT.md or a file it links to); required rules are kept first. */
+export interface ReviewRule {
+    readonly title: string;
+    readonly text: string;
+    readonly required?: boolean;
+}
+
 /** IDEA-287: a file a rule points at with `@path` (Cursor's rule references), attached with the rule. */
 export interface RuleReference {
     readonly path: string;

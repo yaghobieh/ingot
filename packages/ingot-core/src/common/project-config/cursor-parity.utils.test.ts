@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { referenceCandidates, ruleReferences, withReferences } from './rule-references.utils';
 import { activeTeamRules, parseTeamRules } from './team-rules.utils';
-import { bugbotCommand, bugbotGuidance, changedPathsFromDiff, relevantBugbotFiles, uniqueBugbotFiles } from './bugbot.utils';
+import { bugbotCommand, bugbotGuidance, bugbotLinks, capReviewRules, changedPathsFromDiff, relevantBugbotFiles, reviewTeamRules, uniqueBugbotFiles } from './bugbot.utils';
 import { formatEnvironment, parseEnvironmentJson } from './environment.utils';
+import type { ReviewRule } from './project-config.types';
 import { applicableRules, expandCommand, parseMcpJson, scopeLabel, toMcpJson } from './project-config.utils';
 import { interpolateMcp, parseDotenv, resolveMcpVariables } from '../mcp/mcp-vars.utils';
 
@@ -45,6 +46,47 @@ describe('IDEA-287 Cursor parity', () => {
         expect(expandCommand('/bugbot focus on auth', [command])?.text).toContain('focus on auth');
         expect(command.body).toContain('WEB RULES');
         expect(bugbotCommand([])).toBeUndefined();
+    });
+
+    it('puts team rules before BUGBOT.md in a review: no globs always, globs when a changed file matches', () => {
+        const team = parseTeamRules([
+            { name: 'No eval', body: 'NO-EVAL-RULE' },
+            { name: 'Python', body: 'PY-RULE', globs: '**/*.py' },
+            { name: 'API', body: 'API-TEAM-RULE', globs: ['packages/api/**'], description: 'API rules' }
+        ]);
+        const diff = 'diff --git a/packages/api/x.ts b/packages/api/x.ts\n+1\n';
+        expect(reviewTeamRules(team, ['packages/api/x.ts']).map(r => r.name)).toEqual(['No eval', 'API']);
+        const guidance = bugbotGuidance([{ path: '.cursor/BUGBOT.md', text: 'ROOT GUIDE' }], diff, team);
+        expect(guidance.indexOf('NO-EVAL-RULE')).toBeLessThan(guidance.indexOf('ROOT GUIDE'));
+        expect(guidance).toContain('API-TEAM-RULE');
+        expect(guidance).not.toContain('PY-RULE');
+        expect(bugbotGuidance([], diff, [])).toBe('');
+    });
+
+    it('reads .md / .mdc files linked from BUGBOT.md as rules of their own, once, with the BUGBOT.md they hang off', () => {
+        const root = { path: '.cursor/BUGBOT.md', text: 'See [api](rules/api.mdc), [again](./rules/api.mdc#top), [web](/docs/web.md "Web"), [site](https://x.dev/a.md), [up](../../etc/x.md).' };
+        expect(bugbotLinks(root)).toEqual(['.cursor/rules/api.mdc', 'docs/web.md']);
+        const nested = { path: 'packages/web/.cursor/BUGBOT.md', text: 'Also [shared](../../../.cursor/rules/api.mdc) and [ui](ui.md).' };
+        expect(bugbotLinks(nested)).toEqual(['.cursor/rules/api.mdc', 'packages/web/.cursor/ui.md']);
+        const files = [
+            root, nested,
+            { path: '.cursor/rules/api.mdc', text: '---\nalwaysApply: false\n---\nAPI-LINKED-RULE', linkedFrom: root.path },
+            { path: 'packages/web/.cursor/ui.md', text: 'UI-LINKED-RULE', linkedFrom: nested.path }
+        ];
+        expect(uniqueBugbotFiles(files).map(f => f.path)).toEqual([root.path, nested.path]);
+        expect(relevantBugbotFiles(files, ['src/a.ts']).map(f => f.path)).toEqual([root.path, '.cursor/rules/api.mdc']);
+        const guidance = bugbotGuidance(files, 'diff --git a/packages/web/a.ts b/packages/web/a.ts\n');
+        expect(guidance).toContain('### Whole project (.cursor/rules/api.mdc, linked from .cursor/BUGBOT.md)\nAPI-LINKED-RULE');
+        expect(guidance).toContain('UI-LINKED-RULE');
+        expect(guidance).not.toContain('alwaysApply');
+        expect(bugbotCommand(files)!.body).toContain('UI-LINKED-RULE');
+    });
+
+    it('cuts each review rule at 30,000 characters and keeps required rules first within 100,000', () => {
+        const big = 'x'.repeat(40_000);
+        expect(capReviewRules([{ title: 'a', text: big }])[0].text).toHaveLength(30_000 + '\n… (cut)'.length);
+        const rules: ReviewRule[] = [...[1, 2, 3, 4].map(n => ({ title: `optional ${n}`, text: big })), { title: 'required', text: big, required: true }];
+        expect(capReviewRules(rules).map(r => r.title)).toEqual(['optional 1', 'optional 2', 'required']);
     });
 
     it('parses environment.json (install, start, terminals) and describes it for the agent', () => {

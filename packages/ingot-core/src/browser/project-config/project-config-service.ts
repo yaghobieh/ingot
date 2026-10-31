@@ -22,7 +22,7 @@ import type { CursorMode } from '../../common/import/cursor-mode.types';
 import { ignoreRules } from '../../common/project-config/ignore-files.utils';
 import { referenceCandidates, ruleReferences, withReferences } from '../../common/project-config/rule-references.utils';
 import { activeTeamRules, parseTeamRules } from '../../common/project-config/team-rules.utils';
-import { bugbotCommand, type BugbotFile } from '../../common/project-config/bugbot.utils';
+import { bugbotCommand, bugbotLinks, type BugbotFile } from '../../common/project-config/bugbot.utils';
 import { parseEnvironmentJson } from '../../common/project-config/environment.utils';
 import { parseRgFiles, SKIPPED_DIRS } from '../../common/agents/workspace-tools';
 import { ProcessService } from '../../common/processes/processes.types';
@@ -72,6 +72,12 @@ export class ProjectConfigService {
             rules: this.teamRulesFromAccount(),
             disabled: this.preferences.get<string[]>(TEAM_RULES_DISABLED_PREF, []) ?? []
         };
+    }
+
+    /** IDEA-287: the team rules in force: enforced ones and the others the user did not turn off. */
+    appliedTeamRules(): ProjectRule[] {
+        const team = this.teamRules();
+        return activeTeamRules(team.rules, team.disabled);
     }
 
     /** The account's team rules; while the server has no team rules API, the admin's local ones (IDEA-287). */
@@ -183,8 +189,15 @@ export class ProjectConfigService {
         const nested = found?.engine === 'ripgrep' ? parseRgFiles(found.text, NESTED_RULES_MAX_FILES).map(p => p.replace(/\\/g, '/')) : [];
         const paths = [...new Set([`${CONFIG_DIRS.ingot}/${BUGBOT_FILE}`, `${CONFIG_DIRS.external}/${BUGBOT_FILE}`, ...nested])]
             .filter(path => readCursor || !path.split('/').includes(CONFIG_DIRS.external));
-        const files = await Promise.all(paths.map(async path => ({ path, text: await this.read(root.resolve(path)) })));
-        return files.filter((f): f is BugbotFile => f.text !== undefined);
+        const files = (await Promise.all(paths.map(async path => ({ path, text: await this.read(root.resolve(path)) }))))
+            .filter((f): f is BugbotFile => f.text !== undefined);
+        // IDEA-287: as Bugbot, every `.md` / `.mdc` file a BUGBOT.md links to is a rule of its own, read once.
+        const links = new Map<string, string>();
+        for (const file of files) {
+            bugbotLinks(file).filter(path => !links.has(path) && !paths.includes(path)).forEach(path => links.set(path, file.path));
+        }
+        const linked = await Promise.all([...links].map(async ([path, linkedFrom]) => ({ path, linkedFrom, text: await this.read(root.resolve(path)) })));
+        return [...files, ...linked.filter((f): f is BugbotFile & { linkedFrom: string } => f.text !== undefined)];
     }
 
     /**

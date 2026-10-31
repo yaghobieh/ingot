@@ -96,7 +96,13 @@ export const TEAM_RULE_PATH_PREFIX = 'team:';
 export const BUGBOT_FILE = 'BUGBOT.md';
 export const BUGBOT_COMMAND = 'bugbot';
 export const BUGBOT_GLOBS = ['**/.ingot/BUGBOT.md', '**/.cursor/BUGBOT.md'] as const;
-export const MAX_BUGBOT_CHARS = 12_000;
+/** As Bugbot: each rule (a BUGBOT.md, a file it links to, a team rule) is cut at this size; one review's rules add up to at most the total. */
+export const MAX_BUGBOT_RULE_CHARS = 30_000;
+export const MAX_BUGBOT_TOTAL_CHARS = 100_000;
+/** A markdown link to a `.md` / `.mdc` file in a BUGBOT.md (`[api](rules/api.mdc)`, an optional `#anchor` is dropped). */
+export const BUGBOT_LINK_PATTERN = /\]\(<?([^)\s>#]+\.mdc?)(?:#[^)\s>]*)?>?(?:\s+"[^"]*")?\)/gi;
+/** `https:`, `mailto:`… : a link that is not a project file. */
+export const URL_SCHEME_PATTERN = /^[a-z][\w+.-]*:/i;
 
 /** IDEA-287: project environment (install, start, terminals), as Cursor's `.cursor/environment.json`. */
 export const ENVIRONMENT_FILE = 'environment.json';

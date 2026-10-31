@@ -121,8 +121,8 @@ export class CodeReviewStore {
             }
             const modelId = this.reviewModels.modelFor(this.agents.resolveModel(this.agents.model));
             this.set({ ...empty, label: diff.label, status: 'running', root: rootPath, model: this.models.label(modelId) });
-            // IDEA-287: BUGBOT.md guidelines (root, and the folders of changed files) shape every review.
-            const guidance = bugbotGuidance(await this.projectConfig.loadBugbot(root).catch(() => []), diff.diff);
+            // IDEA-287: team rules and BUGBOT.md guidelines (root, and the folders of changed files) shape every review.
+            const guidance = bugbotGuidance(await this.projectConfig.loadBugbot(root).catch(() => []), diff.diff, this.projectConfig.appliedTeamRules());
             const outcome = await reviewDiff(diff.diff, diff.label, this.reviewModels.model(modelId), REVIEW_BUDGET, guidance);
             const failed = outcome.errors.length > 0 && outcome.errors.length === outcome.calls;
             this.set({

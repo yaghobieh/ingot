@@ -127,8 +127,8 @@ export class AgentHooksService {
         }
         try {
             const text = await (diff ? diff() : this.aiCommit.collectDiff());
-            // IDEA-287: BUGBOT.md review guidelines (root and the folders of changed files) apply to agent checks.
-            const guidance = bugbotGuidance(await this.projectConfig.loadBugbot(this.rootUri(root)).catch(() => []), text);
+            // IDEA-287: team rules and BUGBOT.md review guidelines (root and the folders of changed files) apply to agent checks.
+            const guidance = bugbotGuidance(await this.projectConfig.loadBugbot(this.rootUri(root)).catch(() => []), text, this.projectConfig.appliedTeamRules());
             const content = [agentHookPrompt(step, stage, text), guidance].filter(Boolean).join('\n\n');
             const answer = await this.models.stream(model, [{ role: 'user', content }], () => undefined,
                 { feature: 'agent_hook', maxTokens: 300, temperature: 0 }).done;

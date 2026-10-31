@@ -11,8 +11,9 @@ import { createTempRepo } from '../src/git-repo';
 import { connectOllama } from '../src/models.e2e-utils';
 
 /**
- * IDEA-287: `/bugbot #12` runs the AI review on a GitHub pull request (fake gh) with the BUGBOT.md guidelines, shows the
- * findings in the Review panel and posts them to the PR on request (or automatically with the preference on).
+ * IDEA-287: `/bugbot #12` runs the AI review on a GitHub pull request (fake gh) with the team rules, the BUGBOT.md guidelines
+ * and the rule files BUGBOT.md links to, shows the findings in the Review panel and posts them to the PR on request (or
+ * automatically with the preference on).
  */
 const SETTINGS_FILE = path.join(E2E_CONFIG_DIR, 'settings.json');
 const REMOTE_CONFIG_CACHE = path.join(E2E_CONFIG_DIR, 'remote-config.json');
@@ -88,7 +89,15 @@ test.describe('IDEA-287 /bugbot reviews GitHub pull requests with the AI review'
 
     test('"/bugbot #12" reviews the PR with BUGBOT.md and "Post to GitHub PR" comments on it', async ({ page }) => {
         fs.mkdirSync(path.join(dir, '.ingot'), { recursive: true });
-        fs.writeFileSync(path.join(dir, '.ingot', 'BUGBOT.md'), 'BUGBOT-MARKER: check every reducer operator.\n');
+        fs.writeFileSync(path.join(dir, '.ingot', 'BUGBOT.md'), 'BUGBOT-MARKER: check every reducer operator. Payments: [rules](review/payments.mdc).\n');
+        fs.mkdirSync(path.join(dir, '.ingot', 'review'), { recursive: true });
+        fs.writeFileSync(path.join(dir, '.ingot', 'review', 'payments.mdc'), '---\ndescription: payments\n---\nLINKED-RULE-MARKER: money is never subtracted.\n');
+        account.config = {
+            teamRules: [
+                { name: 'No eval', body: 'TEAM-RULE-MARKER: never call eval.', enforced: true },
+                { name: 'Python', body: 'PY-TEAM-MARKER', globs: ['**/*.py'] }
+            ]
+        };
         await start(page);
 
         await send(page, '/bugbot #12');
@@ -96,6 +105,10 @@ test.describe('IDEA-287 /bugbot reviews GitHub pull requests with the AI review'
         await expect(agentReplies(page).last()).toContainText('Post to GitHub PR');
         const review = server.requests.find(r => r.system.includes(CODE_REVIEWER));
         expect(review?.system).toContain('BUGBOT-MARKER');
+        expect(review!.system.indexOf('TEAM-RULE-MARKER')).toBeGreaterThan(-1);
+        expect(review!.system.indexOf('TEAM-RULE-MARKER')).toBeLessThan(review!.system.indexOf('BUGBOT-MARKER'));
+        expect(review?.system).not.toContain('PY-TEAM-MARKER');
+        expect(review?.system).toContain('(.ingot/review/payments.mdc, linked from .ingot/BUGBOT.md)\nLINKED-RULE-MARKER');
         expect(review?.user).toContain('+    items.reduce((a, b) => a - b, 0);');
         await expect(panel(page).locator('#ingot-code-review-label')).toContainText('PR #12');
         await expect(panel(page).locator('.ingot-cr-finding[data-severity="high"]')).toContainText(PAY_FINDING.title);
