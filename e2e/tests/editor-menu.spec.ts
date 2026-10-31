@@ -9,6 +9,7 @@ import { dismissNotifications, openIngot } from '../src/app.utils';
 const REFERENCE_ORDER = [
     'Go to Definition', 'Go to Type Definition', 'Go to Source Definition', 'Go to Implementations', 'Go to References',
     'Add Symbol to Current Chat', 'Add Symbol to New Chat', 'Create Rule', 'Peek',
+    'Show Effective Rules',
     'Find All References', 'Find All Implementations', 'Show Call Hierarchy',
     'Rename Symbol', 'Change All Occurrences', 'Format Document', 'Refactor...', 'Source Action...',
     'Open Changes', 'Open on Remote (Web)', 'File Annotations', 'File History', 'Git',

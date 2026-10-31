@@ -1,4 +1,5 @@
 import { inject, injectable, optional } from '@theia/core/shared/inversify';
+import { RuleHitsStore } from '../rules-insight/rule-hits-store';
 import { RulesToolsService } from '../../common/rules-tools/rules-tools.types';
 import type { ProjectRule } from '../../common/project-config/project-config.types';
 import { IngotModelClient } from '../models/model-client';
@@ -106,6 +107,7 @@ export class AgentStore {
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(FileService) protected readonly files: FileService;
     @inject(EditorManager) protected readonly editors: EditorManager;
+    @inject(RuleHitsStore) @optional() protected readonly ruleHits?: RuleHitsStore;
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
     @inject(AgentActionsService) protected readonly actions: AgentActionsService;
@@ -889,6 +891,7 @@ export class AgentStore {
         const active = this.editors.currentEditor?.editor.uri;
         const activePath = active && root?.isEqualOrParent(active) ? root.relative(active)?.toString() : undefined;
         const rules = applicableRules(config.rules, activePath ? [...context.paths, activePath] : context.paths);
+        this.ruleHits?.record({ sessionId: session.id, prompt, files: activePath ? [...context.paths, activePath] : context.paths, rules, root: root?.path.fsPath() });
         this.recordRuleHits(root, rules);
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
