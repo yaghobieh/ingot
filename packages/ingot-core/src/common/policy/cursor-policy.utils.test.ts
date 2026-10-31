@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_POLICY } from './agent-policy.consts';
-import { checkCommand, checkHost, checkWrite } from './agent-policy.utils';
-import { applyOverlay, cursorPermissionsOverlay, cursorSandboxOverlay, cursorShellPattern, isEmptyOverlay, mergeOverlays, parseCursorPermission } from './cursor-policy.utils';
-import { EMPTY_OVERLAY } from './cursor-policy.consts';
+import { DEFAULT_POLICY, POLICY_FILE } from './agent-policy.consts';
+import { checkCommand, checkHost, checkWrite, policyBlockedText, policySourceOf } from './agent-policy.utils';
+import {
+    applyOverlay, cursorOrigins, cursorPermissionsOverlay, cursorSandboxOverlay, cursorShellPattern, isEmptyOverlay, mergeOverlays, parseCursorPermission
+} from './cursor-policy.utils';
+import { CURSOR_CLI_FILE, CURSOR_SANDBOX_FILE, EMPTY_OVERLAY } from './cursor-policy.consts';
 
 const CLI = JSON.stringify({
     version: 1,
@@ -62,5 +64,22 @@ describe('IDEA-287 .cursor/cli.json and sandbox.json in the Ingot policy', () =>
         expect(kept.sandbox.mode).toBe('restricted');
         expect(kept.commands.allow).toEqual(['npm run lint', 'npm test']);
         expect(applyOverlay(own, { ...EMPTY_OVERLAY, networkDefault: 'deny' }, true).network.default).toBe('deny');
+    });
+
+    it('names the Cursor file behind a refusal when only it added the rule', () => {
+        const [cli, sandbox] = [cursorPermissionsOverlay(CLI), cursorSandboxOverlay(SANDBOX)];
+        const own = { ...DEFAULT_POLICY, commands: { allow: [], deny: ['sudo'] } };
+        const policy = applyOverlay(own, mergeOverlays(cli, sandbox), true);
+        const origins = cursorOrigins(own, policy, cli, sandbox);
+        const source = (reason: string | undefined) => policySourceOf(reason, origins);
+
+        expect(source(checkCommand(policy, 'rm -rf build', CONTEXT).reason)).toBe(CURSOR_CLI_FILE);
+        expect(source(checkWrite(policy, 'certs/server.key').reason)).toBe(CURSOR_CLI_FILE);
+        expect(source(checkHost(policy, 'pastebin.com').reason)).toBe(CURSOR_CLI_FILE);
+        expect(source(checkHost(policy, 'x.ngrok.io').reason)).toBe(CURSOR_SANDBOX_FILE);
+        expect(source(checkHost(policy, 'example.com').reason)).toBe(CURSOR_SANDBOX_FILE);
+        expect(source(checkCommand(policy, 'sudo ls', CONTEXT).reason)).toBe(POLICY_FILE);
+        expect(policyBlockedText('denies the command', CURSOR_CLI_FILE)).toMatch(/^Blocked by \.cursor\/cli\.json: it denies the command/);
+        expect(policySourceOf(undefined, origins)).toBe(POLICY_FILE);
     });
 });

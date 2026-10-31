@@ -132,9 +132,11 @@ import { CODEBASE_SEARCH_TOOL, INDEX_DIR } from '../../common/codebase-index/cod
 import { formatSearchResult } from '../../common/codebase-index/codebase-index.utils';
 import { AgentPolicyService } from '../policy/agent-policy-service';
 import { AgentAuditLog } from '../policy/agent-audit-log';
-import { POLICY_FILE, SANDBOX_TEXT } from '../../common/policy/agent-policy.consts';
+import { SANDBOX_TEXT } from '../../common/policy/agent-policy.consts';
 import type { PolicyDecision, SandboxSpec } from '../../common/policy/agent-policy.types';
-import { checkEdit, checkToolCall, outsideApproval, policyBlockedText, sandboxRetryApproval, sandboxSpec } from '../../common/policy/agent-policy.utils';
+import {
+    checkEdit, checkToolCall, outsideApproval, policyBlockedText, policySourceOf, sandboxRetryApproval, sandboxSpec
+} from '../../common/policy/agent-policy.utils';
 import type { AuditDecision, AuditEntryInput } from '../../common/audit/agent-audit.types';
 import { toolSummary } from '../../common/audit/agent-audit.utils';
 import { GOAL_BUDGET_TEXT, GOAL_DONE_TEXT, GOAL_PREFS, GOAL_STOPPED_TEXT, GOAL_USAGE } from '../../common/agents/goal.consts';
@@ -2502,12 +2504,13 @@ export class AgentStore {
             const context = rootPath ? await this.policy.context(rootPath, runCwd) : undefined;
             const verdict: PolicyDecision = context ? checkToolCall(policy, call, context) : { verdict: 'default' };
             if (verdict.verdict === 'deny') {
-                const text = policyBlockedText(verdict.reason);
+                const source = policySourceOf(verdict.reason, policy.origins);
+                const text = policyBlockedText(verdict.reason, source);
                 session.messages.push({
                     role: 'tool', from: target, text: `Error: ${text}`,
                     tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt, endedAt: Date.now() }
                 });
-                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: `${POLICY_FILE} ${verdict.reason ?? ''}`.trim(), startedAt });
+                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: `${source} ${verdict.reason ?? ''}`.trim(), startedAt });
                 this.changed();
                 continue;
             }
@@ -3790,8 +3793,9 @@ export class AgentStore {
                 // IDEA-263: `paths.writable` / `paths.readOnly` in `.ingot/policy.json`.
                 const write = checkEdit(policy, edit.path);
                 if (write.verdict === 'deny') {
-                    session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": ${POLICY_FILE} ${write.reason}.` });
-                    this.recordTool(session, editCall(edit.path), rootPath, { decision: 'denied', outcome: 'blocked', summary: `Edit ${edit.path}`, reason: `${POLICY_FILE} ${write.reason}` });
+                    const source = policySourceOf(write.reason, policy.origins);
+                    session.messages.push({ role: 'system', text: `Skipped an edit to "${edit.path}": ${source} ${write.reason}.` });
+                    this.recordTool(session, editCall(edit.path), rootPath, { decision: 'denied', outcome: 'blocked', summary: `Edit ${edit.path}`, reason: `${source} ${write.reason}` });
                     await this.tracker.cancelStream(session.id, edit.path);
                     continue;
                 }

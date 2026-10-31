@@ -1,8 +1,10 @@
 import { parse } from 'jsonc-parser';
 import {
-    CURSOR_PERMISSION_PATTERN, CURSOR_SANDBOX_TYPES, CURSOR_SHELL_ANY_ARGS, CURSOR_SHELL_ARGS_SEPARATOR, EMPTY_OVERLAY, READONLY_WORKSPACE_GLOB
+    CURSOR_CLI_FILE, CURSOR_PERMISSION_PATTERN, CURSOR_SANDBOX_FILE, CURSOR_SANDBOX_TYPES, CURSOR_SHELL_ANY_ARGS, CURSOR_SHELL_ARGS_SEPARATOR, EMPTY_OVERLAY,
+    READONLY_WORKSPACE_GLOB
 } from './cursor-policy.consts';
-import type { AgentPolicy, NetworkDefault } from './agent-policy.types';
+import { policyRuleRef } from './agent-policy.utils';
+import type { AgentPolicy, NetworkDefault, PolicyOrigin } from './agent-policy.types';
 import type { CursorPermissionKind, PolicyOverlay } from './cursor-policy.types';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -103,4 +105,17 @@ export const applyOverlay = (policy: AgentPolicy, overlay: PolicyOverlay, ingotF
         network: { default: networkDefault ?? policy.network.default, allow: unique(policy.network.allow, overlay.networkAllow), deny: unique(policy.network.deny, overlay.networkDeny) },
         sandbox: { mode: !ingotFileExists && overlay.sandboxMode ? overlay.sandboxMode : policy.sandbox.mode, allowWrite: unique(policy.sandbox.allowWrite, overlay.allowWrite) }
     };
+};
+
+/** Deny rules that `.cursor/cli.json` or `.cursor/sandbox.json` added and `own` (the `.ingot/policy.json` policy) lacks. */
+export const cursorOrigins = (own: AgentPolicy, merged: AgentPolicy, cli: PolicyOverlay, sandbox: PolicyOverlay): PolicyOrigin[] => {
+    const added = (list: readonly string[], ownList: readonly string[]): string[] => list.filter(p => !ownList.includes(p));
+    const from = (file: string, overlay: PolicyOverlay): PolicyOrigin[] => [
+        ...added(overlay.commandsDeny, own.commands.deny).map(p => ({ rule: policyRuleRef.commandDeny(p), file })),
+        ...added(overlay.networkDeny, own.network.deny).map(p => ({ rule: policyRuleRef.networkDeny(p), file })),
+        ...added(overlay.readOnly, own.paths.readOnly).map(p => ({ rule: policyRuleRef.readOnly(p), file })),
+        ...(overlay.networkDefault === 'deny' && own.network.default !== 'deny' && merged.network.default === 'deny'
+            ? [{ rule: policyRuleRef.networkDefaultDeny(), file }] : [])
+    ];
+    return [...from(CURSOR_CLI_FILE, cli), ...from(CURSOR_SANDBOX_FILE, sandbox)];
 };

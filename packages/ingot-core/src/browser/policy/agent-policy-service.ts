@@ -7,7 +7,9 @@ import { DEFAULT_POLICY, POLICY_FILE, POLICY_TEMPLATE } from '../../common/polic
 import type { PolicyContext, PolicyLoad } from '../../common/policy/agent-policy.types';
 import { parsePolicy } from '../../common/policy/agent-policy.utils';
 import { CURSOR_CLI_FILE, CURSOR_SANDBOX_FILE } from '../../common/policy/cursor-policy.consts';
-import { applyOverlay, cursorPermissionsOverlay, cursorSandboxOverlay, isEmptyOverlay, mergeOverlays } from '../../common/policy/cursor-policy.utils';
+import {
+    applyOverlay, cursorOrigins, cursorPermissionsOverlay, cursorSandboxOverlay, isEmptyOverlay, mergeOverlays
+} from '../../common/policy/cursor-policy.utils';
 import { CursorModeService } from '../import/cursor-mode-service';
 import { POLICY_JSON_INDENT } from './policy.consts';
 
@@ -41,10 +43,16 @@ export class AgentPolicyService {
             return own;
         }
         const [cli, sandbox] = await Promise.all([this.read(base.resolve(CURSOR_CLI_FILE)), this.read(base.resolve(CURSOR_SANDBOX_FILE))]);
-        const overlay = mergeOverlays(cursorPermissionsOverlay(cli), cursorSandboxOverlay(sandbox));
+        const [cliOverlay, sandboxOverlay] = [cursorPermissionsOverlay(cli), cursorSandboxOverlay(sandbox)];
+        const overlay = mergeOverlays(cliOverlay, sandboxOverlay);
         const sources = [...(cli !== undefined ? [CURSOR_CLI_FILE] : []), ...(sandbox !== undefined ? [CURSOR_SANDBOX_FILE] : [])];
-        return isEmptyOverlay(overlay) && !overlay.ignored.length ? own : {
-            ...own, policy: own.errors.length ? own.policy : applyOverlay(own.policy, overlay, exists), sources, ...(overlay.ignored.length ? { ignored: overlay.ignored } : {})
+        if (isEmptyOverlay(overlay) && !overlay.ignored.length) {
+            return own;
+        }
+        const policy = own.errors.length ? own.policy : applyOverlay(own.policy, overlay, exists);
+        const origins = own.errors.length ? [] : cursorOrigins(own.policy, policy, cliOverlay, sandboxOverlay);
+        return {
+            ...own, policy, sources, ...(overlay.ignored.length ? { ignored: overlay.ignored } : {}), ...(origins.length ? { origins } : {})
         };
     }
 

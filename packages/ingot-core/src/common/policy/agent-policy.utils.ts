@@ -7,7 +7,7 @@ import {
     SANDBOX_HOME_CACHES, SANDBOX_TEMP_DIRS, WEB_SEARCH_HOST
 } from './agent-policy.consts';
 import type {
-    AgentPolicy, NetworkDefault, PolicyContext, PolicyDecision, PolicyLoad, SandboxMode, SandboxSpec
+    AgentPolicy, NetworkDefault, PolicyContext, PolicyDecision, PolicyLoad, PolicyOrigin, SandboxMode, SandboxSpec
 } from './agent-policy.types';
 
 const DEFAULT: PolicyDecision = { verdict: 'default' };
@@ -290,16 +290,24 @@ export const matchesHost = (pattern: string, host: string): boolean => {
     return h === p || h.endsWith(`.${p}`);
 };
 
+/** How a refusal names the rule that denied it, inside its closing `(…)`. */
+export const policyRuleRef = {
+    commandDeny: (pattern: string): string => `commands.deny "${pattern}"`,
+    networkDeny: (pattern: string): string => `network.deny "${pattern}"`,
+    networkDefaultDeny: (): string => 'network.default is "deny"',
+    readOnly: (pattern: string): string => `matches "${pattern}"`
+};
+
 export const checkHost = (policy: AgentPolicy, host: string): PolicyDecision => {
     const local = LOCAL_HOSTS.includes(host);
     const denied = policy.network.deny.find(pattern => (pattern.trim() !== '*' || !local) && matchesHost(pattern, host));
     if (denied) {
-        return { verdict: 'deny', reason: `${POLICY_REASON.deniedHost} "${host}" (network.deny "${denied}")` };
+        return { verdict: 'deny', reason: `${POLICY_REASON.deniedHost} "${host}" (${policyRuleRef.networkDeny(denied)})` };
     }
     if (local || policy.network.allow.some(pattern => matchesHost(pattern, host))) {
         return DEFAULT;
     }
-    return policy.network.default === 'deny' ? { verdict: 'deny', reason: `${POLICY_REASON.deniedHost} "${host}" (network.default is "deny")` } : DEFAULT;
+    return policy.network.default === 'deny' ? { verdict: 'deny', reason: `${POLICY_REASON.deniedHost} "${host}" (${policyRuleRef.networkDefaultDeny()})` } : DEFAULT;
 };
 
 export const checkUrl = (policy: AgentPolicy, url: string): PolicyDecision => {
@@ -315,7 +323,7 @@ export const checkCommand = (policy: AgentPolicy, command: string, context: Poli
     const parts = splitCommand(command);
     const denied = deniedBy(policy, command, parts);
     if (denied) {
-        return { verdict: 'deny', reason: `${POLICY_REASON.deniedCommand} (commands.deny "${denied}")` };
+        return { verdict: 'deny', reason: `${POLICY_REASON.deniedCommand} (${policyRuleRef.commandDeny(denied)})` };
     }
     for (const url of urlsIn(command)) {
         const host = checkUrl(policy, url);
@@ -344,7 +352,7 @@ export const checkWrite = (policy: AgentPolicy, path: string): PolicyDecision =>
     const clean = path.trim().replace(/^\.\/+/, '');
     const readOnly = [...BUILTIN_READ_ONLY, ...policy.paths.readOnly].find(pattern => pathMatches(pattern, clean));
     if (readOnly) {
-        return { verdict: 'deny', reason: `${POLICY_REASON.readOnly} ("${clean}" matches "${readOnly}")` };
+        return { verdict: 'deny', reason: `${POLICY_REASON.readOnly} ("${clean}" ${policyRuleRef.readOnly(readOnly)})` };
     }
     if (policy.paths.writable.length && !policy.paths.writable.some(pattern => pathMatches(pattern, clean))) {
         return { verdict: 'deny', reason: `${POLICY_REASON.notWritable} "${clean}" (paths.writable: ${policy.paths.writable.join(', ')})` };
@@ -417,9 +425,13 @@ export const sandboxCommand = (shell: ShellCommand, spec: SandboxSpec, platform:
         ? { cmd: SANDBOX_EXEC, args: ['-p', sandboxProfile(spec), shell.cmd, ...shell.args], applied: true }
         : { ...shell, applied: false };
 
+/** IDEA-287: the file behind a refusal: a Cursor file when only it added the rule, else `.ingot/policy.json`. */
+export const policySourceOf = (reason: string | undefined, origins: readonly PolicyOrigin[] | undefined): string =>
+    (reason && origins?.find(origin => reason.includes(`${origin.rule})`))?.file) || POLICY_FILE;
+
 /** The tool result the agent gets for a call the policy refused. */
-export const policyBlockedText = (reason: string | undefined): string =>
-    `Blocked by ${POLICY_FILE}: it ${reason ?? POLICY_REASON.deniedCommand}. Do not retry this; ask the user to change the policy if it is really needed.`;
+export const policyBlockedText = (reason: string | undefined, source: string = POLICY_FILE): string =>
+    `Blocked by ${source}: it ${reason ?? POLICY_REASON.deniedCommand}. Do not retry this; ask the user to change the policy if it is really needed.`;
 
 /** The card for a command that reaches outside the project: it runs once, without the sandbox, if the user agrees. */
 export const outsideApproval = (action: AgentAction): AgentAction => ({ ...action, label: SANDBOX_CARD.outside, once: true });

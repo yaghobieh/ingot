@@ -44,6 +44,14 @@ export interface PolicyLoad {
     readonly sources?: readonly string[];
     /** IDEA-287: Cursor permission entries Ingot has no rule for. */
     readonly ignored?: readonly string[];
+    /** IDEA-287: deny rules that only a Cursor file added, so a refusal names that file. */
+    readonly origins?: readonly PolicyOrigin[];
+}
+
+/** A rule as a refusal names it (`commands.deny "sudo"`) and the file it came from. */
+export interface PolicyOrigin {
+    readonly rule: string;
+    readonly file: string;
 }
 
 /**
