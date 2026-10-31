@@ -5,7 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { actUntilVisible, dismissNotifications, openIngot } from '../src/app.utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
-import { pickModel } from '../src/chat.e2e-utils';
+import { pickMode, pickModel } from '../src/chat.e2e-utils';
 import { setAppearance, SHOTS_DIR, toolBlock } from '../src/agent-tools.e2e-utils';
 
 /**
@@ -25,6 +25,7 @@ const LABEL = '#ingot-chat-working .ingot-shimmer';
 const SEEN_GLOBAL = '__ingotLiveSeen';
 const STEP_TIMEOUT = 45_000;
 const SHOT_NOTES = 'status-shots.log';
+const TIMER_GATE = '__ingotTimerGate';
 
 /** One round per step of a real fix: search, read three files, run the tests, stream the edit, then sum up. */
 const replyFor = (user: string): string => {
@@ -60,7 +61,57 @@ const recordLabels = (page: Page): Promise<void> => page.evaluate(([selector, ke
         }
     };
     new MutationObserver(record).observe(document.body, { subtree: true, childList: true, characterData: true });
-}, [LABEL, SEEN_GLOBAL] as const);
+}, [LABEL, SEEN_GLOBAL] as const).then(() => installTimerGate(page));
+
+/**
+ * Lets a shot pause the page's timers (like a debugger pause): the status line's hold is a timer, so the last step
+ * ("Almost there…", up for its 450 ms hold only) stays on screen until a full-window shot is taken.
+ */
+const installTimerGate = (page: Page): Promise<void> => page.evaluate(key => {
+    const w = window as unknown as Record<string, unknown>;
+    if (w[key]) {
+        return;
+    }
+    const gate = { closed: false, queued: [] as Array<() => void>, cancelled: new Set<unknown>() };
+    w[key] = gate;
+    const realSet = window.setTimeout.bind(window);
+    const realClear = window.clearTimeout.bind(window);
+    window.setTimeout = ((fn: TimerHandler, ms?: number, ...args: unknown[]) => {
+        if (typeof fn !== 'function') {
+            return realSet(fn, ms, ...args);
+        }
+        const id: number = realSet(() => {
+            const run = (): void => {
+                if (!gate.cancelled.delete(id)) {
+                    fn(...args);
+                }
+            };
+            if (gate.closed) {
+                gate.queued.push(run);
+            } else {
+                run();
+            }
+        }, ms);
+        return id;
+    }) as typeof window.setTimeout;
+    window.clearTimeout = ((id?: number) => {
+        if (gate.queued.length) {
+            gate.cancelled.add(id);
+        }
+        realClear(id);
+    }) as typeof window.clearTimeout;
+}, TIMER_GATE);
+
+/** Opens (`closed = false`) or closes the timer gate; opening runs the timers that came due meanwhile. */
+const setTimerGate = (page: Page, closed: boolean): Promise<void> => page.evaluate(([key, close]) => {
+    const gate = (window as unknown as Record<string, { closed: boolean; queued: Array<() => void> } | undefined>)[key];
+    if (gate) {
+        gate.closed = close;
+        if (!close) {
+            gate.queued.splice(0).forEach(run => run());
+        }
+    }
+}, [TIMER_GATE, closed] as const);
 
 const seenLabels = (page: Page): Promise<string[]> => page.evaluate(key => [...(window as unknown as Record<string, string[]>)[key] ?? []], SEEN_GLOBAL);
 
@@ -69,14 +120,27 @@ const seenLabels = (page: Page): Promise<string[]> => page.evaluate(key => [...(
  * (450 ms). Animations are stopped for the shot, so the fade-in is complete and the text rests on its base color.
  */
 const captureLabel = async (page: Page, label: string, name: string): Promise<void> => {
-    await page.waitForFunction(([selector, text]) => document.querySelector(selector)?.textContent === text, [LABEL, label] as const, { polling: 'raf', timeout: STEP_TIMEOUT });
-    if (SHOTS_DIR) {
-        fs.mkdirSync(SHOTS_DIR, { recursive: true });
-        await page.screenshot({ path: path.join(SHOTS_DIR, name), animations: 'disabled' });
-        const after = await page.locator(LABEL).textContent().catch(() => null);
-        if (after !== label) {
-            fs.appendFileSync(path.join(SHOTS_DIR, SHOT_NOTES), `${name}: the line moved on to "${after ?? ''}" during the shot\n`);
+    // The gate closes in the same frame the label is seen, before the line's hold can run out.
+    await page.waitForFunction(([selector, text, key]) => {
+        const shown = document.querySelector(selector)?.textContent === text;
+        const gate = (window as unknown as Record<string, { closed: boolean } | undefined>)[key];
+        if (shown && gate) {
+            gate.closed = true;
         }
+        return shown;
+    }, [LABEL, label, TIMER_GATE] as const, { polling: 'raf', timeout: STEP_TIMEOUT });
+    try {
+        if (SHOTS_DIR) {
+            fs.mkdirSync(SHOTS_DIR, { recursive: true });
+            await page.screenshot({ path: path.join(SHOTS_DIR, name), animations: 'disabled' });
+            // Read the DOM directly: a locator would wait for a line that already went away.
+            const after = await page.evaluate(selector => document.querySelector(selector)?.textContent ?? '', LABEL);
+            if (after !== label) {
+                fs.appendFileSync(path.join(SHOTS_DIR, SHOT_NOTES), `${name}: the line moved on to "${after}" during the shot\n`);
+            }
+        }
+    } finally {
+        await setTimerGate(page, false);
     }
 };
 
@@ -90,6 +154,10 @@ const inOrder = (seen: readonly string[], expected: readonly string[]): boolean 
     }
     return at === expected.length;
 };
+
+const PLAN_PROMPT = 'plan a discount for the cart';
+const PLAN = ['PLAN:', '- Add the discount helper in `src/discount.ts`', '- Use it for the cart total', '', 'Low risk.'].join('\n');
+const BUILD = `Building it.\n\n<<<EDIT src/discount.ts\nexport const discount = (cents: number): number => Math.round(cents * 0.9);\n>>>END\n`;
 
 /** A small cart project whose `npm test` takes a few seconds, like a real test run. */
 const makeProject = (): string => {
@@ -185,6 +253,65 @@ test.describe('Agent live status line', () => {
             await expect(working).toHaveCount(0, { timeout: STEP_TIMEOUT });
         } finally {
             await page.emulateMedia({ reducedMotion: 'no-preference' });
+            if (await page.locator('#ingot-settings').isVisible()) {
+                await page.locator('#ingot-settings-cancel').click();
+            }
+            await openSettingsPage(page, 'appearance');
+            await page.locator('#ingot-setting-ingot-appearance').selectOption(appearance);
+            await page.locator('#ingot-settings-ok').click();
+        }
+    });
+});
+
+test.describe('Agent live status line: plan checks', () => {
+    test.setTimeout(240_000);
+    const dirs: string[] = [];
+    let server: FakeOllama;
+
+    test.beforeEach(async () => {
+        server = await startFakeOllama((_system, user) => user.startsWith(PLAN_PROMPT) ? PLAN : BUILD, STREAM);
+    });
+
+    test.afterEach(async () => {
+        await server.close();
+        dirs.splice(0).forEach(dir => fs.rmSync(dir, { recursive: true, force: true }));
+    });
+
+    test('says "Checking the plan…" while a plan is checked, and again when Build\'s diff is checked against it', async ({ page }) => {
+        dirs.push(makeProject());
+        await openIngot(page, dirs[0]);
+        await openSettingsPage(page, 'appearance');
+        const appearance = await page.locator('#ingot-setting-ingot-appearance').inputValue();
+        await page.locator('#ingot-settings-cancel').click();
+        const composer = page.locator('#ingot-composer-input');
+        try {
+            await connectOllama(page, server);
+            for (const theme of ['light', 'dark'] as const) {
+                await setAppearance(page, theme);
+                await page.locator('#ingot-agents-new').click();
+                await pickModel(page, 'ollama-local');
+                await dismissNotifications(page);
+                await pickMode(page, 'plan');
+                await recordLabels(page);
+                await composer.fill(PLAN_PROMPT);
+                await composer.press('Enter');
+                // The plan is checked against the project's locked decisions before it is offered.
+                await captureLabel(page, 'Checking the plan…', `status-checking-plan-${theme}.png`);
+                await expect(page.locator('#ingot-plan-build')).toBeVisible({ timeout: STEP_TIMEOUT });
+                await expect(page.locator('#ingot-chat-working')).toHaveCount(0, { timeout: STEP_TIMEOUT });
+                expect(inOrder(await seenLabels(page), ['Thinking… [dots]', 'Typing…', 'Checking the plan…'])).toBe(true);
+            }
+
+            // Build: when the run ends, its diff is checked against the approved plan.
+            await recordLabels(page);
+            await page.locator('#ingot-plan-build').click();
+            await expect(page.locator('#ingot-agents .ingot-chat-agent').last()).toContainText('Building it.', { timeout: STEP_TIMEOUT });
+            await expect(page.locator('#ingot-agents').getByText('Checked against plan').first()).toBeVisible({ timeout: STEP_TIMEOUT });
+            // The note lands when the check ends; the line may still be holding "Almost there…" for a moment.
+            await expect.poll(async () => inOrder(await seenLabels(page), ['Editing discount.ts…', 'Almost there…', 'Checking the plan…']),
+                { timeout: STEP_TIMEOUT }).toBe(true);
+            await expect(page.locator('#ingot-chat-working')).toHaveCount(0, { timeout: STEP_TIMEOUT });
+        } finally {
             if (await page.locator('#ingot-settings').isVisible()) {
                 await page.locator('#ingot-settings-cancel').click();
             }
