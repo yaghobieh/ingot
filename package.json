@@ -70,6 +70,37 @@
     "vscjava.vscode-java-debug": "https://open-vsx.org/api/vscjava/vscode-java-debug/0.60.0/file/vscjava.vscode-java-debug-0.60.0.vsix",
     "vscode.php": "https://open-vsx.org/api/vscode/php/1.95.3/file/vscode.php-1.95.3.vsix",
     "vscode.java": "https://open-vsx.org/api/vscode/java/1.95.3/file/vscode.java-1.95.3.vsix",
-    "vscode.python": "https://open-vsx.org/api/vscode/python/1.95.3/file/vscode.python-1.95.3.vsix"
-  }
+    "vscode.python": "https://open-vsx.org/api/vscode/python/1.95.3/file/vscode.python-1.95.3.vsix",
+    "vscode.php-language-features": "https://open-vsx.org/api/vscode/php-language-features/1.95.3/file/vscode.php-language-features-1.95.3.vsix",
+    "vscode.cpp": "https://open-vsx.org/api/vscode/cpp/1.95.3/file/vscode.cpp-1.95.3.vsix",
+    "vscode.go": "https://open-vsx.org/api/vscode/go/1.95.3/file/vscode.go-1.95.3.vsix",
+    "vscode.rust": "https://open-vsx.org/api/vscode/rust/1.95.3/file/vscode.rust-1.95.3.vsix",
+    "vscode.csharp": "https://open-vsx.org/api/vscode/csharp/1.95.3/file/vscode.csharp-1.95.3.vsix",
+    "vscode.ruby": "https://open-vsx.org/api/vscode/ruby/1.95.3/file/vscode.ruby-1.95.3.vsix",
+    "vscode.swift": "https://open-vsx.org/api/vscode/swift/1.95.3/file/vscode.swift-1.95.3.vsix",
+    "vscode.sql": "https://open-vsx.org/api/vscode/sql/1.95.3/file/vscode.sql-1.95.3.vsix",
+    "vscode.less": "https://open-vsx.org/api/vscode/less/1.95.3/file/vscode.less-1.95.3.vsix",
+    "vscode.make": "https://open-vsx.org/api/vscode/make/1.95.3/file/vscode.make-1.95.3.vsix",
+    "phpactor.vscode-phpactor": "https://open-vsx.org/api/phpactor/vscode-phpactor/1.7.9/file/phpactor.vscode-phpactor-1.7.9.vsix",
+    "broadcomMFD.cobol-language-support": "https://open-vsx.org/api/broadcomMFD/cobol-language-support/2.5.1/file/broadcomMFD.cobol-language-support-2.5.1.vsix",
+    "llvm-vs-code-extensions.vscode-clangd": "https://open-vsx.org/api/llvm-vs-code-extensions/vscode-clangd/0.6.0/file/llvm-vs-code-extensions.vscode-clangd-0.6.0.vsix",
+    "llvm-vs-code-extensions.lldb-dap": "https://open-vsx.org/api/llvm-vs-code-extensions/lldb-dap/0.7.20261012/file/llvm-vs-code-extensions.lldb-dap-0.7.20261012.vsix",
+    "detachhead.basedpyright": "https://open-vsx.org/api/detachhead/basedpyright/1.40.2/file/detachhead.basedpyright-1.40.2.vsix",
+    "charliermarsh.ruff": "https://open-vsx.org/api/charliermarsh/ruff/${targetPlatform}/2026.92.0/file/charliermarsh.ruff-2026.92.0@${targetPlatform}.vsix",
+    "golang.Go": "https://open-vsx.org/api/golang/Go/0.58.0/file/golang.Go-0.58.0.vsix",
+    "rust-lang.rust-analyzer": "https://open-vsx.org/api/rust-lang/rust-analyzer/${targetPlatform}/0.4.3102/file/rust-lang.rust-analyzer-0.4.3102@${targetPlatform}.vsix",
+    "muhammad-sammy.csharp": "https://open-vsx.org/api/muhammad-sammy/csharp/${targetPlatform}/2.160.9-g01198ecc1f/file/muhammad-sammy.csharp-2.160.9-g01198ecc1f@${targetPlatform}.vsix",
+    "ms-dotnettools.vscode-dotnet-runtime": "https://open-vsx.org/api/ms-dotnettools/vscode-dotnet-runtime/3.2.0/file/ms-dotnettools.vscode-dotnet-runtime-3.2.0.vsix",
+    "Shopify.ruby-lsp": "https://open-vsx.org/api/Shopify/ruby-lsp/0.10.8/file/Shopify.ruby-lsp-0.10.8.vsix",
+    "KoichiSasada.vscode-rdbg": "https://open-vsx.org/api/KoichiSasada/vscode-rdbg/0.2.1/file/KoichiSasada.vscode-rdbg-0.2.1.vsix",
+    "fwcd.kotlin": "https://open-vsx.org/api/fwcd/kotlin/0.2.36/file/fwcd.kotlin-0.2.36.vsix",
+    "swiftlang.swift-vscode": "https://open-vsx.org/api/swiftlang/swift-vscode/2.18.0/file/swiftlang.swift-vscode-2.18.0.vsix",
+    "Dart-Code.dart-code": "https://open-vsx.org/api/Dart-Code/dart-code/3.147.20261029/file/Dart-Code.dart-code-3.147.20261029.vsix",
+    "mads-hartmann.bash-ide-vscode": "https://open-vsx.org/api/mads-hartmann/bash-ide-vscode/1.43.2/file/mads-hartmann.bash-ide-vscode-1.43.2.vsix",
+    "redhat.vscode-yaml": "https://open-vsx.org/api/redhat/vscode-yaml/2.1.2026102308/file/redhat.vscode-yaml-2.1.2026102308.vsix",
+    "ReneSaarsoo.sql-formatter-vsc": "https://open-vsx.org/api/ReneSaarsoo/sql-formatter-vsc/4.2.5/file/ReneSaarsoo.sql-formatter-vsc-4.2.5.vsix"
+  },
+  "theiaPluginsExcludeIds": [
+    "ms-python.vscode-pylance"
+  ]
 }

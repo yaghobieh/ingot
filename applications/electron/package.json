@@ -93,7 +93,21 @@
           "redhat.telemetry.enabled": false,
           "java.help.firstView": "none",
           "java.help.showReleaseNotes": false,
-          "java.configuration.updateBuildConfiguration": "automatic"
+          "java.configuration.updateBuildConfiguration": "automatic",
+          "go.showWelcome": false,
+          "go.survey.prompt": false,
+          "go.toolsManagement.autoUpdate": false,
+          "dart.checkForSdkUpdates": false,
+          "clangd.checkUpdates": false,
+          "[python]": {
+            "editor.defaultFormatter": "charliermarsh.ruff"
+          },
+          "[sql]": {
+            "editor.defaultFormatter": "ReneSaarsoo.sql-formatter-vsc"
+          },
+          "[yaml]": {
+            "editor.defaultFormatter": "redhat.vscode-yaml"
+          }
         },
         "electron": {
           "showWindowEarly": true

@@ -27,3 +27,40 @@ Debugger and language support (IDEA-138), downloaded from Open VSX at build time
   MIT License. https://github.com/microsoft/vscode
 - Installed on demand: Python Debugger (ms-python.debugpy), Copyright (c) Microsoft Corporation, MIT License.
   https://github.com/microsoft/vscode-python-debugger
+
+Language support (IDEA-313), downloaded from Open VSX at build time and bundled unmodified:
+
+- Grammars and language basics (vscode.cpp, vscode.go, vscode.rust, vscode.csharp, vscode.ruby, vscode.swift, vscode.sql,
+  vscode.less, vscode.make, vscode.php-language-features), Copyright (c) Microsoft Corporation, MIT License.
+  https://github.com/microsoft/vscode
+- Phpactor (phpactor.vscode-phpactor), Copyright (c) Daniel Leech and contributors, MIT License; bundles Phpactor
+  and its Composer dependencies (MIT / BSD). https://github.com/phpactor/vscode-phpactor
+- COBOL Language Support (broadcomMFD.cobol-language-support), Copyright Broadcom, Eclipse Public License 2.0.
+  https://github.com/eclipse-che4z/che-che4z-lsp-for-cobol
+- clangd (llvm-vs-code-extensions.vscode-clangd), Copyright LLVM project contributors, MIT License.
+  https://github.com/clangd/vscode-clangd
+- LLDB DAP (llvm-vs-code-extensions.lldb-dap), Copyright LLVM project contributors, Apache License 2.0 with LLVM Exceptions.
+  https://github.com/llvm/llvm-project/tree/main/lldb/tools/lldb-dap
+- basedpyright (detachhead.basedpyright), Copyright (c) Microsoft Corporation and DetachHead, MIT License.
+  https://github.com/DetachHead/basedpyright
+- Ruff (charliermarsh.ruff), Copyright (c) Astral Software Inc., MIT License; bundles the ruff binary (MIT).
+  https://github.com/astral-sh/ruff-vscode
+- Go (golang.Go), Copyright (c) The Go Authors, MIT License. https://github.com/golang/vscode-go
+- rust-analyzer (rust-lang.rust-analyzer), Copyright rust-analyzer developers, MIT OR Apache-2.0; bundles the
+  rust-analyzer server. https://github.com/rust-lang/rust-analyzer
+- C# for open source builds (muhammad-sammy.csharp), Copyright (c) .NET Foundation and contributors, MIT License;
+  bundles OmniSharp (MIT) and netcoredbg (MIT). https://github.com/muhammad-sammy/free-vscode-csharp
+- .NET Install Tool (ms-dotnettools.vscode-dotnet-runtime), Copyright (c) .NET Foundation, MIT License.
+  https://github.com/dotnet/vscode-dotnet-runtime
+- Ruby LSP (Shopify.ruby-lsp), Copyright (c) Shopify Inc., MIT License. https://github.com/Shopify/ruby-lsp
+- VSCode rdbg Ruby Debugger (KoichiSasada.vscode-rdbg), Copyright (c) Koichi Sasada, MIT License.
+  https://github.com/ruby/vscode-rdbg
+- Kotlin (fwcd.kotlin), Copyright (c) fwcd, MIT License. https://github.com/fwcd/vscode-kotlin
+- Swift (swiftlang.swift-vscode), Copyright Apple Inc. and the Swift project authors, Apache License 2.0.
+  https://github.com/swiftlang/vscode-swift
+- Dart (Dart-Code.dart-code), Copyright (c) 2016 Danny Tuppeny, MIT License. https://github.com/Dart-Code/Dart-Code
+- Bash IDE (mads-hartmann.bash-ide-vscode), Copyright (c) Mads Hartmann, MIT License; bundles bash-language-server (MIT).
+  https://github.com/bash-lsp/bash-language-server
+- YAML (redhat.vscode-yaml), Copyright Red Hat, Inc., MIT License. https://github.com/redhat-developer/vscode-yaml
+- SQL Formatter (ReneSaarsoo.sql-formatter-vsc), Copyright (c) Rene Saarsoo, MIT License.
+  https://github.com/sql-formatter-org/sql-formatter
