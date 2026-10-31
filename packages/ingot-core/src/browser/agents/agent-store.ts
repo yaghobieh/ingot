@@ -16,6 +16,10 @@ import type { ComposedMessage } from '../../common/agents/composer-parts.types';
 import { reorderTabs, tabTitleFromText, togglePinOrder } from '../../common/agents/chat-tabs';
 import { BUILD_PROMPT, MAX_SUB_AGENTS, TERMINAL_CONTEXT_LINES, modeInfo } from '../../common/agents/agent-modes';
 import { modeBlockedResult, toolAllowedInMode } from '../../common/agents/mode-tools';
+import type { CustomSubagent } from '../../common/agents/custom-subagents.types';
+import { findSubagent, formatSubagents, readonlySubagentResult, subagentInstructions, unknownSubagentError } from '../../common/agents/custom-subagents.utils';
+import { worktreeSetupSummary } from '../../common/threads/worktree-setup.utils';
+import { WorktreeSetupService } from '../threads/worktree-setup-service';
 import { CHATS_STORAGE_KEY, mergeWindowChats, parseChats, serializeChats, windowChats } from '../../common/agents/chat-history';
 import { SUMMARIZE_PROMPT, contextUsage, estimateTokens, usageRatio } from '../../common/agents/context-usage';
 import { DEFAULT_SCOPE, MEMORY_PROTOCOL, extractMemories, formatMemories, relevantMemories, type MemoryNote } from '../../common/memories/memories';
@@ -202,6 +206,7 @@ export class AgentStore {
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
     @inject(AgentActionsService) protected readonly actions: AgentActionsService;
     @inject(GitService) protected readonly git: GitService;
+    @inject(WorktreeSetupService) protected readonly worktreeSetup: WorktreeSetupService;
     @inject(ZaprexLauncher) protected readonly zaprex: ZaprexLauncher;
     @inject(ZaprexDesktopService) protected readonly zaprexDesktop: ZaprexDesktopService;
     /** IDEA-185: pieces handed to the Zaprex desktop app, by child chat id; the lead waits on them. */
@@ -1298,8 +1303,9 @@ export class AgentStore {
         this.sessionRules.set(session.id, config.rules);
         this.ruleHits?.record({ sessionId: session.id, prompt, files: ruleFiles, rules, root: root?.path.fsPath() });
         this.recordRuleHits(root, rules);
-        const info = modeInfo(session.mode);
+        const info = session.subagent?.readonly ? { ...modeInfo(session.mode), canEdit: false } : modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
+        const subagents = info.canUseTools && !session.parent ? await this.projectConfig.loadSubagents(root).catch(() => []) : [];
         const auto = this.autoContexts.get(session.id);
         const memories = auto?.skipMemories ? [] : relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
         const workspace = await this.workspaceInfo(root);
@@ -1309,7 +1315,8 @@ export class AgentStore {
             session.goal?.state === 'running' ? goalProtocol(session.goal) : '',
             info.canEdit ? AGENT_WORKFLOW : '', info.canEdit ? AGENT_PROTOCOL : '', info.canUseTools ? TOOL_CALL_FORMAT : '',
             info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools),
-            info.canUseTools ? builtinToolProtocol(this.toolSwitches(session)) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : '', session.parent ? '' : FOLLOW_UPS_PROTOCOL
+            info.canUseTools ? builtinToolProtocol(this.toolSwitches(session)) : '', formatSubagents(subagents), this.memoryStore.generate ? MEMORY_PROTOCOL : '',
+            session.parent ? '' : FOLLOW_UPS_PROTOCOL
         ].filter(Boolean).join('\n\n');
         const environment = await this.projectConfig.loadEnvironment(root).catch(() => undefined);
         const rulesText = [
@@ -2398,8 +2405,8 @@ export class AgentStore {
             let call = withRepoDefaults(resolved.call, this.github);
             const target = `${call.server}/${call.tool}`;
             const toolUseId = `${session.id}-${startedAt}-${target}`;
-            if (!toolAllowedInMode(session.mode, call)) {
-                const blocked = modeBlockedResult(session.mode, call);
+            if (!toolAllowedInMode(session.mode, call, session.subagent?.readonly)) {
+                const blocked = session.subagent?.readonly && modeInfo(session.mode).canUseTools ? readonlySubagentResult(session.subagent.name, target) : modeBlockedResult(session.mode, call);
                 session.messages.push({
                     role: 'tool', from: target, text: `Error: ${blocked}`,
                     tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt, endedAt: Date.now() }
@@ -4334,8 +4341,14 @@ export class AgentStore {
             return;
         }
         calls.slice(MAX_PARALLEL_TASKS).forEach(call => settle(card(call), TOO_MANY_TASKS, true));
-        const jobs = calls.slice(0, MAX_PARALLEL_TASKS).map(call => ({ message: card(call), task: parseTaskArgs(call.args) }));
-        const started = jobs.flatMap(job => 'error' in job.task ? [] : [{ job, run: this.startTask(lead, job.task, rootPath) }]);
+        const subagents = await this.projectConfig.loadSubagents(this.rootFor(lead)).catch(() => []);
+        const jobs = calls.slice(0, MAX_PARALLEL_TASKS).map(call => {
+            const parsed = parseTaskArgs(call.args);
+            const agent = 'error' in parsed || !parsed.agent ? undefined : findSubagent(subagents, parsed.agent);
+            const task = 'error' in parsed || !parsed.agent || agent ? parsed : { error: unknownSubagentError(parsed.agent, subagents) };
+            return { message: card(call), task, agent };
+        });
+        const started = jobs.flatMap(job => 'error' in job.task ? [] : [{ job, run: this.startTask(lead, job.task, rootPath, job.agent) }]);
         jobs.filter(job => 'error' in job.task).forEach(job => settle(job.message, (job.task as { error: string }).error, true));
         if (started.length) {
             lead.messages.push({ role: 'system', text: `Started ${started.length} ${started.length === 1 ? 'subagent' : 'subagents'}: ${started.map(s => s.run.child.title).join(' · ')}`, refs: started.map(s => s.run.child.id) });
@@ -4351,11 +4364,14 @@ export class AgentStore {
         }));
     }
 
-    protected startTask(lead: AgentSession, task: TaskRequest, rootPath: string | undefined): { child: AgentSession; done: Promise<TaskOutcome> } {
+    protected startTask(lead: AgentSession, task: TaskRequest, rootPath: string | undefined, agent?: CustomSubagent): { child: AgentSession; done: Promise<TaskOutcome> } {
+        const instructions = agent ? subagentInstructions(agent) : '';
+        const model = agent?.model && this.models.isModelConfigured(agent.model) ? agent.model : lead.model;
         const child: AgentSession = {
-            id: newChatId(), title: task.description, status: 'thinking', updatedAt: Date.now(), mode: 'agent', model: lead.model,
-            messages: [{ role: 'user', text: task.prompt, expanded: taskChildPrompt(task) }],
-            plan: [], steps: [], changes: [], project: lead.project, open: false, openedAt: Date.now(), parent: lead.id, agent: 'ingot'
+            id: newChatId(), title: task.description, status: 'thinking', updatedAt: Date.now(), mode: 'agent', model,
+            messages: [{ role: 'user', text: task.prompt, expanded: taskChildPrompt(task, undefined, instructions) }],
+            plan: [], steps: [], changes: [], project: lead.project, open: false, openedAt: Date.now(), parent: lead.id, agent: 'ingot',
+            ...(agent ? { subagent: { name: agent.name, readonly: agent.readonly } } : {})
         };
         this.items = [child, ...this.items];
         const fail = (error: string): TaskOutcome => {
@@ -4366,7 +4382,7 @@ export class AgentStore {
         };
         let worktree: TaskOutcome['worktree'];
         const begun = Date.now();
-        const info = { id: child.id, type: TASK_SUBAGENT_TYPE, task: task.prompt, parentId: lead.id, model: this.modelFor(child), parallel: true };
+        const info = { id: child.id, type: agent?.name ?? TASK_SUBAGENT_TYPE, task: task.prompt, parentId: lead.id, model: this.modelFor(child), parallel: true };
         const done = (async (): Promise<TaskOutcome> => {
             const gate = await this.runEventHook(lead, 'subagentStart', subagentStartPayload(info));
             if (gate && gate.decision.permission !== 'allow') {
@@ -4383,10 +4399,17 @@ export class AgentStore {
                     worktree = { path, branch };
                     child.worktree = { path: URI.fromFilePath(path).toString(), branch };
                     child.project = child.worktree.path;
-                    child.messages[0] = { ...child.messages[0], expanded: taskChildPrompt(task, worktree) };
+                    child.messages[0] = { ...child.messages[0], expanded: taskChildPrompt(task, worktree, instructions) };
                     this.changed();
                 } catch (error) {
                     return fail(`Could not create a git worktree: ${error instanceof Error ? error.message : String(error)}`);
+                }
+                // IDEA-287: worktrees.json setup (install dependencies, copy env files) runs before the subagent starts.
+                const setup = await this.worktreeSetup.run(rootPath, worktree.path).catch((error: unknown) =>
+                    ({ source: '', ran: 0, ok: false, output: '', error: error instanceof Error ? error.message : String(error) }));
+                if (setup) {
+                    child.messages.push({ role: 'system', text: worktreeSetupSummary(setup) });
+                    this.changed();
                 }
             }
             let reply = '';

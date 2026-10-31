@@ -9,9 +9,12 @@ export const isReadOnlyCall = (call: Pick<AgentToolCall, 'server' | 'tool' | 'ar
     call.server === BUILTIN_TOOL_SERVER
     && (READ_ONLY_TOOLS.includes(call.tool) || (call.tool === GIT_TOOL && READ_ONLY_GIT_OPS.includes(String(call.args.op ?? ''))));
 
-/** IDEA-265: modes with tools may call every tool; Ask and Plan only read, even when the model emits a call anyway. */
-export const toolAllowedInMode = (mode: AgentMode, call: Pick<AgentToolCall, 'server' | 'tool' | 'args'>): boolean =>
-    modeInfo(mode).canUseTools || isReadOnlyCall(call);
+/**
+ * IDEA-265: modes with tools may call every tool; Ask and Plan only read, even when the model emits a call anyway.
+ * IDEA-287: a read-only custom subagent only reads too, whatever its mode.
+ */
+export const toolAllowedInMode = (mode: AgentMode, call: Pick<AgentToolCall, 'server' | 'tool' | 'args'>, readOnly = false): boolean =>
+    (modeInfo(mode).canUseTools && !readOnly) || isReadOnlyCall(call);
 
 /** The tool result the model gets when its mode refuses a call. */
 export const modeBlockedResult = (mode: AgentMode, call: Pick<AgentToolCall, 'server' | 'tool'>): string =>

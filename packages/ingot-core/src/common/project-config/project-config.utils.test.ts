@@ -104,6 +104,10 @@ describe('IDEA-287 rule kinds and nested rules', () => {
         expect(nestedRuleScope('packages/web/AGENTS.md')).toEqual({ scope: 'packages/web', source: 'agents' });
         expect(nestedRuleScope('.ingot/rules/root.md')).toBeUndefined();
         expect(nestedRuleScope('AGENTS.md')).toBeUndefined();
+        expect(nestedRuleScope('packages/api/CLAUDE.md')).toEqual({ scope: 'packages/api', source: 'agents' });
+        expect(nestedRuleScope('CLAUDE.md')).toBeUndefined();
+        expect(ruleFromFile('packages/api/CLAUDE.md', '---\nalwaysApply: false\n---\nApi', 'agents', 'packages/api'))
+            .toMatchObject({ name: 'packages/api/CLAUDE.md', kind: 'always' });
 
         const root = ruleFromFile('AGENTS.md', 'Root', 'agents');
         const pkg = ruleFromFile('packages/AGENTS.md', 'Packages', 'agents', 'packages');

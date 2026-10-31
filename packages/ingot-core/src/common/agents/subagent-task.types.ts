@@ -2,6 +2,8 @@ export interface TaskRequest {
     readonly description: string;
     readonly prompt: string;
     readonly worktree: boolean;
+    /** IDEA-287: the custom subagent to run (`subagent_type`), lower case. */
+    readonly agent?: string;
 }
 
 /** What the parent gets back from a finished subagent. */

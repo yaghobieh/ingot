@@ -4,9 +4,13 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
 import URI from '@theia/core/lib/common/uri';
 import {
-    AGENTS_FILE, AGENTS_FILES, BUGBOT_FILE, BUGBOT_GLOBS, COMMANDS_DIR, CONFIG_DIRS, ENVIRONMENT_FILE, EXTRA_COMMAND_DIRS, IMPORT_HOME_ENV, MCP_FILE, NESTED_RULE_GLOBS,
-    NESTED_RULES_MAX_DEPTH, NESTED_RULES_MAX_FILES, NESTED_RULES_TTL_MS, RULE_EXTENSIONS, RULES_DIR, SKILL_FILE, SKILLS_DIR, TEAM_RULES_CONFIG_KEY, TEAM_RULES_DISABLED_PREF
+    AGENT_MD_FILES, AGENTS_FILES, BUGBOT_FILE, BUGBOT_GLOBS, COMMANDS_DIR, CONFIG_DIRS, ENVIRONMENT_FILE, EXTRA_COMMAND_DIRS, EXTRA_SKILL_DIRS, IMPORT_HOME_ENV, MCP_FILE, NESTED_RULE_GLOBS,
+    NESTED_RULES_MAX_DEPTH, NESTED_RULES_MAX_FILES, NESTED_RULES_TTL_MS, RULE_EXTENSIONS, RULES_DIR, SKILL_FILE, SKILLS_DIR, SUBAGENTS_DIR, TEAM_RULES_CONFIG_KEY,
+    TEAM_RULES_DISABLED_PREF
 } from '../../common/project-config/project-config.consts';
+import { SUBAGENT_CURSOR_DIR, SUBAGENT_INGOT_DIR, SUBAGENT_OTHER_DIRS } from '../../common/agents/custom-subagents.consts';
+import type { CustomSubagent, SubagentScope } from '../../common/agents/custom-subagents.types';
+import { isSubagentFile, mergeSubagents, parseSubagentFile } from '../../common/agents/custom-subagents.utils';
 import type {
     ConfigSource, IgnoreRules, McpServerConfig, ProjectCommand, ProjectConfig, ProjectEnvironment, ProjectRule, RuleReference
 } from '../../common/project-config/project-config.types';
@@ -95,25 +99,28 @@ export class ProjectConfigService {
         const [globalDir, importedDir] = await Promise.all([this.globalDir(), this.importedGlobalDir()]);
         const label = (prefix: string, base: URI) => (u: URI) => `${prefix}/${base.relative(u)?.toString() ?? u.path.base}`;
         const home = await this.importHome();
-        const [importedGlobal, global, globalAgents, globalExtra] = await Promise.all([
+        const homeLabel = (u: URI) => `~/${home.relative(u)?.toString() ?? u.path.base}`;
+        const [importedGlobal, global, globalAgents, globalExtra, globalSkills] = await Promise.all([
             this.loadDir(importedDir, 'global-imported', label('~/' + CONFIG_DIRS.external, importedDir)),
             this.loadDir(globalDir, 'global', label('~/' + CONFIG_DIRS.ingot, globalDir)),
             this.loadAgentsFiles(globalDir, 'global', name => `~/${CONFIG_DIRS.ingot}/${name}`, ['AGENTS.md']),
-            this.loadExtraCommands(home, 'global-imported', u => `~/${home.relative(u)?.toString() ?? u.path.base}`)
+            this.loadExtraCommands(home, 'global-imported', homeLabel),
+            this.loadExtraSkills(home, 'global-imported', homeLabel)
         ]);
         const rel = (u: URI) => root?.relative(u)?.toString() ?? u.path.base;
         const mode = await this.cursorModes.modeFor(root);
         // IDEA-287: `.cursor`, `.cursorrules` and nested `.cursor/rules` are read live only while the workspace keeps them.
         const live = readsCursor(mode);
-        const [external, legacy, ingot, agents, projectExtra, nested, bugbot] = root ? await Promise.all([
+        const [external, legacy, ingot, agents, projectExtra, projectSkills, nested, bugbot] = root ? await Promise.all([
             live ? this.loadDir(root.resolve(CONFIG_DIRS.external), 'external', rel) : Promise.resolve(EMPTY_DIR),
             this.loadDir(root.resolve(CONFIG_DIRS.legacy), 'legacy', rel),
             this.loadDir(root.resolve(CONFIG_DIRS.ingot), 'ingot', rel),
-            this.loadAgentsFiles(root, 'agents', name => name, live ? AGENTS_FILES : [AGENTS_FILE]),
+            this.loadAgentsFiles(root, 'agents', name => name, live ? AGENTS_FILES : AGENT_MD_FILES),
             this.loadExtraCommands(root, 'external', rel),
+            this.loadExtraSkills(root, 'external', rel),
             this.loadNested(root).then(list => list.filter(rule => live || rule.source !== 'external')),
             this.loadBugbot(root, live)
-        ]) : [EMPTY_DIR, EMPTY_DIR, EMPTY_DIR, [], [], [], []];
+        ]) : [EMPTY_DIR, EMPTY_DIR, EMPTY_DIR, [], [], [], [], []];
         // IDEA-287: after "Convert to .ingot", an AGENTS.md whose copy is `<folder>/.ingot/rules/agents.md` is read from the copy only.
         const converted = (rule: ProjectRule): boolean => mode === 'convert' && rule.source === 'agents'
             && [...ingot.rules, ...nested].some(r => r.source === 'ingot' && r.name === (rule.scope ? `${rule.scope}/${AGENTS_RULE_NAME}` : AGENTS_RULE_NAME));
@@ -128,7 +135,7 @@ export class ProjectConfigService {
         return {
             rules: root ? await Promise.all(rules.map(rule => this.withReferencedFiles(rule, root))) : rules,
             // Later wins: other editors' folders (home, then project) < imported < legacy < `.ingot` (IDEA-249).
-            commands: mergeByName(review ? [review] : [], globalExtra, importedGlobal.commands, global.commands, projectExtra, external.commands, legacy.commands, ingot.commands),
+            commands: mergeByName(review ? [review] : [], globalExtra, globalSkills, importedGlobal.commands, global.commands, projectExtra, projectSkills, external.commands, legacy.commands, ingot.commands),
             mcpServers: mergeByName(external.mcpServers, legacy.mcpServers, ingot.mcpServers)
         };
     }
@@ -170,6 +177,31 @@ export class ProjectConfigService {
             .filter(path => readCursor || !path.split('/').includes(CONFIG_DIRS.external));
         const files = await Promise.all(paths.map(async path => ({ path, text: await this.read(root.resolve(path)) })));
         return files.filter((f): f is BugbotFile => f.text !== undefined);
+    }
+
+    /**
+     * IDEA-287: custom subagents for `ingot/task`. Home (`~/.codex|.claude|.cursor/agents`, `~/.ingot/agents`) then project
+     * (`.codex|.claude/agents`, `.cursor/agents` while read live, `.ingot/agents`); later folders win on a name clash.
+     */
+    async loadSubagents(root: URI | undefined): Promise<CustomSubagent[]> {
+        const [home, globalDir, live] = await Promise.all([this.importHome(), this.globalDir(), root ? this.cursorModes.readsCursor(root) : Promise.resolve(false)]);
+        const homeLabel = (u: URI) => `~/${home.relative(u)?.toString() ?? u.path.base}`;
+        const globalLabel = (u: URI) => `~/${CONFIG_DIRS.ingot}/${globalDir.relative(u)?.toString() ?? u.path.base}`;
+        const rel = (u: URI) => root?.relative(u)?.toString() ?? u.path.base;
+        const folders: { dir: URI; scope: SubagentScope; label: (u: URI) => string }[] = [
+            ...[...SUBAGENT_OTHER_DIRS, SUBAGENT_CURSOR_DIR].map(dir => ({ dir: home.resolve(dir), scope: 'user' as const, label: homeLabel })),
+            { dir: globalDir.resolve(SUBAGENTS_DIR), scope: 'user', label: globalLabel },
+            ...(root ? [...SUBAGENT_OTHER_DIRS, ...(live ? [SUBAGENT_CURSOR_DIR] : []), SUBAGENT_INGOT_DIR].map(dir => ({ dir: root.resolve(dir), scope: 'project' as const, label: rel })) : [])
+        ];
+        const lists = await Promise.all(folders.map(async folder => {
+            const files = (await this.children(folder.dir)).filter(u => isSubagentFile(u.path.base));
+            const agents = await Promise.all(files.map(async u => {
+                const text = await this.read(u);
+                return text === undefined ? undefined : parseSubagentFile(folder.label(u), text, folder.scope);
+            }));
+            return agents.filter((a): a is CustomSubagent => !!a);
+        }));
+        return mergeSubagents(...lists);
     }
 
     /** IDEA-287: `.ingot/environment.json`, else `.cursor/environment.json` while read live. */
@@ -228,7 +260,7 @@ export class ProjectConfigService {
                     if (inRules || config || (!SKIPPED_DIRS.has(child.name) && !child.name.startsWith('.'))) {
                         await walk(child.resource, depth + 1, inRules || /\/\.(ingot|cursor)\/rules$/.test(`/${rel}`));
                     }
-                } else if ((inRules && isRule(child.name)) || child.name === AGENTS_FILE) {
+                } else if ((inRules && isRule(child.name)) || (AGENT_MD_FILES as readonly string[]).includes(child.name)) {
                     paths.push(rel);
                 }
             }
@@ -321,6 +353,19 @@ export class ProjectConfigService {
                 return text === undefined ? undefined : { ...commandFromFile(relative(u), text, source), uri: u.toString() };
             }));
             return commands.filter((c): c is ProjectCommand & { uri: string } => !!c);
+        }));
+        return mergeByName(...lists);
+    }
+
+    /** IDEA-287: `<dir>/<name>/SKILL.md` skills from the shared folders (`.agents/skills`, `.claude/skills`, `.codex/skills`) under `base`. */
+    protected async loadExtraSkills(base: URI, source: ConfigSource, relative: (u: URI) => string): Promise<ProjectCommand[]> {
+        const lists = await Promise.all(EXTRA_SKILL_DIRS.map(async dir => {
+            const skills = await Promise.all((await this.children(base.resolve(dir))).map(async folder => {
+                const file = folder.resolve(SKILL_FILE);
+                const text = await this.read(file);
+                return text === undefined ? undefined : { ...commandFromFile(relative(file), text, source, 'skill'), uri: file.toString() };
+            }));
+            return skills.filter((c): c is ProjectCommand & { uri: string } => !!c);
         }));
         return mergeByName(...lists);
     }

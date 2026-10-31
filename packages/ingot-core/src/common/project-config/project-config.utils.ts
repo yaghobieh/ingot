@@ -206,7 +206,7 @@ export const ruleMentionItems = (rules: readonly ProjectRule[], query: string): 
  */
 export const nestedRuleScope = (path: string): { scope: string; source: ConfigSource } | undefined => {
     const clean = path.replace(/\\/g, '/').replace(/^\.\//, '');
-    const agents = /^(.+)\/AGENTS\.md$/.exec(clean);
+    const agents = /^(.+)\/(?:AGENTS|CLAUDE)\.md$/.exec(clean);
     if (agents) {
         return { scope: agents[1], source: 'agents' };
     }

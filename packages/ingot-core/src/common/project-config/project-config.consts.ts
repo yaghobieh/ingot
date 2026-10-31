@@ -32,14 +32,18 @@ export const COMMANDS_DIR = 'commands';
  * (lowest priority first; `.ingot/commands` always wins on a name clash).
  */
 export const EXTRA_COMMAND_DIRS = ['.github/prompts', '.windsurf/workflows', '.claude/commands'] as const;
+/** IDEA-287: shared skill folders other agents use (as Cursor reads them), project and home; lowest priority first. */
+export const EXTRA_SKILL_DIRS = ['.codex/skills', '.claude/skills', '.agents/skills'] as const;
 export const SKILLS_DIR = 'skills';
 export const SKILL_FILE = 'SKILL.md';
 export const MCP_FILE = 'mcp.json';
-export const AGENTS_FILES = ['AGENTS.md', '.cursorrules'] as const;
+/** IDEA-287: plain-markdown instruction files read at the root and in subfolders in every mode (CLAUDE.md as Cursor reads it). */
+export const AGENT_MD_FILES = ['AGENTS.md', 'CLAUDE.md'] as const;
+export const AGENTS_FILES = [...AGENT_MD_FILES, '.cursorrules'] as const;
 export const RULE_EXTENSIONS = ['.md', '.mdc'] as const;
 
 /** IDEA-287: nested rule files found anywhere in the project (`packages/web/.ingot/rules/x.md`, `packages/web/AGENTS.md`). */
-export const NESTED_RULE_GLOBS = ['**/AGENTS.md', '**/.ingot/rules/**/*.md', '**/.ingot/rules/**/*.mdc', '**/.cursor/rules/**/*.md', '**/.cursor/rules/**/*.mdc'] as const;
+export const NESTED_RULE_GLOBS = ['**/AGENTS.md', '**/CLAUDE.md', '**/.ingot/rules/**/*.md', '**/.ingot/rules/**/*.mdc', '**/.cursor/rules/**/*.md', '**/.cursor/rules/**/*.mdc'] as const;
 export const NESTED_RULES_TTL_MS = 10_000;
 /** Folder depth the nested-rule walk goes when ripgrep is not available. */
 export const NESTED_RULES_MAX_DEPTH = 6;

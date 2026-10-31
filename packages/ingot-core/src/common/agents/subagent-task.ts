@@ -2,6 +2,7 @@ import type { AgentToolCall } from './agent-protocol';
 import { BUILTIN_TOOL_SERVER } from './agent-actions';
 import { SUBAGENT_MARKER, TASK_SUMMARY_CHARS, TASK_TITLE_MAX, TASK_TOOL, WORKTREE_BRANCH_PREFIX, WORKTREE_NAME } from './subagent-task.consts';
 import type { TaskOutcome, TaskRequest } from './subagent-task.types';
+import { subagentTypeArg } from './custom-subagents.utils';
 
 export const isTaskCall = (call: AgentToolCall): boolean => call.server === BUILTIN_TOOL_SERVER && call.tool === TASK_TOOL;
 
@@ -15,11 +16,13 @@ export const parseTaskArgs = (args: Record<string, unknown>): TaskRequest | { er
     }
     const raw = oneLine(typeof args.description === 'string' && args.description.trim() ? args.description : prompt);
     const description = raw.length > TASK_TITLE_MAX ? `${raw.slice(0, TASK_TITLE_MAX - 1).trimEnd()}…` : raw;
-    return { description, prompt, worktree: args.worktree === true };
+    const agent = subagentTypeArg(args);
+    return { description, prompt, worktree: args.worktree === true, ...(agent ? { agent } : {}) };
 };
 
 /** The only message a subagent starts with (clean context: none of the parent chat). */
-export const taskChildPrompt = (task: TaskRequest, worktree?: { path: string; branch: string }): string => [
+export const taskChildPrompt = (task: TaskRequest, worktree?: { path: string; branch: string }, instructions = ''): string => [
+    instructions ? `${instructions}\n` : '',
     task.prompt,
     '',
     `${SUBAGENT_MARKER} Another agent gave you this task; it sees only your final reply.`,

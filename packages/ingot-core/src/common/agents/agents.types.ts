@@ -99,6 +99,8 @@ export interface AgentSession {
     context?: ChatContextInfo;
     /** Multi-agent: the chat that started this sub-agent. */
     parent?: string;
+    /** IDEA-287: the custom subagent (`.ingot/agents/<name>.md`) this task runs, and whether it may only read. */
+    subagent?: { readonly name: string; readonly readonly: boolean };
     /** IDEA-180: `zaprex` for a Harmony mode piece Zaprex runs next to the agent. */
     agent?: 'ingot' | 'zaprex';
     /** IDEA-180: the files this chat may change (globs); others are locked to the lead agent. */
