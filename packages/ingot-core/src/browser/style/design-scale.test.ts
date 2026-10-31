@@ -54,6 +54,13 @@ describe('design scale', () => {
         expect(css('agent-panel.css')).toMatch(/\.ingot-agents-chat-wrap:has\(> \.ingot-jump-bar\) > \.ingot-agents-chat \{ padding-bottom: calc\(var\(--ingot-ap-pill\) \+ \d+px\); \}/);
     });
 
+    it('never lets the chat list scroll sideways: long words wrap and rows may shrink', () => {
+        const panel = css('agent-panel.css');
+        expect(panel).toMatch(/\.ingot-agents \.ingot-agents-chat \{[^}]*overflow-x: hidden; overflow-y: auto;/);
+        expect(panel).toMatch(/\.ingot-agents \.ingot-agents-thread \{[^}]*min-width: 0; overflow-wrap: break-word;/);
+        expect(panel).toContain('.ingot-agents :is(.ingot-agents-thread, .ingot-chat-agent) > * { min-width: 0; }');
+    });
+
     it('keeps the steady Index ready state muted in the status bar', () => {
         expect(css('shell.css')).not.toContain('.ingot-status-index-ready {');
     });

@@ -87,11 +87,14 @@
 /* Thread: the list scrolls on its own; the review bar and composer below never move. */
 .ingot-agents .ingot-agents-chat-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
 .ingot-agents .ingot-agents-chat {
-    flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain; display: block;
+    flex: 1 1 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain; display: block;
     padding: 16px 14px 8px; box-sizing: border-box; font-size: var(--ingot-ap-font); line-height: var(--ingot-ap-line); color: var(--ingot-agent-text);
 }
 .ingot-agents .ingot-agents-root-empty .ingot-agents-chat { display: flex; flex-direction: column; justify-content: flex-end; }
-.ingot-agents .ingot-agents-thread { display: flex; flex-direction: column; gap: var(--ingot-ap-gap); min-height: 0; }
+/* Never wider than the panel: long words and paths wrap; wide code, diffs and output scroll inside their own block. */
+.ingot-agents .ingot-agents-thread { display: flex; flex-direction: column; gap: var(--ingot-ap-gap); min-height: 0; min-width: 0; overflow-wrap: break-word; }
+.ingot-agents :is(.ingot-agents-thread, .ingot-chat-agent) > * { min-width: 0; }
+.ingot-agents :is(.ingot-chat-chips .ingot-chip, .ingot-chat-auto-item) { min-width: 0; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; }
 .ingot-agents .ingot-agents-composer-stack,
 .ingot-agents .ingot-composer-stack,
 .ingot-agents .ingot-review { flex: none; }
