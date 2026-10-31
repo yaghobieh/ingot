@@ -3,7 +3,7 @@ import { dismissNotifications, openIngot } from '../src/app.utils';
 import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
 import { LANGUAGE_FIXTURES } from '../src/e2e.consts';
 import {
-    activeEditor, expectCompletion, expectHover, goToFile, type LanguageSupport, loadSupport, notification, outputText, RUN_FILE_KEY, RUN_TIMEOUT_MS,
+    activeEditor, expectCompletion, expectHover, goToFile, type LanguageSupport, notification, outputText, readSupport, RUN_FILE_KEY, RUN_TIMEOUT_MS,
     SERVER_TIMEOUT_MS, tokenClasses
 } from '../src/languages.e2e-utils';
 
@@ -51,7 +51,8 @@ const CASES: readonly LanguageCase[] = [
 const HELLO = 'Hello, Ingot!';
 const EXIT_OK = 'Process finished with exit code 0';
 const NO_RUN = 'Ingot has no Run command for this file type.';
-const INSTALL_PROMPT = /is not installed\.|is too old/;
+/** Missing and too old toolchains both end with the install command. */
+const INSTALL_PROMPT = 'Install it with:';
 /** Plain text is one token colour; a grammar adds keywords, strings, names… */
 const MIN_TOKEN_COLOURS = 3;
 
@@ -76,10 +77,10 @@ test.describe('IDEA-313 language editing and Run Current File', () => {
     test.setTimeout(SERVER_TIMEOUT_MS * 3);
 
     test.beforeAll(async ({ browser }) => {
-        support = await loadSupport(browser);
         page = await browser.newPage();
         await openIngot(page, LANGUAGE_FIXTURES);
         await dismissNotifications(page);
+        support = await readSupport(page);
     });
 
     test.afterAll(async () => {

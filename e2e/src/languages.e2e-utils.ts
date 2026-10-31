@@ -1,6 +1,5 @@
-import { expect, type Browser, type Locator, type Page } from '@playwright/test';
-import { actUntilVisible, dismissNotifications, openIngot } from './app.utils';
-import { LANGUAGE_FIXTURES } from './e2e.consts';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { actUntilVisible } from './app.utils';
 
 /** IDEA-313: what the Languages page says about this machine, read once per spec. */
 export interface LanguageSupport {
@@ -46,18 +45,6 @@ export const readSupport = async (page: Page): Promise<LanguageSupport> => {
     return { features, toolchains };
 };
 
-/** Opens Ingot once on the language fixtures and reads the page (for `beforeAll`). */
-export const loadSupport = async (browser: Browser): Promise<LanguageSupport> => {
-    const page = await browser.newPage();
-    try {
-        await openIngot(page, LANGUAGE_FIXTURES);
-        await dismissNotifications(page);
-        return await readSupport(page);
-    } finally {
-        await page.close();
-    }
-};
-
 export const editorTab = (page: Page, label: string): Locator => page.locator('#theia-main-content-panel .lm-TabBar-tab', { hasText: label });
 export const activeEditor = (page: Page): Locator => page.locator('#theia-main-content-panel .lm-DockPanel-widget:not(.lm-mod-hidden) .monaco-editor').first();
 
@@ -76,9 +63,9 @@ export const goToFile = async (page: Page, name: string): Promise<void> => {
 export const tokenClasses = async (page: Page): Promise<number> =>
     activeEditor(page).locator('.view-lines span[class^="mtk"]').evaluateAll(spans => new Set(spans.map(s => s.className)).size);
 
-/** The token span showing `word`, quoted or not (the last one: usually a call site). */
+/** The token span showing `word`, quoted or not, maybe with the spaces around it (the last one: usually a call site). */
 export const tokenSpan = (page: Page, word: string): Locator =>
-    activeEditor(page).locator('.view-lines span[class^="mtk"]').filter({ hasText: new RegExp(`^["']?${word}["']?$`) }).last();
+    activeEditor(page).locator('.view-lines span[class^="mtk"]').filter({ hasText: new RegExp(`^\\s*["']?${word}["']?\\s*$`) }).last();
 
 /** The text of the Output view (the Run channel's editor); Monaco renders spaces as non-breaking ones. */
 export const outputText = async (page: Page): Promise<string> =>
@@ -90,16 +77,25 @@ const SUGGESTIONS = '.suggest-widget .monaco-list-row';
 /** One attempt; the whole check retries until the language server answers. */
 const ATTEMPT_MS = 5_000;
 
+const BLANK_OFFSET_PX = 10;
+/** Moves the mouse to the empty space under the text, so the editor sees it leave the word and come back (leaving the editor can keep a stale hover pending). */
+const parkMouse = async (page: Page): Promise<void> => {
+    const box = await activeEditor(page).locator('.view-lines').boundingBox();
+    if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height - BLANK_OFFSET_PX);
+    }
+};
+
 /** Hovers `word` until the language server shows a hover containing `text`. */
 export const expectHover = async (page: Page, word: string, text: string | RegExp): Promise<void> => {
     const token = tokenSpan(page, word);
     await expect(token).toBeVisible();
     await expect(async () => {
-        await page.mouse.move(0, 0);
+        await parkMouse(page);
         await token.hover();
         await expect(page.locator(HOVER, { hasText: text }).first()).toBeVisible({ timeout: ATTEMPT_MS });
     }).toPass({ timeout: SERVER_TIMEOUT_MS });
-    await page.mouse.move(0, 0);
+    await parkMouse(page);
 };
 
 /** Replaces `word` with `typed` like a user, asks for completion until `expected` is offered, then undoes the edit. */

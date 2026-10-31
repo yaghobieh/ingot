@@ -20,6 +20,11 @@ export const ZAPREX_LINK_LOG = path.join(E2E_CONFIG_DIR, `zaprex-links-${process
 /** IDEA-313: per-toolchain "missing" / "found" overrides the app reads on every toolchain check (test seam). */
 export const TOOLCHAIN_OVERRIDES_FILE = path.join(E2E_CONFIG_DIR, `toolchain-overrides-${process.env.INGOT_PORT ?? 3100}.json`);
 export const LANGUAGE_FIXTURES = path.join(FIXTURES_DIR, 'languages');
+/** Per-workspace extension storage of the e2e app. */
+export const WORKSPACE_STORAGE_DIR = path.join(E2E_CONFIG_DIR, 'workspace-storage');
+/** IDEA-313: Java language server workspaces (redhat.java storage); a server killed mid-save leaves them unreadable. */
+export const JAVA_SERVER_STORAGE = 'redhat.java';
+export const JAVA_SERVER_WORKSPACES: readonly string[] = ['jdt_ws', 'ss_ws'];
 /** Stands in for the home folder whose imported global config (rules, mcp.json) Ingot reads. */
 export const IMPORT_HOME = path.join(FIXTURES_DIR, 'import-home');
 export const CALC_SERVER = path.join(FIXTURES_DIR, 'mcp', 'calc-server.mjs');
@@ -67,7 +72,9 @@ export const E2E_USER_SETTINGS = {
     // IDEA-182: an interrupted AI & Zaprex settings run must not leave the T-rex hidden, Commit with AI off or Plan as default.
     'ingot.zaprex.showButton': true,
     'ingot.commit.ai.enabled': true,
-    'ingot.agent.defaultMode': 'agent'
+    'ingot.agent.defaultMode': 'agent',
+    // IDEA-313: completion checks must come from a language server, not from words already in the file.
+    'editor.wordBasedSuggestions': 'off'
 } as const;
 /** dismissNotifications: upper bound of toasts closed in one call, and how long one close click may wait. */
 export const MAX_NOTIFICATION_CLOSES = 20;
