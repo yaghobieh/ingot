@@ -32,6 +32,8 @@ export interface FeatureSupport {
     readonly toolchains?: readonly ToolchainId[];
     /** Short explanation shown next to the feature. */
     readonly note?: string;
+    /** The extension downloads its server or tool on first use (needs the network), so it is not ready out of the box. */
+    readonly onDemand?: boolean;
 }
 
 /** `na`: the feature makes no sense for the language (debugging YAML). Missing key: not supported yet. */

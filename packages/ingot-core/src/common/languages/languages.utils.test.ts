@@ -132,7 +132,9 @@ describe('language reports', () => {
     it('reports a feature ready, needing a toolchain, missing its extension or on demand', () => {
         const installed = allInstalled();
         installed.delete('ms-python.debugpy');
-        expect(featureReport(go, 'completion', installed, statuses(found('go'))).state).toBe('ready');
+        expect(featureReport(python, 'completion', installed, statuses()).state).toBe('ready');
+        expect(featureReport(go, 'completion', installed, statuses(found('go'))).state).toBe('on-demand');
+        expect(featureReport(go, 'formatting', installed, statuses(found('go'))).state).toBe('ready');
         expect(featureReport(go, 'completion', installed, statuses()).state).toBe('needs-toolchain');
         expect(featureReport(go, 'completion', installed, statuses()).missing).toEqual(['go']);
         expect(featureReport(python, 'debug', installed, statuses(found('python'))).state).toBe('on-demand');

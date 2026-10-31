@@ -115,7 +115,10 @@ export const featureReport = (
     if (entry.extension && !installed.has(entry.extension.toLowerCase())) {
         return { ...base, state: info?.onDemand ? 'on-demand' : 'missing-extension' };
     }
-    return { ...base, state: missing.length ? 'needs-toolchain' : 'ready' };
+    if (missing.length) {
+        return { ...base, state: 'needs-toolchain' };
+    }
+    return { ...base, state: entry.onDemand ? 'on-demand' : 'ready' };
 };
 
 const levelOf = (features: readonly FeatureReport[]): LanguageLevel => {

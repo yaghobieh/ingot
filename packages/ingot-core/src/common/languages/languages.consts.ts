@@ -258,10 +258,11 @@ const TMP_BIN = '${tmpdir}/${fileBasenameNoExtension}';
 /** The `java` launcher: the bundled JDK's when none is installed. */
 const JAVA = '${java}';
 
-const lsp = (extension: string, toolchains?: readonly ToolchainId[], note?: string) => {
-    const support = { extension, ...(toolchains ? { toolchains } : {}), ...(note ? { note } : {}) };
+const lsp = (extension: string, toolchains?: readonly ToolchainId[], note?: string, onDemand?: boolean) => {
+    const support = { extension, ...(toolchains ? { toolchains } : {}), ...(note ? { note } : {}), ...(onDemand ? { onDemand } : {}) };
     return { completion: support, hover: support, definition: support, diagnostics: support };
 };
+const ON_FIRST_USE = true;
 
 export const LANGUAGES: readonly LanguageSpec[] = [
     {
@@ -361,9 +362,9 @@ export const LANGUAGES: readonly LanguageSpec[] = [
         id: 'go', label: 'Go', monacoIds: ['go'], fileExtensions: ['.go'], fileNames: ['go.mod'],
         features: {
             grammar: { extension: 'vscode.go' },
-            ...lsp('golang.Go', ['go'], 'gopls is installed by the Go extension.'),
+            ...lsp('golang.Go', ['go'], 'gopls is installed by the Go extension on first use.', ON_FIRST_USE),
             formatting: { extension: 'golang.Go', toolchains: ['go'] },
-            debug: { extension: 'golang.Go', toolchains: ['go'], note: 'Delve is installed by the Go extension.' },
+            debug: { extension: 'golang.Go', toolchains: ['go'], note: 'Delve is installed by the Go extension on first use.', onDemand: ON_FIRST_USE },
             tests: { toolchains: ['go'], note: 'go test.' },
             run: { toolchains: ['go'] }
         },
@@ -416,9 +417,9 @@ export const LANGUAGES: readonly LanguageSpec[] = [
         id: 'kotlin', label: 'Kotlin', monacoIds: ['kotlin'], fileExtensions: ['.kt', '.kts'],
         features: {
             grammar: { extension: 'fwcd.kotlin' },
-            ...lsp('fwcd.kotlin', ['jre'], 'Kotlin Language Server; downloaded by the extension on first use.'),
-            formatting: { extension: 'fwcd.kotlin', toolchains: ['jre'] },
-            debug: { extension: 'fwcd.kotlin', toolchains: ['jdk'] },
+            ...lsp('fwcd.kotlin', ['jre'], 'Kotlin Language Server; the extension downloads it from GitHub on first use (answer "Ok, continue").', ON_FIRST_USE),
+            formatting: { extension: 'fwcd.kotlin', toolchains: ['jre'], onDemand: ON_FIRST_USE },
+            debug: { extension: 'fwcd.kotlin', toolchains: ['jdk'], note: 'Kotlin Debug Adapter, downloaded on first use.', onDemand: ON_FIRST_USE },
             tests: { toolchains: ['jdk'], note: 'JUnit through Gradle or Maven.' },
             run: { toolchains: ['kotlinc', 'jdk'] }
         },
