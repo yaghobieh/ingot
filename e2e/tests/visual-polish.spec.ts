@@ -19,6 +19,9 @@ const SETTINGS_PAGES = ['ai', 'user-rules', 'habits', 'agent-approvals'] as cons
 /** The one radius scale of the agent panel and settings controls (tokens.css). */
 const RADII = ['3px', '4px', '6px', '8px', '10px'];
 const CONTROL_HEIGHT = 28;
+/** The composer model pill always shows a readable stub of the model name. */
+const MIN_MODEL_LABEL_PX = 40;
+const SEARCH_HEIGHT = 26;
 
 const save = async (page: Page, name: string, target?: Locator): Promise<void> => {
     if (!SHOTS_DIR) {
@@ -104,6 +107,13 @@ test.describe('visual polish', () => {
             expect.soft(RADII).toContain(await radius(composer));
             expect.soft(RADII).toContain(await radius(page.locator('#ingot-composer-send')));
             expect.soft(RADII).toContain(await radius(page.locator('#ingot-composer-mode')));
+            // The model name stays readable; the sandbox pill is icon-only at the default preset.
+            const modelLabel = page.locator('#ingot-composer-model .ingot-pill-label');
+            expect.soft((await modelLabel.boundingBox())?.width ?? 0).toBeGreaterThan(MIN_MODEL_LABEL_PX);
+            await expect.soft(page.locator('#ingot-composer-sandbox .ingot-pill-label')).toBeHidden();
+            await expect(page.locator('#ingot-composer-sandbox')).toContainText('Workspace · Ask');
+            // Title bar search is one line.
+            expect.soft(Math.round((await page.locator('#ingot-tb-search').boundingBox())!.height)).toBe(SEARCH_HEIGHT);
 
             // Sandbox menu from the composer.
             await page.locator('#ingot-composer-sandbox').click();
