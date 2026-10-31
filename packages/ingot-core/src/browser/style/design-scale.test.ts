@@ -40,6 +40,16 @@ describe('design scale', () => {
         expect(shell).not.toMatch(/\.ingot-model-status \{[^}]*--theia-badge-background/);
     });
 
+    it('lets the composer model name grow first and wraps the toolbar instead of clipping Send', () => {
+        const bar = css('composer-bar.css');
+        expect(bar).toMatch(/\.ingot-composer \.ingot-composer-bar \{[^}]*flex-wrap: wrap/);
+        expect(bar).toMatch(/:has\(> #ingot-composer-model\) \{ flex: 100 1 0; min-width: 64px; max-width: max-content; \}/);
+    });
+
+    it('shows the sandbox pill label only for Full access', () => {
+        expect(css('sandbox.css')).toContain(".ingot-sandbox-pill:not(.ingot-sandbox-full-access) .ingot-pill-label { display: none; }");
+    });
+
     it('keeps the steady Index ready state muted in the status bar', () => {
         expect(css('shell.css')).not.toContain('.ingot-status-index-ready {');
     });

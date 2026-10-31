@@ -6,7 +6,7 @@
 .ingot-agents .ingot-composer-bar .ingot-sandbox-pill:not(.ingot-sandbox-full-access) .ingot-pill-label { display: none; }
 .ingot-agents .ingot-composer-bar .ingot-sandbox-pill:not(.ingot-sandbox-full-access) { padding: 0 5px 0 6px; gap: 2px; }
 .ingot-agents .ingot-composer-bar:is([data-width='narrow'], [data-width='tiny']) .ingot-sandbox-pill .ingot-pill-label { display: none; }
-.ingot-agents .ingot-composer-bar[data-width='tiny'] .ingot-sandbox-pill .ingot-pill-caret { display: none; }
+.ingot-agents .ingot-composer-bar:is([data-width='narrow'], [data-width='tiny']) .ingot-sandbox-pill .ingot-pill-caret { display: none; }
 
 /* Anchored to the composer bar (like the model picker), so an icon-only pill still gets a full-width menu. */
 .ingot-pill-anchor:has(> #ingot-composer-sandbox) { position: static; }

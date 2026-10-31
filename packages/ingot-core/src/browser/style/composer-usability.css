@@ -5,6 +5,10 @@
 /* The mode name stays readable at the usual panel width; only tiny panels drop to the icon. */
 .ingot-agents .ingot-composer-bar[data-width='narrow'] .ingot-mode-pill { flex: none; }
 .ingot-agents .ingot-composer-bar[data-width='narrow'] .ingot-mode-pill .ingot-pill-label { display: inline; }
+/* Narrow bars use tighter gaps so the model name keeps more of the row. */
+.ingot-agents .ingot-composer .ingot-composer-bar:is([data-width='narrow'], [data-width='tiny']) { column-gap: 4px; }
+/* With its name showing, the mode needs no icon as well (the mock's "Agent ⌄"). */
+.ingot-agents .ingot-composer-bar[data-width='narrow'] .ingot-mode-pill .ingot-mode-icon { display: none; }
 
 /* Reactions: small icon-only buttons under agent replies, muted until the reply is hovered or focused. */
 .ingot-agents .ingot-chat-agent .ingot-reply-reactions { display: flex; gap: 2px; margin-top: var(--ingot-space-1, 4px); opacity: .35; transition: opacity .12s ease; }

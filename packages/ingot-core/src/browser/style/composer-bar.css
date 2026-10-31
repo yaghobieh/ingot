@@ -139,8 +139,12 @@ body.ingot-dark .ingot-zaprex-status .ingot-zs-badge.on { color: #E7B86A; }
 .ingot-agents .ingot-composer-bar > .ingot-flex { flex: 1 1 0; min-width: 0; }
 .ingot-agents .ingot-composer-bar > .ingot-dictation-interim { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ingot-agents .ingot-composer-bar .ingot-pill-anchor { flex: none; min-width: auto; }
-/* The model name always keeps a readable stub; the toolbar wraps (tiny) before it disappears. */
-.ingot-agents .ingot-composer-bar .ingot-pill-anchor:has(> #ingot-composer-model) { flex: 0 1 auto; min-width: min(88px, 100%); }
+/*
+ * The model name grows into the free space first (up to its full width) and never drops below a readable stub;
+ * when even that does not fit, the trailing controls wrap to a second row instead of pushing Send out of the card.
+ */
+.ingot-agents .ingot-composer .ingot-composer-bar { flex-wrap: wrap; row-gap: 4px; justify-content: flex-end; }
+.ingot-agents .ingot-composer-bar .ingot-pill-anchor:has(> #ingot-composer-model) { flex: 100 1 0; min-width: 64px; max-width: max-content; }
 .ingot-agents .ingot-composer-bar .ingot-mode-pill { max-width: none; overflow: visible; }
 .ingot-agents .ingot-composer-bar .ingot-model-pill { min-width: 0; max-width: 100%; }
 .ingot-agents .ingot-composer-bar .ingot-pill-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
