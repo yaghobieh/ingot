@@ -1,0 +1,181 @@
+/*
+ * In-chat cards in the agent panel share the reference mock's card: agent card background, an even 1px border (no
+ * colored side bar), the 8px radius, 10px 12px padding and a 600 title row whose icon carries the meaning (warning,
+ * silver, accent). Buttons are 24px with the 6px radius; the main action is the accent button. Cards above the composer
+ * line up with its 12px side margins. Agent tokens and the radius scale only; loaded after the older layers.
+ */
+
+/* Cards. */
+.ingot-agents :is(.ingot-approval, .ingot-ask.ingot-ask-card, .ingot-doom-card, .ingot-plan-review, .ingot-handoff-offer, .ingot-cost-confirm, .ingot-habit-card, .ingot-habit-checklist) {
+    box-sizing: border-box; padding: 10px 12px; margin: 0;
+    border: 1px solid var(--ingot-agent-border); border-radius: var(--ingot-radius-lg); box-shadow: none;
+    background: var(--ingot-agent-card); color: var(--ingot-agent-text); font-size: var(--ingot-ap-small); line-height: var(--ingot-ap-line);
+}
+.ingot-agents .ingot-agents-root > :is(.ingot-doom-card, .ingot-handoff-offer, .ingot-cost-confirm) { flex: none; margin: 0 12px 8px; }
+.ingot-agents .ingot-agents-root > :is(.ingot-habit-cards, .ingot-habit-pill-wrap, .ingot-playbook-editor) { margin-left: 12px; margin-right: 12px; }
+.ingot-agents .ingot-approval-wrap { flex: none; margin: 0 12px 8px; padding: 0; }
+
+/* Title rows: icon, 600 title, muted summary. */
+.ingot-agents :is(.ingot-doom-head, .ingot-plan-review-head, .ingot-habit-card-head, .ingot-habit-checklist-head, .ingot-ask-card .ingot-ask-head) {
+    display: flex; align-items: center; gap: 8px; min-height: 20px; margin: 0; color: var(--ingot-agent-text); font-size: var(--ingot-ap-small); font-weight: 600;
+}
+.ingot-agents :is(.ingot-doom-head, .ingot-plan-review-head, .ingot-habit-card-head, .ingot-habit-checklist-head, .ingot-ask-head) > .codicon { flex: none; font-size: 14px; }
+.ingot-agents :is(.ingot-doom-title, .ingot-plan-review-title, .ingot-habit-title) { font-weight: 600; }
+.ingot-agents :is(.ingot-plan-review-summary, .ingot-habit-evidence) { color: var(--ingot-agent-text-3); font-size: var(--ingot-ap-tiny); font-weight: 400; }
+.ingot-agents .ingot-ask-card .ingot-ask-head > .codicon { color: var(--ingot-agent-accent); }
+.ingot-agents :is(.ingot-habit-card-head, .ingot-habit-checklist-head) > .codicon { color: var(--ingot-agent-accent); }
+.ingot-agents .ingot-frozen-suggestion .ingot-habit-card-head > .codicon { color: var(--ingot-info); }
+.ingot-agents :is(.ingot-plan-review-head, .ingot-handoff-offer) > .codicon { color: var(--ingot-silver); }
+.ingot-agents :is(.ingot-doom-head, .ingot-cost-confirm) > .codicon { color: var(--ingot-warning); }
+
+/* Buttons inside cards. */
+.ingot-agents :is(.ingot-doom-card, .ingot-handoff-offer, .ingot-cost-confirm, .ingot-habit-card, .ingot-ask-card, .ingot-chat-edit-form, .ingot-chat-edit-choices, .ingot-chat-memory) :is(.ingot-btn-primary, .ingot-btn-secondary, .ingot-btn-ghost),
+.ingot-agents .ingot-approval-actions button,
+.ingot-agents .ingot-chat-action {
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; min-width: 0; box-sizing: border-box; padding: 0 10px;
+    border: 1px solid transparent; border-radius: var(--ingot-radius-md); background: transparent; color: var(--ingot-agent-text-2); opacity: 1;
+    font: inherit; font-size: var(--ingot-ap-small); font-weight: 400; line-height: normal; white-space: nowrap; cursor: pointer;
+}
+.ingot-agents :is(.ingot-doom-card, .ingot-handoff-offer, .ingot-cost-confirm, .ingot-habit-card, .ingot-ask-card, .ingot-chat-edit-form, .ingot-chat-edit-choices, .ingot-chat-memory) .ingot-btn-primary,
+.ingot-agents .ingot-approval-actions .ingot-approval-run,
+.ingot-agents .ingot-btn-primary.ingot-chat-action {
+    padding: 0 12px; border-color: transparent; background: var(--ingot-agent-accent); color: var(--ingot-agent-accent-text); font-weight: 600;
+}
+.ingot-agents :is(.ingot-doom-card, .ingot-handoff-offer, .ingot-cost-confirm, .ingot-habit-card, .ingot-ask-card, .ingot-chat-edit-form, .ingot-chat-edit-choices, .ingot-chat-memory) .ingot-btn-primary:hover:not(:disabled),
+.ingot-agents .ingot-approval-actions .ingot-approval-run:hover,
+.ingot-agents .ingot-btn-primary.ingot-chat-action:hover:not(:disabled) { background: var(--ingot-agent-accent-hover); }
+.ingot-agents :is(.ingot-doom-card, .ingot-handoff-offer, .ingot-cost-confirm, .ingot-habit-card, .ingot-ask-card, .ingot-chat-edit-form, .ingot-chat-edit-choices) .ingot-btn-secondary,
+.ingot-agents .ingot-approval-actions .ingot-approval-always,
+.ingot-agents .ingot-btn-secondary.ingot-chat-action { border-color: var(--ingot-agent-border-strong); color: var(--ingot-agent-text); }
+.ingot-agents :is(.ingot-doom-card, .ingot-handoff-offer, .ingot-cost-confirm, .ingot-habit-card, .ingot-ask-card, .ingot-chat-edit-form, .ingot-chat-edit-choices, .ingot-chat-memory) :is(.ingot-btn-secondary, .ingot-btn-ghost):hover:not(:disabled),
+.ingot-agents .ingot-approval-actions :is(.ingot-approval-skip, .ingot-approval-always):hover,
+.ingot-agents .ingot-btn-secondary.ingot-chat-action:hover { background: var(--ingot-agent-hover); color: var(--ingot-agent-text); }
+.ingot-agents :is(.ingot-doom-card, .ingot-handoff-offer, .ingot-cost-confirm, .ingot-habit-card, .ingot-ask-card, .ingot-chat-edit-form) :is(.ingot-btn-primary, .ingot-btn-secondary, .ingot-btn-ghost):disabled { opacity: .45; cursor: default; }
+.ingot-agents :is(.ingot-doom-card, .ingot-handoff-offer, .ingot-cost-confirm, .ingot-habit-card, .ingot-ask-card, .ingot-chat-edit-form, .ingot-chat-edit-choices, .ingot-chat-memory) :is(.ingot-btn-primary, .ingot-btn-secondary, .ingot-btn-ghost):focus-visible,
+.ingot-agents .ingot-approval-actions button:focus-visible,
+.ingot-agents .ingot-chat-action:focus-visible { outline: 2px solid var(--ingot-agent-accent); outline-offset: 1px; }
+.ingot-agents :is(.ingot-doom-actions, .ingot-habit-actions) .codicon { font-size: 12px; }
+/* Secondary actions are words only; the main action keeps its icon. */
+.ingot-agents .ingot-doom-actions .ingot-btn-ghost .codicon { display: none; }
+
+/* Approval: muted activity line, the action line, then Skip / Always Run / Run. */
+.ingot-agents .ingot-approval-activity { margin: 0 0 6px; color: var(--ingot-agent-text-3); opacity: 1; font-size: var(--ingot-ap-small); }
+.ingot-agents .ingot-approval-activity-verb { color: var(--ingot-agent-text-2); opacity: 1; font-weight: 500; }
+.ingot-agents .ingot-approval:focus-visible { outline: none; border-color: var(--ingot-agent-accent); }
+.ingot-agents .ingot-approval-line { color: var(--ingot-agent-text-2); font-size: var(--ingot-ap-font); }
+.ingot-agents .ingot-approval-label { color: var(--ingot-agent-text); opacity: 1; font-weight: 500; }
+.ingot-agents .ingot-approval-detail { opacity: 1; color: var(--ingot-agent-text-2); }
+.ingot-agents .ingot-approval-sandbox { margin-top: 4px; color: var(--ingot-agent-text-3); font-size: var(--ingot-ap-tiny); }
+.ingot-agents .ingot-approval-actions { gap: 6px; margin-top: 10px; }
+.ingot-agents .ingot-approval-note { color: var(--ingot-agent-text-3); font-size: var(--ingot-ap-tiny); }
+.ingot-agents .ingot-approval-key { margin-left: 2px; opacity: .8; }
+
+/* Ask card. */
+.ingot-agents .ingot-ask.ingot-ask-card { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; }
+.ingot-agents .ingot-ask-card .ingot-ask-question { margin: 0; color: var(--ingot-agent-text); font-size: var(--ingot-ap-font); }
+.ingot-agents .ingot-ask-card .ingot-ask-row { display: flex; align-items: center; gap: 6px; }
+.ingot-agents .ingot-ask-card #ingot-ask-input {
+    flex: 1 1 140px; min-width: 0; height: 28px; box-sizing: border-box; padding: 0 8px;
+    border: 1px solid var(--ingot-agent-border-strong); border-radius: var(--ingot-radius-md); background: var(--ingot-agent-bg); color: var(--ingot-agent-text);
+    font: inherit; font-size: var(--ingot-ap-small);
+}
+.ingot-agents .ingot-ask-card #ingot-ask-input::placeholder { color: var(--ingot-agent-text-3); }
+.ingot-agents .ingot-ask-card #ingot-ask-input:focus { outline: none; border-color: var(--ingot-agent-accent); }
+.ingot-agents .ingot-ask-card #ingot-ask-submit {
+    height: 24px; padding: 0 12px; border: 0; border-radius: var(--ingot-radius-md);
+    background: var(--ingot-agent-accent); color: var(--ingot-agent-accent-text); font-weight: 600;
+}
+.ingot-agents .ingot-ask-card #ingot-ask-submit:hover:not(:disabled) { background: var(--ingot-agent-accent-hover); }
+.ingot-agents .ingot-ask-card .ingot-ask-option {
+    height: 24px; padding: 0 10px; border: 1px solid var(--ingot-agent-border-strong); border-radius: var(--ingot-radius-md);
+    background: transparent; color: var(--ingot-agent-text); font: inherit; font-size: var(--ingot-ap-small);
+}
+.ingot-agents .ingot-ask-card .ingot-ask-option:hover { background: var(--ingot-agent-hover); }
+
+/* Doom-loop pause: why, what was tried, how to go on. */
+.ingot-agents .ingot-doom-card { display: flex; flex-direction: column; gap: 8px; }
+.ingot-agents .ingot-doom-reason { color: var(--ingot-agent-text); }
+.ingot-agents .ingot-doom-tried { color: var(--ingot-agent-text-3); font-size: var(--ingot-ap-tiny); }
+.ingot-agents .ingot-doom-tried-title { margin-bottom: 2px; color: var(--ingot-agent-text-2); font-weight: 600; }
+.ingot-agents .ingot-doom-tried ol { margin: 0; padding-left: 18px; }
+.ingot-agents .ingot-doom-tried li { font-family: var(--ingot-ap-mono); }
+.ingot-agents .ingot-doom-actions { gap: 4px; }
+
+/* Handoff offer and cost warning: icon beside the text, actions under the text. */
+.ingot-agents :is(.ingot-handoff-offer, .ingot-cost-confirm) { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 8px; }
+.ingot-agents :is(.ingot-handoff-offer, .ingot-cost-confirm) > .codicon { margin-top: 2px; font-size: 14px; }
+.ingot-agents :is(.ingot-handoff-offer-actions, .ingot-cost-confirm-actions) { grid-column: 2; display: flex; gap: 6px; }
+
+/* Plan review. */
+.ingot-agents .ingot-plan-review { display: flex; flex-direction: column; gap: 6px; }
+.ingot-agents :is(.ingot-plan-review-open, .ingot-plan-review-file) {
+    height: 20px; padding: 0 8px; border: 1px solid var(--ingot-agent-border-strong); border-radius: var(--ingot-radius-sm);
+    background: transparent; color: var(--ingot-agent-text-2); font-size: var(--ingot-ap-tiny);
+}
+.ingot-agents :is(.ingot-plan-review-open, .ingot-plan-review-file):hover { background: var(--ingot-agent-hover); color: var(--ingot-agent-text); }
+.ingot-agents .ingot-plan-review-step { column-gap: 8px; }
+.ingot-agents .ingot-plan-review-step.matched > .codicon { color: var(--ingot-agent-success); }
+.ingot-agents .ingot-plan-review-step.missing .ingot-plan-review-text { color: var(--ingot-agent-text-2); }
+.ingot-agents .ingot-plan-review-evidence { color: var(--ingot-agent-text-3); font-family: var(--ingot-ap-mono); }
+.ingot-agents .ingot-plan-review-scope { padding-top: 6px; border-top-color: var(--ingot-agent-border); color: var(--ingot-agent-text-2); }
+
+/* Habit and frozen-file suggestions, live habit checklist. */
+.ingot-agents .ingot-habit-card { display: flex; flex-direction: column; gap: 8px; }
+.ingot-agents .ingot-habit-actions { gap: 4px; }
+.ingot-agents .ingot-habit-checklist { display: flex; flex-direction: column; gap: 2px; }
+.ingot-agents .ingot-habit-check.done { color: var(--ingot-agent-text-2); }
+.ingot-agents .ingot-habit-check.done .ingot-habit-check-mark { color: var(--ingot-agent-success); }
+
+/* "Save as habit" under a reply: a small quiet button, not a full-width field. */
+.ingot-agents .ingot-chat-save-habit {
+    align-self: flex-start; height: 22px; margin: 0; padding: 0 8px; border: 1px solid var(--ingot-agent-border); border-radius: var(--ingot-radius-md);
+    background: transparent; color: var(--ingot-agent-text-2); font-size: var(--ingot-ap-tiny);
+}
+.ingot-agents .ingot-chat-save-habit:is(:hover, :focus-visible) { border-color: var(--ingot-agent-border-strong); background: var(--ingot-agent-hover); color: var(--ingot-agent-text); }
+
+/* Queued steer and edit-and-rerun. */
+.ingot-agents .ingot-queued-chip {
+    border-color: var(--ingot-agent-border); border-radius: var(--ingot-radius-pill);
+    background: var(--ingot-agent-bg); color: var(--ingot-agent-text-2);
+}
+.ingot-agents .ingot-chat-edit-input {
+    border: 1px solid var(--ingot-agent-border-strong); border-radius: var(--ingot-radius-md); background: var(--ingot-agent-bg); color: var(--ingot-agent-text);
+    font-size: var(--ingot-ap-font);
+}
+.ingot-agents .ingot-chat-edit-input:focus { outline: none; border-color: var(--ingot-agent-accent); }
+
+/* Reply reactions: agent colors. */
+.ingot-agents .ingot-reply-reactions .ingot-react { border-radius: var(--ingot-radius-md); color: var(--ingot-agent-text-3); }
+.ingot-agents .ingot-reply-reactions .ingot-react:hover { background: var(--ingot-agent-hover); color: var(--ingot-agent-text); }
+.ingot-agents .ingot-reply-reactions .ingot-react:is(.on, [aria-pressed='true']) { color: var(--ingot-agent-accent); }
+
+/* Tool cards: agent surfaces, accent progress, mono at the code size. */
+.ingot-agents {
+    --ingot-tc-bg: var(--ingot-agent-card);
+    --ingot-tc-line: var(--ingot-agent-border);
+    --ingot-tc-code: var(--ingot-agent-code-bg);
+}
+.ingot-agents .ingot-tc-head { min-height: 28px; color: var(--ingot-agent-text-2); }
+.ingot-agents .ingot-tc-head:hover:not(:disabled) { color: var(--ingot-agent-text); }
+.ingot-agents .ingot-tc-head:focus-visible { outline-color: var(--ingot-agent-accent); }
+.ingot-agents .ingot-tc-title { color: var(--ingot-agent-text); }
+.ingot-agents :is(.ingot-tc-programs, .ingot-tc-from, .ingot-tc-took) { color: var(--ingot-agent-text-3); opacity: 1; }
+.ingot-agents .ingot-tc-status.ok { color: var(--ingot-agent-success); }
+.ingot-agents .ingot-tc-status.failed { color: var(--ingot-agent-danger); }
+.ingot-agents .ingot-tc-spinner { border-color: color-mix(in srgb, var(--ingot-agent-accent) 30%, transparent); border-top-color: var(--ingot-agent-accent); }
+.ingot-agents .ingot-tc-terminal.running { border-color: color-mix(in srgb, var(--ingot-agent-accent) 45%, var(--ingot-agent-border)); }
+.ingot-agents :is(.ingot-tc-terminal, .ingot-tc-generic).error { border-color: color-mix(in srgb, var(--ingot-agent-danger) 45%, var(--ingot-agent-border)); }
+.ingot-agents :is(.ingot-tc-command, .ingot-tc-output) { font: var(--ingot-ap-small)/1.6 var(--ingot-ap-mono); }
+.ingot-agents .ingot-tc-command { color: var(--ingot-agent-text); }
+.ingot-agents .ingot-tc-output { color: var(--ingot-agent-text-2); }
+.ingot-agents .ingot-tc-note { color: var(--ingot-warning); }
+.ingot-agents .ingot-tc-more { color: var(--ingot-agent-accent); }
+.ingot-agents .ingot-pc { border-radius: var(--ingot-radius-lg); box-shadow: none; }
+.ingot-agents .ingot-pc-facts a { color: var(--ingot-agent-accent); }
+.ingot-agents .ingot-chat-explored-list li { font-size: var(--ingot-ap-tiny); }
+
+/* Thought row. */
+.ingot-agents .ingot-chat-thought-row { color: var(--ingot-agent-text-3); }
+.ingot-agents .ingot-chat-thought-row:hover { color: var(--ingot-agent-text); }
+.ingot-agents .ingot-chat-thought-row:focus-visible { outline-color: var(--ingot-agent-accent); }
+.ingot-agents .ingot-chat-thought-text { border-left-color: var(--ingot-agent-border); color: var(--ingot-agent-text-2); }
