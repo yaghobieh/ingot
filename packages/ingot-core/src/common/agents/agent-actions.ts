@@ -5,6 +5,7 @@
 import type { GitOperation } from '../git/git-ops';
 import type { AgentToolCall } from './agent-protocol';
 import { describeTarget, toTarget } from '../browser-tool/browser-tool.utils';
+import { SPEC_TASK_TOOL, SPEC_TOOL_DESCRIPTION } from '../ingot-kit/ingot-kit.consts';
 
 export const BUILTIN_TOOL_SERVER = 'ingot';
 
@@ -61,7 +62,9 @@ export const BUILTIN_TOOLS = [
     { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' },
     { name: 'ask_user', description: 'Ask the user a clarifying question and wait for the answer before continuing. Arguments: {"question": "…", "options"?: ["a", "b"]}. The user can also type their own answer. Runs at once and pauses the run.' },
     { name: 'create_library', description: 'Create a new React + Vite client and Node + Express server for a library (books, authors, members, loans, borrow and return) in a new empty folder. Arguments: {"path": "/absolute/or/relative", "react": "feature-folders" | "atomic", "node": "layered" | "modular", "reactExample"?: "/path/to/example", "nodeExample"?: "/path/to/example"}. Named presets or an example folder. If the layout is unclear, call ask_user first. Runs at once; each file shows up for Accept or Reject.' },
-    { name: 'open_workspace', description: 'Open a folder as the Ingot workspace. Arguments: {"path": "/absolute/path"}. Waits for the user\'s approval. Call it last, after install, tests and git.' }
+    { name: 'open_workspace', description: 'Open a folder as the Ingot workspace. Arguments: {"path": "/absolute/path"}. Waits for the user\'s approval. Call it last, after install, tests and git.' },
+    // IDEA-324: specs in .ingot/specs
+    { name: SPEC_TASK_TOOL, description: SPEC_TOOL_DESCRIPTION }
 ] as const;
 
 const str = (value: unknown): string => typeof value === 'string' ? value : '';
@@ -128,7 +131,7 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
         }
         case 'scripts': case 'processes': case 'process_output': return undefined;
         // IDEA-186: read-only project tools run at once.
-        case 'read_file': case 'list_dir': case 'glob': case 'grep': case 'ask_user': case 'create_library': return undefined;
+        case 'read_file': case 'list_dir': case 'glob': case 'grep': case 'ask_user': case 'create_library': case SPEC_TASK_TOOL: return undefined;
         case 'open_workspace': return { kind: 'terminal', label: 'Open folder', detail: str(a.path), command: str(a.path) };
         case 'process_stop': return { kind: 'terminal', label: 'Stop process', detail: str(a.id) };
         case 'web_search': return { kind: 'web', label: 'Search web', detail: str(a.query) };
