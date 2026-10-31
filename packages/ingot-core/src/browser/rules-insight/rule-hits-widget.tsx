@@ -1,5 +1,6 @@
 import * as React from '@theia/core/shared/react';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
+import type { Message } from '@theia/core/shared/@lumino/messaging';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import { OpenerService, open } from '@theia/core/lib/browser/opener-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
@@ -46,6 +47,12 @@ export class RuleHitsWidget extends ReactWidget {
             this.update();
         }));
         this.toDispose.push(this.agents.onDidChange(() => this.update()));
+        this.update();
+    }
+
+    protected override onActivateRequest(msg: Message): void {
+        super.onActivateRequest(msg);
+        this.node.focus();
     }
 
     /** Shows a chat's turns, the last one expanded. */
@@ -88,7 +95,7 @@ export class RuleHitsWidget extends ReactWidget {
         const turns = [...this.turns].reverse();
         const titled = this.agents.allSessions.filter(s => this.store.turnsFor(s.id).length);
         const current = this.sessionId ?? this.agents.current?.id ?? this.store.latest?.sessionId;
-        return <div className='ingot-tw ingot-rh' id='ingot-rule-hits'>
+        return <div className='ingot-tw ingot-rh'>
             <div className='ingot-tw-header'>
                 <span className='ingot-tw-title'>{RULE_HITS_LABEL}</span>
                 {titled.length > 1 && <select className='ingot-rh-session' aria-label='Chat' value={current} onChange={e => this.showSession(e.currentTarget.value)}>
