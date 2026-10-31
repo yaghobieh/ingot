@@ -14,7 +14,7 @@ const makeProject = (): string => {
     return dir;
 };
 
-const toast = (page: Page, text: string) => page.locator('.theia-notification-message', { hasText: text });
+const toast = (page: Page, text: string) => page.locator('.theia-notification-message', { hasText: text }).first();
 
 test.describe('IDEA-287 environment.json build and snapshot', () => {
     let dir = '';

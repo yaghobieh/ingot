@@ -4,6 +4,7 @@ import type { CommandContribution, CommandRegistry } from '@theia/core/lib/commo
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { type PreferenceSchema, PreferenceService } from '@theia/core/lib/common/preferences';
 import URI from '@theia/core/lib/common/uri';
+import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { CONFIG_DIRS, NESTED_RULES_MAX_DEPTH } from '../../common/project-config/project-config.consts';
@@ -60,6 +61,10 @@ export class CursorImportContribution implements FrontendApplicationContribution
     @inject(CursorModeService) protected readonly modes: CursorModeService;
     @inject(IngotMcpClient) protected readonly mcp: IngotMcpClient;
     @inject(AgentStore) protected readonly agents: AgentStore;
+
+    protected readonly onDidConvertEmitter = new Emitter<URI>();
+    /** IDEA-287: fires after "Convert to .ingot" wrote its files (the sync records what it wrote). */
+    readonly onDidConvert: Event<URI> = this.onDidConvertEmitter.event;
 
     /** Roots already asked in this window, so a workspace event does not stack a second prompt. */
     protected readonly asked = new Set<string>();
@@ -152,7 +157,7 @@ export class CursorImportContribution implements FrontendApplicationContribution
         }
     }
 
-    protected async refresh(root: URI): Promise<void> {
+    async refresh(root: URI): Promise<void> {
         await Promise.all([this.mcp.refresh(root).catch(() => undefined), this.agents.loadCommands().catch(() => undefined)]);
     }
 
@@ -180,6 +185,7 @@ export class CursorImportContribution implements FrontendApplicationContribution
         this.messages.info(written
             ? `Converted Cursor config into ${CONFIG_DIRS.ingot}: ${conversionSummary(plan.steps)}. ${CONFIG_DIRS.external} was left untouched.`
             : `Nothing left to convert: ${CONFIG_DIRS.ingot} already has this workspace's Cursor config.`);
+        this.onDidConvertEmitter.fire(root);
         return plan;
     }
 
@@ -198,7 +204,7 @@ export class CursorImportContribution implements FrontendApplicationContribution
     }
 
     /** Every Cursor file of the workspace: the root `.cursor` folder, root files and nested rules / AGENTS.md / BUGBOT.md. */
-    protected async sources(root: URI): Promise<CursorSourceFile[]> {
+    async sources(root: URI): Promise<CursorSourceFile[]> {
         const paths = new Set<string>();
         const buildFiles = new Set<string>();
         const cursor = root.resolve(CONFIG_DIRS.external);
