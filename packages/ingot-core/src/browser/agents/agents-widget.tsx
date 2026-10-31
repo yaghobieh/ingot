@@ -1591,8 +1591,7 @@ export class IngotAgentsWidget extends ReactWidget {
                 ))}
             </div>}
             {this.renderMentionMenu()}
-            {this.renderMentionChips()}
-            {this.renderAutoContext()}
+            {this.renderContextRow()}
             <div id={COMPOSER_INPUT_ID} ref={el => this.setComposer(el)} className='ingot-composer-input' data-placeholder={COMPOSER_PLACEHOLDER}
                 aria-label='Message' suppressContentEditableWarning
                 onPaste={e => this.onPaste(e)}
@@ -2007,6 +2006,13 @@ export class IngotAgentsWidget extends ReactWidget {
             })}
             {!items.length && <div className='ingot-mention-empty'>{loading ? 'Loading files…' : 'No matching files'}</div>}
         </div>;
+    }
+
+    /** Mentioned files and auto context share one wrapping row above the input, like the mock's chip row. */
+    protected renderContextRow(): React.ReactNode {
+        const mentions = this.renderMentionChips();
+        const auto = this.renderAutoContext();
+        return (mentions || auto) && <div className='ingot-composer-context' id='ingot-composer-context'>{mentions}{auto}</div>;
     }
 
     /** Files and folders `@`-mentioned in the draft, with their type badge; they are sent as context. */

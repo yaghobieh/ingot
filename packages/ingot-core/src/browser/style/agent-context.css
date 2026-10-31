@@ -26,6 +26,20 @@
 }
 .ingot-auto-context-restore:hover { color: var(--ingot-text); }
 
+/* In the agent panel, mentions and auto context are one row of the same 22px pills (agent tokens). */
+.ingot-agents .ingot-composer-context { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.ingot-agents .ingot-composer-context > :is(.ingot-composer-chips, .ingot-auto-context) { display: contents; }
+.ingot-agents .ingot-auto-chip {
+  height: var(--ingot-ap-chip); box-sizing: content-box; max-width: 100%; padding: 0 2px 0 4px; border-radius: var(--ingot-radius-pill);
+  border: 1px solid var(--ingot-agent-border); background: var(--ingot-agent-bg); color: var(--ingot-agent-text); font-size: var(--ingot-ap-tiny);
+}
+.ingot-agents .ingot-auto-chip:hover { border-color: var(--ingot-agent-border-strong); }
+.ingot-agents .ingot-auto-chip-label:hover { color: var(--ingot-agent-text); }
+.ingot-agents .ingot-auto-chip .ingot-auto-chip-remove { color: var(--ingot-agent-text-3); opacity: 1; }
+.ingot-agents .ingot-auto-chip .ingot-auto-chip-remove:hover { color: var(--ingot-agent-danger); }
+.ingot-agents .ingot-auto-context-restore { color: var(--ingot-agent-text-3); }
+.ingot-agents .ingot-auto-context-restore:hover { color: var(--ingot-agent-text); }
+
 .ingot-chat-auto {
   display: flex; flex-wrap: wrap; gap: var(--ingot-space-2); margin-top: var(--ingot-space-1);
   font-size: 11px; color: var(--ingot-text-muted);
