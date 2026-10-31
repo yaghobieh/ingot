@@ -5,7 +5,7 @@ export const CURSOR_SYNC_FILE_VERSION = 1;
 export const CURSOR_SYNC_DEBOUNCE_MS = 1500;
 
 /** Kinds merged into an existing `.ingot` file instead of copied (they only gain new entries). */
-export const CURSOR_MERGE_KINDS: readonly string[] = ['mcp', 'hooks', 'ignore'];
+export const CURSOR_MERGE_KINDS: readonly string[] = ['mcp', 'hooks', 'ignore', 'policy'];
 
 /** Workspace-relative files whose change can need a sync (nested AGENTS.md and `.cursor` folders too). */
 export const CURSOR_ROOT_SYNC_FILES: readonly string[] = ['.cursorrules', '.cursorignore', '.cursorindexingignore'];

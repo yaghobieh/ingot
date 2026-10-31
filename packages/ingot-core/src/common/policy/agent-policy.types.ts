@@ -40,6 +40,10 @@ export interface PolicyLoad {
     readonly policy: AgentPolicy;
     readonly errors: readonly string[];
     readonly exists: boolean;
+    /** IDEA-287: Cursor files merged into the policy (`.cursor/cli.json`, `.cursor/sandbox.json`). */
+    readonly sources?: readonly string[];
+    /** IDEA-287: Cursor permission entries Ingot has no rule for. */
+    readonly ignored?: readonly string[];
 }
 
 /**

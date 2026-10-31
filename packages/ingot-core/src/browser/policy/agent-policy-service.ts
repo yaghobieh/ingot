@@ -6,15 +6,22 @@ import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service
 import { DEFAULT_POLICY, POLICY_FILE, POLICY_TEMPLATE } from '../../common/policy/agent-policy.consts';
 import type { PolicyContext, PolicyLoad } from '../../common/policy/agent-policy.types';
 import { parsePolicy } from '../../common/policy/agent-policy.utils';
+import { CURSOR_CLI_FILE, CURSOR_SANDBOX_FILE } from '../../common/policy/cursor-policy.consts';
+import { applyOverlay, cursorPermissionsOverlay, cursorSandboxOverlay, isEmptyOverlay, mergeOverlays } from '../../common/policy/cursor-policy.utils';
+import { CursorModeService } from '../import/cursor-mode-service';
 import { POLICY_JSON_INDENT } from './policy.consts';
 
-/** IDEA-263: reads the project's `.ingot/policy.json` (fresh on every tool round, so edits apply at once). */
+/**
+ * IDEA-263: reads the project's `.ingot/policy.json` (fresh on every tool round, so edits apply at once).
+ * IDEA-287: while the workspace reads `.cursor` live, `.cursor/cli.json` permissions and `.cursor/sandbox.json` are merged in.
+ */
 @injectable()
 export class AgentPolicyService {
 
     @inject(FileService) protected readonly files: FileService;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(EnvVariablesServer) protected readonly env: EnvVariablesServer;
+    @inject(CursorModeService) protected readonly modes: CursorModeService;
 
     protected home?: Promise<string | undefined>;
 
@@ -26,12 +33,23 @@ export class AgentPolicyService {
         if (!root) {
             return { policy: DEFAULT_POLICY, errors: [], exists: false };
         }
-        const uri = URI.fromFilePath(root).resolve(POLICY_FILE);
-        if (!await this.files.exists(uri).catch(() => false)) {
-            return { policy: DEFAULT_POLICY, errors: [], exists: false };
+        const base = URI.fromFilePath(root);
+        const uri = base.resolve(POLICY_FILE);
+        const exists = await this.files.exists(uri).catch(() => false);
+        const own: PolicyLoad = exists ? { ...parsePolicy(await this.read(uri)), exists } : { policy: DEFAULT_POLICY, errors: [], exists };
+        if (!await this.modes.readsCursor(base).catch(() => false)) {
+            return own;
         }
-        const text = (await this.files.read(uri).catch(() => undefined))?.value;
-        return { ...parsePolicy(text), exists: true };
+        const [cli, sandbox] = await Promise.all([this.read(base.resolve(CURSOR_CLI_FILE)), this.read(base.resolve(CURSOR_SANDBOX_FILE))]);
+        const overlay = mergeOverlays(cursorPermissionsOverlay(cli), cursorSandboxOverlay(sandbox));
+        const sources = [...(cli !== undefined ? [CURSOR_CLI_FILE] : []), ...(sandbox !== undefined ? [CURSOR_SANDBOX_FILE] : [])];
+        return isEmptyOverlay(overlay) && !overlay.ignored.length ? own : {
+            ...own, policy: own.errors.length ? own.policy : applyOverlay(own.policy, overlay, exists), sources, ...(overlay.ignored.length ? { ignored: overlay.ignored } : {})
+        };
+    }
+
+    protected async read(uri: URI): Promise<string | undefined> {
+        return (await this.files.read(uri).catch(() => undefined))?.value;
     }
 
     async context(root: string, cwd?: string): Promise<PolicyContext> {

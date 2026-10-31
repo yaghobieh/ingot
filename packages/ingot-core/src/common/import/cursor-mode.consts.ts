@@ -2,7 +2,7 @@
  * IDEA-287: how a workspace uses its Cursor config, chosen once on first open and remembered per workspace.
  * `convert`: copied and translated into `.ingot` (the Cursor files stay untouched, Ingot stops reading them).
  * `keep`: `.cursor` (and `.cursorrules`, `.cursorignore`, `.cursorindexingignore`) are read live; nothing is copied.
- * `off`: the user said no; Cursor files are not read. AGENTS.md is Ingot's own format and is always read.
+ * `off`: the user said no; Cursor files are not read. AGENTS.md (and CLAUDE.md) are plain instructions and always read.
  * A workspace that was never asked behaves like `keep`.
  */
 export const CURSOR_MODES = ['convert', 'keep', 'off'] as const;
@@ -21,13 +21,13 @@ export const CURSOR_MODE_LABELS = {
 export const CURSOR_MODE_DETAILS = {
     convert: 'Copy and translate rules, commands, MCP, ignore files and hooks into .ingot. .cursor stays untouched.',
     keep: 'Read .cursor live as the source. Nothing is copied.',
-    off: 'Ingot ignores .cursor, .cursorrules and .cursorignore in this workspace. AGENTS.md is still read.'
+    off: 'Ingot ignores .cursor, .cursorrules and .cursorignore in this workspace. AGENTS.md and CLAUDE.md are still read.'
 } as const;
 
 /** Files and folders that make Ingot ask on first open (project root). */
 export const CURSOR_SIGNALS = [
     '.cursor/rules', '.cursor/commands', '.cursor/skills', '.cursor/mcp.json', '.cursor/hooks.json', '.cursor/BUGBOT.md', '.cursor/environment.json',
-    '.cursorrules', '.cursorignore', '.cursorindexingignore', 'AGENTS.md'
+    '.cursor/agents', '.cursor/worktrees.json', '.cursorrules', '.cursorignore', '.cursorindexingignore', 'AGENTS.md'
 ] as const;
 
 export const CURSOR_PROMPT = {

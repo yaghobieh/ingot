@@ -1,8 +1,12 @@
 import { parseFrontmatter } from '../project-config/project-config.utils';
 import {
-    AGENTS_RULE_NAME, CONVERTED_RULE_EXT, CURSOR_DIR_PREFIX, CURSOR_ENVIRONMENT_PATH, CURSOR_HOOKS_PATH, CURSOR_ITEM_LABELS, CURSORRULES_TARGET, INGOT_DIR_PREFIX,
-    INGOT_HOOKS_PATH, MERGE_TARGETS
+    AGENTS_RULE_NAME, CONVERTED_RULE_EXT, CURSOR_DIR_PREFIX, CURSOR_ENVIRONMENT_PATH, CURSOR_HOOKS_PATH, CURSOR_ITEM_LABELS, CURSOR_WORKTREES_PATH, CURSORRULES_TARGET,
+    INGOT_DIR_PREFIX, INGOT_HOOKS_PATH, MERGE_TARGETS
 } from './cursor-convert.consts';
+import { convertWorktreesJson } from '../threads/worktree-setup.utils';
+import { parsePolicy } from '../policy/agent-policy.utils';
+import { CURSOR_CLI_FILE, CURSOR_SANDBOX_FILE } from '../policy/cursor-policy.consts';
+import { applyOverlay, cursorPermissionsOverlay, cursorSandboxOverlay, isEmptyOverlay } from '../policy/cursor-policy.utils';
 import { parseEnvironmentJson, resolveEnvironmentBuild } from '../project-config/environment.utils';
 import type { CursorConversionInput, CursorConversionPlan, CursorConversionStep, CursorItemKind, CursorSourceFile } from './cursor-convert.types';
 import { convertCursorRule, convertCursorrules } from './cursor-rules-import.utils';
@@ -98,13 +102,17 @@ export const cursorTargetFor = (path: string): Mapping | undefined => {
     if (path === '.cursorrules') {
         return { kind: 'rule', target: CURSORRULES_TARGET, convert: convertCursorrules };
     }
-    const folder = /^\.cursor\/(commands|skills|hooks|habits)\/(.+)$/.exec(path);
+    const folder = /^\.cursor\/(commands|skills|hooks|habits|agents)\/(.+)$/.exec(path);
     if (folder) {
-        const kind: CursorItemKind = folder[1] === 'commands' ? 'command' : folder[1] === 'skills' ? 'skill' : folder[1] === 'hooks' ? 'hookScript' : 'habit';
-        return { kind, target: `.ingot/${folder[1]}/${folder[2]}`, ...(kind === 'command' ? { convert: (text: string) => text } : {}) };
+        const kinds: Record<string, CursorItemKind> = { commands: 'command', skills: 'skill', hooks: 'hookScript', habits: 'habit', agents: 'subagent' };
+        const kind = kinds[folder[1]];
+        return { kind, target: `.ingot/${folder[1]}/${folder[2]}`, ...(kind === 'command' || kind === 'subagent' ? { convert: (text: string) => text } : {}) };
     }
     if (path === CURSOR_ENVIRONMENT_PATH) {
         return { kind: 'environment', target: '.ingot/environment.json', convert: text => text };
+    }
+    if (path === CURSOR_WORKTREES_PATH) {
+        return { kind: 'worktrees', target: '.ingot/worktrees.json', convert: convertWorktreesJson };
     }
     return undefined;
 };
@@ -131,6 +139,7 @@ export const planCursorConversion = (input: CursorConversionInput): CursorConver
     const skipped: { from: string; reason: string }[] = [];
     const sources = [...input.sources].sort((a, b) => a.path.localeCompare(b.path));
     const textOf = (source: CursorSourceFile): string => source.text ?? '';
+    let policyText: string | undefined;
     for (const source of sources) {
         if (source.path === '.cursor/mcp.json') {
             const merged = mergeMcpJson(textOf(source), input.current[MERGE_TARGETS.mcp]);
@@ -147,6 +156,21 @@ export const planCursorConversion = (input: CursorConversionInput): CursorConver
                 skipped.push({ from: source.path, reason: merged.error });
             } else if (merged.text) {
                 steps.push({ kind: 'hooks', from: source.path, target: MERGE_TARGETS.hooks, text: merged.text, merge: input.current[MERGE_TARGETS.hooks] !== undefined });
+            }
+            continue;
+        }
+        if (source.path === CURSOR_CLI_FILE || source.path === CURSOR_SANDBOX_FILE) {
+            const overlay = source.path === CURSOR_CLI_FILE ? cursorPermissionsOverlay(textOf(source)) : cursorSandboxOverlay(textOf(source));
+            const current = policyText ?? input.current[MERGE_TARGETS.policy];
+            const own = parsePolicy(current);
+            if (own.errors.length) {
+                skipped.push({ from: source.path, reason: `${MERGE_TARGETS.policy}: ${own.errors[0]}` });
+            } else if (!isEmptyOverlay(overlay)) {
+                const text = `${JSON.stringify(applyOverlay(own.policy, overlay, current !== undefined), undefined, 2)}\n`;
+                if (text !== current) {
+                    policyText = text;
+                    steps.push({ kind: 'policy', from: source.path, target: MERGE_TARGETS.policy, text, merge: input.current[MERGE_TARGETS.policy] !== undefined });
+                }
             }
             continue;
         }

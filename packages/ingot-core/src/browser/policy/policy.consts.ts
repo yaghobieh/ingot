@@ -31,5 +31,7 @@ export const AUDIT_TEXT = {
     createPolicy: 'Create policy',
     editPolicy: 'Edit policy',
     openProject: 'Open a project first.',
-    sandboxed: 'sandboxed'
+    sandboxed: 'sandboxed',
+    fromCursor: 'Policy from Cursor files',
+    ignored: 'Cursor entries not applied'
 } as const;

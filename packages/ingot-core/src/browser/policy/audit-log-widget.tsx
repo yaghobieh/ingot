@@ -134,9 +134,11 @@ export class IngotAuditLogWidget extends ReactWidget {
         }
         return <div className='ingot-audit-policy' id='ingot-audit-policy' data-exists={load.exists}>
             <span className='codicon codicon-law' aria-hidden='true' />
-            <span className='ingot-audit-policy-title'>{load.exists ? POLICY_FILE : AUDIT_TEXT.noPolicy}</span>
+            <span className='ingot-audit-policy-title'>{load.exists ? POLICY_FILE : load.sources?.length ? AUDIT_TEXT.fromCursor : AUDIT_TEXT.noPolicy}</span>
+            {load.sources?.map(source => <span key={source} className='ingot-audit-chip ingot-audit-source' data-source={source}>{source}</span>)}
             {policySummary(load.policy).map(line => <span key={line} className='ingot-audit-chip'>{line}</span>)}
             {!!load.errors.length && <span className='ingot-audit-policy-error' id='ingot-audit-policy-error'>{load.errors.join(' ')}</span>}
+            {!!load.ignored?.length && <span className='ingot-audit-policy-ignored' id='ingot-audit-policy-ignored' title={load.ignored.join('\n')}>{AUDIT_TEXT.ignored}: {load.ignored.length}</span>}
             <button type='button' id='ingot-audit-open-policy' className='ingot-audit-btn' onClick={() => this.commands.executeCommand(POLICY_COMMANDS.openPolicy.id)}>
                 {load.exists ? AUDIT_TEXT.editPolicy : AUDIT_TEXT.createPolicy}
             </button>

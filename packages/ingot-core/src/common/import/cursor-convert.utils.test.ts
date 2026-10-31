@@ -88,4 +88,29 @@ describe('convert Cursor config into .ingot', () => {
         expect(conversionSummary(plan.steps)).toBe('1 command, mcp.json and 2 rules');
         expect(conversionSummary([])).toBe('');
     });
+
+    it('IDEA-287: copies subagents, translates worktrees.json and merges cli.json / sandbox.json into policy.json', () => {
+        expect(cursorTargetFor('.cursor/agents/reviewer.md')).toMatchObject({ kind: 'subagent', target: '.ingot/agents/reviewer.md' });
+        const worktrees = cursorTargetFor('.cursor/worktrees.json')!;
+        expect(worktrees.target).toBe('.ingot/worktrees.json');
+        expect(JSON.parse(worktrees.convert!('{"setup-worktree": "setup.sh"}'))).toEqual({ 'setup-worktree': '../.cursor/setup.sh' });
+
+        const plan = planCursorConversion({
+            sources: [
+                { path: '.cursor/cli.json', text: JSON.stringify({ permissions: { allow: ['Shell(npm:test)'], deny: ['Shell(rm)'] } }) },
+                { path: '.cursor/sandbox.json', text: JSON.stringify({ networkPolicy: { default: 'deny', allow: ['registry.npmjs.org'] } }) }
+            ],
+            existing: ['.ingot/policy.json'], current: { '.ingot/policy.json': JSON.stringify({ commands: { allow: ['npm run lint'] } }) }
+        });
+        expect(plan.steps.map(s => [s.kind, s.from, s.target, s.merge])).toEqual([
+            ['policy', '.cursor/cli.json', '.ingot/policy.json', true], ['policy', '.cursor/sandbox.json', '.ingot/policy.json', true]
+        ]);
+        const final = JSON.parse(plan.steps[1].text!);
+        expect(final.commands).toEqual({ allow: ['npm run lint', 'npm test'], deny: ['rm'] });
+        expect(final.network).toEqual({ default: 'deny', allow: ['registry.npmjs.org'], deny: [] });
+
+        const broken = planCursorConversion({ sources: [{ path: '.cursor/cli.json', text: '{"permissions": {"deny": ["Shell(rm)"]}}' }], existing: [], current: { '.ingot/policy.json': '{ nope' } });
+        expect(broken.steps).toEqual([]);
+        expect(broken.skipped[0].from).toBe('.cursor/cli.json');
+    });
 });
