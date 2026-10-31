@@ -86,7 +86,7 @@ import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../co
 import { MADE_WITH_PREF, withMadeWith } from '../../common/git/made-with';
 import { clampPieces, HARMONY_DEFAULTS, HARMONY_PREFS, harmonyLock, harmonyPrompt, isHeavyRun, pickHarmonyPiece, type HarmonyPiece } from '../../common/agents/harmony';
 import {
-    APPROVAL_PREFS, BUILTIN_TOOLS, BUILTIN_TOOL_SERVER, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
+    APPROVAL_PREFS, BUILTIN_TOOLS, BUILTIN_TOOL_SERVER, actionLine, builtinToolEnabled, builtinToolProtocol, describeAction, gitOperationFor, needsApproval, skippedResult, toAlwaysRunCommands, toAlwaysRunMap,
     unknownToolResult, updateAlwaysRun, updateAlwaysRunCommands, type AgentAction, type AlwaysRunCommands, type AlwaysRunMap, type ApprovalDecision, type ApprovalKind,
     type BuiltinToolSwitches
 } from '../../common/agents/agent-actions';
@@ -126,6 +126,11 @@ import { applyGoalCheck, createGoal, decideGoal, goalLimits, goalProtocol, parse
 import type { GoalStopReason } from '../../common/agents/goal.types';
 import { customModeFrom, customModePrompt, findModeCommand } from '../../common/agents/custom-mode';
 import type { CustomMode } from '../../common/agents/custom-mode.types';
+import { NETWORK_OFF_ENV } from '../../common/sandbox/sandbox.consts';
+import type { SandboxCheck } from '../../common/sandbox/sandbox.types';
+import { blocksNetwork, checkSandbox, editIntent, gateDecision, refusalText, sandboxNote, toolIntent } from '../../common/sandbox/sandbox.utils';
+import { SandboxPresetService } from '../sandbox/sandbox-preset-service';
+import { AutoReviewer } from '../sandbox/auto-reviewer';
 
 let nextId = 1;
 const newChatId = (): string => `chat-${Date.now().toString(36)}-${nextId++}`;
@@ -208,6 +213,8 @@ export class AgentStore {
     @inject(CodebaseIndexStore) protected readonly codebaseIndex: CodebaseIndexStore;
     @inject(AgentPolicyService) protected readonly policy: AgentPolicyService;
     @inject(AgentAuditLog) protected readonly audit: AgentAuditLog;
+    @inject(SandboxPresetService) protected readonly sandbox: SandboxPresetService;
+    @inject(AutoReviewer) protected readonly autoReviewer: AutoReviewer;
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
 
@@ -1414,7 +1421,7 @@ export class AgentStore {
         if (edits.length >= MULTI_FILE_EDITS && !plan.length && session.plan.length === 0) {
             session.plan = planFromEdits(edits.map(edit => edit.path)).map((text, i) => ({ text, state: i === 0 ? 'active' : 'todo' }));
         }
-        const editable = await this.editsAllowed(session, edits, root);
+        const editable = await this.sandboxEdits(session, await this.editsAllowed(session, edits, root), root);
         await this.applyEdits(session, editable, root);
     }
 
@@ -1637,9 +1644,24 @@ export class AgentStore {
             // IDEA-133: a tool turned off in Settings › Agent tools is refused at once, without a card.
             const turnedOff = call.server === BUILTIN_TOOL_SERVER
                 && !builtinToolEnabled(call.tool, this.toolSwitches());
-            const card = action && outside ? outsideApproval(action) : action;
-            const asks = !!card && !turnedOff && (outside || gate.ask || (verdict.verdict !== 'allow' && requireRun && needsApproval(card, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)));
-            if (card && asks) {
+            const policyCard = action && outside ? outsideApproval(action) : action;
+            // A `.ingot/policy.json` "ask" or a hook's "ask" always shows the card, whatever the sandbox preset says.
+            const mustAsk = !!policyCard && !turnedOff && (outside || !!gate.ask);
+            const cardRequired = mustAsk || (!!policyCard && !turnedOff && verdict.verdict !== 'allow' && requireRun
+                && needsApproval(policyCard, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands));
+            // IDEA-288: the project's sandbox preset decides whether the action runs, asks, is refused or goes to auto-review.
+            const sandboxed = turnedOff ? { decision: 'run' as const, action: policyCard, offline: false } : await this.sandboxGate(session, call, policyCard, rootPath, cardRequired);
+            if (sandboxed.decision === 'refuse') {
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: ${sandboxed.refusal}`,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                });
+                this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: sandboxed.refusal, startedAt });
+                this.changed();
+                continue;
+            }
+            const card = sandboxed.action;
+            if (card && (sandboxed.decision === 'ask' || mustAsk)) {
                 const choice = await this.askApproval(session, card);
                 if (choice.stopped) {
                     this.recordTool(session, call, rootPath, { decision: 'stopped', outcome: 'skipped', reason: verdict.reason, startedAt });
@@ -1651,7 +1673,7 @@ export class AgentStore {
                     this.changed();
                     continue;
                 }
-                const always = choice.decision === 'always' && !card.once && !card.alwaysAsk && !gate.ask;
+                const always = choice.decision === 'always' && !card.once && !card.alwaysAsk && !card.sandbox && !gate.ask;
                 if (always && rootPath) {
                     await (card.command ? this.setAlwaysRunCommand(rootPath, card.command, true) : this.setAlwaysRun(rootPath, card.kind, true));
                 }
@@ -1701,7 +1723,7 @@ export class AgentStore {
             const at = session.messages.push({ role: 'tool', from: target, text: '', tool }) - 1;
             this.changed();
             const execute = (box?: SandboxSpec): Promise<AgentActionResult & { images?: ImageChip[] }> => (isBrowser ? this.runBrowser(session, call)
-                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(session, this.withMadeWithTrailer(session, call), root, hooksRan, box) : this.mcp.callTool(call.server, call.tool, call.args))
+                : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(session, this.withMadeWithTrailer(session, call), root, hooksRan, box, sandboxed.offline) : this.mcp.callTool(call.server, call.tool, call.args))
                 .catch((error: unknown) => ({ text: error instanceof Error ? error.message : String(error), isError: true }));
             // IDEA-263: restricted mode runs commands in the OS sandbox; one the user approved to leave the project runs without it.
             const box = isRun && context && !outside ? sandboxSpec(policy.policy, context) : undefined;
@@ -1790,6 +1812,63 @@ export class AgentStore {
         this.pushHookCard(session, outcome, event === 'beforeShellExecution' ? String(call.args.command ?? '') : event === 'beforeReadFile' ? path : `${call.server}/${call.tool}`);
         this.changed();
         return outcome.decision.permission === 'deny' ? { blocked: hookBlockedText(outcome) } : { ask: true };
+    }
+
+    /**
+     * IDEA-288: checks a tool call against the project's sandbox preset. `offline` runs the command with the network blocked
+     * (it stayed inside a sandbox without network); an approved escape runs without that block.
+     */
+    protected async sandboxGate(session: AgentSession, call: AgentToolCall, described: AgentAction | undefined, rootPath: string | undefined, cardRequired: boolean):
+        Promise<{ decision: 'run' | 'ask' | 'refuse'; action?: AgentAction; offline: boolean; refusal?: string }> {
+        const root = this.rootFor(session);
+        const preset = root ? await this.sandbox.load(root) : this.sandbox.peek(root);
+        const intent = rootPath ? toolIntent(call, BUILTIN_TOOL_SERVER, rootPath) : undefined;
+        const check: SandboxCheck = intent ? checkSandbox(preset, intent) : { verdict: 'inside', reasons: [] };
+        const outside = check.verdict === 'outside';
+        const base = described ?? { kind: 'terminal' as const, label: `${call.server}/${call.tool}`, detail: '' };
+        const action: AgentAction = outside ? { ...base, sandbox: sandboxNote(check) } : base;
+        const offline = !outside && blocksNetwork(preset);
+        const decision = gateDecision(preset.approvals, check, cardRequired);
+        if (decision === 'refuse') {
+            return { decision, action, offline, refusal: refusalText(preset, check, actionLine(action, 200)) };
+        }
+        if (decision === 'review') {
+            return { decision: await this.autoReview(session, action, check) ? 'run' : 'ask', action, offline };
+        }
+        return { decision, action, offline };
+    }
+
+    /** IDEA-288: auto-review's verdict, noted in the chat. True runs the action without the card. */
+    protected async autoReview(session: AgentSession, action: AgentAction, check: SandboxCheck): Promise<boolean> {
+        const preset = this.sandbox.peek(this.rootFor(session));
+        const assessed = await this.autoReviewer.assess(session.id, this.resolveModel(session.model), actionLine(action, 200), check, preset);
+        const low = assessed.risk === 'low';
+        session.messages.push({ role: 'system', text: `Auto-review: ${low ? 'low risk, running' : 'needs your approval'}: ${actionLine(action)}. ${assessed.reason}` });
+        this.changed();
+        return low;
+    }
+
+    /** IDEA-288: agent edits in a read-only sandbox (or to the policy file) follow the approvals preset. */
+    protected async sandboxEdits(session: AgentSession, edits: readonly AgentEdit[], root: URI | undefined): Promise<AgentEdit[]> {
+        const rootPath = root?.path.fsPath();
+        if (!root || !rootPath || !edits.length) {
+            return [...edits];
+        }
+        const preset = await this.sandbox.load(root);
+        const check = checkSandbox(preset, editIntent(edits.map(edit => edit.path), rootPath));
+        const action: AgentAction = { kind: 'write', label: 'Edit files', detail: edits.map(edit => edit.path).join(', '), ...(check.verdict === 'outside' ? { sandbox: sandboxNote(check) } : {}) };
+        const decision = gateDecision(preset.approvals, check, false);
+        if (decision === 'run' || (decision === 'review' && await this.autoReview(session, action, check))) {
+            return [...edits];
+        }
+        const choice = decision === 'refuse' ? undefined : await this.askApproval(session, action);
+        if (choice?.decision === 'run' || choice?.decision === 'always') {
+            return [...edits];
+        }
+        await Promise.all(edits.map(edit => this.tracker.cancelStream(session.id, edit.path)));
+        session.messages.push({ role: 'system', text: choice ? skippedResult(action, choice.reason) : refusalText(preset, check, actionLine(action, 200)) });
+        this.changed();
+        return [];
     }
 
     /** IDEA-186: GitHub owner/repo of the open project (from its git remote), for GitHub tool calls. */
@@ -2048,7 +2127,9 @@ export class AgentStore {
     }
 
     /** Ingot's built-in agent tools (IDEA-109): git, terminal command, web search / fetch, file delete. */
-    protected async runBuiltin(session: AgentSession, call: AgentToolCall, root: URI | undefined, hooksRan = false, sandbox?: SandboxSpec): Promise<AgentActionResult> {
+    protected async runBuiltin(
+        session: AgentSession, call: AgentToolCall, root: URI | undefined, hooksRan = false, sandbox?: SandboxSpec, offline = false
+    ): Promise<AgentActionResult> {
         const rootPath = root?.path.fsPath();
         const str = (v: unknown): string => typeof v === 'string' ? v : '';
         try {
@@ -2088,7 +2169,7 @@ export class AgentStore {
                         return { text: `Refusing to run "${command}" outside the open project.`, isError: true };
                     }
                     const timeout = libraryCommandNeedsTime(command) ? Math.max(LIBRARY_COMMAND_TIMEOUT_SECONDS, this.runSettings.foregroundTimeoutSeconds) : undefined;
-                    return await this.runCommand(cwd, command, call.args.background === true, undefined, timeout, sandbox);
+                    return await this.runCommand(cwd, command, call.args.background === true, undefined, timeout, sandbox, offline ? NETWORK_OFF_ENV : undefined);
                 }
                 case RUN_TESTS_TOOL: return await this.runTestsTool(session, call.args);
                 case 'scripts': {
@@ -2289,7 +2370,8 @@ export class AgentStore {
 
     /** IDEA-131: a command in the foreground (waits, then moves to the background after the timeout) or in the background. */
     protected async runCommand(
-        cwd: string, command: string, background: boolean, onOutput?: (text: string) => void, timeoutSecondsArg?: number, sandbox?: SandboxSpec
+        cwd: string, command: string, background: boolean, onOutput?: (text: string) => void, timeoutSecondsArg?: number, sandbox?: SandboxSpec,
+        env?: Readonly<Record<string, string>>
     ): Promise<AgentActionResult> {
         if (!command.trim()) {
             return { text: 'No command given.', isError: true };
@@ -2300,7 +2382,7 @@ export class AgentStore {
         }
         const service = this.processes.service;
         if (background) {
-            const info = await service.start({ cwd, command, background: true, origin: 'agent', ...(sandbox ? { sandbox } : {}) });
+            const info = await service.start({ cwd, command, background: true, origin: 'agent', ...(sandbox ? { sandbox } : {}), ...(env ? { env } : {}) });
             const out = await service.output(info.id, settings.maxOutputChars);
             const state = info.status === 'running' ? `Running in the background as ${info.id}${info.ports.length ? ` on port ${info.ports.join(', ')}` : ''}.` : `Exited with code ${info.exitCode ?? '?'}.`;
             return {
@@ -2323,7 +2405,7 @@ export class AgentStore {
         }, OUTPUT_POLL_MS) : undefined;
         try {
             const timeoutSeconds = timeoutSecondsArg ?? settings.foregroundTimeoutSeconds;
-            const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: timeoutSeconds * 1000, maxOutput: settings.maxOutputChars, ...(sandbox ? { sandbox } : {}) });
+            const result = await service.run({ cwd, command, origin: 'agent', timeoutMs: timeoutSeconds * 1000, maxOutput: settings.maxOutputChars, ...(sandbox ? { sandbox } : {}), ...(env ? { env } : {}) });
             const status = result.movedToBackground
                 ? `Still running after ${timeoutSeconds}s: moved to the background as ${result.info.id}${result.info.ports.length ? ` (port ${result.info.ports.join(', ')})` : ''}. Use ingot/process_output or ingot/process_stop.`
                 : result.info.status === 'stopped' ? 'Stopped.' : `Exit code ${result.info.exitCode ?? '?'}.`;
@@ -2742,6 +2824,10 @@ export class AgentStore {
     protected streamEdit(session: AgentSession, messageIndex: number, path: string | undefined, content: string | undefined): void {
         const root = this.rootFor(session);
         if (!path || content === undefined || !root || !modeInfo(session.mode).canEdit || !isSafeRelativePath(path) || this.lockedFor(session, path)) {
+            return;
+        }
+        // IDEA-288: an edit the sandbox stops shows only once it is approved.
+        if (checkSandbox(this.sandbox.peek(root), editIntent([path], root.path.fsPath())).verdict === 'outside') {
             return;
         }
         const key = `${session.id}\u0000${messageIndex}\u0000${path}`;

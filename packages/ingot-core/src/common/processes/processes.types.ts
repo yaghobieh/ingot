@@ -32,6 +32,8 @@ export interface ProcessStartOptions {
     readonly background?: boolean;
     /** IDEA-263: run in the OS sandbox where the platform has one. */
     readonly sandbox?: SandboxSpec;
+    /** IDEA-288: extra environment, e.g. the proxy settings that keep a sandboxed command off the network. */
+    readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface ForegroundOptions extends ProcessStartOptions {

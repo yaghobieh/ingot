@@ -15,12 +15,13 @@ export const BUILTIN_TOOL_SERVER = 'ingot';
 /** One "Always Run" entry covers every run_tests call (files and filters change between iterations). */
 export const RUN_TESTS_COMMAND = 'ingot/run_tests';
 
-export type ApprovalKind = 'git' | 'terminal' | 'web' | 'browser' | 'mcp' | 'delete';
+/** IDEA-288: `write` is a file edit the sandbox stopped; it never gets "Always Run", so it is not in `APPROVAL_KINDS`. */
+export type ApprovalKind = 'git' | 'terminal' | 'web' | 'browser' | 'mcp' | 'delete' | 'write';
 export type ApprovalDecision = 'run' | 'skip' | 'always';
 
 export const APPROVAL_KINDS: readonly ApprovalKind[] = ['git', 'terminal', 'web', 'browser', 'mcp', 'delete'];
 export const APPROVAL_KIND_LABELS: Record<ApprovalKind, string> = {
-    git: 'Git actions', terminal: 'Terminal commands', web: 'Web search and fetch', browser: 'Browser actions', mcp: 'MCP tool calls', delete: 'File deletes'
+    git: 'Git actions', terminal: 'Terminal commands', web: 'Web search and fetch', browser: 'Browser actions', mcp: 'MCP tool calls', delete: 'File deletes', write: 'File edits'
 };
 
 export const APPROVAL_PREFS = {
@@ -46,6 +47,8 @@ export interface AgentAction {
     readonly once?: boolean;
     /** IDEA-270: always shows the card (no "Always Run"), e.g. posting to Slack. */
     readonly alwaysAsk?: boolean;
+    /** IDEA-288: why the action leaves the sandbox; such cards have no "Always Run". */
+    readonly sandbox?: string;
 }
 
 export interface PendingApproval extends AgentAction {

@@ -132,7 +132,11 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     // Codebase index (IDEA-260)
     { action: INDEX_COMMANDS.rebuild.label, command: INDEX_COMMANDS.rebuild.id, mac: 'ctrlcmd+alt+shift+i', other: 'ctrl+alt+shift+i' },
     // Agent policy and audit (IDEA-263)
-    { action: 'Agent Audit Log', command: AUDIT_LOG_COMMAND_ID, mac: 'ctrlcmd+alt+shift+a', other: 'ctrl+alt+shift+a' }
+    { action: 'Agent Audit Log', command: AUDIT_LOG_COMMAND_ID, mac: 'ctrlcmd+alt+shift+a', other: 'ctrl+alt+shift+a' },
+    // Agent sandbox (IDEA-288) and AI code review (IDEA-293)
+    { action: 'Agent Sandbox and Approvals', command: 'ingot.agents.sandboxPreset', mac: 'ctrlcmd+alt+shift+s', other: 'ctrl+alt+shift+s' },
+    { action: 'Review Changes', command: 'ingot.codeReview.changes', mac: 'ctrlcmd+alt+shift+e', other: 'ctrl+alt+shift+e' },
+    { action: 'Review GitHub PR', command: 'ingot.codeReview.githubPr', mac: 'ctrlcmd+alt+shift+g', other: 'ctrl+alt+shift+g' }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';

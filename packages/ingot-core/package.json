@@ -70,6 +70,13 @@
     },
     {
       "frontendElectron": "lib/electron-browser/ingot-workbench-electron-module"
+    },
+    {
+      "frontend": "lib/browser/sandbox/sandbox-frontend-module"
+    },
+    {
+      "frontend": "lib/browser/code-review/code-review-frontend-module",
+      "backend": "lib/node/code-review-backend-module"
     }
   ]
 }
