@@ -144,7 +144,7 @@
 
 /* "Explored N files". */
 .ingot-agents .ingot-chat-explored { margin: 0; font-size: var(--ingot-ap-small); color: var(--ingot-agent-text-3); opacity: 1; }
-.ingot-agents .ingot-chat-explored-head { height: 20px; padding: 0; border: 0; background: transparent; color: var(--ingot-agent-text-3); }
+.ingot-agents .ingot-chat-explored-head { height: 20px; margin: 0; padding: 0; border: 0; background: transparent; color: var(--ingot-agent-text-3); }
 .ingot-agents .ingot-chat-explored-head:hover { color: var(--ingot-agent-text); }
 .ingot-agents .ingot-chat-explored-verb { color: var(--ingot-agent-text-2); opacity: 1; font-weight: 500; }
 .ingot-agents .ingot-chat-explored-list { list-style: none; margin: 4px 0 0; padding: 0 0 0 8px; border-left: 1px solid var(--ingot-agent-border); }
