@@ -1,6 +1,9 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { dismissNotifications, openIngot, runCommand } from '../src/app.utils';
-import { CONFIG_PROJECT } from '../src/e2e.consts';
+import { CONFIG_PROJECT, E2E_CONFIG_DIR } from '../src/e2e.consts';
+import { startOpenPlanServer, type FakeIngotServer } from '../src/fake-ingot-server';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
@@ -15,8 +18,11 @@ const newOllamaAgent = async (page: Page): Promise<void> => {
 
 test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => {
     let server: FakeOllama;
+    // The agent chat is a paid feature; the fake account server opens the plan.
+    let account: FakeIngotServer;
 
     test.beforeEach(async () => {
+        account = await startOpenPlanServer();
         server = await startFakeOllama((_system, user) => {
             if (user.startsWith('Tool result (calc/add)')) {
                 return `The sum is ${user.split('\n').pop()}.`;
@@ -27,7 +33,11 @@ test.describe('IDEA-30/31 project rules, slash commands and MCP servers', () => 
             return 'It sums the values.';
         });
     });
-    test.afterEach(async () => { await server.close(); });
+    test.afterEach(async () => {
+        await server.close();
+        await account.close();
+        fs.rmSync(path.join(E2E_CONFIG_DIR, 'remote-config.json'), { force: true });
+    });
 
     test('applies .ingot rules, existing rule folders and AGENTS.md, and expands / commands from the menu', async ({ page }) => {
         await openIngot(page, CONFIG_PROJECT);

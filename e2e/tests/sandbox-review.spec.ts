@@ -7,6 +7,8 @@ import { connectOllama } from '../src/models.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { makeToolsProject, setAppearance, shot, toolBlock } from '../src/agent-tools.e2e-utils';
 import { createTempRepo } from '../src/git-repo';
+import { E2E_CONFIG_DIR } from '../src/e2e.consts';
+import { startOpenPlanServer, type FakeIngotServer } from '../src/fake-ingot-server';
 
 /**
  * IDEA-288: sandbox / approval presets in the composer, saved in .ingot/policy.json and enforced on the run tool.
@@ -42,9 +44,16 @@ test.describe('IDEA-288 sandbox presets and IDEA-293 code review', () => {
     test.setTimeout(240_000);
     let dir: string;
     let server: FakeOllama;
+    // The agent chat is a paid feature; the fake account server opens the plan.
+    let account: FakeIngotServer;
 
+    test.beforeEach(async () => {
+        account = await startOpenPlanServer();
+    });
     test.afterEach(async () => {
         await server.close();
+        await account.close();
+        fs.rmSync(path.join(E2E_CONFIG_DIR, 'remote-config.json'), { force: true });
         fs.rmSync(dir, { recursive: true, force: true });
     });
 
