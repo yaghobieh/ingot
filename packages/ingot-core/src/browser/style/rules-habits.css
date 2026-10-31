@@ -17,6 +17,14 @@
 .ingot-rules-bar { display: flex; align-items: center; gap: 6px; }
 .ingot-rules-bar .ingot-input { flex: 1; height: 26px; }
 .ingot-rules-error { font-size: 11px; color: var(--ingot-danger); }
+.ingot-team-rules-store { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px; font-size: 11px; color: var(--ingot-text-muted); background: var(--ingot-surface); border: 1px solid var(--ingot-border); }
+.ingot-team-rules-store.local { border-color: var(--ingot-warning); }
+.ingot-team-rules-store.local .codicon { color: var(--ingot-warning); }
+.ingot-team-rules-store.server .codicon { color: var(--ingot-success); }
+.ingot-team-rules-flags { display: flex; align-items: center; gap: var(--ingot-space-3); font-size: 11px; color: var(--ingot-text); }
+.ingot-team-rules-flags label { display: inline-flex; align-items: center; gap: 4px; }
+.ingot-team-rule-badge { font-size: 10px; padding: 0 5px; border-radius: 8px; border: 1px solid var(--ingot-border); color: var(--ingot-text-muted); white-space: nowrap; }
+.ingot-team-rule-badge.enforced { border-color: var(--ingot-accent); color: var(--ingot-accent); }
 
 .ingot-habit-cards { display: flex; flex-direction: column; gap: var(--ingot-space-2); margin: var(--ingot-space-2) 0; }
 .ingot-habit-card { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--ingot-border); border-left: 3px solid var(--ingot-accent); border-radius: 6px; background: var(--ingot-surface); color: var(--ingot-text); font-size: 12px; }

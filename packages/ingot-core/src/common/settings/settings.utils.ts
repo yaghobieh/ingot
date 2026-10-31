@@ -1,5 +1,9 @@
 import type { SettingInfo, SettingsPage } from './settings.types';
 
+/** The tree without admin-only pages for everyone else (IDEA-287). */
+export const pagesFor = (pages: readonly SettingsPage[], isAdmin: boolean): SettingsPage[] =>
+    pages.filter(page => isAdmin || !page.adminOnly).map(page => page.children ? { ...page, children: pagesFor(page.children, isAdmin) } : page);
+
 export const flattenPages = (pages: readonly SettingsPage[], parents: readonly string[] = []): { page: SettingsPage; path: string[] }[] =>
     pages.flatMap(page => [{ page, path: [...parents, page.label] }, ...flattenPages(page.children ?? [], [...parents, page.label])]);
 

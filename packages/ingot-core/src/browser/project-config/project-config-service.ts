@@ -24,6 +24,7 @@ import { parseRgFiles, SKIPPED_DIRS } from '../../common/agents/workspace-tools'
 import { ProcessService } from '../../common/processes/processes.types';
 import { CursorModeService } from '../import/cursor-mode-service';
 import { IngotFeatureFlags } from '../config/feature-flags';
+import { TeamRulesAdminService } from '../team-rules/team-rules-admin-service';
 
 interface DirConfig { rules: ProjectRule[]; commands: ProjectCommand[]; mcpServers: McpServerConfig[] }
 const EMPTY_DIR: DirConfig = { rules: [], commands: [], mcpServers: [] };
@@ -43,6 +44,7 @@ export class ProjectConfigService {
     @inject(ProcessService) protected readonly processes: ProcessService;
     @inject(CursorModeService) protected readonly cursorModes: CursorModeService;
     @inject(IngotFeatureFlags) protected readonly flags: IngotFeatureFlags;
+    @inject(TeamRulesAdminService) protected readonly teamRulesAdmin: TeamRulesAdminService;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
     protected readonly nestedCache = new Map<string, { at: number; rules: Promise<ProjectRule[]> }>();
 
@@ -59,9 +61,15 @@ export class ProjectConfigService {
     /** IDEA-287: team rules from the account (remote config), all of them, with the ones the user turned off. */
     teamRules(): { rules: ProjectRule[]; disabled: string[] } {
         return {
-            rules: parseTeamRules(this.flags.config<unknown[]>(TEAM_RULES_CONFIG_KEY, [])),
+            rules: this.teamRulesFromAccount(),
             disabled: this.preferences.get<string[]>(TEAM_RULES_DISABLED_PREF, []) ?? []
         };
+    }
+
+    /** The account's team rules; while the server has no team rules API, the admin's local ones (IDEA-287). */
+    protected teamRulesFromAccount(): ProjectRule[] {
+        const server = parseTeamRules(this.flags.config<unknown[]>(TEAM_RULES_CONFIG_KEY, []));
+        return server.length ? server : parseTeamRules(this.teamRulesAdmin.local);
     }
 
     /** `~/.ingot` (the app configuration folder). */

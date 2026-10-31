@@ -134,6 +134,8 @@ import { EditorImportContribution } from './import/editor-import-contribution';
 import { CursorImportContribution, cursorImportPreferenceSchema } from './import/cursor-import-contribution';
 import { CursorSyncContribution } from './import/cursor-sync-contribution';
 import { CursorMemoriesContribution } from './import/cursor-memories-contribution';
+import { TeamRulesAdminService } from './team-rules/team-rules-admin-service';
+import { TeamRulesContribution } from './team-rules/team-rules-contribution';
 import { CursorModeService } from './import/cursor-mode-service';
 import { EnvironmentContribution, teamRulesPreferenceSchema } from './project-config/environment-contribution';
 import { GitResourceResolver } from './git/git-resource-resolver';
@@ -290,6 +292,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CursorSyncContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(CursorSyncContribution);
     bind(FrontendApplicationContribution).toService(CursorSyncContribution);
+    bind(TeamRulesAdminService).toSelf().inSingletonScope();
+    bind(TeamRulesContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(TeamRulesContribution);
     bind(CursorMemoriesContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(CursorMemoriesContribution);
     bind(FrontendApplicationContribution).toService(CursorMemoriesContribution);

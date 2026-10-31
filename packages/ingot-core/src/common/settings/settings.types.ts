@@ -13,7 +13,9 @@ export interface SettingsPage {
     /** Optional card grouping of `preferences`; ungrouped keys go to a 'General' card. */
     readonly groups?: readonly SettingsGroup[];
     /** A page with its own UI instead of preferences (e.g. the Memories manager). */
-    readonly custom?: 'memories' | 'approvals' | 'account' | 'rules' | 'habits' | 'decisions' | 'frozen';
+    readonly custom?: 'memories' | 'approvals' | 'account' | 'rules' | 'teamRules' | 'habits' | 'decisions' | 'frozen';
+    /** Shown only to team admins (IDEA-287 Team Rules). */
+    readonly adminOnly?: boolean;
 }
 
 export interface SettingsGroup {

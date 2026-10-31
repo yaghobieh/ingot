@@ -33,6 +33,10 @@ export interface FakeIngotServer {
     /** /v1/sync store (IDEA-126), by `kind|key`, and the writes the IDE made. */
     readonly sync: Map<string, FakeSyncItem>;
     readonly syncWrites: { method: string; kind: string; key: string; baseVersion?: number; device?: string }[];
+    /** IDEA-287 /v1/team/rules: off answers 404 (no such API yet); on serves `teamRules` to admins and publishes enabled ones in config. */
+    teamRulesApi: boolean;
+    teamRules: Record<string, unknown>[];
+    readonly teamRulesWrites: Record<string, unknown>[][];
     /** Adds an item as if another device wrote it. */
     seedSync(kind: string, key: string, data: unknown): void;
     close(): Promise<void>;
@@ -69,7 +73,7 @@ const send = (res: http.ServerResponse, status: number, body: unknown): void => 
 export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<FakeIngotServer> => {
     const state: FakeIngotServer = {
         url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', plan: FAKE_DEFAULT_PLAN, avatarUrl: '', blocked: false, disabledModels: new Set(), chatErrors: [],
-        flags: {}, config: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined,
+        flags: {}, config: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], teamRulesApi: false, teamRules: [], teamRulesWrites: [], seedSync: () => undefined,
         close: async () => undefined
     };
     const access = 'ingot_at_e2e_access';
@@ -178,6 +182,22 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
                 const conflict = !!existing && body.baseVersion !== undefined && body.baseVersion !== existing.version;
                 const { item, previous } = writeSync(kind, key, body.data, req.method === 'DELETE', body.device ?? null);
                 send(res, 200, { item, conflict, ...(conflict ? { previous } : {}) });
+                return;
+            }
+            if (url.pathname === '/v1/team/rules') {
+                if (!state.teamRulesApi) {
+                    send(res, 404, { error: 'not_found' });
+                } else if (state.role !== 'admin') {
+                    send(res, 403, { error: 'forbidden' });
+                } else if (req.method === 'PUT') {
+                    const rules = (JSON.parse(raw || '{}') as { rules?: Record<string, unknown>[] }).rules ?? [];
+                    state.teamRules = rules;
+                    state.teamRulesWrites.push(rules);
+                    state.config = { ...state.config, teamRules: rules.filter(rule => rule.enabled !== false) };
+                    send(res, 200, { rules });
+                } else {
+                    send(res, 200, { rules: state.teamRules });
+                }
                 return;
             }
             if (url.pathname === '/api/ide/status') {

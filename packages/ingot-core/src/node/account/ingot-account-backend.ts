@@ -18,6 +18,8 @@ import {
 import { completeDevSignIn } from './dev-sign-in';
 import { devLoginUrl, ideHeaders, isLoopbackUrl, parseGatewayModels, roleOf, snapshotOf } from '../../common/account/gateway.utils';
 import { PRODUCT } from '../../common/product.consts';
+import { TEAM_RULES_API_PATH, TEAM_RULES_METHODS } from '../../common/team-rules/team-rules-admin.consts';
+import type { TeamRulesResponse } from '../../common/team-rules/team-rules-admin.types';
 import { IdeAuthError, IngotAccountSession, IngotIdeClient, type IdeSessionStore, type IdeSignInHandle, type IdeStoredSession } from './ide-client';
 
 const CLIENT_NAME = 'Ingot IDE';
@@ -349,6 +351,13 @@ export class IngotAccountBackend implements AccountBackend {
             return { status: 400, body: { error: 'invalid_sync_path' } };
         }
         return this.authedRequest(method, path, body) as Promise<SyncResponse>;
+    }
+
+    async teamRulesRequest(method: 'GET' | 'PUT', body?: unknown): Promise<TeamRulesResponse> {
+        if (!TEAM_RULES_METHODS.includes(method)) {
+            return { status: 400, body: { error: 'invalid_method' } };
+        }
+        return this.authedRequest(method, TEAM_RULES_API_PATH, method === 'PUT' ? body : undefined);
     }
 
     /** One call to ingot-server with the session token; the token never leaves the backend. */

@@ -114,6 +114,10 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                 description: 'Rules agents follow. Always rules apply to every request; auto rules when matching files are in context; agent-requested rules are listed by description and read on demand; manual rules only when you @-mention them in the composer.'
             },
             {
+                id: 'team-rules', label: 'Team Rules', custom: 'teamRules', adminOnly: true,
+                description: 'Rules for everyone on your Ingot team (admins only). Enabled rules reach every member; enforced ones cannot be turned off. Team rules come before project and user rules.'
+            },
+            {
                 id: 'habits', label: 'Habits', custom: 'habits', preferences: ['ingot.habits.playbooks.autoSelect', 'ingot.habits.threshold'],
                 description: 'Habits are playbooks: what to do in which scenario (for example a bug in payments: search the logs, check the service, run the tests). Project habits live in .ingot/habits (commit them to share), global ones in ~/.ingot/habits. Learned patterns are what Ingot notices you repeat; they can become a rule, command, hook or habit.'
             },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SETTINGS_TREE } from './settings.consts';
-import { coerceSetting, flattenPages, searchPages, settingLabel, themeIdFromLabel, uiThemeFor, visiblePreferences } from './settings.utils';
+import { coerceSetting, flattenPages, pagesFor, searchPages, settingLabel, themeIdFromLabel, uiThemeFor, visiblePreferences } from './settings.utils';
 
 const describeKey = (key: string) => (key === 'editor.fontSize' ? { key, description: 'Controls the font size in pixels.' } : undefined);
 
@@ -33,5 +33,12 @@ describe('settings', () => {
         expect(uiThemeFor('light')).toBe('vs');
         expect(uiThemeFor('dark')).toBe('vs-dark');
         expect(uiThemeFor('hc')).toBe('hc-black');
+    });
+
+    it('shows the Team Rules page to admins only (IDEA-287)', () => {
+        const ids = (admin: boolean): string[] => flattenPages(pagesFor(SETTINGS_TREE, admin)).map(p => p.page.id);
+        expect(ids(true)).toContain('team-rules');
+        expect(ids(false)).not.toContain('team-rules');
+        expect(ids(false)).toContain('user-rules');
     });
 });
