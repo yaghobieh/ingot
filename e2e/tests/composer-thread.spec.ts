@@ -92,6 +92,11 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
 
         await expect(page.locator('#ingot-jump-latest')).toHaveCount(0);
         await expect(page.locator('#ingot-jump-earlier')).toBeVisible();
+        // Scrolled to the bottom, the floating pills sit under the last line instead of covering it.
+        await page.locator('.ingot-agents-chat').evaluate(el => { el.scrollTop = el.scrollHeight; });
+        const threadBottom = await page.locator('.ingot-agents-thread').evaluate(el => el.getBoundingClientRect().bottom);
+        const pillsTop = await page.locator('#ingot-jump-bar').evaluate(el => el.getBoundingClientRect().top);
+        expect(threadBottom).toBeLessThanOrEqual(pillsTop);
         await pinchThread(page);
         await expect(page.locator('#ingot-jump-latest')).toBeVisible();
         await saveShot(page, 'jump-to-latest-light.png');

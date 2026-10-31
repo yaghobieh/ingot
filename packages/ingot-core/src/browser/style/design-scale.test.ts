@@ -50,6 +50,10 @@ describe('design scale', () => {
         expect(css('sandbox.css')).toContain(".ingot-sandbox-pill:not(.ingot-sandbox-full-access) .ingot-pill-label { display: none; }");
     });
 
+    it('leaves room under the thread for the floating Earlier / Jump to latest pills', () => {
+        expect(css('agent-panel.css')).toMatch(/\.ingot-agents-chat-wrap:has\(> \.ingot-jump-bar\) > \.ingot-agents-chat \{ padding-bottom: calc\(var\(--ingot-ap-pill\) \+ \d+px\); \}/);
+    });
+
     it('keeps the steady Index ready state muted in the status bar', () => {
         expect(css('shell.css')).not.toContain('.ingot-status-index-ready {');
     });

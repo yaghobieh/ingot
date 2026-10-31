@@ -258,6 +258,8 @@
     margin: 0; padding: 0; border: 0; background: transparent; pointer-events: none;
 }
 .ingot-agents .ingot-jump-bar > * { pointer-events: auto; }
+/* Room under the last line while the pills show, so they never cover a link or the last reply line. */
+.ingot-agents .ingot-agents-chat-wrap:has(> .ingot-jump-bar) > .ingot-agents-chat { padding-bottom: calc(var(--ingot-ap-pill) + 18px); }
 .ingot-agents .ingot-jump-btn {
     height: 26px; padding: 0 12px; border: 1px solid var(--ingot-agent-border-strong); border-radius: 13px;
     background: var(--ingot-agent-card); color: var(--ingot-agent-text); font-size: var(--ingot-ap-small); font-weight: 500;
