@@ -1,3 +1,5 @@
+import type { HabitNoteKind } from './habits.types';
+
 /** IDEA-296: learned habits stay on this machine, in the project's `.ingot/habits.json` (git-ignored). */
 export const HABITS_FILE = '.ingot/habits.json';
 export const HABITS_GITIGNORE = '.ingot/.gitignore';
@@ -37,7 +39,15 @@ export const REJECTION_PATTERNS: readonly { readonly id: string; readonly test: 
 
 export const HABIT_TARGET_LABELS = { rule: 'Make it a rule', command: 'Make it a command', hook: 'Make it a hook' } as const;
 
-export const HABIT_KIND_LABELS = { instruction: 'Instruction', command: 'Command', rejection: 'Rejected edit' } as const;
+export const HABIT_KIND_LABELS = { instruction: 'Instruction', command: 'Command', rejection: 'Rejected edit', decision: 'Decision', frozen: 'Frozen', anti: "Don't" } as const;
+/** The silver note in the chat when something lands in Habits. */
+export const SAVED_TO_HABITS = 'Saved to Habits';
+/** The undo link of a silver note: a decision, a frozen zone, or a learned / saved habit. */
+export const NOTE_UNDO_LABELS: Readonly<Record<HabitNoteKind, string>> = { decision: 'Unlock', frozen: 'Unfreeze', habit: 'Undo' };
+/** Default text and icon of each silver note kind. */
+export const HABIT_NOTE_TEXT: Readonly<Record<HabitNoteKind, string>> = { habit: SAVED_TO_HABITS, decision: 'Locked in Decisions', frozen: 'Frozen' };
+export const HABIT_NOTE_ICONS: Readonly<Record<HabitNoteKind, string>> = { habit: 'checklist', decision: 'lock', frozen: 'snowflake' };
+export const HABIT_NOTE_UNDONE_ICON = 'discard';
 export const HABIT_STATUS_LABELS = { learning: 'learning', proposed: 'suggested', accepted: 'saved', dismissed: 'dismissed' } as const;
 /** Settings page and Find Action command for the Habits panel. */
 export const HABITS_SETTINGS_PAGE = 'habits';
@@ -45,5 +55,5 @@ export const HABITS_OPEN_COMMAND = { id: 'ingot.habits.open', label: 'Show Habit
 
 /** Habits page focus id of a learned pattern (playbooks use their own id, `project:<slug>`). */
 export const LEARNED_FOCUS_PREFIX = 'learned:';
-export const HABIT_NOTE_LABELS = { saved: 'Saved to Habits', undone: 'Removed from Habits', undo: 'Undo', open: 'Open in Habits' } as const;
+export const HABIT_NOTE_LABELS = { saved: SAVED_TO_HABITS, undone: 'Removed from Habits', undo: 'Undo', open: 'Open in Habits' } as const;
 export const HABIT_NOTE_LEARNED_PREFIX = 'Learned:';

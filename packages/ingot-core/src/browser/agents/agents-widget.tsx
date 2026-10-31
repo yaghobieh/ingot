@@ -12,9 +12,14 @@ import { HabitStore } from '../habits/habit-store';
 import { PlaybookService } from '../habits/playbook-service';
 import { PlaybookEditor } from '../habits/playbook-editor';
 import { HabitChecklist, HabitPill } from '../habits/habit-chat';
-import { HabitNoteLine } from '../habits/habit-note';
-import { HABITS_OPEN_COMMAND } from '../../common/habits/habits.consts';
-import type { Habit } from '../../common/habits/habits.types';
+import { HabitNote } from '../habits/habit-note';
+import { HABITS_OPEN_COMMAND, NOTE_UNDO_LABELS, SAVED_TO_HABITS } from '../../common/habits/habits.consts';
+import { DoomCard } from '../doom-loop/doom-card';
+import { FrozenStore } from '../frozen/frozen-store';
+import { FrozenSuggestions } from '../frozen/frozen-suggestions';
+import { FROZEN_NOTES } from '../../common/frozen/frozen.consts';
+import { savedHabitFocus, savedHabitKey } from '../../common/habits/habits.utils';
+import type { Habit, HabitNoteInfo } from '../../common/habits/habits.types';
 import type { PlaybookScope } from '../../common/habits/playbook.types';
 import { draftFromLearned, draftFromRun, runSummary } from '../../common/habits/playbook-draft.utils';
 import { playbookFileText } from '../../common/habits/playbook.utils';
@@ -134,6 +139,7 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(AutoContextService) protected readonly autoContext: AutoContextService;
     @inject(HabitStore) protected readonly habits: HabitStore;
+    @inject(FrozenStore) protected readonly frozen: FrozenStore;
     @inject(PlaybookService) protected readonly playbooks: PlaybookService;
     /** IDEA-296: a habit being drafted ("Save as habit", "Make it a habit") in the editor above the composer. */
     protected habitDraft?: { title: string; text: string; learned?: Habit };
@@ -753,6 +759,8 @@ export class IngotAgentsWidget extends ReactWidget {
                 </div>}
             {!this.showMemories && this.renderProcesses()}
             {!this.showMemories && this.renderSubagents(current)}
+            {!this.showMemories && current?.doom && <DoomCard verdict={current.doom} onAction={action => void this.store.resolveDoom(current.id, action)} />}
+            {!this.showMemories && <FrozenSuggestions store={this.frozen} onFreeze={path => void this.freezeSuggested(path)} />}
             {!this.showMemories && this.renderApproval(current)}
             {!this.showMemories && this.renderChangesBar(current)}
             {!this.showMemories && <HabitCards store={this.habits} onMakeHabit={habit => this.draftHabit('Make it a habit', playbookFileText(draftFromLearned(habit)), habit)} />}
@@ -764,6 +772,16 @@ export class IngotAgentsWidget extends ReactWidget {
             {this.renderComposer()}
             {empty && <div className='ingot-agents-disclaimer'>AI can make mistakes. Review generated code before you keep it.</div>}
         </div>;
+    }
+
+    /** IDEA-303: the user froze a file they keep reverting agent edits to; it is saved to Habits too. */
+    protected async freezeSuggested(path: string): Promise<void> {
+        const zone = await this.frozen.freeze({ path, source: 'learned', reason: 'You kept rejecting agent edits to it' });
+        const session = this.store.current;
+        if (zone && session) {
+            this.store.addNote(session, { kind: 'frozen', text: FROZEN_NOTES.frozen, detail: zone.path, ref: zone.id });
+            this.store.addNote(session, { kind: 'habit', text: SAVED_TO_HABITS, detail: `Ask before changing ${zone.path}`, focus: savedHabitFocus(savedHabitKey('frozen', zone.path)) });
+        }
     }
 
     /** IDEA-296: "Save as habit" on a finished run: a habit drafted from the prompt, the steps taken and the files and commands. */
@@ -1010,6 +1028,9 @@ export class IngotAgentsWidget extends ReactWidget {
         if (m.hidden || (m.role === 'tool' && m.tool?.server === 'ingot' && isWorkspaceTool(m.tool.tool) && m.tool.state === 'done')) {
             return undefined;
         }
+        if (m.note) {
+            return this.renderNote(session, m.note, i);
+        }
         if (m.refs?.length) {
             return this.renderSubagentRef(session, m, i);
         }
@@ -1061,12 +1082,17 @@ export class IngotAgentsWidget extends ReactWidget {
                 onClick={() => { this.lightbox = img; this.update(); }} />)}</div>;
     }
 
+    /** The silver note: a habit opens on the Habits page; Undo puts a learned / saved habit back, unlocks or unfreezes. */
+    protected renderNote(session: AgentSession, note: HabitNoteInfo, i: number): React.ReactNode {
+        const undo = note.undo;
+        const onUndo = undo
+            ? async () => { await this.habits.undo(undo); this.store.markNoteUndone(session.id, i); }
+            : note.ref ? () => this.store.undoNote(session.id, i) : undefined;
+        return <HabitNote key={i} note={note} undoLabel={onUndo && NOTE_UNDO_LABELS[note.kind]} onUndo={onUndo && (() => void onUndo())}
+            onOpen={note.kind === 'habit' ? () => this.commands.executeCommand(HABITS_OPEN_COMMAND.id, note.focus) : undefined} />;
+    }
+
     protected renderMessageBody(session: AgentSession, m: AgentSession['messages'][number], i: number, layout: ThreadLayout): React.ReactNode {
-        const habitNote = m.habit;
-        if (habitNote) {
-            return <HabitNoteLine key={i} note={habitNote} onOpen={() => this.commands.executeCommand(HABITS_OPEN_COMMAND.id, habitNote.focus)}
-                onUndo={async () => { await this.habits.undo(habitNote.undo); this.store.markHabitNoteUndone(session.id, i); }} />;
-        }
         return m.memory
             ? <div key={i} className={`ingot-chat-memory${m.memory.undone ? ' undone' : ''}`}>
                     <span className='codicon codicon-lightbulb' />

@@ -2,7 +2,9 @@
  * IDEA-296 Habits: patterns Ingot notices in how the user works (local only), proposed as a rule, command or hook
  * once they repeat.
  */
-export type HabitKind = 'instruction' | 'command' | 'rejection';
+export type HabitKind = 'instruction' | 'command' | 'rejection' | SavedHabitKind;
+/** IDEA-302..304: habits saved straight from a feature (a promoted decision, a learned freeze, a failed approach). */
+export type SavedHabitKind = 'decision' | 'frozen' | 'anti';
 export type HabitStatus = 'learning' | 'proposed' | 'accepted' | 'dismissed';
 export type HabitTarget = 'rule' | 'command' | 'hook';
 
@@ -36,6 +38,37 @@ export interface HabitEvidence {
     readonly example: string;
 }
 
+/** A habit that is already saved somewhere (`.ingot/decisions.md`, `.ingot/frozen.json`, `.ingot/anti-habits.md`). */
+export interface SavedHabit {
+    readonly kind: SavedHabitKind;
+    readonly key: string;
+    readonly label: string;
+    readonly text: string;
+    readonly example: string;
+    readonly savedAs: string;
+}
+
+export type HabitNoteKind = 'habit' | 'decision' | 'frozen';
+
+/**
+ * The one silver line in the agent chat when something is saved or decided: "Saved to Habits" (IDEA-296), "Locked in
+ * Decisions", "Frozen" (IDEA-302..304). A habit note opens the habit on the Habits page.
+ */
+export interface HabitNoteInfo {
+    readonly kind: HabitNoteKind;
+    /** Defaults to the kind's text (`HABIT_NOTE_TEXT`). */
+    readonly text?: string;
+    /** What was saved: the pattern, the decision, the frozen zone, the failed approach. */
+    readonly detail?: string;
+    /** Id of the saved item, for the note's undo (unlock, unfreeze). */
+    readonly ref?: string;
+    /** What the Habits page scrolls to: `learned:<id>` or a playbook id (`project:<slug>`). */
+    readonly focus?: string;
+    /** What Undo on a "Saved to Habits" note puts back. */
+    readonly undo?: HabitUndo;
+    readonly undone?: boolean;
+}
+
 export interface HabitsFile {
     readonly version: number;
     readonly habits: readonly Habit[];
@@ -60,16 +93,15 @@ export interface HabitUndo {
     readonly hook?: string;
 }
 
-export type HabitNoteKind = 'learned' | 'saved';
+export type HabitEventKind = 'learned' | 'saved';
 
-/** The subtle "Saved to Habits" line in the agent chat when Habits learns or saves a pattern. */
-export interface HabitNote {
-    readonly kind: HabitNoteKind;
+/** Habits learned or saved a pattern (`HabitStore.onDidNote`); the chat shows it as a "Saved to Habits" note. */
+export interface HabitEvent {
+    readonly kind: HabitEventKind;
     readonly label: string;
     /** File the pattern was saved as, when there is one. */
     readonly savedAs?: string;
     /** What the Habits page scrolls to: `learned:<id>` or a playbook id (`project:<slug>`). */
     readonly focus: string;
     readonly undo: HabitUndo;
-    readonly undone?: boolean;
 }

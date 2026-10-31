@@ -1,29 +1,35 @@
 import * as React from '@theia/core/shared/react';
-import { HABIT_NOTE_LABELS } from '../../common/habits/habits.consts';
-import type { HabitNote } from '../../common/habits/habits.types';
-import { habitNoteDetail } from '../../common/habits/habits.utils';
+import { HABIT_NOTE_ICONS, HABIT_NOTE_LABELS, HABIT_NOTE_TEXT, HABIT_NOTE_UNDONE_ICON } from '../../common/habits/habits.consts';
+import type { HabitNoteInfo } from '../../common/habits/habits.types';
 
-export interface HabitNoteLineProps {
-    readonly note: HabitNote;
-    readonly onOpen: () => void;
-    readonly onUndo: () => void;
+export interface HabitNoteProps {
+    readonly note: HabitNoteInfo;
+    readonly id?: string;
+    /** Opens the habit on the Habits page; the note text is a button while the note is not undone. */
+    readonly onOpen?: () => void;
+    /** Undo label ("Undo", "Unlock", "Unfreeze"); the link shows while the note is not undone. */
+    readonly undoLabel?: string;
+    readonly onUndo?: () => void;
 }
 
-/** IDEA-296: the small silver "Saved to Habits · …" line in the chat; opens the habit on the Habits page, with Undo. */
-export const HabitNoteLine = ({ note, onOpen, onUndo }: HabitNoteLineProps): React.ReactElement => {
-    const detail = habitNoteDetail(note);
-    return <div className={`ingot-habit-note${note.undone ? ' undone' : ''}`} role='status' data-habit-note={note.focus}>
-        {note.undone
-            ? <span className='ingot-habit-note-open'>
-                <span className='codicon codicon-discard' aria-hidden='true' />
-                <span className='ingot-habit-note-label'>{HABIT_NOTE_LABELS.undone}</span>
-                <span className='ingot-habit-note-detail'>{detail}</span>
-            </span>
-            : <button type='button' className='ingot-habit-note-open' title={`${HABIT_NOTE_LABELS.open}: ${detail}`} onClick={onOpen}>
-                <span className='codicon codicon-checklist' aria-hidden='true' />
-                <span className='ingot-habit-note-label'>{HABIT_NOTE_LABELS.saved}</span>
-                <span className='ingot-habit-note-detail'>{detail}</span>
-            </button>}
-        {!note.undone && <button type='button' className='ingot-habit-note-undo' onClick={onUndo}>{HABIT_NOTE_LABELS.undo}</button>}
+/**
+ * The one small silver note in the agent chat when something is saved or decided: "Saved to Habits" (IDEA-296),
+ * "Locked in Decisions", "Frozen" (IDEA-302..304). Opens the habit on the Habits page, with Undo.
+ */
+export const HabitNote = ({ note, id, onOpen, undoLabel, onUndo }: HabitNoteProps): React.ReactElement => {
+    const removed = note.undone && note.kind === 'habit';
+    const text = removed ? HABIT_NOTE_LABELS.undone : note.text ?? HABIT_NOTE_TEXT[note.kind];
+    const body = <>
+        <span className={`codicon codicon-${removed ? HABIT_NOTE_UNDONE_ICON : HABIT_NOTE_ICONS[note.kind]}`} aria-hidden='true' />
+        <span className='ingot-habit-note-text'>{text}</span>
+        {note.detail && <span className='ingot-habit-note-detail'>{note.detail}</span>}
+    </>;
+    const title = note.detail ? `${text}: ${note.detail}` : text;
+    return <div id={id} className={`ingot-habit-note ingot-habit-note-${note.kind}${note.undone ? ' undone' : ''}`} data-note-kind={note.kind}
+        data-habit-note={note.focus} role='status'>
+        {onOpen && !note.undone
+            ? <button type='button' className='ingot-habit-note-open' title={`${HABIT_NOTE_LABELS.open}: ${note.detail ?? text}`} onClick={onOpen}>{body}</button>
+            : <span className='ingot-habit-note-open' title={title}>{body}</span>}
+        {undoLabel && onUndo && !note.undone && <button type='button' className='ingot-habit-note-undo' onClick={onUndo}>{undoLabel}</button>}
     </div>;
 };

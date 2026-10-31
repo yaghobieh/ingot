@@ -70,6 +70,8 @@
   --ingot-agent-badge-html: #D2603A;
   --ingot-agent-badge-css: #8A5CD1;
   --ingot-agent-badge-file: #6C707E;
+  --ingot-silver: #7D8591;
+  --ingot-silver-line: #C9CED6;
 }
 
 /* Dark tokens follow the active dark theme (Theia sets body.theia-dark), not only an explicit data-theme. */
@@ -124,4 +126,6 @@ body.ingot-dark {
   --ingot-agent-badge-html: #F08A5D;
   --ingot-agent-badge-css: #B18CF0;
   --ingot-agent-badge-file: #9DA0A8;
+  --ingot-silver: #A9B0BB;
+  --ingot-silver-line: #4A4F5B;
 }

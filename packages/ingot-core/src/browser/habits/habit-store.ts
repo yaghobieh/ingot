@@ -12,13 +12,14 @@ import { ChangeTracker } from '../changes/change-tracker';
 import { ProcessStore } from '../processes/process-store';
 import { HOOKS_FILE } from '../../common/git/hooks';
 import { DEFAULT_HABIT_THRESHOLD, HABITS_FILE, HABITS_GITIGNORE, HABITS_GITIGNORE_ENTRY, HABITS_PREFS, MIN_HABIT_THRESHOLD } from '../../common/habits/habits.consts';
-import type { Habit, HabitEvidence, HabitNote, HabitTarget, HabitUndo } from '../../common/habits/habits.types';
+import type { Habit, HabitEvent, HabitEvidence, HabitTarget, HabitUndo, SavedHabit } from '../../common/habits/habits.types';
 import type { Playbook } from '../../common/habits/playbook.types';
 import {
     addStopHook, commandEvidence, habitFile, hasStopHook, instructionEvidence, learnedFocus, parseHabits, recordEvidence, rejectionEvidence, removeStopHook,
-    serializeHabits, terminalInput, undoHabits
+    saveHabit, serializeHabits, terminalInput, undoHabits
 } from '../../common/habits/habits.utils';
 import { PlaybookService } from './playbook-service';
+import { HabitBus } from './habit-bus';
 
 /**
  * IDEA-296 Habits: counts what the user repeats (instructions in prompts, terminal commands, rejected agent styles) in
@@ -35,12 +36,13 @@ export class HabitStore {
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(TerminalService) protected readonly terminals: TerminalService;
     @inject(PlaybookService) protected readonly playbooks: PlaybookService;
+    @inject(HabitBus) protected readonly bus: HabitBus;
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
     /** Habits learned or saved a pattern: shown as a "Saved to Habits" note in the agent chat. */
-    protected readonly onDidNoteEmitter = new Emitter<HabitNote>();
-    readonly onDidNote: Event<HabitNote> = this.onDidNoteEmitter.event;
+    protected readonly onDidNoteEmitter = new Emitter<HabitEvent>();
+    readonly onDidNote: Event<HabitEvent> = this.onDidNoteEmitter.event;
     protected revealed: string | undefined;
     protected readonly toDispose = new DisposableCollection();
     protected items: Habit[] = [];
@@ -86,7 +88,29 @@ export class HabitStore {
             }
         }));
         this.toDispose.push(this.workspace.onWorkspaceChanged(() => this.load(true)));
+        this.toDispose.push(this.bus.onDidSave(({ root, habit }) => this.saveFromFeature(root, habit)));
         void this.load();
+    }
+
+    /**
+     * IDEA-302..304: a promoted decision, a learned freeze or a failed approach. Saved even while "Learn habits" is off:
+     * the user did it on purpose, and the source file already holds it.
+     */
+    protected saveFromFeature(rootUri: string, saved: SavedHabit): void {
+        this.queue = this.queue.then(async () => {
+            const root = this.root;
+            if (root && root.toString() === rootUri) {
+                await this.load();
+                this.items = saveHabit(this.items, saved, Date.now()).habits;
+                await this.persist();
+                return;
+            }
+            const other = new URI(rootUri);
+            const uri = other.resolve(HABITS_FILE);
+            const current = parseHabits(await this.files.read(uri).then(r => r.value, () => undefined));
+            await this.files.write(uri, serializeHabits(saveHabit(current, saved, Date.now()).habits));
+            await this.ignoreInGit(other);
+        }).catch(() => undefined);
     }
 
     async load(force = false): Promise<void> {

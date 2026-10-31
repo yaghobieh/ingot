@@ -6,6 +6,8 @@ import { LOCAL_HISTORY_COMMANDS } from '../local-history/local-history.consts';
 import { INDEX_COMMANDS } from '../codebase-index/codebase-index.consts';
 import { AUDIT_LOG_COMMAND_ID } from '../audit/agent-audit.consts';
 import { BROWSER_FOCUS_KEY } from '../browser-tool/browser-tool.consts';
+import { DECISION_COMMANDS } from '../decisions/decisions.consts';
+import { FROZEN_COMMANDS } from '../frozen/frozen.consts';
 
 /** Ingot commands the Ingot keymap points at (implemented in the browser keymap / run contributions). */
 export const INGOT_NAV_COMMANDS = {
@@ -148,7 +150,11 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Open Browser', command: 'ingot.browser.open', mac: 'ctrlcmd+alt+shift+p', other: 'ctrl+alt+shift+p' },
     { action: 'Quote Page Selection in Agent Chat', command: 'ingot.browser.quoteSelection', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: BROWSER_FOCUS },
     { action: 'Comment on Page Selection in Agent Chat', command: 'ingot.browser.commentSelection', mac: 'ctrlcmd+alt+shift+m', other: 'ctrl+alt+shift+m', when: BROWSER_FOCUS },
-    { action: 'Open Page in External Browser', command: 'ingot.browser.openExternal', mac: 'ctrlcmd+alt+shift+o', other: 'ctrl+alt+shift+o', when: BROWSER_FOCUS }
+    { action: 'Open Page in External Browser', command: 'ingot.browser.openExternal', mac: 'ctrlcmd+alt+shift+o', other: 'ctrl+alt+shift+o', when: BROWSER_FOCUS },
+    // Decisions and Frozen Zones (IDEA-302/303)
+    { action: 'Lock a Decision…', command: DECISION_COMMANDS.lock.id, mac: 'ctrlcmd+alt+shift+d', other: 'ctrl+alt+shift+d' },
+    { action: 'Freeze for Agents', command: FROZEN_COMMANDS.freezeFile.id, mac: 'ctrlcmd+alt+shift+z', other: 'ctrl+alt+shift+z' },
+    { action: 'Freeze Function for Agents', command: FROZEN_COMMANDS.freezeSymbol.id, mac: 'ctrlcmd+alt+shift+x', other: 'ctrl+alt+shift+x', when: EDITOR }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';

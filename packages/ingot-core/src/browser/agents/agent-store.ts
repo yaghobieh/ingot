@@ -81,7 +81,6 @@ import { hookBlockedText, hookOutcomeText } from '../../common/hooks/agent-hooks
 import { HabitRunner } from '../habits/habit-runner';
 import { HABIT_TICKED_REPLY, USE_HABIT_TOOL } from '../../common/habits/playbook.consts';
 import { stripHabitMarks } from '../../common/habits/playbook.utils';
-import type { HabitNote } from '../../common/habits/habits.types';
 import { cutAfterToolCalls, toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
@@ -140,6 +139,25 @@ import { parseArtifactArgs } from '../../common/artifacts/artifacts.utils';
 import { isTaskCall, parseTaskArgs, taskChildPrompt, taskResultText, worktreeBranch, worktreeName } from '../../common/agents/subagent-task';
 import { MAX_PARALLEL_TASKS, NESTED_TASK_ERROR, SUBAGENT_STEP_PREFIX, TASK_TOOL, TOO_MANY_TASKS } from '../../common/agents/subagent-task.consts';
 import type { TaskOutcome, TaskRequest } from '../../common/agents/subagent-task.types';
+import { DecisionLedger } from '../decisions/decision-ledger';
+import { FrozenStore } from '../frozen/frozen-store';
+import { AntiHabitStore } from '../doom-loop/anti-habit-store';
+import { DECISION_ASK_OPTIONS, DECISION_NOTES, DECISIONS_PROTOCOL } from '../../common/decisions/decisions.consts';
+import type { DecisionConflict } from '../../common/decisions/decisions.types';
+import { addedLines, conflictQuestion, decisionKey, decisionMarks, decisionsToCapture, formatDecisions, keptDecisionNote } from '../../common/decisions/decisions.utils';
+import { FROZEN_ASK_OPTIONS, FROZEN_NOTES } from '../../common/frozen/frozen.consts';
+import { formatFrozen, frozenQuestion, isTestCommand, keptFrozenNote } from '../../common/frozen/frozen.utils';
+import { DEFAULT_MAX_REPEATS, DOOM_ACTIONS, DOOM_MESSAGES, DOOM_NOTE, DOOM_PREFS, MIN_MAX_REPEATS } from '../../common/doom-loop/doom-loop.consts';
+import type { DoomState } from '../../common/doom-loop/doom-loop.types';
+import { detectDoom, differentApproachNudge, formatAntiHabits, observeEdit, observeReply, observeResult, startDoom } from '../../common/doom-loop/doom-loop.utils';
+import type { HabitEvent, HabitNoteInfo } from '../../common/habits/habits.types';
+import { HABIT_NOTE_LABELS, HABIT_NOTE_TEXT } from '../../common/habits/habits.consts';
+import { habitNoteDetail, savedHabitFocus, savedHabitKey } from '../../common/habits/habits.utils';
+
+/** What the user chose when the agent was about to contradict a locked decision or change a frozen zone. */
+type GuardChoice = 'keep' | 'allow' | 'release' | 'stopped';
+/** After the guards: the agent should revise (edits were kept out), or the user stopped the run. */
+type GuardOutcome = 'revise' | 'stopped' | undefined;
 
 let nextId = 1;
 const newChatId = (): string => `chat-${Date.now().toString(36)}-${nextId++}`;
@@ -214,6 +232,15 @@ export class AgentStore {
     @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
     @inject(AgentEventHooks) protected readonly eventHooks: AgentEventHooks;
     @inject(HabitRunner) protected readonly habitRunner: HabitRunner;
+    @inject(DecisionLedger) protected readonly decisions: DecisionLedger;
+    @inject(FrozenStore) protected readonly frozen: FrozenStore;
+    @inject(AntiHabitStore) protected readonly antiHabits: AntiHabitStore;
+    /** IDEA-304: what the current turn tried, per chat (reset by each user message and by "Try a different approach"). */
+    protected readonly dooms = new Map<string, DoomState>();
+    /** IDEA-302: decisions being written for a just-sent message; the run waits so the note lands before the reply. */
+    protected readonly captures = new Map<string, Promise<void>>();
+    /** IDEA-302 / IDEA-303: chats whose open question comes from a guard, not from ingot/ask_user. */
+    protected readonly guardAsks = new Set<string>();
     /** IDEA-287: the rules loaded for a chat's last turn, for ingot/fetch_rule. */
     protected readonly sessionRules = new Map<string, readonly ProjectRule[]>();
     protected readonly onDidSendEmitter = new Emitter<{ session: AgentSession; prompt: string }>();
@@ -584,6 +611,11 @@ export class AgentStore {
             prompt: asked, wants: this.workLoopOn() && wantsWorkLoop(asked), edits: [], checks: [], fixAttempts: 0,
             e2eNudged: false, commitNudged: false, commitBlocked: false, committed: false, verifiedEdits: 0, required: []
         });
+        this.dooms.delete(session.id);
+        session.doom = undefined;
+        if (asked) {
+            this.captureDecisions(session, composed?.text ?? asked, session.messages.length - 1);
+        }
         if (this.commandHandlers.some(handle => handle(session, prompt.trim()))) {
             session.updatedAt = Date.now();
             this.changed();
@@ -749,11 +781,20 @@ export class AgentStore {
         return true;
     }
 
-    protected waitForAnswer(session: AgentSession, question: string, options: readonly string[]): Promise<string | undefined> {
+    /** `guard`: asked by a Decisions / Frozen Zones check, so the answer is not read as confirming a decision. */
+    protected waitForAnswer(session: AgentSession, question: string, options: readonly string[], guard = false): Promise<string | undefined> {
         session.ask = { question, ...(options.length ? { options } : {}) };
+        if (guard) {
+            this.guardAsks.add(session.id);
+        } else {
+            this.guardAsks.delete(session.id);
+        }
         this.changed();
         return new Promise(resolve => {
-            this.answers.set(session.id, resolve);
+            this.answers.set(session.id, text => {
+                this.guardAsks.delete(session.id);
+                resolve(text);
+            });
         });
     }
 
@@ -771,11 +812,63 @@ export class AgentStore {
             return;
         }
         this.answers.delete(sessionId);
+        const question = session.ask.question;
         session.ask = undefined;
         session.messages.push({ role: 'user', text: trimmed });
+        if (!this.guardAsks.has(sessionId)) {
+            this.captureDecisions(session, trimmed, session.messages.length - 1, decisionMarks(question));
+        }
         session.updatedAt = Date.now();
         this.changed();
         resolve(trimmed);
+    }
+
+    /**
+     * IDEA-302: a user message locks the decisions it states outright, and the agent's `DECISION:` proposals (in the
+     * reply before it, or in the question it answers) when it confirms them. Shows "Locked in Decisions" in the chat.
+     */
+    protected captureDecisions(session: AgentSession, text: string, userIndex: number, extra: readonly string[] = []): void {
+        const root = this.rootFor(session);
+        const previous = session.messages.slice(0, userIndex).reverse().find(m => m.role === 'agent' && (m.expanded ?? m.text));
+        const proposals = [...decisionMarks(previous ? previous.expanded ?? previous.text : ''), ...extra];
+        const texts = decisionsToCapture(text, proposals);
+        if (!root || !texts.length) {
+            return;
+        }
+        const work = this.decisions.capture(root, texts).then(({ captured, promoted }) => {
+            captured.forEach(d => this.addNote(session, { kind: 'decision', text: DECISION_NOTES.locked, detail: d.text, ref: d.id }));
+            promoted.forEach(d => this.addNote(session, { kind: 'habit', text: DECISION_NOTES.habit, detail: `${d.text} → ${d.habit}`, focus: savedHabitFocus(savedHabitKey('decision', decisionKey(d.text))) }));
+        }, (error: unknown) => {
+            session.messages.push({ role: 'system', text: `Could not save the decision: ${error instanceof Error ? error.message : String(error)}` });
+            this.changed();
+        });
+        this.captures.set(session.id, work);
+    }
+
+    /** IDEA-302..304: a silver "saved" note in the chat (never sent to the model). */
+    addNote(session: AgentSession, note: HabitNoteInfo): void {
+        const text = note.text ?? HABIT_NOTE_TEXT[note.kind];
+        session.messages.push({ role: 'system', text: note.detail ? `${text}: ${note.detail}` : text, note });
+        session.updatedAt = Date.now();
+        this.changed();
+    }
+
+    /** The note's undo: unlock the decision or unfreeze the zone it saved. */
+    async undoNote(sessionId: string, index: number): Promise<void> {
+        const session = this.items.find(s => s.id === sessionId);
+        const message = session?.messages[index];
+        const note = message?.note;
+        if (!session || !message || !note?.ref || note.undone) {
+            return;
+        }
+        const root = this.rootFor(session);
+        if (note.kind === 'decision') {
+            await this.decisions.setLocked(note.ref, false, root);
+        } else if (note.kind === 'frozen') {
+            await this.frozen.unfreeze(note.ref, root);
+        }
+        session.messages[index] = { ...message, note: { ...note, undone: true } };
+        this.addNote(session, { kind: note.kind, text: note.kind === 'decision' ? DECISION_NOTES.unlocked : FROZEN_NOTES.unfrozen, detail: note.detail });
     }
 
     toggleReaction(sessionId: string, index: number, kind: ReactionKind): void {
@@ -1061,6 +1154,8 @@ export class AgentStore {
         if (this.stale(session.id, generation)) {
             return;
         }
+        await this.captures.get(session.id);
+        this.captures.delete(session.id);
         const root = this.rootFor(session);
         if (this.loopDepth.get(session.id) === 1) {
             this.artifacts.begin(session, root);
@@ -1105,14 +1200,15 @@ export class AgentStore {
             root, prompt: lastUser?.m.text ?? '', attachments: prompt, canUseTools: info.canUseTools,
             files: [...new Set([...context.paths, ...(activePath ? [activePath] : []), ...(lastUser?.m.chips ?? []).map(c => c.path).filter(Boolean)])]
         });
+        const guardText = await this.guardPrompt(root, info.canEdit);
         const memoriesText = formatMemories(memories);
         const autoText = formatAutoContext(auto?.items ?? []);
-        const system = [base, rulesText, habitText, memoriesText, context.text, autoText].filter(Boolean).join('\n\n');
+        const system = [base, rulesText, habitText, guardText, memoriesText, context.text, autoText].filter(Boolean).join('\n\n');
         const model = findModel(this.resolveModel(session.model));
         session.context = {
             files: context.paths, rules: rules.map(r => r.name), memories: memories.map(m => ({ id: m.id, text: m.text })),
             usage: contextUsage({
-                system: estimateTokens(base), rules: estimateTokens(rulesText) + estimateTokens(habitText), files: estimateTokens([context.text, autoText].join('\n')), memories: estimateTokens(memoriesText),
+                system: estimateTokens(base), rules: estimateTokens(rulesText) + estimateTokens(habitText) + estimateTokens(guardText), files: estimateTokens([context.text, autoText].join('\n')), memories: estimateTokens(memoriesText),
                 history: estimateTokens(this.historyFor(session).map(m => m.content).join('\n'))
             }, model?.contextWindow ?? DEFAULT_CONTEXT_WINDOW)
         };
@@ -1143,6 +1239,9 @@ export class AgentStore {
                     this.endGoal(session, 'budget', GOAL_BUDGET_TEXT);
                     session.status = 'idle';
                     this.changed();
+                    return;
+                }
+                if (round > 0 && await this.breakDoomLoop(session, root)) {
                     return;
                 }
                 const parsed = await this.streamRound(session, system);
@@ -1236,10 +1335,25 @@ export class AgentStore {
                     session.messages.push({ role: 'user', text: misread === 'act' ? ACT_NUDGE : EXPLAIN_NUDGE, hidden: true });
                     continue;
                 }
+                if (!info.canEdit && parsed.plan.length) {
+                    const choice = await this.checkPlan(session, parsed.plan, root);
+                    if (choice === 'stopped' || this.stale(session.id, generation)) {
+                        return;
+                    }
+                    if (choice === 'keep' && round < rounds) {
+                        continue;
+                    }
+                }
                 const applied = info.canEdit && parsed.edits.length > 0;
                 if (applied) {
                     edited = true;
-                    await this.applyParsedEdits(session, parsed.edits, parsed.plan, root);
+                    const guarded = await this.applyParsedEdits(session, parsed.edits, parsed.plan, root);
+                    if (guarded === 'stopped' || this.gaveUp(session, generation)) {
+                        return;
+                    }
+                    if (guarded === 'revise' && !parsed.toolCalls.length && round < rounds) {
+                        continue;
+                    }
                 }
                 const cut = info.canEdit && parsed.editing && round < rounds ? parsed.editing : undefined;
                 if (cut) {
@@ -1506,12 +1620,248 @@ export class AgentStore {
     }
 
     /** Applies a reply's edits even when that same reply also called tools. */
-    protected async applyParsedEdits(session: AgentSession, edits: readonly AgentEdit[], plan: readonly string[], root: URI | undefined): Promise<void> {
+    /** Returns 'revise' when a guard kept edits out (the agent should try again), 'stopped' when the user stopped. */
+    protected async applyParsedEdits(session: AgentSession, edits: readonly AgentEdit[], plan: readonly string[], root: URI | undefined): Promise<GuardOutcome> {
         if (edits.length >= MULTI_FILE_EDITS && !plan.length && session.plan.length === 0) {
             session.plan = planFromEdits(edits.map(edit => edit.path)).map((text, i) => ({ text, state: i === 0 ? 'active' : 'todo' }));
         }
         const editable = await this.sandboxEdits(session, await this.editsAllowed(session, edits, root), root);
-        await this.applyEdits(session, editable, root);
+        const guarded = await this.guardEdits(session, editable, plan, root);
+        if (guarded.outcome === 'stopped') {
+            return guarded.outcome;
+        }
+        await this.applyEdits(session, guarded.edits, root);
+        return guarded.outcome;
+    }
+
+    /** IDEA-302..304: locked decisions, frozen zones and anti-habits of the project, for the system prompt. */
+    protected async guardPrompt(root: URI | undefined, canEdit: boolean): Promise<string> {
+        if (!root) {
+            return '';
+        }
+        const [decisions, frozen, anti] = await Promise.all([
+            this.decisions.load(root).catch(() => []),
+            this.frozen.load(root).then(state => state.zones, () => []),
+            this.antiHabits.load(root).catch(() => [])
+        ]);
+        return [
+            formatDecisions(decisions, `${BUILTIN_TOOL_SERVER}/${ASK_USER_TOOL}`), DECISIONS_PROTOCOL,
+            canEdit ? formatFrozen(frozen) : '', formatAntiHabits(anti)
+        ].filter(Boolean).join('\n\n');
+    }
+
+    /** Reads a project file; empty when it does not exist yet. */
+    protected async readText(root: URI, path: string): Promise<string> {
+        const uri = this.safeUri(root, path);
+        return uri && uri !== root ? this.files.read(uri).then(file => file.value, () => '') : '';
+    }
+
+    /** Asks a Decisions / Frozen Zones question in the chat and maps the picked option. */
+    protected async askGuard(session: AgentSession, question: string, options: { keep: string; allow: string; release: string }): Promise<GuardChoice> {
+        const answer = await this.waitForAnswer(session, question, [options.keep, options.allow, options.release], true);
+        if (answer === undefined || this.cancelled.has(session.id)) {
+            session.ask = undefined;
+            session.messages.push({ role: 'system', text: ASK_STOPPED });
+            this.changed();
+            return 'stopped';
+        }
+        return answer === options.allow ? 'allow' : answer === options.release ? 'release' : 'keep';
+    }
+
+    /** IDEA-302: "Keep the decision" / "Go ahead this time" / "Unlock the decision" for the conflicts found. */
+    protected async askDecisions(session: AgentSession, conflicts: readonly DecisionConflict[], root: URI): Promise<GuardChoice> {
+        const choice = await this.askGuard(session, conflictQuestion(conflicts), { keep: DECISION_ASK_OPTIONS.keep, allow: DECISION_ASK_OPTIONS.once, release: DECISION_ASK_OPTIONS.unlock });
+        if (choice === 'release') {
+            for (const decision of new Map(conflicts.map(c => [c.decision.id, c.decision])).values()) {
+                await this.decisions.setLocked(decision.id, false, root);
+                this.addNote(session, { kind: 'decision', text: DECISION_NOTES.unlocked, detail: decision.text });
+            }
+        }
+        return choice;
+    }
+
+    /**
+     * IDEA-302 / IDEA-303: before edits land, ask in the chat about each locked decision they contradict and each
+     * frozen file or function they change. Edits the user keeps out are dropped and the agent is told why.
+     */
+    protected async guardEdits(session: AgentSession, edits: readonly AgentEdit[], plan: readonly string[], root: URI | undefined): Promise<{ edits: AgentEdit[]; outcome: GuardOutcome }> {
+        if (!root || !edits.length) {
+            return { edits: [...edits], outcome: undefined };
+        }
+        const befores = new Map(await Promise.all(edits.map(async edit => [edit.path, await this.readText(root, edit.path)] as const)));
+        let kept = [...edits];
+        let revise = false;
+        const conflicts = await this.decisions.conflicts(root, {
+            plan, edits: edits.map(edit => ({ path: edit.path, added: addedLines(befores.get(edit.path) ?? '', edit.content) })), commands: []
+        }).catch(() => []);
+        if (conflicts.length) {
+            const choice = await this.askDecisions(session, conflicts, root);
+            if (choice === 'stopped') {
+                await this.tracker.cancelStreams(session.id);
+                return { edits: [], outcome: 'stopped' };
+            }
+            if (choice === 'keep') {
+                revise = true;
+                const planConflict = conflicts.some(c => !edits.some(edit => edit.path === c.where));
+                const skipped = planConflict ? kept.map(edit => edit.path) : [...new Set(conflicts.map(c => c.where))];
+                kept = kept.filter(edit => !skipped.includes(edit.path));
+                await Promise.all(skipped.map(path => this.tracker.cancelStream(session.id, path)));
+                session.messages.push({ role: 'user', text: keptDecisionNote(conflicts, skipped), hidden: true });
+            }
+        }
+        const allowed: AgentEdit[] = [];
+        for (const edit of kept) {
+            const touches = await this.frozen.touches(root, edit.path, befores.get(edit.path) ?? '', edit.content).catch(() => []);
+            if (!touches.length) {
+                allowed.push(edit);
+                continue;
+            }
+            const choice = await this.askGuard(session, frozenQuestion(touches), { keep: FROZEN_ASK_OPTIONS.keep, allow: FROZEN_ASK_OPTIONS.allow, release: FROZEN_ASK_OPTIONS.unfreeze });
+            if (choice === 'stopped') {
+                await this.tracker.cancelStreams(session.id);
+                return { edits: [], outcome: 'stopped' };
+            }
+            if (choice === 'keep') {
+                revise = true;
+                await this.tracker.cancelStream(session.id, edit.path);
+                session.messages.push({ role: 'user', text: keptFrozenNote(touches.map(t => t.label)), hidden: true });
+                continue;
+            }
+            if (choice === 'release') {
+                for (const touch of touches) {
+                    await this.frozen.unfreeze(touch.zone.id, root);
+                    this.addNote(session, { kind: 'frozen', text: FROZEN_NOTES.unfrozen, detail: touch.label });
+                }
+            }
+            allowed.push(edit);
+        }
+        return { edits: allowed, outcome: revise ? 'revise' : undefined };
+    }
+
+    /** IDEA-302: a plan (Plan / Ask mode) that contradicts a locked decision. Keep sends it back for a revision. */
+    protected async checkPlan(session: AgentSession, plan: readonly string[], root: URI | undefined): Promise<GuardChoice | undefined> {
+        const conflicts = root ? await this.decisions.conflicts(root, { plan, edits: [], commands: [] }).catch(() => []) : [];
+        if (!root || !conflicts.length) {
+            return undefined;
+        }
+        const choice = await this.askDecisions(session, conflicts, root);
+        if (choice === 'keep') {
+            session.messages.push({ role: 'user', text: `${keptDecisionNote(conflicts, [])} Revise the plan so it follows the decision.`, hidden: true });
+        }
+        return choice;
+    }
+
+    /**
+     * IDEA-302 / IDEA-303: a shell command that contradicts a locked decision, or a delete of a frozen file, asks
+     * first. Returns the tool error when the user keeps it out, 'stopped' when they stopped the run.
+     */
+    protected async guardTool(session: AgentSession, call: AgentToolCall, root: URI | undefined): Promise<string | undefined> {
+        if (!root || call.server !== BUILTIN_TOOL_SERVER) {
+            return undefined;
+        }
+        const command = call.tool === 'run' && typeof call.args.command === 'string' ? call.args.command : '';
+        const conflicts = command ? await this.decisions.conflicts(root, { plan: [], edits: [], commands: [command] }).catch(() => []) : [];
+        if (conflicts.length) {
+            const choice = await this.askDecisions(session, conflicts, root);
+            return choice === 'stopped' ? 'stopped' : choice === 'keep' ? keptDecisionNote(conflicts, []) : undefined;
+        }
+        const path = call.tool === 'delete' && typeof call.args.path === 'string' ? call.args.path : '';
+        if (!path) {
+            return undefined;
+        }
+        const before = await this.readText(root, path);
+        const touches = await this.frozen.touches(root, path, before, '').catch(() => []);
+        if (!touches.length) {
+            return undefined;
+        }
+        const choice = await this.askGuard(session, frozenQuestion(touches), { keep: FROZEN_ASK_OPTIONS.keep, allow: FROZEN_ASK_OPTIONS.allow, release: FROZEN_ASK_OPTIONS.unfreeze });
+        if (choice === 'release') {
+            for (const touch of touches) {
+                await this.frozen.unfreeze(touch.zone.id, root);
+                this.addNote(session, { kind: 'frozen', text: FROZEN_NOTES.unfrozen, detail: touch.label });
+            }
+        }
+        return choice === 'stopped' ? 'stopped' : choice === 'keep' ? keptFrozenNote(touches.map(t => t.label)) : undefined;
+    }
+
+    protected doomOf(session: AgentSession): DoomState {
+        return this.dooms.get(session.id) ?? startDoom();
+    }
+
+    /** IDEA-304: a command result feeds the doom-loop tracker; a test run also tells Frozen Zones what is green. */
+    protected observeTool(session: AgentSession, call: AgentToolCall, result: AgentActionResult, root: URI | undefined): void {
+        if (call.server !== BUILTIN_TOOL_SERVER) {
+            return;
+        }
+        const command = call.tool === 'run' && typeof call.args.command === 'string' ? call.args.command : '';
+        if (command || result.isError) {
+            this.dooms.set(session.id, observeResult(this.doomOf(session), { action: command || call.tool, failed: !!result.isError, output: result.text }));
+        }
+        if (command && isTestCommand(command) && root) {
+            void this.frozen.recordTests({ command, passed: !result.isError, at: Date.now() }, root).catch(() => undefined);
+        }
+    }
+
+    /**
+     * IDEA-304: the same error after N tries, a fix that breaks what the last one fixed, or "it works" claims the
+     * checks keep disproving pause the run. The chat shows what was tried, and the approach is saved as an anti-habit.
+     */
+    protected async breakDoomLoop(session: AgentSession, root: URI | undefined): Promise<boolean> {
+        if (this.preferences.get<boolean>(DOOM_PREFS.enabled, true) === false) {
+            return false;
+        }
+        const max = Math.max(MIN_MAX_REPEATS, this.preferences.get<number>(DOOM_PREFS.maxRepeats, DEFAULT_MAX_REPEATS) ?? DEFAULT_MAX_REPEATS);
+        const verdict = detectDoom(this.doomOf(session), max);
+        if (!verdict) {
+            return false;
+        }
+        await this.tracker.cancelStreams(session.id);
+        session.doom = verdict;
+        session.status = 'idle';
+        session.messages.push({ role: 'system', text: `${DOOM_MESSAGES.paused}${verdict.reason}` });
+        this.changed();
+        if (root) {
+            const habit = await this.antiHabits.record(root, verdict).catch(() => undefined);
+            if (habit) {
+                this.addNote(session, { kind: 'habit', text: DOOM_NOTE, detail: habit.text, focus: savedHabitFocus(savedHabitKey('anti', habit.id)) });
+            }
+        }
+        session.updatedAt = Date.now();
+        this.changed();
+        return true;
+    }
+
+    /** IDEA-304: the doom card's buttons. Reset puts the files back to before this turn; the chat stays. */
+    async resolveDoom(sessionId: string, action: keyof typeof DOOM_ACTIONS): Promise<void> {
+        const session = this.items.find(s => s.id === sessionId);
+        const verdict = session?.doom;
+        if (!session || !verdict) {
+            return;
+        }
+        session.doom = undefined;
+        this.dooms.delete(sessionId);
+        if (action === 'reset') {
+            const from = session.messages.map(m => m.role === 'user' && !m.hidden).lastIndexOf(true);
+            try {
+                await this.tracker.revertTo(sessionId, from, restorePlan(this.tracker.checkpoints, sessionId, from));
+                session.messages.push({ role: 'system', text: DOOM_MESSAGES.reset(session.messages[from]?.text ?? '') });
+            } catch (error) {
+                session.messages.push({ role: 'system', text: `${DOOM_MESSAGES.resetFailed}${error instanceof Error ? error.message : String(error)}` });
+            }
+            session.status = 'idle';
+        } else if (action === 'different' || action === 'keep') {
+            if (action === 'different') {
+                session.messages.push({ role: 'user', text: differentApproachNudge(verdict), hidden: true });
+            }
+            session.messages.push({ role: 'system', text: DOOM_MESSAGES[action] });
+            this.cancelled.delete(sessionId);
+            session.status = 'thinking';
+            this.changed();
+            void this.runModel(session);
+            return;
+        }
+        session.updatedAt = Date.now();
+        this.changed();
     }
 
     /** Runs tools unless the user stopped or sent a newer message. False means the loop should return. */
@@ -1607,6 +1957,7 @@ export class AgentStore {
         const followUps = withFollowUps.followUps;
         const memories = extracted.memories;
         this.habitRunner.consume(session, final);
+        this.dooms.set(session.id, observeReply(this.doomOf(session), display));
         // Keep the raw reply for the model (so it sees its own tool calls), show the clean text.
         const empty = extracted.display.trim() ? HABIT_TICKED_REPLY : '(empty reply)';
         this.writeAgentDraft(session, index, display || (parsed.edits.length ? `Proposed changes to ${parsed.edits.length} file(s).` : parsed.toolCalls.length ? 'Calling tools…' : empty), {
@@ -1695,6 +2046,18 @@ export class AgentStore {
                     tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
                 });
                 this.recordTool(session, call, rootPath, { decision: 'denied', outcome: 'blocked', reason: refusedByHabit, startedAt });
+                this.changed();
+                continue;
+            }
+            const guarded = await this.guardTool(session, call, root);
+            if (guarded === 'stopped') {
+                return false;
+            }
+            if (guarded) {
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: ${guarded}`,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                });
                 this.changed();
                 continue;
             }
@@ -1841,6 +2204,7 @@ export class AgentStore {
             }
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
             this.habitRunner.afterTool(session, call, !!result.isError);
+            this.observeTool(session, call, result, root);
             const done: AgentMessage = {
                 role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}),
                 tool: { ...tool, state: result.isError ? 'error' : 'done', endedAt: Date.now() }
@@ -2807,6 +3171,7 @@ export class AgentStore {
             role: 'tool', from: `${BUILTIN_TOOL_SERVER}/run`, text: `${result.isError ? 'Error: ' : ''}${result.text}`,
             tool: { ...tool, state: result.isError ? 'error' : 'done', endedAt: Date.now() }
         };
+        this.observeTool(session, { server: BUILTIN_TOOL_SERVER, tool: 'run', args: { command } }, result, this.rootFor(session));
         this.changed();
         return result;
     }
@@ -2934,7 +3299,7 @@ export class AgentStore {
     /** Live editor view while an edit block streams (IDEA-102): the file fills in as the model types. */
     protected streamEdit(session: AgentSession, messageIndex: number, path: string | undefined, content: string | undefined): void {
         const root = this.rootFor(session);
-        if (!path || content === undefined || !root || !modeInfo(session.mode).canEdit || !isSafeRelativePath(path) || this.lockedFor(session, path)) {
+        if (!path || content === undefined || !root || !modeInfo(session.mode).canEdit || !isSafeRelativePath(path) || this.lockedFor(session, path) || this.frozen.isFileFrozen(path)) {
             return;
         }
         // IDEA-288: an edit the sandbox stops shows only once it is approved.
@@ -3004,6 +3369,7 @@ export class AgentStore {
                 const change = await this.tracker.finalize(origin, edit.path, root.resolve(edit.path), edit.content);
                 void this.runEventHook(session, 'afterFileEdit', { file_path: root.resolve(edit.path).path.fsPath(), edits: [{ old_string: change.oldText, new_string: edit.content }] });
                 this.loopOf(session).edits.push(edit.path);
+                this.dooms.set(session.id, observeEdit(this.doomOf(session), edit.path, edit.content));
                 const stats = this.tracker.stats(change);
                 this.recordTool(session, editCall(edit.path), rootPath, {
                     decision: 'auto', outcome: 'ok', summary: `Edit ${edit.path} (+${stats.added} −${stats.removed})`, ...(review.autoAccept ? { output: 'Accepted automatically.' } : {})
@@ -3165,22 +3531,23 @@ export class AgentStore {
     }
 
     /** IDEA-296: a "Saved to Habits" note in the open chat (none is open: nothing to show it in). */
-    addHabitNote(note: HabitNote): void {
+    /** IDEA-296: Habits learned or saved a pattern: a "Saved to Habits" note in the current chat that opens it, with Undo. */
+    addHabitNote(event: HabitEvent): void {
         const session = this.current;
         if (!session) {
             return;
         }
-        session.messages.push({ role: 'system', text: note.label, habit: note });
-        this.changed();
+        this.addNote(session, { kind: 'habit', text: HABIT_NOTE_LABELS.saved, detail: habitNoteDetail(event), focus: event.focus, undo: event.undo });
     }
 
-    markHabitNoteUndone(sessionId: string, index: number): void {
+    /** A note whose Undo ran elsewhere (Habits put the pattern back): shown as undone. */
+    markNoteUndone(sessionId: string, index: number): void {
         const session = this.items.find(s => s.id === sessionId);
         const message = session?.messages[index];
-        if (!session || !message?.habit) {
+        if (!session || !message?.note) {
             return;
         }
-        session.messages[index] = { ...message, habit: { ...message.habit, undone: true } };
+        session.messages[index] = { ...message, note: { ...message.note, undone: true } };
         this.changed();
     }
 
