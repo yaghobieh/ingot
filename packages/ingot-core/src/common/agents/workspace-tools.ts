@@ -27,8 +27,9 @@ export const GREP_MAX_MATCHES = 150;
 export const GREP_MAX_FILES = 4000;
 export const GREP_MAX_FILE_BYTES = 512 * 1024;
 /** Folders the tools skip (dependencies, build output, VCS). */
-export const SKIPPED_DIRS = new Set(['node_modules', '.git', 'dist', 'lib', 'build', 'out', '.next', '.turbo', 'coverage', '.cache', '.venv', '__pycache__', 'target']);
-const BINARY = /\.(png|jpe?g|gif|webp|ico|icns|pdf|zip|gz|tgz|woff2?|ttf|otf|eot|mp[34]|mov|wasm|exe|dll|so|dylib|bin|lock)$/i;
+export const SKIPPED_DIRS = new Set(['node_modules', '.git', 'dist', 'lib', 'build', 'out', '.next', '.turbo', 'coverage', '.cache', '.venv', '__pycache__', 'target', 'obj', '.dart_tool', '.gradle']);
+/** IDEA-313: compiled output of the other languages (class files, jars, object files, bytecode) is never text. */
+const BINARY = /\.(png|jpe?g|gif|webp|ico|icns|pdf|zip|gz|tgz|woff2?|ttf|otf|eot|mp[34]|mov|wasm|exe|dll|so|dylib|bin|lock|class|jar|war|ear|pyc|pyo|o|a|obj|lib|pdb|rlib|rmeta|nupkg|dill|swiftmodule)$/i;
 export const isTextCandidate = (path: string): boolean => !BINARY.test(path);
 
 export interface GitHubRepo { readonly owner: string; readonly repo: string }

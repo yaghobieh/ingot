@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { githubRepoFromRemote, globMatcher, grepMatcher, compileGitignore, isPromptEcho, answerFromProject, answerFromFiles, asksAboutOpenProject, fileQuestionGlob, globPaths, numberLines, parseRgFiles, printsShellInsteadOfRunning, PROJECT_QUESTION, rgArgs, shellReadsAsTools, textForRead, withRepoDefaults, workspaceProtocol } from './workspace-tools';
+import { githubRepoFromRemote, globMatcher, grepMatcher, compileGitignore, isPromptEcho, isTextCandidate, answerFromProject, answerFromFiles, asksAboutOpenProject, fileQuestionGlob, globPaths, numberLines, parseRgFiles, printsShellInsteadOfRunning, PROJECT_QUESTION, rgArgs, shellReadsAsTools, textForRead, withRepoDefaults, workspaceProtocol } from './workspace-tools';
 
 describe('workspace tools (IDEA-186)', () => {
     it('reads owner/repo from the git remote', () => {
@@ -113,5 +113,16 @@ describe('workspace tools (IDEA-186)', () => {
         const ruleFiles = rgArgs({ files: true, globs: ['**/AGENTS.md', '**/.ingot/rules/**/*.md'], ignoreFiles: ['.ingotignore'] });
         expect(ruleFiles.join(' ')).toContain('--ignore-file .ingotignore');
         expect(ruleFiles.join(' ')).toContain('--files --glob **/AGENTS.md --glob **/.ingot/rules/**/*.md');
+    });
+});
+
+describe('isTextCandidate (IDEA-313)', () => {
+    it('skips compiled output of every bundled language and keeps their sources', () => {
+        for (const path of ['Hello.class', 'app.jar', 'm.pyc', 'main.o', 'libx.a', 'x.obj', 'x.pdb', 'libx.rlib', 'pkg.nupkg', 'Hello.swiftmodule']) {
+            expect(isTextCandidate(path)).toBe(false);
+        }
+        for (const path of ['Hello.java', 'main.go', 'lib.rs', 'Program.cs', 'hello.cbl', 'main.dart', 'query.sql', 'hello.kt', 'a.swift', 'run.sh', 'a.yaml']) {
+            expect(isTextCandidate(path)).toBe(true);
+        }
     });
 });
