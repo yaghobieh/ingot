@@ -1,4 +1,5 @@
 {
+  "$schema": "./hello.schema.json",
   "name": "hello",
   "greeting": "Hello, Ingot!",
   "count": 3

@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./hello.schema.json
 name: hello
 greeting: Hello, Ingot!
 languages:
