@@ -44,6 +44,10 @@ export interface AgentMessage {
     /** When a think block opened, and how long it lasted once it closed. */
     readonly thoughtStarted?: number;
     readonly thoughtMs?: number;
+    /** IDEA-305/306/307: a silver inline note (handed off, checked against plan, routed, saved to Habits). */
+    readonly note?: import('../habits/learned.types').HabitNoteInfo;
+    /** IDEA-306: the run's diff checked against the approved plan, drawn as a review card. */
+    readonly planReview?: import('../plan-review/plan-review.types').PlanReview;
 }
 
 /** What went into the last request of a chat (IDEA-77): shown as chips and in the usage ring. */
@@ -99,6 +103,14 @@ export interface AgentSession {
     ask?: { readonly question: string; readonly options?: readonly string[] };
     /** IDEA-296: the habit (scenario playbook) this chat follows, with its live checklist. */
     habit?: import('../habits/playbook.types').ActiveHabit;
+    /** IDEA-307: the model the router sent this turn to (cleared on the next send). */
+    route?: import('../router/router.types').RouteDecision;
+    /** IDEA-305: the chat looks stale; offered to continue in a fresh chat from a brief. */
+    handoffOffer?: import('../fresh-context/fresh-context.types').HandoffOffer;
+    /** IDEA-305: turn count when the offer was last dismissed ("Not now"). */
+    handoffDismissedAt?: number;
+    /** IDEA-306: the plan approved with Build, reviewed against the diff when the run ends. */
+    approvedPlan?: import('../plan-review/plan-review.types').ApprovedPlan;
 }
 
 export interface ReviewPause {

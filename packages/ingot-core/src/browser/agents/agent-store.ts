@@ -14,7 +14,7 @@ import type { ComposedMessage } from '../../common/agents/composer-parts.types';
 import { reorderTabs, tabTitleFromText, togglePinOrder } from '../../common/agents/chat-tabs';
 import { BUILD_PROMPT, MAX_SUB_AGENTS, TERMINAL_CONTEXT_LINES, modeInfo } from '../../common/agents/agent-modes';
 import { CHATS_STORAGE_KEY, parseChats, serializeChats } from '../../common/agents/chat-history';
-import { SUMMARIZE_PROMPT, contextUsage, estimateTokens } from '../../common/agents/context-usage';
+import { SUMMARIZE_PROMPT, contextUsage, estimateTokens, usageRatio } from '../../common/agents/context-usage';
 import { MEMORY_PROTOCOL, extractMemories, formatMemories, relevantMemories } from '../../common/memories/memories';
 import { MemoryStore } from './memory-store';
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service';
@@ -93,6 +93,18 @@ import { runToolSettings, type RunToolSettings } from '../../common/processes/ru
 import { AgentActionsService, type AgentActionResult } from '../../common/agents/agent-actions-service';
 import { GitService } from '../../common/git/git.types';
 import { checkpoints, REVIEW_PREFS, reviewSettings, type ReviewSettings } from '../../common/review/review';
+import { FreshContextService } from '../fresh-context/fresh-context-service';
+import { PlanReviewService } from '../plan-review/plan-review-service';
+import { ModelRouter } from '../router/model-router';
+import { HABIT_NOTE_TEXT } from '../../common/habits/learned.consts';
+import type { LearnedHabit } from '../../common/habits/learned.types';
+import { learnedLabel } from '../../common/habits/learned.utils';
+import { CONTINUE_PROMPT } from '../../common/fresh-context/fresh-context.consts';
+import type { RotVerdict } from '../../common/fresh-context/fresh-context.types';
+import { briefPath, briefPrompt, buildBrief, changesDiff, countFailures, countTurns, freshTitle, offerAllowed, recentFailures, rotSummary } from '../../common/fresh-context/fresh-context.utils';
+import { reviewHeadline } from '../../common/plan-review/plan-review.utils';
+import { classifyTask, taskTypeLabel } from '../../common/router/router.utils';
+import { DEFAULT_SYSTEM_TOKENS } from '../../common/cost/cost.consts';
 
 let nextId = 1;
 const newChatId = (): string => `chat-${Date.now().toString(36)}-${nextId++}`;
@@ -156,6 +168,16 @@ export class AgentStore {
     @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
     @inject(AgentEventHooks) protected readonly eventHooks: AgentEventHooks;
     @inject(HabitRunner) protected readonly habitRunner: HabitRunner;
+    @inject(FreshContextService) protected readonly freshContext: FreshContextService;
+    @inject(PlanReviewService) protected readonly planReview: PlanReviewService;
+    @inject(ModelRouter) protected readonly router: ModelRouter;
+    /** IDEA-307: chats whose next run decides a route (set by send), and sends that never route (Build). */
+    protected readonly routePending = new Set<string>();
+    protected readonly noRoute = new Set<string>();
+    /** IDEA-307: chats whose routed turn was already counted for Habits. */
+    protected readonly routeCounted = new Set<string>();
+    /** IDEA-305: chats already handed off to a fresh chat. */
+    protected readonly handedOff = new Set<string>();
     /** IDEA-287: the rules loaded for a chat's last turn, for ingot/fetch_rule. */
     protected readonly sessionRules = new Map<string, readonly ProjectRule[]>();
     protected readonly onDidSendEmitter = new Emitter<{ session: AgentSession; prompt: string }>();
@@ -447,6 +469,7 @@ export class AgentStore {
     /** Sends a prompt. Without a connected model the agent explains how to connect one instead of pretending. */
     send(prompt: string, chips: readonly ContextChip[] = [], composed?: ComposedMessage): AgentSession {
         const session = this.current ?? this.create();
+        const routable = !this.noRoute.delete(session.id);
         const askedNow = prompt.trim();
         if (session.ask && askedNow) {
             this.answerQuestion(session.id, askedNow);
@@ -477,10 +500,10 @@ export class AgentStore {
                 : { role: 'user', text: prompt.trim() });
         }
         const asked = prompt.trim();
-        this.loops.set(session.id, {
-            prompt: asked, wants: this.workLoopOn() && wantsWorkLoop(asked), edits: [], checks: [], fixAttempts: 0,
-            e2eNudged: false, commitNudged: false, commitBlocked: false, committed: false, verifiedEdits: 0, required: []
-        });
+        this.loops.set(session.id, this.newLoop(asked));
+        session.route = undefined;
+        session.handoffOffer = undefined;
+        this.routeCounted.delete(session.id);
         if (this.commandHandlers.some(handle => handle(session, prompt.trim()))) {
             session.updatedAt = Date.now();
             this.changed();
@@ -512,6 +535,22 @@ export class AgentStore {
             this.changed();
             return session;
         }
+        if (routable && asked) {
+            this.routePending.add(session.id);
+        }
+        this.startRun(session);
+        return session;
+    }
+
+    protected newLoop(prompt: string): LoopState {
+        return {
+            prompt, wants: this.workLoopOn() && wantsWorkLoop(prompt), edits: [], checks: [], fixAttempts: 0,
+            e2eNudged: false, commitNudged: false, commitBlocked: false, committed: false, verifiedEdits: 0, required: []
+        };
+    }
+
+    /** Starts a new turn of the model loop for a chat (send, a handoff, Use original). */
+    protected startRun(session: AgentSession): void {
         session.status = 'thinking';
         session.updatedAt = Date.now();
         const generation = (this.loopGeneration.get(session.id) ?? 0) + 1;
@@ -519,7 +558,21 @@ export class AgentStore {
         this.cancelled.delete(session.id);
         this.changed();
         this.runModel(session, generation).finally(() => this.browser.endAgentRun(session.id));
-        return session;
+    }
+
+    /** IDEA-307: tokens the chat's next request re-sends (history) and the system part measured on its last request. */
+    requestTokens(session: AgentSession | undefined): { history: number; system?: number } {
+        const usage = session?.context?.usage;
+        return {
+            history: session ? estimateTokens(this.historyFor(session).map(m => m.content).join('\n')) : 0,
+            ...(usage ? { system: usage.system + usage.rules + usage.files + usage.memories } : {})
+        };
+    }
+
+    /** The model a chat's requests go to: the router's pick for this turn, else the chat's model. */
+    modelFor(session: AgentSession): string {
+        const routed = session.route?.to;
+        return routed && this.models.isModelConfigured(routed) ? routed : this.resolveModel(session.model);
     }
 
     isRunning(id: string | undefined): boolean {
@@ -846,7 +899,7 @@ export class AgentStore {
         if (!images.length) {
             return { role: 'user', content };
         }
-        const model = findModel(this.resolveModel(session.model));
+        const model = findModel(this.modelFor(session));
         if (!model || !supportsVision(model.provider)) {
             return { role: 'user', content: `${content}\n\n(${images.length} image(s) attached, but the selected model cannot read images.)` };
         }
@@ -884,6 +937,9 @@ export class AgentStore {
             }
         }
         const prompt = lastUser ? (session.messages[lastUser.i].expanded ?? lastUser.m.text) : '';
+        if (this.routePending.delete(session.id) && lastUser) {
+            await this.routeTurn(session, lastUser.m.text, (lastUser.m.chips?.length ?? 0) + parseMentions(prompt).length);
+        }
         const context = await this.readContext(session, prompt, root);
         // Glob rules still match the file open in the editor; its content is not attached (the agent reads files via tools).
         const active = this.editors.currentEditor?.editor.uri;
@@ -903,12 +959,14 @@ export class AgentStore {
             files: [...new Set([...context.paths, ...(activePath ? [activePath] : []), ...(lastUser?.m.chips ?? []).map(c => c.path).filter(Boolean)])]
         });
         const memoriesText = formatMemories(memories);
-        const system = [base, rulesText, habitText, memoriesText, context.text].filter(Boolean).join('\n\n');
-        const model = findModel(this.resolveModel(session.model));
+        // IDEA-306: Plan mode follows the plan template Habits learned for this kind of task.
+        const planTemplateText = session.mode === 'plan' ? await this.planReview.templateFor(classifyTask(lastUser?.m.text ?? '')).catch(() => '') : '';
+        const system = [base, rulesText, habitText, planTemplateText, memoriesText, context.text].filter(Boolean).join('\n\n');
+        const model = findModel(this.modelFor(session));
         session.context = {
             files: context.paths, rules: rules.map(r => r.name), memories: memories.map(m => ({ id: m.id, text: m.text })),
             usage: contextUsage({
-                system: estimateTokens(base), rules: estimateTokens(rulesText) + estimateTokens(habitText), files: estimateTokens(context.text), memories: estimateTokens(memoriesText),
+                system: estimateTokens(base), rules: estimateTokens(rulesText) + estimateTokens(habitText) + estimateTokens(planTemplateText), files: estimateTokens(context.text), memories: estimateTokens(memoriesText),
                 history: estimateTokens(this.historyFor(session).map(m => m.content).join('\n'))
             }, model?.contextWindow ?? DEFAULT_CONTEXT_WINDOW)
         };
@@ -929,6 +987,13 @@ export class AgentStore {
         try {
             for (let round = 0; ; round++) {
                 if (this.gaveUp(session, generation)) {
+                    return;
+                }
+                if (round > 0 && !session.parent && await this.freshContext.failingNow(session.messages)) {
+                    // IDEA-305 auto mode: a failure streak stops the run and a fresh chat takes over from a brief.
+                    session.messages.push({ role: 'system', text: `Stopped after ${countFailures(session.messages)} failed attempts: continuing in a fresh chat.` });
+                    session.status = 'idle';
+                    void this.handOffFresh(session.id, { auto: true });
                     return;
                 }
                 const parsed = await this.streamRound(session, system);
@@ -1072,8 +1137,193 @@ export class AgentStore {
             this.flushPoke();
             if (!this.loopDepth.has(session.id)) {
                 void this.runEventHook(session, 'stop', { status: session.status === 'error' ? 'error' : this.cancelled.has(session.id) ? 'aborted' : 'completed' });
+                if (!this.stale(session.id, generation) && !this.cancelled.has(session.id)) {
+                    void this.afterRun(session).catch(() => undefined);
+                }
             }
         }
+    }
+
+    /** End of a user turn: check the diff against the approved plan, count a routed turn, look for a stale chat. */
+    protected async afterRun(session: AgentSession): Promise<void> {
+        if (session.parent || session.agent === 'zaprex' || this.handedOff.has(session.id)) {
+            return;
+        }
+        await this.reviewAgainstPlan(session);
+        await this.countRoute(session);
+        await this.considerHandoff(session);
+        this.changed();
+    }
+
+    /** IDEA-307: the router's pick for a simple step, shown as a silver note with "Use original". */
+    protected async routeTurn(session: AgentSession, prompt: string, files: number): Promise<void> {
+        const history = estimateTokens(this.historyFor(session).map(m => m.content).join('\n'));
+        const decision = await this.router.route(this.resolveModel(session.model), prompt, { mode: session.mode, files }, (session.context?.usage?.system ?? DEFAULT_SYSTEM_TOKENS) + history).catch(() => undefined);
+        if (!decision) {
+            return;
+        }
+        session.route = decision;
+        const detail = `${this.models.label(decision.to)} instead of ${this.models.label(decision.from)} · ${taskTypeLabel(decision.taskType)} step${decision.learned ? ' · from Habits' : ''}`;
+        session.messages.push({ role: 'system', text: `${HABIT_NOTE_TEXT.route}: ${detail}`, note: { kind: 'route', detail, action: 'use-original', actionLabel: `Use ${this.models.label(decision.from)}` } });
+        this.changed();
+    }
+
+    /** IDEA-307: a routed turn that finished counts as the user keeping that model for the task type. */
+    protected async countRoute(session: AgentSession): Promise<void> {
+        const route = session.route;
+        if (!route || this.routeCounted.has(session.id) || session.status === 'error') {
+            return;
+        }
+        this.routeCounted.add(session.id);
+        const saved = await this.router.recordChoice(route.taskType, route.to, true);
+        if (saved) {
+            this.noteSaved(session, saved);
+        }
+    }
+
+    /** IDEA-307 "Use original": runs the turn again on the chat's own model; Habits counts the routed model as turned down. */
+    async useOriginalModel(sessionId: string, index: number): Promise<void> {
+        const session = this.items.find(s => s.id === sessionId);
+        const message = session?.messages[index];
+        const route = session?.route;
+        if (!session || !message?.note || message.note.kind !== 'route' || message.note.done || !route) {
+            return;
+        }
+        if (this.isRunning(sessionId)) {
+            this.stop(sessionId);
+        }
+        session.messages = session.messages.slice(0, index + 1);
+        session.messages[index] = { ...message, note: { ...message.note, done: true, detail: `${message.note.detail ?? ''} · ran again on ${this.models.label(route.from)}` } };
+        session.route = undefined;
+        this.routeCounted.add(session.id);
+        void this.router.recordChoice(route.taskType, route.to, false);
+        this.startRun(session);
+    }
+
+    /** "Saved to Habits": a learned preference reached the Habits threshold. */
+    protected noteSaved(session: AgentSession, habit: LearnedHabit): void {
+        const detail = learnedLabel(habit, id => this.models.label(id));
+        session.messages.push({
+            role: 'system', text: `${HABIT_NOTE_TEXT.habit}: ${detail}`,
+            note: { kind: 'habit', detail, ...(habit.savedAs ? { path: habit.savedAs, action: 'open-file' as const, actionLabel: 'Open' } : {}) }
+        });
+        this.changed();
+    }
+
+    /** IDEA-306: the run's changed files and commands against the steps of the plan approved with Build. */
+    protected async reviewAgainstPlan(session: AgentSession): Promise<void> {
+        const plan = session.approvedPlan;
+        if (!plan) {
+            return;
+        }
+        session.approvedPlan = undefined;
+        const since = session.messages.map(m => m.role === 'user' && !m.hidden).lastIndexOf(true);
+        const commands = session.messages.slice(since + 1).flatMap(m =>
+            m.tool?.tool === 'run' && m.tool.state === 'done' && typeof m.tool.args.command === 'string' ? [m.tool.args.command] : []);
+        const files = [...new Set(this.loopOf(session).edits.map(p => p.replace(/^\.\/+/, '')))];
+        const review = await this.planReview.review(this.rootFor(session), plan, { files, commands });
+        const detail = reviewHeadline(review);
+        session.messages.push({
+            role: 'system', text: `${HABIT_NOTE_TEXT.plan}: ${detail}`, planReview: review,
+            note: { kind: 'plan', detail, path: plan.path, action: 'open-file', actionLabel: 'Open plan' }
+        });
+        this.changed();
+    }
+
+    /** IDEA-305: after a turn, a stale chat is offered a fresh start (or handed off at once in auto mode). */
+    protected async considerHandoff(session: AgentSession): Promise<void> {
+        const mode = this.freshContext.mode;
+        if (mode === 'off' || session.handoffOffer) {
+            return;
+        }
+        const verdict = await this.freshContext.check(session.messages, usageRatio(session.context?.usage));
+        if (!verdict) {
+            return;
+        }
+        if (mode === 'auto') {
+            await this.handOffFresh(session.id, { auto: true, verdict });
+            return;
+        }
+        if (offerAllowed(verdict, session.handoffDismissedAt)) {
+            session.handoffOffer = { verdict };
+            this.changed();
+        }
+    }
+
+    /** IDEA-305 "Not now": the offer comes back later; Habits counts this turn count as too early. */
+    dismissHandoff(sessionId: string): void {
+        const session = this.items.find(s => s.id === sessionId);
+        if (!session?.handoffOffer) {
+            return;
+        }
+        const turns = countTurns(session.messages);
+        session.handoffOffer = undefined;
+        session.handoffDismissedAt = turns;
+        void this.freshContext.record(turns, false);
+        this.changed();
+    }
+
+    /**
+     * IDEA-305: writes the distilled brief (goal, plan, decisions, diff, failures, where it stopped) to
+     * `.ingot/handoffs/` and continues in a new chat seeded with it. Accepted handoffs teach Habits the turn threshold.
+     */
+    async handOffFresh(sessionId: string, options: { auto?: boolean; verdict?: RotVerdict } = {}): Promise<AgentSession | undefined> {
+        const session = this.items.find(s => s.id === sessionId);
+        if (!session || this.handedOff.has(sessionId)) {
+            return undefined;
+        }
+        const root = this.rootFor(session);
+        if (!root) {
+            session.messages.push({ role: 'system', text: 'Open a project folder to hand off: the brief is saved under .ingot/handoffs/ in the project.' });
+            this.changed();
+            return undefined;
+        }
+        this.handedOff.add(sessionId);
+        if (this.isRunning(sessionId)) {
+            this.stop(sessionId);
+        }
+        const turns = countTurns(session.messages);
+        const ratio = usageRatio(session.context?.usage);
+        const verdict = options.verdict ?? session.handoffOffer?.verdict ?? await this.freshContext.check(session.messages, ratio)
+            ?? { reasons: [], signals: { turns, failures: countFailures(session.messages), ratio } };
+        const asked = session.messages.filter(m => m.role === 'user' && !m.hidden);
+        const lastReply = [...session.messages].reverse().find(m => m.role === 'agent' && !m.hidden && m.text)?.text ?? '';
+        const changes = this.tracker.changes.filter(c => c.sessionId === session.id);
+        const now = new Date();
+        const path = briefPath(session.title, now);
+        const brief = buildBrief({
+            title: session.title, savedAt: now.toISOString().slice(0, 16).replace('T', ' '), verdict,
+            goal: asked[0]?.text ?? session.title, latest: asked[asked.length - 1]?.text ?? '',
+            plan: session.approvedPlan?.steps.map(text => ({ text, done: false })) ?? session.plan.map(p => ({ text: p.text, done: p.state === 'done' })),
+            decisions: await this.freshContext.readDecisions(root), files: [...new Set([...changes.map(c => c.path), ...this.loopOf(session).edits])],
+            diff: changesDiff(changes), failures: recentFailures(session.messages), lastReply
+        });
+        try {
+            await this.freshContext.saveBrief(root, path, brief);
+        } catch (error) {
+            this.handedOff.delete(sessionId);
+            session.messages.push({ role: 'system', text: `Could not save the handoff brief: ${error instanceof Error ? error.message : String(error)}` });
+            this.changed();
+            return undefined;
+        }
+        const summary = rotSummary(verdict) || 'handed off by hand';
+        session.handoffOffer = undefined;
+        session.messages.push({ role: 'system', text: `${HABIT_NOTE_TEXT.handoff}: ${path}`, note: { kind: 'handoff', detail: summary, path, action: 'open-file', actionLabel: 'Open brief' } });
+        const saved = options.auto ? undefined : await this.freshContext.record(turns, true);
+        const next = this.create(freshTitle(session.title));
+        next.project = session.project;
+        next.mode = session.mode;
+        next.model = session.model;
+        next.messages.push({ role: 'system', text: `${HABIT_NOTE_TEXT.handoff}: ${path}`, note: { kind: 'handoff', detail: `from "${session.title}" · ${summary}`, path, action: 'open-file', actionLabel: 'Open brief' } });
+        if (saved) {
+            this.noteSaved(next, saved);
+        }
+        next.messages.push({ role: 'user', text: CONTINUE_PROMPT, expanded: briefPrompt(path, brief), chips: [{ label: path.split('/').pop() ?? path, path, kind: 'file' }] });
+        this.closeTab(session.id);
+        this.selected = next.id;
+        this.loops.set(next.id, this.newLoop(CONTINUE_PROMPT));
+        this.startRun(next);
+        return next;
     }
 
     /** IDEA-296: one more round to verify the active habit's open done criteria before the run ends. */
@@ -1186,7 +1436,7 @@ export class AgentStore {
                     .filter(tool => this.habitRunner.allows(session, BUILTIN_TOOL_SERVER, tool.name))
                     .map(tool => ({ name: tool.name, description: tool.description }))
                 : [];
-            const stream = this.models.stream(this.resolveModel(session.model), [{ role: 'system', content: system }, ...history], text => {
+            const stream = this.models.stream(this.modelFor(session), [{ role: 'system', content: system }, ...history], text => {
                 if (!live() || !session.messages[index]) {
                     return;
                 }
@@ -2412,7 +2662,25 @@ export class AgentStore {
         this.selected = session.id;
         session.mode = 'agent';
         session.messages = session.messages.map(m => m.buildable ? { ...m, buildable: false } : m);
+        this.approvePlan(session);
+        this.noRoute.add(session.id);
         this.send(BUILD_PROMPT);
+    }
+
+    /** IDEA-306: Build approves the plan: saved under .ingot/plans/, reviewed against the diff after the run, learned as a template. */
+    protected approvePlan(session: AgentSession): void {
+        const steps = session.plan.map(p => p.text).filter(Boolean);
+        if (!steps.length) {
+            return;
+        }
+        const asked = [...session.messages].reverse().find(m => m.role === 'user' && !m.hidden && m.text !== BUILD_PROMPT)?.text ?? session.title;
+        const plan = this.planReview.approve(session.title, asked, steps);
+        session.approvedPlan = plan;
+        const root = this.rootFor(session);
+        if (root) {
+            void this.planReview.save(root, plan).catch(() => undefined);
+        }
+        void this.planReview.learnTemplate(root, plan).then(saved => saved && this.noteSaved(session, saved)).catch(() => undefined);
     }
 
     /** IDEA-180 Harmony mode: Zaprex's offer per lead chat (the bubble under the title bar T-rex). */
@@ -2728,6 +2996,7 @@ export class AgentStore {
                 const replacement = this.resolveModel(AUTO_MODEL_ID);
                 if (replacement !== AUTO_MODEL_ID && replacement !== session.model) {
                     session.model = replacement;
+                    session.route = undefined;
                     fallback = this.models.label(replacement);
                 }
             }

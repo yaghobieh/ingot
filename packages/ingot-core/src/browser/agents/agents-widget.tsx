@@ -87,6 +87,16 @@ import { RUN_PREFS } from '../../common/processes/run-settings';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import { composerBarWidthClass } from '../../common/agents/composer-bar';
 import { followAfterScroll, latestUserIndex, scrollTopAfterUpdate, userJumpTargets } from '../../common/agents/chat-thread';
+import { HabitNote } from '../habits/habit-note';
+import { PlanReviewCard } from '../plan-review/plan-review-card';
+import { CostForecastService } from '../cost/cost-forecast';
+import type { CostForecast } from '../../common/cost/cost.types';
+import { approxUsd, formatPrice, formatUsd } from '../../common/cost/cost.utils';
+import { rotSummary } from '../../common/fresh-context/fresh-context.utils';
+import { FRESH_HANDOFF_COMMAND } from '../../common/fresh-context/fresh-context.consts';
+import { ModelRouter } from '../router/model-router';
+import { ROUTER_PREFS } from '../../common/router/router.consts';
+import { COST_PREFS } from '../../common/cost/cost.consts';
 type Popover = 'mode' | 'model' | 'history' | 'context' | 'more' | 'jumps' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
@@ -122,6 +132,10 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
     @inject(ImageHoverService) protected readonly imageHovers: ImageHoverService;
+    @inject(CostForecastService) protected readonly costs: CostForecastService;
+    @inject(ModelRouter) protected readonly router: ModelRouter;
+    /** IDEA-307: a run over the cost warning waits on "Send anyway". */
+    protected costConfirm?: CostForecast;
 
     protected readonly markdown = new AgentMarkdownRenderer(() => this.update());
     /** Expanded "Read rules" step rows, by session id + step index. */
@@ -338,6 +352,7 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         this.draft = text;
         this.composerEmpty = this.inline?.empty ?? true;
+        this.costConfirm = undefined;
         this.updateMention();
         this.update();
     }
@@ -354,7 +369,11 @@ export class IngotAgentsWidget extends ReactWidget {
         this.toDispose.push(this.store.onDidChange(() => this.holdScroll()));
         this.toDispose.push(this.account.onDidChange(() => this.update()));
         this.toDispose.push(this.processes.onDidChange(() => this.update()));
-        this.toDispose.push(this.preferences.onPreferenceChanged(e => { if (e.preferenceName === RUN_PREFS.showProcesses) { this.update(); } }));
+        this.toDispose.push(this.preferences.onPreferenceChanged(e => {
+            if (e.preferenceName === RUN_PREFS.showProcesses || e.preferenceName === ROUTER_PREFS.enabled || e.preferenceName === COST_PREFS.forecast || e.preferenceName === COST_PREFS.warnUsd) {
+                this.update();
+            }
+        }));
         this.toDispose.push(this.tracker.onDidChange(() => {
             // IDEA-105: deciding a file during a checkpoint is review activity, so the countdown stops.
             const current = this.store.current;
@@ -587,11 +606,18 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     /** Sends text and chips in the order they were typed (IDEA-98). */
-    protected submit(): void {
+    protected submit(confirmed = false): void {
         const inline = this.inline;
         if (!inline || inline.empty) {
             return;
         }
+        const forecast = this.store.isRunning(this.store.current?.id) ? undefined : this.forecast();
+        if (forecast?.over && !confirmed) {
+            this.costConfirm = forecast;
+            this.update();
+            return;
+        }
+        this.costConfirm = undefined;
         const composed = composeParts(inline.parts);
         const prompt = composed.text.trim() || 'Explain this code.';
         this.stickToLatest = true;
@@ -705,6 +731,8 @@ export class IngotAgentsWidget extends ReactWidget {
             {!this.showMemories && current?.habit && <HabitPill key={current.id} habit={current.habit}
                 load={() => this.playbooks.enabledPlaybooks(current.project ? new URI(current.project) : undefined)}
                 onChoose={id => void this.store.chooseHabit(current.id, id)} />}
+            {!this.showMemories && current && this.renderHandoffOffer(current)}
+            {!this.showMemories && this.renderCostConfirm()}
             {this.renderComposer()}
             {empty && <div className='ingot-agents-disclaimer'>AI can make mistakes. Review generated code before you keep it.</div>}
         </div>;
@@ -963,7 +991,90 @@ export class IngotAgentsWidget extends ReactWidget {
         return this.renderMessageBody(session, m, i);
     }
 
+    /** IDEA-305/306/307: the silver note's button (open the brief / plan / template, or run again on the original model). */
+    protected noteAction(session: AgentSession, m: AgentSession['messages'][number], i: number): void {
+        if (m.note?.action === 'use-original') {
+            void this.store.useOriginalModel(session.id, i);
+        } else if (m.note?.path) {
+            this.openWorkspacePath(m.note.path);
+        }
+    }
+
+    protected renderNote(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+        return <div key={i} id={`ingot-msg-${i}`} className='ingot-chat-note-row'>
+            {m.note && <HabitNote note={m.note} onAction={() => this.noteAction(session, m, i)} />}
+            {m.planReview && <PlanReviewCard review={m.planReview} onOpen={path => this.openWorkspacePath(path)} />}
+        </div>;
+    }
+
+    /** IDEA-305: the stale-chat offer above the composer. */
+    protected renderHandoffOffer(session: AgentSession): React.ReactNode {
+        const offer = session.handoffOffer;
+        if (!offer || this.store.isRunning(session.id)) {
+            return undefined;
+        }
+        return <div id='ingot-handoff-offer' className='ingot-handoff-offer' role='status'>
+            <span className='codicon codicon-debug-restart' aria-hidden='true' />
+            <span className='ingot-handoff-offer-text'>This chat is getting long ({rotSummary(offer.verdict)}). Continue in a fresh chat from a brief of the plan, decisions and diff?</span>
+            <span className='ingot-handoff-offer-actions'>
+                <button type='button' id='ingot-handoff-accept' className='ingot-btn-primary' title={this.shortcut(FRESH_HANDOFF_COMMAND.id) || undefined}
+                    onClick={() => void this.store.handOffFresh(session.id)}>Start fresh chat</button>
+                <button type='button' id='ingot-handoff-dismiss' className='ingot-btn-secondary' onClick={() => this.store.dismissHandoff(session.id)}>Not now</button>
+            </span>
+        </div>;
+    }
+
+    /** IDEA-307: the composer's estimate of the next run (current draft) on the model it would use. */
+    protected forecast(): CostForecast | undefined {
+        const text = this.draft.trim();
+        if (!text) {
+            return undefined;
+        }
+        const tokens = this.store.requestTokens(this.store.current);
+        const files = this.inline ? composeParts(this.inline.parts).chips.length : 0;
+        return this.costs.forecast({ model: this.store.resolveModel(this.store.model), prompt: text, mode: this.store.mode, files, historyTokens: tokens.history, systemTokens: tokens.system });
+    }
+
+    protected forecastTitle(f: CostForecast): string {
+        return [
+            `Estimated cost of the next run: ${formatUsd(f.estimate.usd)} (about ${formatTokens(f.estimate.inputTokens)} input + ${formatTokens(f.estimate.outputTokens)} output tokens on ${this.models.label(f.model)}, ${formatPrice(f.price)}).`,
+            f.routed ? `Routed to a cheaper model for this simple step (${this.models.label(f.routed.from)} → ${this.models.label(f.routed.to)}).` : '',
+            f.over ? `Over your ${formatUsd(f.warnUsd)} warning: you will be asked before it runs.` : ''
+        ].filter(Boolean).join(' ');
+    }
+
+    protected renderCostForecast(): React.ReactNode {
+        const f = this.forecast();
+        if (!f) {
+            return undefined;
+        }
+        return <span id='ingot-cost-forecast' className={`ingot-cost-forecast${f.over ? ' over' : ''}${f.routed ? ' routed' : ''}`} data-usd={f.estimate.usd.toFixed(4)} data-model={f.model}
+            title={this.forecastTitle(f)} aria-label={this.forecastTitle(f)}>
+            {f.over && <span className='codicon codicon-warning' aria-hidden='true' />}
+            {f.routed && <span className='codicon codicon-arrow-swap' aria-hidden='true' />}
+            <span>{approxUsd(f.estimate.usd)}</span>
+        </span>;
+    }
+
+    protected renderCostConfirm(): React.ReactNode {
+        const f = this.costConfirm;
+        if (!f) {
+            return undefined;
+        }
+        return <div id='ingot-cost-confirm' className='ingot-cost-confirm' role='alertdialog' aria-label='Cost warning'>
+            <span className='codicon codicon-warning' aria-hidden='true' />
+            <span className='ingot-cost-confirm-text'>This run may cost about {formatUsd(f.estimate.usd)} on {this.models.label(f.model)}, over your {formatUsd(f.warnUsd)} warning.</span>
+            <span className='ingot-cost-confirm-actions'>
+                <button type='button' id='ingot-cost-send' className='ingot-btn-primary' onClick={() => this.submit(true)}>Send anyway</button>
+                <button type='button' id='ingot-cost-cancel' className='ingot-btn-secondary' onClick={() => { this.costConfirm = undefined; this.update(); this.focusComposer(); }}>Cancel</button>
+            </span>
+        </div>;
+    }
+
     protected renderMessageBody(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+        if (m.note || m.planReview) {
+            return this.renderNote(session, m, i);
+        }
         return m.memory
             ? <div key={i} className={`ingot-chat-memory${m.memory.undone ? ' undone' : ''}`}>
                     <span className='codicon codicon-lightbulb' />
@@ -1414,6 +1525,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     title={`More · Mode: ${info.label}`}
                     onClick={() => { this.popover = this.popover === 'more' ? undefined : 'more'; this.update(); }} />
                 <span className='ingot-flex' />
+                {this.renderCostForecast()}
                 {this.store.isRunning(this.store.current?.id) && <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}><span className='codicon codicon-debug-stop' /></button>}
                 {(!this.store.isRunning(this.store.current?.id) || !this.composerEmpty) && <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' title={this.composerEmpty ? 'Type a message to send' : this.store.isRunning(this.store.current?.id) ? 'Send to the running agent' : 'Send (Enter)'} disabled={this.composerEmpty} onClick={() => this.submit()}><span className='codicon codicon-arrow-up' /></button>}
             </div>
@@ -1434,6 +1546,7 @@ export class IngotAgentsWidget extends ReactWidget {
                     <span className={`codicon codicon-${info.icon}`} style={{ color: info.color }} /><span className='ingot-pill-label'>{info.label}</span>
                 </button>
                 {this.renderReviewToggle()}
+                {this.renderRouterToggle()}
                 {usage && usageRatio(usage) > 0 && this.renderUsageRing()}
                 {this.flags.enabled(IDE_FLAGS.micDictation) && this.renderMic()}
             </div>}
@@ -1454,6 +1567,18 @@ export class IngotAgentsWidget extends ReactWidget {
             onClick={() => void this.store.setReviewEnabled(!on)}>
             <span className='codicon codicon-checklist' aria-hidden='true' />
             <span>{on ? 'Review on' : 'Review off'}</span>
+        </button>;
+    }
+
+    /** IDEA-307: Autopilot model router on / off (Settings › Context, plans & cost). */
+    protected renderRouterToggle(): React.ReactNode {
+        const on = this.router.enabled;
+        return <button type='button' id='ingot-composer-router' className={`ingot-more-item ingot-composer-router${on ? ' on' : ''}`} role='menuitem'
+            aria-pressed={on} aria-label={on ? 'Model router on' : 'Model router off'}
+            title={on ? 'Autopilot model router on: simple steps go to a cheaper model (never Chinese-origin models). Click to turn off' : 'Autopilot model router off. Click to send simple steps to a cheaper model'}
+            onClick={() => void this.router.setEnabled(!on)}>
+            <span className='codicon codicon-arrow-swap' aria-hidden='true' />
+            <span>{on ? 'Router on' : 'Router off'}</span>
         </button>;
     }
 

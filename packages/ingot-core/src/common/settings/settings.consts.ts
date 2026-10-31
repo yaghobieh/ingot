@@ -89,6 +89,19 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                     { label: 'Work loop', preferences: ['ingot.agent.workLoop', 'ingot.agent.maxToolRounds', 'ingot.agent.maxToolResultChars'] }
                 ]
             },
+            {
+                id: 'agent-autopilot', label: 'Context, plans & cost',
+                description: 'Fresh context: when a chat goes stale, continue in a new chat from a brief (.ingot/handoffs). Approved plans are saved in .ingot/plans and checked against the diff after the run. The composer estimates what the next run costs, and the Autopilot model router sends simple steps to a cheaper model (never Chinese-origin models). Habits learns your handoff point, plan templates and preferred models.',
+                preferences: [
+                    'ingot.agent.freshContext.mode', 'ingot.agent.freshContext.turns', 'ingot.agent.freshContext.failures', 'ingot.agent.freshContext.tokenRatio',
+                    'ingot.agent.cost.forecast', 'ingot.agent.cost.warnUsd', 'ingot.agent.router.enabled'
+                ],
+                groups: [
+                    { label: 'Fresh context', preferences: ['ingot.agent.freshContext.mode', 'ingot.agent.freshContext.turns', 'ingot.agent.freshContext.failures', 'ingot.agent.freshContext.tokenRatio'] },
+                    { label: 'Cost forecast', preferences: ['ingot.agent.cost.forecast', 'ingot.agent.cost.warnUsd'] },
+                    { label: 'Autopilot model router', preferences: ['ingot.agent.router.enabled'] }
+                ]
+            },
             { id: 'agent-config', label: 'Rules & MCP', actions: [{ id: 'openAgentConfig', label: 'Open Rules, Commands & MCP Servers…' }] },
             {
                 id: 'user-rules', label: 'User Rules', custom: 'rules',
