@@ -4,6 +4,14 @@
   --ingot-space-2: 8px;
   --ingot-space-3: 12px;
   --ingot-space-4: 16px;
+  /* One radius scale and control height for settings, Models, dialogs and the agent panel (--ingot-ap-* mirror it). */
+  --ingot-radius-xs: 3px;
+  --ingot-radius-sm: 4px;
+  --ingot-radius-md: 6px;
+  --ingot-radius-lg: 8px;
+  --ingot-radius-xl: 10px;
+  --ingot-radius-pill: 11px;
+  --ingot-control-h: 28px;
   --ingot-count-width: 5.5rem;
   --ingot-badge-ts: var(--ingot-primary);
   --ingot-badge-tsx: #13849A;
