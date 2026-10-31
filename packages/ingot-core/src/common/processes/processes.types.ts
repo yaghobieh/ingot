@@ -88,6 +88,8 @@ export interface HookRunOptions {
     readonly command: string;
     readonly input: string;
     readonly timeoutMs: number;
+    /** IDEA-287: the project root for `INGOT_PROJECT_DIR` / `CURSOR_PROJECT_DIR` when the command runs elsewhere (user hooks). */
+    readonly projectDir?: string;
 }
 
 export interface WorkspaceSearchResult {

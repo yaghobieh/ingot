@@ -72,6 +72,7 @@ import { restorePlan } from '../../common/changes/changes.utils';
 import { ProjectConfigService } from '../project-config/project-config-service';
 import { IngotMcpClient } from '../project-config/mcp-client';
 import { applicableRules, expandCommand, findRule, formatRuleIndex, formatRules, requestableRules } from '../../common/project-config/project-config.utils';
+import { formatEnvironment } from '../../common/project-config/environment.utils';
 import type { IgnoreRules, ProjectCommand, ProjectRule } from '../../common/project-config/project-config.types';
 import { FETCH_RULE_TOOL } from '../../common/project-config/project-config.consts';
 import { AgentEventHooks } from '../hooks/agent-event-hooks';
@@ -80,6 +81,7 @@ import { hookBlockedText, hookOutcomeText } from '../../common/hooks/agent-hooks
 import { HabitRunner } from '../habits/habit-runner';
 import { HABIT_TICKED_REPLY, USE_HABIT_TOOL } from '../../common/habits/playbook.consts';
 import { stripHabitMarks } from '../../common/habits/playbook.utils';
+import type { HabitNote } from '../../common/habits/habits.types';
 import { cutAfterToolCalls, toolProtocol, type AgentToolCall } from '../../common/agents/agent-protocol';
 import { PreferenceScope, PreferenceService } from '@theia/core/lib/common/preferences';
 import { AI_SETTINGS_PREFS, defaultAgentMode, defaultAgentModel } from '../../common/agents/ai-settings';
@@ -1094,7 +1096,11 @@ export class AgentStore {
             info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools),
             info.canUseTools ? builtinToolProtocol(this.toolSwitches(session)) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : '', session.parent ? '' : FOLLOW_UPS_PROTOCOL
         ].filter(Boolean).join('\n\n');
-        const rulesText = [formatRules(rules), info.canUseTools ? formatRuleIndex(requestableRules(config.rules), `${BUILTIN_TOOL_SERVER}/${FETCH_RULE_TOOL}`) : ''].filter(Boolean).join('\n\n');
+        const environment = await this.projectConfig.loadEnvironment(root).catch(() => undefined);
+        const rulesText = [
+            formatRules(rules), info.canUseTools ? formatRuleIndex(requestableRules(config.rules), `${BUILTIN_TOOL_SERVER}/${FETCH_RULE_TOOL}`) : '',
+            formatEnvironment(environment?.environment, environment?.source ?? '')
+        ].filter(Boolean).join('\n\n');
         const habitText = await this.habitRunner.prepare(session, {
             root, prompt: lastUser?.m.text ?? '', attachments: prompt, canUseTools: info.canUseTools,
             files: [...new Set([...context.paths, ...(activePath ? [activePath] : []), ...(lastUser?.m.chips ?? []).map(c => c.path).filter(Boolean)])]
@@ -3155,6 +3161,26 @@ export class AgentStore {
         }
         await this.memoryStore.remove(message.memory, this.rootFor(session));
         session.messages[index] = { ...message, memory: { ...message.memory, undone: true } };
+        this.changed();
+    }
+
+    /** IDEA-296: a "Saved to Habits" note in the open chat (none is open: nothing to show it in). */
+    addHabitNote(note: HabitNote): void {
+        const session = this.current;
+        if (!session) {
+            return;
+        }
+        session.messages.push({ role: 'system', text: note.label, habit: note });
+        this.changed();
+    }
+
+    markHabitNoteUndone(sessionId: string, index: number): void {
+        const session = this.items.find(s => s.id === sessionId);
+        const message = session?.messages[index];
+        if (!session || !message?.habit) {
+            return;
+        }
+        session.messages[index] = { ...message, habit: { ...message.habit, undone: true } };
         this.changed();
     }
 

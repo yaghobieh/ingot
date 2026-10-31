@@ -16,7 +16,8 @@ export const SOURCE_LABELS = {
     agents: 'AGENTS.md',
     user: 'global',
     global: 'global',
-    'global-imported': 'imported'
+    'global-imported': 'imported',
+    team: 'team'
 } as const;
 
 /** Env var that points imported global folders somewhere else (e2e isolation); defaults to the home folder. */
@@ -71,3 +72,24 @@ export const MCP_PROTOCOL_VERSION = '2025-06-18';
 /** Most tool round trips per agent turn, so a looping model cannot run forever. Raised so a real task can read, edit, check and fix. */
 export const MAX_TOOL_ROUNDS = 12;
 export const MAX_TOOL_RESULT_CHARS = 16_000;
+
+/** IDEA-287: `@path` references in a rule body (Cursor's rule references): at most this many files, each cut at the limit. */
+export const MAX_RULE_REFERENCES = 5;
+export const MAX_RULE_REFERENCE_CHARS = 8_000;
+
+/** IDEA-287: team rules come from the account's remote config (`config.teamRules`); the user may turn off the ones not enforced. */
+export const TEAM_RULES_CONFIG_KEY = 'teamRules';
+export const TEAM_RULES_DISABLED_PREF = 'ingot.rules.disabledTeamRules';
+export const TEAM_RULE_PATH_PREFIX = 'team:';
+
+/** IDEA-287: Bugbot review guidance (`.ingot/BUGBOT.md`, `.cursor/BUGBOT.md`, nested ones too), used by /bugbot and agent checks. */
+export const BUGBOT_FILE = 'BUGBOT.md';
+export const BUGBOT_COMMAND = 'bugbot';
+export const BUGBOT_GLOBS = ['**/.ingot/BUGBOT.md', '**/.cursor/BUGBOT.md'] as const;
+export const MAX_BUGBOT_CHARS = 12_000;
+
+/** IDEA-287: project environment (install, start, terminals), as Cursor's `.cursor/environment.json`. */
+export const ENVIRONMENT_FILE = 'environment.json';
+export const ENVIRONMENT_COMMAND = { id: 'ingot.environment.start', label: 'Project Environment: Install and Start', category: 'Ingot' } as const;
+/** The install step may take a while (dependencies); start and terminals keep running in the background. */
+export const ENVIRONMENT_INSTALL_TIMEOUT_MS = 15 * 60 * 1000;

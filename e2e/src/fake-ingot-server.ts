@@ -24,6 +24,8 @@ export interface FakeIngotServer {
     readonly chatErrors: FakeGatewayError[];
     /** GET /v1/config (IDEA-125): flags and update policy served, and who asked (version header, signed in). */
     flags: Record<string, boolean>;
+    /** `config` of GET /v1/config (IDEA-287: `teamRules`). */
+    config: Record<string, unknown>;
     update: { minVersion?: string; latestVersion?: string; updateAvailable?: boolean; forceUpdate?: boolean };
     readonly configCalls: { version: string; signedIn: boolean }[];
     /** /v1/sync store (IDEA-126), by `kind|key`, and the writes the IDE made. */
@@ -65,7 +67,7 @@ const send = (res: http.ServerResponse, status: number, body: unknown): void => 
 export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<FakeIngotServer> => {
     const state: FakeIngotServer = {
         url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', plan: FAKE_DEFAULT_PLAN, avatarUrl: '', blocked: false, disabledModels: new Set(), chatErrors: [],
-        flags: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined,
+        flags: {}, config: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined,
         close: async () => undefined
     };
     const access = 'ingot_at_e2e_access';
@@ -134,7 +136,7 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
                 state.configCalls.push({ version, signedIn: authed });
                 const u = state.update;
                 send(res, 200, {
-                    flags: state.flags, values: {}, config: {}, ttlSeconds: 300, signedIn: authed,
+                    flags: state.flags, values: {}, config: state.config, ttlSeconds: 300, signedIn: authed,
                     ide: {
                         version, minVersion: u.minVersion ?? null, latestVersion: u.latestVersion ?? null, updateAvailable: !!u.updateAvailable, forceUpdate: !!u.forceUpdate,
                         downloadUrl: `${state.url}/download`, releaseNotesUrl: `${state.url}/release-notes`

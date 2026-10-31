@@ -139,7 +139,7 @@ export const ThoughtRow = ({ thought, thinking, durationMs, expanded, onToggle, 
     return <div className={`ingot-chat-thought${thinking ? ' thinking' : ''}${open ? ' open' : ''}`}>
         <button type='button' id={id} className='ingot-chat-thought-row' aria-expanded={open} onClick={onToggle}>
             <span className='codicon codicon-lightbulb-sparkle' />
-            <span className='ingot-chat-thought-label'>{thoughtLabel(thinking, durationMs)}</span>
+            <span className={`ingot-chat-thought-label${thinking ? ' ingot-shimmer' : ''}`}>{thoughtLabel(thinking, durationMs)}</span>
             <span className={`codicon codicon-chevron-${open ? 'down' : 'right'}`} />
         </button>
         {open && thought && <div className='ingot-chat-thought-text'>{thought}</div>}

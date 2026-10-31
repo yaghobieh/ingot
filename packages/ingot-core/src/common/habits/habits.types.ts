@@ -45,3 +45,31 @@ export interface HabitFile {
     readonly path: string;
     readonly content: string;
 }
+
+/** What Undo on a "Saved to Habits" note puts back. */
+export interface HabitUndo {
+    /** The learned pattern this note is about. */
+    readonly habitId?: string;
+    /** The pattern as it was before; absent when it was new, so Undo forgets it. */
+    readonly previous?: Habit;
+    /** Rule or command file this save created (URI). */
+    readonly created?: string;
+    /** Habit playbook file this save created (URI). */
+    readonly playbook?: string;
+    /** Command this save added to the `stop` hook in hooks.json. */
+    readonly hook?: string;
+}
+
+export type HabitNoteKind = 'learned' | 'saved';
+
+/** The subtle "Saved to Habits" line in the agent chat when Habits learns or saves a pattern. */
+export interface HabitNote {
+    readonly kind: HabitNoteKind;
+    readonly label: string;
+    /** File the pattern was saved as, when there is one. */
+    readonly savedAs?: string;
+    /** What the Habits page scrolls to: `learned:<id>` or a playbook id (`project:<slug>`). */
+    readonly focus: string;
+    readonly undo: HabitUndo;
+    readonly undone?: boolean;
+}

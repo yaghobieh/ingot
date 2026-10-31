@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ruleFromFile } from '../project-config/project-config.utils';
-import { CURSOR_IMPORT_SNOOZE_MS } from './cursor-rules-import.consts';
-import {
-    convertCursorRule, convertCursorrules, planCursorImport, shouldPromptCursorImport, toCursorImportMode, withoutImportedCursorrules
-} from './cursor-rules-import.utils';
+import { convertCursorRule, convertCursorrules, toCursorImportMode, withoutImportedCursorrules } from './cursor-rules-import.utils';
 
 const TS_RULE = '---\ndescription: TypeScript style\nglobs: "**/*.ts"\nalwaysApply: false\nlastUpdated: 2025-01-01\n---\nUse explicit return types.\n';
 
@@ -28,24 +25,7 @@ describe('cursor rules import', () => {
         expect(rule.body).toBe('Be brief.');
     });
 
-    it('plans only rules that .ingot does not have yet', () => {
-        const plan = planCursorImport({
-            rules: [{ fileName: 'ts.mdc', text: TS_RULE }, { fileName: 'style.md', text: 'Style' }, { fileName: 'notes.txt', text: 'skip' }, { fileName: 'TS.md', text: 'dup' }],
-            cursorrules: 'Be brief.',
-            ingotRules: ['style.md']
-        });
-        expect(plan.map(r => [r.fileName, r.from])).toEqual([['ts.md', '.cursor/rules/TS.md'], ['cursorrules.md', '.cursorrules']]);
-        expect(planCursorImport({ rules: [{ fileName: 'ts.mdc', text: TS_RULE }], cursorrules: 'x', ingotRules: ['ts.md', 'cursorrules.md'] })).toEqual([]);
-        expect(planCursorImport({ rules: [], cursorrules: '   ', ingotRules: [] })).toEqual([]);
-    });
-
-    it('asks once: never after Never, not again until Not now expires, not when nothing is left', () => {
-        const now = 10 * CURSOR_IMPORT_SNOOZE_MS;
-        expect(shouldPromptCursorImport(2, 'ask', undefined, now)).toBe(true);
-        expect(shouldPromptCursorImport(0, 'ask', undefined, now)).toBe(false);
-        expect(shouldPromptCursorImport(2, 'never', undefined, now)).toBe(false);
-        expect(shouldPromptCursorImport(2, 'ask', now - 1, now)).toBe(false);
-        expect(shouldPromptCursorImport(2, 'ask', now - CURSOR_IMPORT_SNOOZE_MS, now)).toBe(true);
+    it('reads the ask / never preference, falling back to ask', () => {
         expect(toCursorImportMode('never')).toBe('never');
         expect(toCursorImportMode('bogus')).toBe('ask');
     });

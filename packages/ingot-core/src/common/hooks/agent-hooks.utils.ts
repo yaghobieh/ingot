@@ -14,7 +14,7 @@ export const isGatingEvent = (event: AgentHookEvent): boolean => GATING_HOOK_EVE
  * `{ "version": 1, "hooks": { "beforeShellExecution": [{ "command": "./check.sh", "timeout": 10 }] } }`.
  * Git stages (`pre-commit`, `pre-push`) in the same file are left to the git hooks; bad entries become errors.
  */
-export const parseAgentHooks = (text: string | undefined, source: string): AgentHooksParse => {
+export const parseAgentHooks = (text: string | undefined, source: string, cwd?: string): AgentHooksParse => {
     if (!text?.trim()) {
         return { config: {}, errors: [] };
     }
@@ -50,7 +50,7 @@ export const parseAgentHooks = (text: string | undefined, source: string): Agent
                 return [];
             }
             const timeout = typeof entry?.timeout === 'number' && entry.timeout > 0 ? Math.min(entry.timeout, AGENT_HOOK_MAX_TIMEOUT_SECONDS) : AGENT_HOOK_TIMEOUT_SECONDS;
-            return [{ command, timeoutSeconds: timeout, source }];
+            return [{ command, timeoutSeconds: timeout, source, ...(cwd ? { cwd } : {}) }];
         });
     }
     return { config, errors };

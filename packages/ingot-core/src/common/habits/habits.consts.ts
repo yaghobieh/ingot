@@ -42,3 +42,8 @@ export const HABIT_STATUS_LABELS = { learning: 'learning', proposed: 'suggested'
 /** Settings page and Find Action command for the Habits panel. */
 export const HABITS_SETTINGS_PAGE = 'habits';
 export const HABITS_OPEN_COMMAND = { id: 'ingot.habits.open', label: 'Show Habits', category: 'Ingot' } as const;
+
+/** Habits page focus id of a learned pattern (playbooks use their own id, `project:<slug>`). */
+export const LEARNED_FOCUS_PREFIX = 'learned:';
+export const HABIT_NOTE_LABELS = { saved: 'Saved to Habits', undone: 'Removed from Habits', undo: 'Undo', open: 'Open in Habits' } as const;
+export const HABIT_NOTE_LEARNED_PREFIX = 'Learned:';

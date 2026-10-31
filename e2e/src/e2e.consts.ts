@@ -62,3 +62,6 @@ export const E2E_USER_SETTINGS = {
     // IDEA-286: modal editing starts off even if an interrupted run left it on.
     'ingot.editor.modalEditing': false
 } as const;
+/** dismissNotifications: upper bound of toasts closed in one call, and how long one close click may wait. */
+export const MAX_NOTIFICATION_CLOSES = 20;
+export const NOTIFICATION_CLOSE_TIMEOUT_MS = 2_000;

@@ -1,9 +1,9 @@
 import { slugify } from '../project-config/project-config.utils';
 import {
-    COMMAND_MAX_CHARS, COMMAND_MIN_CHARS, HABITS_FILE_VERSION, INSTRUCTION_FILLER, INSTRUCTION_MAX_CHARS, INSTRUCTION_MAX_WORDS, INSTRUCTION_MIN_CHARS,
-    INSTRUCTION_START, MAX_EXAMPLE_CHARS, MAX_HABIT_EXAMPLES, MAX_HABITS, REJECTION_PATTERNS, TRIVIAL_COMMANDS
+    COMMAND_MAX_CHARS, COMMAND_MIN_CHARS, HABIT_NOTE_LEARNED_PREFIX, HABITS_FILE_VERSION, INSTRUCTION_FILLER, INSTRUCTION_MAX_CHARS, INSTRUCTION_MAX_WORDS,
+    INSTRUCTION_MIN_CHARS, INSTRUCTION_START, LEARNED_FOCUS_PREFIX, MAX_EXAMPLE_CHARS, MAX_HABIT_EXAMPLES, MAX_HABITS, REJECTION_PATTERNS, TRIVIAL_COMMANDS
 } from './habits.consts';
-import type { Habit, HabitEvidence, HabitFile, HabitsFile, HabitTarget } from './habits.types';
+import type { Habit, HabitEvidence, HabitFile, HabitNote, HabitsFile, HabitTarget, HabitUndo } from './habits.types';
 
 const clip = (text: string): string => {
     const flat = text.replace(/\s+/g, ' ').trim();
@@ -97,8 +97,7 @@ export const habitFile = (habit: Pick<Habit, 'kind' | 'label' | 'text' | 'count'
     return { path: `.ingot/commands/${slug}.md`, content: `---\ndescription: ${description}\n---\n${habit.text}\n\n$ARGUMENTS\n` };
 };
 
-/** Adds a command to the `stop` agent hook of a hooks.json text (keeps git stages and other events). */
-export const addStopHook = (text: string | undefined, command: string): string => {
+const readHooks = (text: string | undefined): { json: Record<string, unknown>; hooks: Record<string, unknown>; stop: unknown[] } => {
     let json: Record<string, unknown> = {};
     try {
         const parsed = text?.trim() ? JSON.parse(text) as unknown : {};
@@ -107,9 +106,42 @@ export const addStopHook = (text: string | undefined, command: string): string =
         json = {};
     }
     const hooks = json.hooks && typeof json.hooks === 'object' && !Array.isArray(json.hooks) ? json.hooks as Record<string, unknown> : {};
-    const stop = Array.isArray(hooks.stop) ? hooks.stop : [];
-    const exists = stop.some(e => (typeof e === 'string' ? e : (e as { command?: unknown })?.command) === command);
+    return { json, hooks, stop: Array.isArray(hooks.stop) ? hooks.stop : [] };
+};
+
+const stopCommand = (entry: unknown): unknown => typeof entry === 'string' ? entry : (entry as { command?: unknown })?.command;
+
+/** Whether the `stop` agent hook of a hooks.json text already runs `command`. */
+export const hasStopHook = (text: string | undefined, command: string): boolean => readHooks(text).stop.some(e => stopCommand(e) === command);
+
+/** Adds a command to the `stop` agent hook of a hooks.json text (keeps git stages and other events). */
+export const addStopHook = (text: string | undefined, command: string): string => {
+    const { json, hooks, stop } = readHooks(text);
+    const exists = stop.some(e => stopCommand(e) === command);
     return `${JSON.stringify({ version: 1, ...json, hooks: { ...hooks, stop: exists ? stop : [...stop, { command }] } }, undefined, 2)}\n`;
+};
+
+/** Takes a command back out of the `stop` agent hook (Undo of "Make it a hook"); an emptied `stop` list is dropped. */
+export const removeStopHook = (text: string | undefined, command: string): string => {
+    const { json, hooks, stop } = readHooks(text);
+    const rest = stop.filter(e => stopCommand(e) !== command);
+    const others = Object.fromEntries(Object.entries(hooks).filter(([event]) => event !== 'stop'));
+    return `${JSON.stringify({ ...json, hooks: rest.length ? { ...others, stop: rest } : others }, undefined, 2)}\n`;
+};
+
+export const learnedFocus = (habitId: string): string => `${LEARNED_FOCUS_PREFIX}${habitId}`;
+
+/** The muted text after "Saved to Habits": `Learned: npm test` or `use Bear components → .ingot/rules/use-bear-components.md`. */
+export const habitNoteDetail = (note: Pick<HabitNote, 'kind' | 'label' | 'savedAs'>): string =>
+    note.kind === 'learned' ? `${HABIT_NOTE_LEARNED_PREFIX} ${note.label}` : note.savedAs ? `${note.label} → ${note.savedAs}` : note.label;
+
+/** The learned patterns after Undo: the pattern as it was before the note, or without it when it was new. */
+export const undoHabits = (habits: readonly Habit[], undo: HabitUndo): Habit[] => {
+    if (!undo.habitId) {
+        return [...habits];
+    }
+    const previous = undo.previous;
+    return previous ? habits.map(h => h.id === undo.habitId ? previous : h) : habits.filter(h => h.id !== undo.habitId);
 };
 
 export const parseHabits = (text: string | undefined): Habit[] => {

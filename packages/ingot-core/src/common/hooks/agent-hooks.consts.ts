@@ -4,8 +4,10 @@ export const AGENT_HOOK_EVENTS = ['beforeShellExecution', 'beforeMCPExecution', 
 /** Events whose answer can block the action (allow / deny / ask). The others are notifications. */
 export const GATING_HOOK_EVENTS: readonly string[] = ['beforeShellExecution', 'beforeMCPExecution', 'beforeReadFile'];
 
-/** Read in order; commands from both files run. */
+/** Read in order; commands from both files run (`.cursor/hooks.json` only while the workspace reads `.cursor` live, IDEA-287). */
 export const AGENT_HOOK_FILES = ['.cursor/hooks.json', '.ingot/hooks.json'] as const;
+/** IDEA-287: user-level hooks (`~/.cursor/hooks.json`, `~/.ingot/hooks.json`) run in every project, from their own folder. */
+export const USER_HOOKS_FILE = 'hooks.json';
 
 export const AGENT_HOOK_TIMEOUT_SECONDS = 30;
 export const AGENT_HOOK_MAX_TIMEOUT_SECONDS = 600;

@@ -4,11 +4,10 @@ import * as path from 'path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { actUntilVisible, dismissNotifications, openIngot } from '../src/app.utils';
 import { shot } from '../src/agent-tools.e2e-utils';
-import { CONFIG_PROJECT, E2E_BASE_URL, E2E_CONFIG_DIR, FIXTURE_WORKSPACE } from '../src/e2e.consts';
+import { E2E_BASE_URL, E2E_CONFIG_DIR, FIXTURE_WORKSPACE } from '../src/e2e.consts';
 
-/** IDEA-281: theme and layout survive a reload, Cursor rules import, and opening files leaves the chat alone. */
+/** IDEA-281: theme and layout survive a reload and opening files leaves the chat alone (Cursor import: cursor-import.spec.ts). */
 const SETTINGS_FILE = path.join(E2E_CONFIG_DIR, 'settings.json');
-const IMPORT_PROMPT = 'Import Cursor rules into .ingot?';
 const LAYOUT_SAVE_WAIT_MS = 1_500;
 
 const readSettings = (): Record<string, unknown> => {
@@ -57,14 +56,6 @@ const tempProject = (prefix: string): string => {
     fs.mkdirSync(path.join(dir, 'src'));
     fs.writeFileSync(path.join(dir, 'src', 'app.ts'), 'export const app = 1;\n');
     fs.writeFileSync(path.join(dir, 'src', 'math.ts'), 'export const add = (a: number, b: number): number => a + b;\n');
-    return dir;
-};
-const cursorProject = (): string => {
-    const dir = tempProject('ingot-cursor-');
-    fs.mkdirSync(path.join(dir, '.cursor', 'rules'), { recursive: true });
-    fs.copyFileSync(path.join(CONFIG_PROJECT, '.cursor', 'rules', 'ts.mdc'), path.join(dir, '.cursor', 'rules', 'ts.mdc'));
-    fs.writeFileSync(path.join(dir, '.cursorrules'), 'Answer briefly. CURSORRULES-MARKER\n');
-    fs.writeFileSync(path.join(dir, '.cursor', 'mcp.json'), JSON.stringify({ mcpServers: {} }));
     return dir;
 };
 
@@ -132,42 +123,6 @@ test.describe('IDEA-281 state and workspace behavior', () => {
             await expect(mainTab(page, 'app.ts')).toBeVisible();
         } finally {
             fs.rmSync(dir, { recursive: true, force: true });
-        }
-    });
-
-    test('a project with Cursor rules offers a one-time import into .ingot/rules', async ({ page }) => {
-        const dir = cursorProject();
-        const other = cursorProject();
-        writeSettings({ 'ingot.import.cursorRules': 'ask' });
-        try {
-            await openIngot(page, dir);
-            const prompt = page.locator('.theia-notification-list-item').filter({ hasText: IMPORT_PROMPT }).first();
-            await expect(prompt).toBeVisible();
-            await expect(prompt).toContainText('2 rules found in .cursor/rules and .cursorrules.');
-            await shot(page, 'ide-b-cursor-import-prompt.png');
-            await prompt.getByRole('button', { name: 'Import', exact: true }).click();
-
-            const rules = path.join(dir, '.ingot', 'rules');
-            await expect.poll(() => fs.existsSync(path.join(rules, 'ts.md')) && fs.existsSync(path.join(rules, 'cursorrules.md'))).toBe(true);
-            expect(fs.readFileSync(path.join(rules, 'ts.md'), 'utf8')).toBe('---\ndescription: TypeScript style\nglobs: "**/*.ts"\nalwaysApply: false\n---\nUse explicit return types. CURSOR-TS-MARKER\n');
-            expect(fs.readFileSync(path.join(rules, 'cursorrules.md'), 'utf8')).toContain('alwaysApply: true\n---\nAnswer briefly. CURSORRULES-MARKER');
-            await expect(page.locator('.theia-notification-list-item').filter({ hasText: 'Imported 2 Cursor rules into .ingot/rules.' }).first()).toBeVisible();
-
-            // Everything is imported, so the next open does not ask again.
-            await openIngot(page, dir);
-            await page.waitForTimeout(LAYOUT_SAVE_WAIT_MS);
-            await expect(page.locator('.theia-notification-list-item').filter({ hasText: IMPORT_PROMPT })).toHaveCount(0);
-
-            // Never stops the prompt for every project.
-            await openIngot(page, other);
-            const next = page.locator('.theia-notification-list-item').filter({ hasText: IMPORT_PROMPT }).first();
-            await next.getByRole('button', { name: 'Never', exact: true }).click();
-            await expect.poll(() => readSettings()['ingot.import.cursorRules']).toBe('never');
-            expect(fs.existsSync(path.join(other, '.ingot'))).toBe(false);
-        } finally {
-            writeSettings({ 'ingot.import.cursorRules': 'never' });
-            fs.rmSync(dir, { recursive: true, force: true });
-            fs.rmSync(other, { recursive: true, force: true });
         }
     });
 

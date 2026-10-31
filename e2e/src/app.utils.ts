@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import { APP_READY_TIMEOUT_MS, E2E_BASE_URL, FIXTURE_WORKSPACE, QUICK_INPUT_LABEL, SHELL_SELECTOR } from './e2e.consts';
+import { APP_READY_TIMEOUT_MS, E2E_BASE_URL, FIXTURE_WORKSPACE, MAX_NOTIFICATION_CLOSES, NOTIFICATION_CLOSE_TIMEOUT_MS, QUICK_INPUT_LABEL, SHELL_SELECTOR } from './e2e.consts';
 
 /** Opens Ingot on the fixture workspace and waits until the shell and workspace are ready. */
 export const openIngot = async (page: Page, workspacePath: string = FIXTURE_WORKSPACE): Promise<void> => {
@@ -44,8 +44,9 @@ export const actUntilHidden = async (action: () => Promise<void>, target: Locato
 /** Closes toasts (e.g. the Git "repository found in parent folders" prompt) that can cover bottom-right controls. */
 export const dismissNotifications = async (page: Page): Promise<void> => {
     const close = page.locator('.theia-notification-list-item .codicon-close, .theia-notification-list-item [title="Close"]');
-    while (await close.first().isVisible().catch(() => false)) {
-        await close.first().click();
+    for (let i = 0; i < MAX_NOTIFICATION_CLOSES && await close.first().isVisible().catch(() => false); i++) {
+        // A toast can fade out between the check and the click.
+        await close.first().click({ timeout: NOTIFICATION_CLOSE_TIMEOUT_MS }).catch(() => undefined);
     }
 };
 

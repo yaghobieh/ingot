@@ -9,19 +9,20 @@ import { FileSearchServiceImpl } from '@theia/file-search/lib/node/file-search-s
 import type { FileSearchService } from '@theia/file-search/lib/common/file-search-service';
 import { RipgrepSearchInWorkspaceServer } from '@theia/search-in-workspace/lib/node/ripgrep-search-in-workspace-server';
 import type { SearchInWorkspaceOptions } from '@theia/search-in-workspace/lib/common/search-in-workspace-interface';
-import { AGENT_IGNORE_FILES, INDEX_IGNORE_FILES } from '../common/project-config/project-config.consts';
 import { ignoreExcludeGlobs } from '../common/project-config/ignore-files.utils';
+import { CursorModeReader } from './cursor-mode-reader';
 
 const existing = (root: string, names: readonly string[]): string[] =>
     names.map(name => path.join(root, name)).filter(file => fs.existsSync(file));
 
 /**
  * IDEA-294: the codebase index (quick open's file list) leaves out paths in `.ingotignore`, `.ingotindexingignore`
- * and their Cursor counterparts, passed to ripgrep as extra ignore files (patterns relative to the root).
+ * and (IDEA-287: when the workspace reads `.cursor` live) their Cursor counterparts, passed to ripgrep as extra ignore files.
  */
 @injectable()
 export class IngotFileSearchService extends FileSearchServiceImpl {
 
+    @inject(CursorModeReader) protected readonly cursorModes: CursorModeReader;
     protected ignoreFiles: string[] = [];
 
     constructor(
@@ -31,9 +32,11 @@ export class IngotFileSearchService extends FileSearchServiceImpl {
         super(logger, rawProcessFactory);
     }
 
-    protected override doFind(rootUri: URI, options: FileSearchService.BaseOptions, accept: (fileUri: string) => void, token: CancellationToken): Promise<void> {
+    protected override async doFind(rootUri: URI, options: FileSearchService.BaseOptions, accept: (fileUri: string) => void, token: CancellationToken): Promise<void> {
+        const root = FileUri.fsPath(rootUri);
+        const names = await this.cursorModes.indexIgnoreFiles(root);
         // `getSearchArgs` runs synchronously inside `doFind`, so the files belong to this root.
-        this.ignoreFiles = existing(FileUri.fsPath(rootUri), [...AGENT_IGNORE_FILES, ...INDEX_IGNORE_FILES]);
+        this.ignoreFiles = existing(root, names);
         return super.doFind(rootUri, options, accept, token);
     }
 
@@ -46,6 +49,8 @@ export class IngotFileSearchService extends FileSearchServiceImpl {
 @injectable()
 export class IngotSearchInWorkspaceServer extends RipgrepSearchInWorkspaceServer {
 
+    @inject(CursorModeReader) protected readonly cursorModes: CursorModeReader;
+
     constructor(
         @inject(ILogger) @named('search-in-workspace:RipgrepSearchInWorkspaceServer') logger: ILogger,
         @inject(RawProcessFactory) rawProcessFactory: RawProcessFactory
@@ -54,8 +59,11 @@ export class IngotSearchInWorkspaceServer extends RipgrepSearchInWorkspaceServer
     }
 
     override async search(what: string, rootUris: string[], options: SearchInWorkspaceOptions = {}): Promise<number> {
-        const excludes = rootUris.flatMap(uri => existing(FileUri.fsPath(uri), AGENT_IGNORE_FILES))
-            .flatMap(file => ignoreExcludeGlobs(fs.readFileSync(file, 'utf8')));
+        const files = await Promise.all(rootUris.map(async uri => {
+            const root = FileUri.fsPath(uri);
+            return existing(root, await this.cursorModes.agentIgnoreFiles(root));
+        }));
+        const excludes = files.flat().flatMap(file => ignoreExcludeGlobs(fs.readFileSync(file, 'utf8')));
         return super.search(what, rootUris, excludes.length && !options.includeIgnored ? { ...options, exclude: [...(options.exclude ?? []), ...excludes] } : options);
     }
 }
