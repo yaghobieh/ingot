@@ -1,6 +1,6 @@
 /* IDEA-177: rich agent-chat tool cards (terminal blocks, profile card, compact cards, Explored and Thought rows). */
 body {
-    --ingot-tc-bg: var(--ingot-panel, #F4F5F8);
+    --ingot-tc-bg: var(--ingot-panel);
     --ingot-tc-line: var(--ingot-border, rgba(27, 38, 71, .14));
     --ingot-tc-code: #FBFBFD;
     --ingot-sh-cmd: #3B6FD9;
@@ -31,7 +31,7 @@ body.ingot-dark {
 }
 .ingot-tc-head:disabled { cursor: default; }
 .ingot-tc-head:hover:not(:disabled) { color: var(--ingot-text); }
-.ingot-tc-head:focus-visible { outline: 2px solid var(--ingot-primary, #3B6FD9); outline-offset: -2px; border-radius: 8px; }
+.ingot-tc-head:focus-visible { outline: 2px solid var(--ingot-primary); outline-offset: -2px; border-radius: 8px; }
 .ingot-tc-icon { font-size: 13px; opacity: .85; }
 .ingot-tc-title { color: var(--ingot-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 40px; flex: 0 1 auto; }
 .ingot-tc-programs, .ingot-tc-from { color: var(--ingot-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 100 auto; opacity: .85; }
@@ -40,16 +40,16 @@ body.ingot-dark {
 .ingot-tc-from { font-size: 11px; }
 .ingot-tc-chevron { font-size: 12px; opacity: .7; }
 .ingot-tc-status { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; white-space: nowrap; flex: none; }
-.ingot-tc-status.ok { color: var(--ingot-success, #2E9E5B); }
-.ingot-tc-status.failed { color: var(--ingot-danger, #D64545); }
+.ingot-tc-status.ok { color: var(--ingot-success); }
+.ingot-tc-status.failed { color: var(--ingot-danger); }
 .ingot-tc-took { color: var(--ingot-text-muted); }
 .ingot-tc-spinner {
-    width: 11px; height: 11px; border-radius: 50%; border: 2px solid color-mix(in srgb, #D9A04E 30%, transparent);
-    border-top-color: #D9A04E; animation: ingot-tc-spin .8s linear infinite;
+    width: 11px; height: 11px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--ingot-ingot-gold) 30%, transparent);
+    border-top-color: var(--ingot-ingot-gold); animation: ingot-tc-spin .8s linear infinite;
 }
 @keyframes ingot-tc-spin { to { transform: rotate(360deg); } }
-.ingot-tc-terminal.running { border-color: color-mix(in srgb, #D9A04E 55%, var(--ingot-tc-line)); }
-.ingot-tc-terminal.error, .ingot-tc-generic.error { border-color: color-mix(in srgb, var(--ingot-danger, #D64545) 45%, var(--ingot-tc-line)); }
+.ingot-tc-terminal.running { border-color: color-mix(in srgb, var(--ingot-ingot-gold) 55%, var(--ingot-tc-line)); }
+.ingot-tc-terminal.error, .ingot-tc-generic.error { border-color: color-mix(in srgb, var(--ingot-danger) 45%, var(--ingot-tc-line)); }
 .ingot-tc-body { border-top: 1px solid var(--ingot-tc-line); background: var(--ingot-tc-code); }
 .ingot-tc-command, .ingot-tc-output {
     margin: 0; padding: 8px 10px; font-family: var(--theia-code-font-family, ui-monospace, monospace); font-size: 11.5px; line-height: 1.5;
@@ -58,8 +58,8 @@ body.ingot-dark {
 .ingot-tc-command { max-height: 260px; overflow: auto; }
 .ingot-tc-output { border-top: 1px dashed var(--ingot-tc-line); color: var(--ingot-text-muted); max-height: 320px; overflow: auto; }
 .ingot-tc-generic .ingot-tc-output { border-top: 1px solid var(--ingot-tc-line); background: var(--ingot-tc-code); }
-.ingot-tc-note { padding: 4px 10px; font-size: 11px; color: #B07A2A; border-top: 1px dashed var(--ingot-tc-line); }
-.ingot-tc-more { all: unset; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 4px 10px 0; font-size: 11px; color: var(--ingot-primary, #3B6FD9); border-top: 1px dashed var(--ingot-tc-line); }
+.ingot-tc-note { padding: 4px 10px; font-size: 11px; color: var(--ingot-warning); border-top: 1px dashed var(--ingot-tc-line); }
+.ingot-tc-more { all: unset; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 4px 10px 0; font-size: 11px; color: var(--ingot-primary); border-top: 1px dashed var(--ingot-tc-line); }
 .ingot-tc-more + .ingot-tc-output { border-top: 0; }
 :is(#ingot-agents, #ingot-hooks-dialog) .ingot-sh-prompt { color: var(--ingot-sh-op); user-select: none; }
 :is(#ingot-agents, #ingot-hooks-dialog) .ingot-sh-cmd { color: var(--ingot-sh-cmd); font-weight: 600; }
@@ -78,18 +78,18 @@ body.ingot-dark {
 }
 .ingot-pc-top { display: flex; align-items: center; gap: 12px; }
 .ingot-pc-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex: none; border: 1px solid var(--ingot-tc-line); }
-.ingot-pc-avatar-letter { display: grid; place-items: center; background: #1B2647; color: #D9A04E; font-weight: 700; font-size: 18px; }
+.ingot-pc-avatar-letter { display: grid; place-items: center; background: var(--ingot-forge-navy); color: var(--ingot-ingot-gold); font-weight: 700; font-size: 18px; }
 .ingot-pc-name { font-weight: 700; font-size: 14px; color: var(--ingot-text); }
 .ingot-pc-login, .ingot-pc-login a { color: var(--ingot-text-muted); text-decoration: none; }
 .ingot-pc-bio { margin-top: 10px; color: var(--ingot-text-muted); }
 .ingot-pc-facts { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ingot-tc-line); display: grid; gap: 7px; }
 .ingot-pc-facts > div { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :is(#ingot-agents, #ingot-hooks-dialog) .ingot-pc-facts .codicon { color: var(--ingot-text-muted); }
-.ingot-pc-facts a { color: var(--ingot-primary, #3B6FD9); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
+.ingot-pc-facts a { color: var(--ingot-primary); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
 .ingot-pc-facts a:hover { text-decoration: underline; }
 .ingot-pc-stats { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ingot-tc-line); display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
 .ingot-pc-stat b { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: var(--ingot-text); }
-:is(#ingot-agents, #ingot-hooks-dialog) .ingot-pc-stat b .codicon { font-size: 13px; color: #D9A04E; }
+:is(#ingot-agents, #ingot-hooks-dialog) .ingot-pc-stat b .codicon { font-size: 13px; color: var(--ingot-ingot-gold); }
 .ingot-pc-stat > span:last-child { display: block; font-size: 11px; color: var(--ingot-text-muted); }
 
 /* Explored + Thought rows */
@@ -104,7 +104,7 @@ body.ingot-dark {
 /* IDEA-186: the Explored row opens the list of files read and searches made. */
 .ingot-chat-explored-head { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; padding: 1px 4px; margin-left: -4px; }
 .ingot-chat-explored-head:hover { background: color-mix(in srgb, var(--theia-foreground) 7%, transparent); }
-.ingot-chat-explored-head:focus-visible { outline: 2px solid var(--ingot-primary, #3B6FD9); }
+.ingot-chat-explored-head:focus-visible { outline: 2px solid var(--ingot-primary); }
 .ingot-chat-explored-head .codicon { font-size: 11px; opacity: .7; }
 .ingot-chat-explored-list { list-style: none; margin: 4px 0 0; padding: 0 0 0 4px; display: flex; flex-direction: column; gap: 2px; }
 .ingot-chat-explored-list li { display: flex; align-items: center; gap: 5px; font-family: var(--monaco-monospace-font, monospace); font-size: 11.5px; }
