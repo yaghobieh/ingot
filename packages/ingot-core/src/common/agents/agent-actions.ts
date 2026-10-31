@@ -51,6 +51,7 @@ export const BUILTIN_TOOLS = [
     { name: 'process_stop', description: 'Stop a running process and its children. Arguments: {"id": "p3"}. Processes the user started wait for approval.' },
     { name: 'web_search', description: 'Search the web. Arguments: {"query": "…"}. Waits for the user\'s approval.' },
     { name: 'web_fetch', description: 'Fetch a web page as text. Arguments: {"url": "https://…"}. Waits for the user\'s approval.' },
+    { name: 'deep_research', description: 'Deep research on the Ingot server: plans sub-queries, searches the web, Reddit, Hacker News, GitHub and Stack Exchange, reads 15-40 pages and returns a cited answer with numbered sources (a few minutes, about $0.05 at most). Use it for questions that need many current sources (comparisons, what developers report, recent changes), not for one fact. Arguments: {"question": "…"}. Keep its [n] citations and source links in your reply. Waits for the user\'s approval.' },
     { name: 'browser_open', description: 'Open a URL in Ingot\'s browser panel (the user sees it) and get the page: title, interactive elements with refs, and text. Arguments: {"url": "http://localhost:5173"}. Waits for the user\'s approval.' },
     { name: 'browser_read', description: 'Read the current page again: interactive elements with refs and the visible text. No arguments.' },
     { name: 'browser_click', description: 'Click an element. Arguments: {"ref": 3} from the last read, or {"selector": "#submit"}, or {"text": "Sign in"}. Waits for the user\'s approval.' },
@@ -133,6 +134,7 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
         case 'process_stop': return { kind: 'terminal', label: 'Stop process', detail: str(a.id) };
         case 'web_search': return { kind: 'web', label: 'Search web', detail: str(a.query) };
         case 'web_fetch': return { kind: 'web', label: 'Fetch', detail: str(a.url) };
+        case 'deep_research': return { kind: 'web', label: 'Deep research', detail: str(a.question) };
         case 'delete': return { kind: 'delete', label: 'Delete file', detail: str(a.path) };
         case 'browser_open': return { kind: 'browser', label: 'Open page', detail: str(a.url) };
         case 'browser_read': return { kind: 'browser', label: 'Read page', detail: '' };

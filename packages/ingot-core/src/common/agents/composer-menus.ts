@@ -15,6 +15,7 @@ export const SLASH_BUILTINS: readonly SlashBuiltin[] = [
     { name: 'plan', description: 'Plan mode: a step-by-step plan to build later', action: { kind: 'mode', mode: 'plan' } },
     { name: 'debug', description: 'Debug mode: find the cause, then fix', action: { kind: 'mode', mode: 'debug' } },
     { name: 'multi', description: 'Multi-agent: split the task across parallel agents', action: { kind: 'mode', mode: 'multi' } },
+    { name: 'research', description: 'Deep research: read many web sources, answer with citations', action: { kind: 'mode', mode: 'research' } },
     { name: 'new', description: 'Start a new chat', action: { kind: 'new' } },
     { name: 'compact', description: 'Summarize this chat to free up context', action: { kind: 'compact' } },
     { name: 'model', description: 'Pick the model', action: { kind: 'model' } },

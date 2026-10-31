@@ -69,6 +69,14 @@ check the app it just started, fill a form, read docs.
   build shows pages through Ingot's server without running their scripts, so use the desktop app for
   script-heavy sites and for screenshots.
 
+## Web
+
+| Tool | What it does | Asks first? |
+| --- | --- | --- |
+| `ingot/web_search` | Searches the web; returns titles and links. | Yes |
+| `ingot/web_fetch` | Fetches one page as text. | Yes |
+| `ingot/deep_research` | Deep research on the Ingot server: reads 15–40 pages from the web, Reddit, Hacker News, GitHub and Stack Exchange and returns a cited answer with numbered sources. See [Deep research](deep-research.md). | Yes |
+
 ## Reading the open project
 
 Questions about the code in the open folder are answered from that folder. `ingot/list_dir`, `ingot/glob`,
