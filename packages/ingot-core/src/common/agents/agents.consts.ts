@@ -35,6 +35,9 @@ export const NEW_AGENT_TITLE = 'New chat';
 export const COMPOSER_PLACEHOLDER = 'Ask anything, @ to mention, / for actions';
 export const AGENT_TITLE = 'Ingot Agent';
 export const WORKED_FOR = 'worked for';
+/** The shimmering status line at the end of a running chat. */
+export const WORKING_LABEL = 'Getting it done…';
+export const EDITING_LABEL = 'Editing';
 export const EDITED_WORD = 'Edited';
 export const REVIEW_WORD = 'Review';
 export const REJECT_ALL = 'Reject all';

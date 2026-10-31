@@ -51,7 +51,7 @@ import { CommandRegistry } from '@theia/core/lib/common/command';
 import { IngotModelClient } from '../models/model-client';
 import { MODELS_OPEN_COMMAND } from '../models/models.browser-consts';
 import type { AgentSession } from '../../common/agents/agents.types';
-import { changesSummary, editedFilesLabel, fileBadge, fileWord, formatWorked, stepVerb } from '../../common/agents/agents.utils';
+import { changesSummary, editedFilesLabel, fileBadge, fileWord, formatWorked, stepVerb, workingLabel } from '../../common/agents/agents.utils';
 import { AgentStore } from './agent-store';
 import { EditorManager } from '@theia/editor/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
@@ -979,13 +979,11 @@ export class IngotAgentsWidget extends ReactWidget {
                     {m.role === 'agent' && i === session.messages.map(message => message.role).lastIndexOf('agent') && this.renderChecklist(session)}
                     {m.role === 'agent' && session.habit && !session.habit.off && i === session.messages.map(message => message.role).lastIndexOf('agent') && <HabitChecklist habit={session.habit} />}
                     {m.parts ? '' : m.role === 'agent'
-                        ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
-                            : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
+                        ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} /> : '')
                         : this.editingIndex === i ? this.renderEditForm(session, i) : m.text}
                     {m.role === 'tool' && !!m.images?.length && <div className='ingot-chat-tool-images'>{m.images.filter(img => img.data).map(img =>
                         <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
                             onClick={() => { this.lightbox = img; this.update(); }} />)}</div>}
-                    {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && !this.tracker.forMessage(session.id, i).length && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
                     {m.role === 'agent' && this.tracker.forMessage(session.id, i).map(change => <CodeChangeBlock key={change.id} change={change}
                         expanded={!this.collapsedChanges.has(change.id)}
                         onToggle={() => { if (!this.collapsedChanges.delete(change.id)) { this.collapsedChanges.add(change.id); } this.update(); }}
@@ -1111,7 +1109,20 @@ export class IngotAgentsWidget extends ReactWidget {
                 <span className='ingot-flex' />
                 <span className='ingot-dim'>Kept</span>
             </div>}
+            {this.renderWorking(session)}
         </>;
+    }
+
+    /** "Getting it done…" with a shimmer while the run works; the "Thinking…" row stands in for it while a thought streams. */
+    protected renderWorking(session: AgentSession): React.ReactNode {
+        const last = session.messages[session.messages.length - 1];
+        const label = this.store.isRunning(session.id) ? workingLabel(session) : undefined;
+        if (!label || (last?.role === 'agent' && !last.parts && extractThought(last.text).thinking)) {
+            return undefined;
+        }
+        return <div className='ingot-chat-working' id='ingot-chat-working' role='status'>
+            <span className='ingot-chat-working-text ingot-shimmer'>{label}</span>
+        </div>;
     }
 
     /** Set by review clicks so the tracker update that follows counts as interaction (stops the countdown). */

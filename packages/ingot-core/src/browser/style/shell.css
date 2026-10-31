@@ -352,7 +352,6 @@ body.ingot-has-group #theia-top-panel > .ingot-project-tabs { order: 2; height: 
 .ingot-chat-action { margin-top: 6px; }
 .ingot-agents-new { white-space: nowrap; flex: none; }
 .ingot-composer-stop { background: var(--theia-errorForeground, #F75464); color: #fff; }
-.ingot-chat-editing { margin-top: 6px; font-size: 11px; opacity: .75; font-style: italic; }
 .ingot-mcp-tools { margin: 0; padding-left: 18px; line-height: 1.7; }
 .ingot-mcp-command { font-size: 12px; word-break: break-all; }
 .ingot-chat-tool { font-size: 11px; opacity: .8; border-left: 2px solid var(--ingot-ingot-gold, #E8A93B); padding-left: 8px; white-space: pre-wrap; max-height: 120px; overflow: auto; }
