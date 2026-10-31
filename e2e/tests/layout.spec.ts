@@ -5,7 +5,8 @@ import { dismissNotifications, openIngot } from '../src/app.utils';
 const chatIn = (page: Page, panel: 'right' | 'bottom') => page.locator(`#theia-${panel}-content-panel #ingot-agents`);
 
 const moveChat = async (page: Page, label: string): Promise<void> => {
-    await page.locator('.ingot-agents-header').click({ button: 'right', position: { x: 160, y: 10 } });
+    // A single chat tab spans the header, so right-click the header's action area (tabs have their own menu).
+    await page.locator('.ingot-agents-header-actions').click({ button: 'right' });
     const item = page.locator('.lm-Menu .lm-Menu-item', { hasText: label });
     await expect(item).toBeVisible();
     await item.click();
@@ -21,8 +22,11 @@ const resetLayout = async (page: Page): Promise<void> => {
     }
 };
 
-/** IDEA-174: max space between the composer's bottom edge and the panel's bottom (its margin plus the one-line disclaimer). */
-const COMPOSER_BOTTOM_SLACK_PX = 48;
+/**
+ * IDEA-174: max space between the composer's bottom edge and the panel's bottom: its 12px margin (the agent panel
+ * mock) plus the empty-state disclaimer, which wraps to two lines in a narrow panel.
+ */
+const COMPOSER_BOTTOM_SLACK_PX = 60;
 
 const box = async (locator: Locator): Promise<{ y: number; height: number; bottom: number }> => {
     const b = await locator.boundingBox();

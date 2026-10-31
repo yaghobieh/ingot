@@ -1,9 +1,12 @@
+import * as os from 'os';
+import * as path from 'path';
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { installDisconnectedBufferGuard } from './disconnected-client-guard';
 
 installDisconnectedBufferGuard();
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
-import { DEV_FILE_KEYSTORE_ENV, DevFileKeyStoreService } from './dev-file-key-store';
+import { DevFileKeyStoreService } from './dev-file-key-store';
+import { DEV_FILE_KEYSTORE_ENV } from '../common/launch/keychain.consts';
 import { IngotEditorImportService } from './editor-import-backend';
 import { EDITOR_IMPORT_SERVICE_PATH, EditorImportService } from '../common/import/editor-import.types';
 import { ConnectionHandler, RpcConnectionHandler } from '@theia/core/lib/common/messaging';
@@ -16,10 +19,14 @@ import { BrowserProxyEndpoint } from './browser-proxy-endpoint';
 import { ErrorReportingEndpoint } from './error-reporting-endpoint';
 import { ParentWatchContribution } from './parent-watch-contribution';
 import { PluginHostWatchdog } from './plugin-host-watchdog';
-import { PluginHostEnvironmentVariable } from '@theia/plugin-ext/lib/common/plugin-protocol';
+import { PluginDeployerParticipant, PluginHostEnvironmentVariable } from '@theia/plugin-ext/lib/common/plugin-protocol';
+import { UnsupportedPluginsParticipant } from './unsupported-plugins-participant';
 import { ProcessService, type ProcessClient } from '../common/processes/processes.types';
 import { PROCESS_SERVICE_PATH } from '../common/processes/processes.consts';
 import { AGENT_ACTIONS_SERVICE_PATH, AgentActionsService } from '../common/agents/agent-actions-service';
+import { IngotAgentAuditService } from './ingot-agent-audit-service';
+import { AGENT_AUDIT_SERVICE_PATH } from '../common/audit/agent-audit.consts';
+import { AgentAuditService } from '../common/audit/agent-audit.types';
 import { IngotResearchService } from './ingot-research-service';
 import { RESEARCH_SERVICE_PATH } from '../common/research/research.consts';
 import { ResearchService } from '../common/research/research.types';
@@ -28,6 +35,10 @@ import { MODEL_SERVICE_PATH } from '../common/models/models.consts';
 import { ModelService } from '../common/models/models.types';
 import { WorkspaceFileService } from '@theia/workspace/lib/common/workspace-file-service';
 import { IngotWorkspaceFileService } from '../common/workspace/ingot-workspace-file-service';
+import { FileSearchService } from '@theia/file-search/lib/common/file-search-service';
+import { SearchInWorkspaceServer } from '@theia/search-in-workspace/lib/common/search-in-workspace-interface';
+import { IngotFileSearchService, IngotSearchInWorkspaceServer } from './ingot-search-ignore';
+import { CursorModeReader } from './cursor-mode-reader';
 
 import { IngotMcpService } from './ingot-mcp-service';
 import { MCP_SERVICE_PATH } from '../common/project-config/project-config.consts';
@@ -49,6 +60,12 @@ import { RulesInsightService } from '../common/rules-insight/rules-insight.types
 import { IngotRulesToolsService } from './rules-tools/ingot-rules-tools-service';
 import { RULES_TOOLS_SERVICE_PATH } from '../common/rules-tools/rules-tools.consts';
 import { RulesToolsService } from '../common/rules-tools/rules-tools.types';
+import { IngotTestService } from './ingot-test-service';
+import { TEST_SERVICE_PATH } from '../common/testing/testing.consts';
+import { TestService } from '../common/testing/testing.types';
+import { CodebaseIndexConnection, IngotCodebaseIndexService } from './codebase-index/ingot-codebase-index-service';
+import { CODEBASE_INDEX_SERVICE_PATH } from '../common/codebase-index/codebase-index.consts';
+import { CodebaseIndexService, type CodebaseIndexClient } from '../common/codebase-index/codebase-index.types';
 
 import { BackendApplicationContribution } from '@theia/core/lib/node/backend-application';
 import { IngotAccountBackend } from './account/ingot-account-backend';
@@ -56,12 +73,15 @@ import { AccountDeepLinkEndpoint } from './account/account-deeplink-endpoint';
 import { ACCOUNT_SERVICE_PATH, AccountBackend, type AccountClient } from '../common/account/account-protocol';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
-    // Dev preview only: keep secrets in a 0600 file instead of the OS keychain (no keychain prompt after each rebuild).
-    const devKeyStore = process.env[DEV_FILE_KEYSTORE_ENV];
-    if (devKeyStore) {
-        rebind(KeyStoreService).toConstantValue(new DevFileKeyStoreService(devKeyStore));
-        console.warn(`Ingot dev build: secrets are stored in a local file (${DEV_FILE_KEYSTORE_ENV}), not the OS keychain.`);
-    }
+    // John's rule: never the macOS Keychain. Every build (dev and packaged) keeps secrets in a 0600 file,
+    // ~/.ingot/keystore.json unless INGOT_DEV_FILE_KEYSTORE points elsewhere. Nothing is read from the Keychain.
+    const fileKeyStore = process.env[DEV_FILE_KEYSTORE_ENV] || path.join(os.homedir(), '.ingot', 'keystore.json');
+    rebind(KeyStoreService).toConstantValue(new DevFileKeyStoreService(fileKeyStore));
+    // IDEA-294: quick open's file index and Find in Files honour .ingotignore (and .ingotindexingignore for the index).
+    bind(CursorModeReader).toSelf().inSingletonScope();
+    bind(IngotFileSearchService).toSelf().inSingletonScope();
+    rebind(FileSearchService).toService(IngotFileSearchService);
+    rebind(SearchInWorkspaceServer).to(IngotSearchInWorkspaceServer);
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
     rebind(WorkspaceFileService).toService(IngotWorkspaceFileService);
     bind(IngotPortsService).toSelf().inSingletonScope();
@@ -70,6 +90,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotAgentActionsService).toSelf().inSingletonScope();
     bind(AgentActionsService).toService(IngotAgentActionsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(AGENT_ACTIONS_SERVICE_PATH, () => ctx.container.get<AgentActionsService>(AgentActionsService))).inSingletonScope();
+    bind(IngotAgentAuditService).toSelf().inSingletonScope();
+    bind(AgentAuditService).toService(IngotAgentAuditService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(AGENT_AUDIT_SERVICE_PATH, () => ctx.container.get<AgentAuditService>(AgentAuditService))).inSingletonScope();
     bind(IngotResearchService).toSelf().inSingletonScope();
     bind(ResearchService).toService(IngotResearchService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(RESEARCH_SERVICE_PATH, () => ctx.container.get<ResearchService>(ResearchService))).inSingletonScope();
@@ -82,6 +105,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(BackendApplicationContribution).toService(ParentWatchContribution);
     bind(PluginHostWatchdog).toSelf().inSingletonScope();
     bind(PluginHostEnvironmentVariable).toService(PluginHostWatchdog);
+    bind(UnsupportedPluginsParticipant).toSelf().inSingletonScope();
+    bind(PluginDeployerParticipant).toService(UnsupportedPluginsParticipant);
     bind(IngotProcessService).toSelf().inSingletonScope();
     bind(ProcessService).toService(IngotProcessService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<ProcessClient>(PROCESS_SERVICE_PATH, client => {
@@ -124,4 +149,18 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotRulesInsightService).toSelf().inSingletonScope();
     bind(RulesInsightService).toService(IngotRulesInsightService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(RULES_INSIGHT_SERVICE_PATH, () => ctx.container.get<RulesInsightService>(RulesInsightService))).inSingletonScope();
+    bind(IngotTestService).toSelf().inSingletonScope();
+    bind(TestService).toService(IngotTestService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(TEST_SERVICE_PATH, () => ctx.container.get<TestService>(TestService))).inSingletonScope();
+    bind(IngotCodebaseIndexService).toSelf().inSingletonScope();
+    bind(CodebaseIndexService).toService(IngotCodebaseIndexService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler<CodebaseIndexClient>(CODEBASE_INDEX_SERVICE_PATH, client => {
+        const connection = new CodebaseIndexConnection(ctx.container.get(IngotCodebaseIndexService));
+        connection.setClient(client);
+        client.onDidCloseConnection(() => {
+            connection.removeClient(client);
+            connection.dispose();
+        });
+        return connection;
+    })).inSingletonScope();
 });

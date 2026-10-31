@@ -7,7 +7,7 @@ export const GLOBAL_SETTINGS_COMMAND: Command = { id: 'ingot.settings.openGlobal
 /** Written when the file does not exist yet. Theme defaults to System. */
 export const GLOBAL_SETTINGS_TEMPLATE = `{
     // Ingot global settings (~/.ingot/${GLOBAL_SETTINGS_FILE}): theme, fonts, editor, keymap, layout…
-    // A project's .ingot/settings.json wins over this file. Never put API keys or tokens here: they live in the Keychain.
+    // A project's .ingot/settings.json wins over this file. Never put API keys or tokens here: they live in Ingot's local key file (~/.ingot/keystore.json).
     "ingot.appearance": "system",
     "editor.wordWrap": "on"
 }

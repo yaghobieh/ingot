@@ -11,7 +11,9 @@ import { applyOrder, reorderIds, workspaceKey } from '../../common/workbench/lay
 import { RIGHT_STRIPE_ORDER_KEY } from '../workbench/layout-custom.consts';
 import { AGENTS_WIDGET_ID } from '../agents/agents.consts';
 import { LAYOUT_CONTEXT_MENU } from '../layout/layout.browser-consts';
-import { RIGHT_STRIPE_BOTTOM, RIGHT_STRIPE_ID, RIGHT_STRIPE_TOP, type RightStripeItem } from './tool-windows.consts';
+import { REX_STRIPE_MARK, RIGHT_STRIPE_BOTTOM, RIGHT_STRIPE_ID, RIGHT_STRIPE_MARK_SIZE, RIGHT_STRIPE_TOP, type RightStripeItem } from './tool-windows.consts';
+import { RexMark } from '../brand/rex-mark';
+import { IngotPlanService } from '../plan/plan-service';
 
 /** Slim icon stripe on the right edge: Settings, Notifications, Agents, Database, MCP, Services, History (IDEA-61). */
 @injectable()
@@ -24,6 +26,7 @@ export class IngotRightStripeWidget extends ReactWidget {
 
     @inject(StorageService) protected readonly storage: StorageService;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
+    @inject(IngotPlanService) protected readonly plan: IngotPlanService;
 
     protected notificationCount = 0;
     /** Saved per-workspace order of the top group (IDEA-127); unknown or new items keep their default place. */
@@ -41,6 +44,7 @@ export class IngotRightStripeWidget extends ReactWidget {
             this.update();
         }));
         this.toDispose.push(this.shell.onDidAddWidget(() => this.refreshSoon()));
+        this.toDispose.push(this.plan.onDidChange(() => this.update()));
         this.toDispose.push(this.shell.onDidRemoveWidget(() => this.refreshSoon()));
         this.shell.rightPanelHandler.dockPanel.layoutModified.connect(() => this.update());
         this.shell.bottomPanel.layoutModified.connect(() => this.update());
@@ -86,7 +90,8 @@ export class IngotRightStripeWidget extends ReactWidget {
     }
 
     protected topItems(): readonly RightStripeItem[] {
-        return applyOrder(RIGHT_STRIPE_TOP, this.order);
+        const items = applyOrder(RIGHT_STRIPE_TOP, this.order);
+        return this.plan.can('chat') ? items : items.filter(i => i.kind !== 'panel' || i.widgetId !== AGENTS_WIDGET_ID);
     }
 
     /** Drop one icon onto another: it takes that icon's place (HTML5 drag and drop). */
@@ -164,7 +169,9 @@ export class IngotRightStripeWidget extends ReactWidget {
             onDragStart={top ? e => { this.dragging = item.id; e.dataTransfer.setData('text/plain', item.id); e.dataTransfer.effectAllowed = 'move'; } : undefined}
             onDragEnd={() => { this.dragging = undefined; }}
             onClick={() => this.click(item)} onContextMenu={e => this.openContextMenu(item, e)}>
-            <span className={`codicon codicon-${item.icon}`} />
+            {item.kind === 'panel' && item.mark === REX_STRIPE_MARK
+                ? <RexMark className='ingot-rs-rex' size={RIGHT_STRIPE_MARK_SIZE} />
+                : <span className={`codicon codicon-${item.icon}`} />}
             {badge !== undefined && <span className='ingot-rs-badge'>{badge > 9 ? '9+' : badge}</span>}
         </button>;
     }

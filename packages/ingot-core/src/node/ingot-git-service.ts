@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { HOOKS_RAN_ENV } from '../common/git/hooks';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -9,10 +9,17 @@ import { BRANCH_FORMAT, LOG_FORMAT } from '../common/git/git.consts';
 import type { GitBlameLine, GitBranch, GitCommit, GitFileChange, GitService } from '../common/git/git.types';
 import { cloneTarget, isCloneUrl } from '../common/welcome/welcome.utils';
 import { isRepoRelativePath, isValidBranchName, isValidRef, parseBlame, parseBranches, parseLog, parseNameStatus } from '../common/git/git.utils';
+import { isValidWorktreeName, worktreeBranch, worktreeFolder } from '../common/threads/threads.utils';
+import type { WorktreeCreated } from '../common/threads/threads.types';
+import { POWERSHELL_EXT, ROOT_WORKTREE_ENV, WINDOWS_PLATFORM, WORKTREE_SETUP_MAX_BUFFER, WORKTREE_SETUP_TIMEOUT_MS } from '../common/threads/worktree-setup.consts';
+import type { WorktreeSetupPlan, WorktreeSetupResult } from '../common/threads/worktree-setup.types';
+import { parseWorktreesJson, tailOutput, worktreeSetupFiles, worktreeSetupFor, worktreeSetupPlan } from '../common/threads/worktree-setup.utils';
 
 const GIT_TIMEOUT_MS = 15_000;
 const CLONE_TIMEOUT_MS = 10 * 60_000;
 const MAX_BUFFER = 16 * 1024 * 1024;
+/** IDEA-291: subagent worktrees live under the OS temp folder, never inside the project. */
+const WORKTREES_DIR = 'ingot-worktrees';
 
 /** Runs a fixed set of git commands with validated arguments (no shell). */
 /** IDEA-178: tells the installed git hook that Ingot already ran the agent hooks. */
@@ -76,6 +83,13 @@ export class IngotGitService implements GitService {
                 return { output: (await this.git(root, args).catch(() => '')).trim() };
             case 'isAncestorOfHead':
                 return { output: await this.git(root, args).then(() => 'yes', () => 'no') };
+            case 'worktreeAdd': {
+                const parent = path.join(fs.realpathSync(os.tmpdir()), WORKTREES_DIR);
+                fs.mkdirSync(parent, { recursive: true });
+                const folder = path.join(parent, `${path.basename(root).replace(/[^\w.-]+/g, '-')}-${args[args.length - 1]}`);
+                await this.git(root, [...args.slice(0, -1), folder, 'HEAD'], { timeout: 120_000 });
+                return { output: folder };
+            }
             case 'reword': {
                 const head = (await this.git(root, ['rev-parse', 'HEAD'])).trim();
                 const target = (await this.git(root, ['rev-parse', op.commit])).trim();
@@ -193,6 +207,63 @@ export class IngotGitService implements GitService {
         }
         await this.git(parent, ['clone', '--', value, target], { timeout: CLONE_TIMEOUT_MS });
         return target;
+    }
+
+    async addWorktree(root: string, name: string): Promise<WorktreeCreated> {
+        if (!isValidWorktreeName(name)) {
+            throw new Error(`Invalid worktree name "${name}".`);
+        }
+        const top = (await this.git(root, ['rev-parse', '--show-toplevel'])).trim();
+        const folder = worktreeFolder(path.normalize(top), name);
+        if (fs.existsSync(folder)) {
+            throw new Error(`${folder} already exists.`);
+        }
+        const branch = worktreeBranch(name);
+        await this.git(top, ['worktree', 'add', '-b', branch, '--', folder, 'HEAD']);
+        return { folder, branch };
+    }
+
+    async setupWorktree(root: string, folder: string, readCursor: boolean): Promise<WorktreeSetupResult | undefined> {
+        if (!path.isAbsolute(folder) || !fs.existsSync(folder)) {
+            throw new Error('Not a folder on this machine.');
+        }
+        const top = (await this.git(root, ['rev-parse', '--show-toplevel'])).trim();
+        for (const base of [folder, top]) {
+            for (const file of worktreeSetupFiles(readCursor)) {
+                const json = path.join(base, file);
+                const config = fs.existsSync(json) ? parseWorktreesJson(fs.readFileSync(json, 'utf8')) : undefined;
+                if (config) {
+                    const entry = worktreeSetupFor(config, process.platform);
+                    return entry ? this.runSetup(worktreeSetupPlan(entry, path.dirname(json)), folder, top, file) : undefined;
+                }
+            }
+        }
+        return undefined;
+    }
+
+    protected async runSetup(plan: WorktreeSetupPlan, folder: string, top: string, source: string): Promise<WorktreeSetupResult> {
+        const lines = plan.kind === 'commands' ? plan.commands : [this.scriptCommand(plan.script)];
+        const env = { ...process.env, [ROOT_WORKTREE_ENV]: top };
+        let output = '';
+        let ran = 0;
+        for (const line of lines) {
+            ran++;
+            const result = await new Promise<{ text: string; error?: string }>(resolve => exec(line, { cwd: folder, env, timeout: WORKTREE_SETUP_TIMEOUT_MS, maxBuffer: WORKTREE_SETUP_MAX_BUFFER },
+                (error, stdout, stderr) => resolve({ text: `${stdout}${stderr}`, ...(error ? { error: `${line}: ${(stderr || error.message).trim().split('\n').slice(-1)[0]}` } : {}) })));
+            output += result.text;
+            if (result.error) {
+                return { source, ran, ok: false, output: tailOutput(output), error: result.error };
+            }
+        }
+        return { source, ran, ok: true, output: tailOutput(output) };
+    }
+
+    protected scriptCommand(script: string): string {
+        const quoted = JSON.stringify(script);
+        if (process.platform !== WINDOWS_PLATFORM) {
+            return `sh ${quoted}`;
+        }
+        return script.toLowerCase().endsWith(POWERSHELL_EXT) ? `powershell -NoProfile -ExecutionPolicy Bypass -File ${quoted}` : quoted;
     }
 
     async remote(root: string): Promise<{ url: string; commit: string; branch?: string } | undefined> {

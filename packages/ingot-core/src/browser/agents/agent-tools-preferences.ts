@@ -3,6 +3,9 @@ import { RUN_DEFAULTS, RUN_PREFS } from '../../common/processes/run-settings';
 import { BROWSER_DEFAULTS, BROWSER_PREFS } from '../../common/browser-tool/browser-settings';
 import { DEFAULT_TOOL_RESULT_CHARS, MAX_TOOL_ROUNDS_CAP, WORK_LOOP_PREFS } from '../../common/agents/work-loop.consts';
 import { MAX_TOOL_ROUNDS } from '../../common/project-config/project-config.consts';
+import { LIBRARY_TEMPLATE_PREF } from '../../common/agents/library-app.consts';
+import { DEFAULT_TEST_ITERATIONS, MAX_TEST_ITERATIONS_CAP, TEST_LOOP_PREFS } from '../../common/testing/testing.consts';
+import { GOAL_DEFAULTS, GOAL_LIMITS, GOAL_PREFS } from '../../common/agents/goal.consts';
 
 /** IDEA-133: Settings › Tools › Agent tools (terminal, processes, browser). Also editable in settings.json. */
 export const agentToolsPreferenceSchema: PreferenceSchema = {
@@ -29,7 +32,11 @@ export const agentToolsPreferenceSchema: PreferenceSchema = {
         },
         [BROWSER_PREFS.enabled]: {
             type: 'boolean', default: BROWSER_DEFAULTS.enabled,
-            description: 'The agent can open pages in the Ingot browser panel, read them, click, type, scroll and take screenshots. Off: the browser tools are hidden from the agent.'
+            description: 'The agent can open pages in the Ingot browser panel, read them, click, type, scroll, take screenshots and read the console and failed requests. Off: the browser tools are hidden from the agent, even with /browser.'
+        },
+        [BROWSER_PREFS.everyRun]: {
+            type: 'boolean', default: BROWSER_DEFAULTS.everyRun,
+            description: 'Offer the browser tools in every agent run. Off (default): only runs started with the /browser command get them.'
         },
         [BROWSER_PREFS.requireApproval]: {
             type: 'boolean', default: BROWSER_DEFAULTS.requireApproval,
@@ -47,9 +54,25 @@ export const agentToolsPreferenceSchema: PreferenceSchema = {
             type: 'number', minimum: 1, maximum: MAX_TOOL_ROUNDS_CAP, default: MAX_TOOL_ROUNDS,
             description: 'Most tool rounds in one turn. A real task needs enough rounds to read, edit, run checks and fix.'
         },
+        [LIBRARY_TEMPLATE_PREF]: {
+            type: 'boolean', default: true,
+            description: 'A request for a new React and Node library app uses the built-in template (create_library). Off: the agent writes, installs, builds and tests the project itself.'
+        },
+        [TEST_LOOP_PREFS.maxIterations]: {
+            type: 'number', minimum: 1, maximum: MAX_TEST_ITERATIONS_CAP, default: DEFAULT_TEST_ITERATIONS,
+            description: 'Most failing ingot/run_tests runs in one turn. After that the agent stops and explains which tests still fail.'
+        },
         [WORK_LOOP_PREFS.maxToolResultChars]: {
             type: 'number', minimum: 1000, maximum: 200000, default: DEFAULT_TOOL_RESULT_CHARS,
             description: 'Characters of each tool result kept for the next model turn. Older text is cut.'
+        },
+        [GOAL_PREFS.maxIterations]: {
+            type: 'number', minimum: GOAL_LIMITS.minIterations, maximum: GOAL_LIMITS.maxIterations, default: GOAL_DEFAULTS.maxIterations,
+            description: '/goal: most agent turns before the goal stops, even if its done criteria are not all checked.'
+        },
+        [GOAL_PREFS.tokenBudget]: {
+            type: 'number', minimum: GOAL_LIMITS.minBudget, maximum: GOAL_LIMITS.maxBudget, default: GOAL_DEFAULTS.tokenBudget,
+            description: '/goal: estimated tokens (prompts and replies) a goal may spend before it stops.'
         }
     }
 };

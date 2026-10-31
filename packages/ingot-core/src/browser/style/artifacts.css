@@ -1,0 +1,80 @@
+/* IDEA-290: Artifacts viewer (plan.md, walkthrough.md, screenshots) with inline comments. Design tokens only. */
+.ingot-artifacts { background: var(--ingot-editor-bg); color: var(--ingot-text); font-size: 13px; }
+.ingot-art-root { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.ingot-art-root .ingot-flex { flex: 1; }
+.ingot-art-toolbar {
+    display: flex; align-items: center; gap: var(--ingot-space-2); height: 34px; padding: 0 var(--ingot-space-3); flex: none;
+    background: var(--ingot-toolbar); border-bottom: 1px solid var(--ingot-border);
+}
+.ingot-art-runs { max-width: 420px; height: 24px; }
+.ingot-art-status { color: var(--ingot-text-muted); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+.ingot-art-status.running::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ingot-accent);
+    animation: ingot-art-pulse 1.2s ease-in-out infinite;
+}
+@keyframes ingot-art-pulse { 50% { opacity: .35; } }
+.ingot-art-icon, .ingot-art-btn, .ingot-art-add {
+    all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; border-radius: 4px; color: var(--ingot-text-muted);
+}
+.ingot-art-icon { width: 24px; height: 24px; }
+.ingot-art-icon:hover, .ingot-art-btn:hover, .ingot-art-add:hover { background: var(--ingot-selection); color: var(--ingot-text); }
+.ingot-art-icon:focus-visible, .ingot-art-btn:focus-visible, .ingot-art-add:focus-visible, .ingot-art-tab:focus-visible { outline: 2px solid var(--ingot-focus-ring); outline-offset: -2px; }
+.ingot-art-btn { height: 24px; padding: 0 var(--ingot-space-2); font-size: 12px; border: 1px solid var(--ingot-border); }
+.ingot-art-btn.primary { background: var(--ingot-primary); border-color: var(--ingot-primary); color: var(--ingot-primary-text); }
+.ingot-art-btn.primary:hover { background: var(--ingot-primary-hover); color: var(--ingot-primary-text); }
+.ingot-art-btn:disabled { opacity: .5; cursor: default; }
+
+.ingot-art-tabs { display: flex; gap: 2px; padding: var(--ingot-space-1) var(--ingot-space-3) 0; border-bottom: 1px solid var(--ingot-border); flex: none; background: var(--ingot-toolbar); }
+.ingot-art-tab {
+    all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 var(--ingot-space-3);
+    color: var(--ingot-text-muted); border-bottom: 2px solid transparent; font-size: 12px;
+}
+.ingot-art-tab:hover { color: var(--ingot-text); }
+.ingot-art-tab.active { color: var(--ingot-text); border-bottom-color: var(--ingot-primary); }
+
+.ingot-art-body { flex: 1; min-height: 0; overflow: auto; padding: var(--ingot-space-3) 0 var(--ingot-space-4); }
+.ingot-art-doc { font-size: 13px; line-height: 20px; }
+.ingot-art-line { display: grid; grid-template-columns: 22px 36px minmax(0, 1fr); align-items: start; padding-right: var(--ingot-space-4); min-height: 20px; }
+.ingot-art-line:hover, .ingot-art-line.has-comments { background: var(--ingot-editor-line-highlight); }
+.ingot-art-add { width: 18px; height: 18px; margin: 1px 2px; opacity: 0; color: var(--ingot-primary-text); background: var(--ingot-primary); }
+.ingot-art-add:hover { background: var(--ingot-primary-hover); color: var(--ingot-primary-text); }
+.ingot-art-line:hover .ingot-art-add, .ingot-art-add:focus-visible { opacity: 1; }
+.ingot-art-num { color: var(--ingot-editor-gutter); text-align: right; padding-right: var(--ingot-space-3); font-family: 'JetBrains Mono', monospace; font-size: 11px; user-select: none; }
+.ingot-art-text { min-width: 0; overflow-wrap: anywhere; }
+code.ingot-art-text { font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: pre-wrap; background: none; color: var(--ingot-text); }
+.ingot-art-line.code code.ingot-art-text { color: var(--ingot-text-muted); }
+.ingot-art-text.ingot-md > :first-child { margin-top: 0; }
+.ingot-art-text.ingot-md > :last-child { margin-bottom: 0; }
+.ingot-art-text.ingot-md p, .ingot-art-text.ingot-md ul, .ingot-art-text.ingot-md ol { margin: 0; }
+.ingot-art-text.ingot-md h1, .ingot-art-text.ingot-md h2, .ingot-art-text.ingot-md h3 { margin: 6px 0 2px; line-height: 1.3; }
+.ingot-art-text.ingot-md h1 { font-size: 18px; }
+.ingot-art-text.ingot-md h2 { font-size: 15px; }
+.ingot-art-text.ingot-md h3 { font-size: 13px; }
+.ingot-art-text.ingot-md ul, .ingot-art-text.ingot-md ol { padding-left: 18px; }
+.ingot-art-text.ingot-md blockquote { margin: 0; padding-left: var(--ingot-space-2); border-left: 3px solid var(--ingot-border); color: var(--ingot-text-muted); }
+.ingot-art-inline-image { max-width: min(100%, 640px); border: 1px solid var(--ingot-border); border-radius: 6px; margin: 4px 0; }
+
+.ingot-art-thread { margin: 2px var(--ingot-space-4) 6px 58px; display: grid; gap: 4px; }
+.ingot-art-comment {
+    display: flex; align-items: flex-start; gap: 6px; padding: 6px var(--ingot-space-2); border-radius: 6px; font-size: 12px;
+    background: var(--ingot-surface); border: 1px solid var(--ingot-border); border-left: 3px solid var(--ingot-accent);
+}
+.ingot-art-comment .codicon { color: var(--ingot-accent); margin-top: 1px; }
+.ingot-art-comment-text { flex: 1; min-width: 0; white-space: pre-wrap; }
+.ingot-art-comment-state { color: var(--ingot-text-muted); font-size: 11px; white-space: nowrap; }
+.ingot-art-comment-state.sent { color: var(--ingot-success); }
+.ingot-art-composer { display: grid; gap: 6px; padding: var(--ingot-space-2); border-radius: 6px; background: var(--ingot-surface); border: 1px solid var(--ingot-primary); }
+.ingot-art-composer textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 44px; font: inherit; font-size: 12px; }
+.ingot-art-composer-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+.ingot-art-shots { padding: var(--ingot-space-3) var(--ingot-space-4) 0 58px; display: grid; gap: var(--ingot-space-3); }
+.ingot-art-heading { margin: 0; font-size: 12px; font-weight: 600; color: var(--ingot-text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.ingot-art-shot { margin: 0; border: 1px solid var(--ingot-border); border-radius: 8px; overflow: hidden; background: var(--ingot-surface); max-width: 720px; }
+.ingot-art-shot img { display: block; width: 100%; height: auto; background: var(--ingot-panel); }
+.ingot-art-shot figcaption { display: flex; align-items: center; gap: var(--ingot-space-2); padding: 6px var(--ingot-space-2); font-size: 12px; color: var(--ingot-text-muted); border-top: 1px solid var(--ingot-border); }
+.ingot-art-shot figcaption .ingot-flex { flex: 1; }
+.ingot-art-shot .ingot-art-thread { margin: 0 var(--ingot-space-2) var(--ingot-space-2); }
+
+.ingot-art-empty { margin: auto; max-width: 420px; padding: var(--ingot-space-4); text-align: center; color: var(--ingot-text-muted); display: grid; justify-items: center; gap: var(--ingot-space-2); }
+.ingot-art-empty .codicon { font-size: 28px; }
+@media (prefers-reduced-motion: reduce) { .ingot-art-status.running::before { animation: none; } }

@@ -9,12 +9,25 @@ import { ThemeService } from '@theia/core/lib/browser/theming';
 import { IconThemeService } from '@theia/core/lib/browser/icon-theme-service';
 import { SETTINGS_PREFS, SETTINGS_TREE } from '../../common/settings/settings.consts';
 import type { SettingInfo, SettingsAction, SettingsPage } from '../../common/settings/settings.types';
-import { coerceSetting, flattenPages, searchPages, settingLabel, visiblePreferences } from '../../common/settings/settings.utils';
+import { coerceSetting, flattenPages, pagesFor, searchPages, settingLabel, visiblePreferences } from '../../common/settings/settings.utils';
 import { MemoriesManager } from '../agents/chat-popovers';
 import {
     APPROVAL_KIND_LABELS, APPROVAL_PREFS, toAlwaysRunCommands, toAlwaysRunMap, updateAlwaysRun, updateAlwaysRunCommands, type ApprovalKind
 } from '../../common/agents/agent-actions';
 import { MemoryStore } from '../agents/memory-store';
+import { UserRulesService } from '../project-config/user-rules-service';
+import { RulesManager } from '../project-config/rules-manager';
+import { TeamRulesAdminService } from '../team-rules/team-rules-admin-service';
+import { TeamRulesEditor } from '../team-rules/team-rules-editor';
+import { HabitStore } from '../habits/habit-store';
+import { HabitsManager } from '../habits/habits-manager';
+import { DecisionLedger } from '../decisions/decision-ledger';
+import { DecisionsManager } from '../decisions/decisions-manager';
+import { FrozenStore } from '../frozen/frozen-store';
+import { FrozenManager } from '../frozen/frozen-manager';
+import { LearnedHabitStore } from '../habits/learned-store';
+import { findModel } from '../../common/models/models.utils';
+import { PlaybookService } from '../habits/playbook-service';
 import { IngotAccountService } from '../account/account-service';
 import { AccountAvatar } from '../account/account-avatar';
 import { SETTINGS_ACCOUNT_TEXT } from '../account/account.consts';
@@ -32,7 +45,14 @@ export class IngotSettingsDialog extends ReactDialog<void> {
     @inject(ThemeService) protected readonly themes: ThemeService;
     @inject(IconThemeService) protected readonly iconThemes: IconThemeService;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
+    @inject(UserRulesService) protected readonly userRules: UserRulesService;
+    @inject(HabitStore) protected readonly habitStore: HabitStore;
+    @inject(PlaybookService) protected readonly playbookService: PlaybookService;
+    @inject(DecisionLedger) protected readonly decisionLedger: DecisionLedger;
+    @inject(FrozenStore) protected readonly frozenStore: FrozenStore;
+    @inject(LearnedHabitStore) protected readonly learnedStore: LearnedHabitStore;
     @inject(IngotAccountService) protected readonly accounts: IngotAccountService;
+    @inject(TeamRulesAdminService) protected readonly teamRules: TeamRulesAdminService;
 
     protected query = '';
     protected selected = 'appearance';
@@ -160,8 +180,9 @@ export class IngotSettingsDialog extends ReactDialog<void> {
     }
 
     protected render(): React.ReactNode {
-        const visible = searchPages(SETTINGS_TREE, this.query, this.describe);
-        const all = flattenPages(SETTINGS_TREE);
+        const tree = pagesFor(SETTINGS_TREE, this.teamRules.isAdmin);
+        const visible = searchPages(tree, this.query, this.describe);
+        const all = flattenPages(tree);
         const current = all.find(p => p.page.id === this.selected && visible.has(p.page.id)) ?? all.find(p => visible.has(p.page.id));
         return <div className='ingot-settings' id='ingot-settings'>
             <div className='ingot-settings-top'>
@@ -171,7 +192,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
             </div>
             <div className='ingot-settings-main'>
                 <div className='ingot-settings-side'>
-                    <div className='ingot-settings-tree' role='tree'>{this.renderTree(SETTINGS_TREE, visible, 0, current?.page.id)}</div>
+                    <div className='ingot-settings-tree' role='tree'>{this.renderTree(tree, visible, 0, current?.page.id)}</div>
                 </div>
                 <div className='ingot-settings-page'>
                     {current
@@ -219,6 +240,11 @@ export class IngotSettingsDialog extends ReactDialog<void> {
             {page.description && <p className='ingot-settings-description'>{page.description}</p>}
             {page.custom === 'approvals' && this.renderAlwaysRun()}
             {page.custom === 'account' && this.renderAccount()}
+            {page.custom === 'rules' && <RulesManager service={this.userRules} />}
+            {page.custom === 'teamRules' && <TeamRulesEditor service={this.teamRules} />}
+            {page.custom === 'habits' && <HabitsManager store={this.habitStore} playbooks={this.playbookService} learned={this.learnedStore} modelLabel={id => findModel(id)?.label ?? id} />}
+            {page.custom === 'decisions' && <DecisionsManager ledger={this.decisionLedger} />}
+            {page.custom === 'frozen' && <FrozenManager store={this.frozenStore} runCommand={id => { this.close(); void this.commands.executeCommand(id); }} />}
             {page.custom === 'memories' && <section className='ingot-settings-card ingot-settings-memories'><MemoriesManager store={this.memoryStore} /></section>}
             {this.groupsFor(page, keys).map(group => <section key={group.label} className='ingot-settings-card'>
                 <h3 className='ingot-settings-card-title'>{group.label}</h3>

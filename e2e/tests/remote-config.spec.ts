@@ -34,9 +34,7 @@ test.describe('IDEA-125 remote config, flags and updates', () => {
         expect(server.configCalls[0]).toEqual({ version: '0.1.0', signedIn: false });
         await page.locator('#ingot-agents-new').click();
         await expect(page.locator('#ingot-composer-input')).toBeVisible();
-        await page.locator('#ingot-composer-more').click();
         await expect(page.locator('#ingot-composer-mic')).toHaveCount(0);
-        await page.locator('#ingot-composer-more').click();
         await page.locator('#ingot-rs-mcp').click();
         await expect(page.locator('#ingot-mcp-search')).toBeVisible();
         await expect(page.locator('#ingot-mcp-browse')).toHaveCount(0);
@@ -58,8 +56,7 @@ test.describe('IDEA-125 remote config, flags and updates', () => {
         }
         await expect.poll(() => server.configCalls.some(c => c.signedIn)).toBe(true);
         await expect(page.locator('#ingot-mcp-browse')).toBeVisible();
-        await page.locator('#ingot-composer-more').click();
-        await expect(page.locator('#ingot-composer-mic')).toHaveCount(1);
+        await expect(page.locator('.ingot-composer-bar #ingot-composer-mic')).toHaveCount(1);
     });
 
     test('update notice offers Download, Release notes and Later; Later is remembered for that version', async ({ page }) => {

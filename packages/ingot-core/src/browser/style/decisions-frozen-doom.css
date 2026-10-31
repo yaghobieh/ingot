@@ -1,0 +1,24 @@
+/* IDEA-302..304: the paused-run card and settings rows. */
+
+.ingot-doom-card {
+  display: flex; flex-direction: column; gap: 6px; margin: 0 var(--ingot-space-2) 6px; padding: 8px 10px;
+  border: 1px solid var(--ingot-border); border-left: 3px solid var(--ingot-warning); border-radius: 6px;
+  background: var(--ingot-surface); color: var(--ingot-text); font-size: 12px;
+}
+.ingot-doom-head { display: flex; align-items: center; gap: 6px; }
+.ingot-doom-head .codicon { color: var(--ingot-warning); }
+.ingot-doom-title { font-weight: 600; }
+.ingot-doom-reason { color: var(--ingot-text); }
+.ingot-doom-tried { color: var(--ingot-text-muted); font-size: 11px; }
+.ingot-doom-tried-title { font-weight: 600; margin-bottom: 2px; }
+.ingot-doom-tried ol { margin: 0; padding-left: 18px; max-height: 96px; overflow-y: auto; }
+.ingot-doom-tried li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--theia-code-font-family, monospace); }
+.ingot-doom-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ingot-doom-actions .codicon { font-size: 12px; }
+
+.ingot-frozen-suggestion .ingot-habit-card-head .codicon { color: var(--ingot-info); }
+.ingot-frozen-suggestion code { font-size: 11px; }
+
+.ingot-decision-add { display: flex; gap: 6px; align-items: center; }
+.ingot-decision-add input { flex: 1; min-width: 0; }
+.ingot-decision-row .codicon-lock, .ingot-frozen-row .codicon-snowflake { color: var(--ingot-silver); }

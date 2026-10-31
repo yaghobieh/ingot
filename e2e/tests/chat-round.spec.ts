@@ -8,14 +8,11 @@ import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
+import { saveArtifact } from '../src/artifacts.e2e-utils';
 
 /** IDEA-248: thinking, reactions, a clickable turn summary, questions, steering, and two agents at once. */
-const ARTIFACTS = '/opt/cursor/artifacts/screenshots';
-
 const saveShot = async (page: Page, name: string, full = false): Promise<void> => {
-    fs.mkdirSync(ARTIFACTS, { recursive: true });
-    const target = full ? page : page.locator('.ingot-agents');
-    await target.screenshot({ path: path.join(ARTIFACTS, name), animations: 'disabled' });
+    await saveArtifact(full ? page : page.locator('.ingot-agents'), name);
     await shot(page, name);
 };
 
@@ -87,16 +84,17 @@ test.describe('IDEA-248 chat round', () => {
             await expect(page.locator('.ingot-chat-thought-text')).toContainText('walk the names first');
             await captureBoth(page, 'thinking');
 
-            await page.locator('#ingot-react-like-0').click();
-            await expect(page.locator('#ingot-react-like-0')).toHaveAttribute('aria-pressed', 'true');
-            await page.locator('#ingot-react-like-0').click();
-            await expect(page.locator('#ingot-react-like-0')).toHaveAttribute('aria-pressed', 'false');
+            await expect(page.locator('#ingot-msg-0 .ingot-reactions')).toHaveCount(0);
+            await page.locator('#ingot-react-like-1').click();
+            await expect(page.locator('#ingot-react-like-1')).toHaveAttribute('aria-pressed', 'true');
+            await page.locator('#ingot-react-like-1').click();
+            await expect(page.locator('#ingot-react-like-1')).toHaveAttribute('aria-pressed', 'false');
             await page.locator('#ingot-react-heart-1').click();
             await expect(page.locator('#ingot-react-heart-1')).toHaveAttribute('aria-pressed', 'true');
             await captureBoth(page, 'reactions');
             await page.reload();
             await expect(page.locator('#ingot-react-heart-1')).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
-            await expect(page.locator('#ingot-react-like-0')).toHaveAttribute('aria-pressed', 'false');
+            await expect(page.locator('#ingot-react-like-1')).toHaveAttribute('aria-pressed', 'false');
         } finally {
             await server.close();
         }
@@ -196,11 +194,11 @@ test.describe('IDEA-248 chat round', () => {
                 if (await approve.isVisible().catch(() => false)) {
                     await approve.click();
                 }
-                if (await page.locator('.ingot-change-name').isVisible().catch(() => false)) {
+                if (await page.locator('#ingot-review-files .ingot-review-file').isVisible().catch(() => false)) {
                     break;
                 }
             }
-            const file = page.locator('.ingot-change-file');
+            const file = page.locator('#ingot-review-files .ingot-review-file-name');
             await expect(file).toContainText('note.txt');
             await file.click();
             await expect(page.locator('.ingot-tc, .ingot-agents')).toContainText('node -e');

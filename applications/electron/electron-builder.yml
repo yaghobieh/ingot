@@ -1,5 +1,5 @@
 # Packaging config for the Ingot desktop app (IDEA-54, release pipeline IDEA-134).
-# Unsigned by default. Signing/notarization switch on only when the CI secrets exist (docs/release.md).
+# Unsigned by default. Signing/notarization switch on only when the CI secrets exist (docs/RELEASING.md).
 appId: dev.ingot.ide
 productName: Ingot
 copyright: Copyright © 2026 Ingot contributors

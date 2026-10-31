@@ -14,6 +14,8 @@ export interface AgentStep {
     readonly done: boolean;
     readonly added?: number;
     readonly removed?: number;
+    /** IDEA-259: the checklist text when "<verb> <target>" would read as a raw tool id. */
+    readonly label?: string;
 }
 
 export interface AgentMessage {
@@ -41,9 +43,17 @@ export interface AgentMessage {
     readonly refs?: readonly string[];
     /** Like and heart on this message. Kept with the saved chat. */
     readonly reactions?: readonly import('./chat-round.types').ReactionKind[];
+    /** IDEA-267: IDE context attached to a user message (labels only), shown under it. */
+    readonly auto?: readonly import('./auto-context.types').SentAutoContext[];
+    /** IDEA-267: suggested next prompts under the final reply of a turn. */
+    readonly followUps?: readonly string[];
     /** When a think block opened, and how long it lasted once it closed. */
     readonly thoughtStarted?: number;
     readonly thoughtMs?: number;
+    /** The silver note (Habits, Decisions, Frozen Zones): opens the habit, with Undo. Not sent to the model. */
+    readonly note?: import('../habits/habits.types').HabitNoteInfo;
+    /** IDEA-306: the run's diff checked against the approved plan, drawn as a review card. */
+    readonly planReview?: import('../plan-review/plan-review.types').PlanReview;
     /** IDEA-314: a Deep research run (live progress, then the cited answer in `text`). */
     readonly research?: import('../research/research.types').ResearchView;
 }
@@ -80,6 +90,10 @@ export interface AgentSession {
     activeFile?: string;
     /** Project root URI the agent works in; set inside project groups (IDEA-52). */
     project?: string;
+    /** IDEA-266: the workspace (folder or workspace file URI) of the window the chat belongs to. */
+    workspace?: string;
+    /** IDEA-268 / IDEA-291: the chat (or task subagent) works in its own git worktree instead of the project folder; `path` is a URI. */
+    worktree?: import('../threads/threads.types').ThreadWorktree;
     /** Open as a tab in the Agents panel (closed chats stay in History). */
     open?: boolean;
     openedAt?: number;
@@ -87,6 +101,8 @@ export interface AgentSession {
     context?: ChatContextInfo;
     /** Multi-agent: the chat that started this sub-agent. */
     parent?: string;
+    /** IDEA-287: the custom subagent (`.ingot/agents/<name>.md`) this task runs, and whether it may only read. */
+    subagent?: { readonly name: string; readonly readonly: boolean };
     /** IDEA-180: `zaprex` for a Harmony mode piece Zaprex runs next to the agent. */
     agent?: 'ingot' | 'zaprex';
     /** IDEA-180: the files this chat may change (globs); others are locked to the lead agent. */
@@ -99,6 +115,24 @@ export interface AgentSession {
     pause?: ReviewPause;
     /** A question the agent is waiting on. Cleared when the user answers or stops. */
     ask?: { readonly question: string; readonly options?: readonly string[] };
+    /** IDEA-296: the habit (scenario playbook) this chat follows, with its live checklist. */
+    habit?: import('../habits/playbook.types').ActiveHabit;
+    /** IDEA-292: a `/goal` run: the agent keeps taking turns until its self-check passes. */
+    goal?: import('./goal.types').AgentGoal;
+    /** IDEA-292: a command or skill pinned into this chat's system prompt ("Use as mode"). */
+    customMode?: import('./custom-mode.types').CustomMode;
+    /** IDEA-290: the `.ingot/artifacts/<runId>` folder of the latest run, once something was written. */
+    artifactsRun?: string;
+    /** IDEA-304: the run paused because it went in circles; the card offers reset or a different approach. */
+    doom?: import('../doom-loop/doom-loop.types').DoomVerdict;
+    /** IDEA-307: the model the router sent this turn to (cleared on the next send). */
+    route?: import('../router/router.types').RouteDecision;
+    /** IDEA-305: the chat looks stale; offered to continue in a fresh chat from a brief. */
+    handoffOffer?: import('../fresh-context/fresh-context.types').HandoffOffer;
+    /** IDEA-305: turn count when the offer was last dismissed ("Not now"). */
+    handoffDismissedAt?: number;
+    /** IDEA-306: the plan approved with Build, reviewed against the diff when the run ends. */
+    approvedPlan?: import('../plan-review/plan-review.types').ApprovedPlan;
 }
 
 export interface ReviewPause {

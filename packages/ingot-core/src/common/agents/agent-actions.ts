@@ -4,16 +4,26 @@
  */
 import type { GitOperation } from '../git/git-ops';
 import type { AgentToolCall } from './agent-protocol';
+import { EDIT_CLOSE, TOOL_OPEN } from './agent-protocol.consts';
 import { describeTarget, toTarget } from '../browser-tool/browser-tool.utils';
+import { CREATE_LIBRARY_TOOL } from './library-app.consts';
+import { CODE_TOOLS, CODE_TOOLS_HINT } from './code-tools.consts';
+import { isCodeTool } from './code-tools';
+import { isSlackPostTool, slackPostAction } from '../slack';
+import { ARTIFACT_TOOL, ARTIFACT_TOOL_DESCRIPTION } from '../artifacts/artifacts.consts';
+import { TASK_TOOL, TASK_TOOL_DESCRIPTION } from './subagent-task.consts';
 
 export const BUILTIN_TOOL_SERVER = 'ingot';
+/** One "Always Run" entry covers every run_tests call (files and filters change between iterations). */
+export const RUN_TESTS_COMMAND = 'ingot/run_tests';
 
-export type ApprovalKind = 'git' | 'terminal' | 'web' | 'browser' | 'mcp' | 'delete';
+/** IDEA-288: `write` is a file edit the sandbox stopped; it never gets "Always Run", so it is not in `APPROVAL_KINDS`. */
+export type ApprovalKind = 'git' | 'terminal' | 'web' | 'browser' | 'mcp' | 'delete' | 'write';
 export type ApprovalDecision = 'run' | 'skip' | 'always';
 
 export const APPROVAL_KINDS: readonly ApprovalKind[] = ['git', 'terminal', 'web', 'browser', 'mcp', 'delete'];
 export const APPROVAL_KIND_LABELS: Record<ApprovalKind, string> = {
-    git: 'Git actions', terminal: 'Terminal commands', web: 'Web search and fetch', browser: 'Browser actions', mcp: 'MCP tool calls', delete: 'File deletes'
+    git: 'Git actions', terminal: 'Terminal commands', web: 'Web search and fetch', browser: 'Browser actions', mcp: 'MCP tool calls', delete: 'File deletes', write: 'File edits'
 };
 
 export const APPROVAL_PREFS = {
@@ -35,6 +45,12 @@ export interface AgentAction {
     readonly detail: string;
     /** IDEA-131: terminal commands are remembered one by one for "Always Run". */
     readonly command?: string;
+    /** IDEA-263: approve this one call only; the card has no "Always Run" (leaving the sandbox). */
+    readonly once?: boolean;
+    /** IDEA-270: always shows the card (no "Always Run"), e.g. posting to Slack. */
+    readonly alwaysAsk?: boolean;
+    /** IDEA-288: why the action leaves the sandbox; such cards have no "Always Run". */
+    readonly sandbox?: string;
 }
 
 export interface PendingApproval extends AgentAction {
@@ -46,6 +62,7 @@ export const BUILTIN_TOOLS = [
     { name: 'run', description: 'Run a shell command in the project root (compilers, tests, builds, package scripts). Arguments: {"command": "npm test", "background"?: true}. Foreground (default) waits for the exit code and output; a command still running after the timeout keeps running in the background. Use "background": true for dev servers and watchers: you get a process id. Waits for the user\'s approval.' },
     { name: 'scripts', description: 'List the project\'s package.json scripts and its package manager (npm, pnpm, yarn or bun). No arguments. Runs at once.' },
     { name: 'run_script', description: 'Run a package.json script with the project\'s package manager. Arguments: {"script": "dev", "background"?: true}. Waits for the user\'s approval.' },
+    { name: 'run_tests', description: 'Run the project\'s tests with its detected runner (vitest, jest, mocha or Playwright) and get structured pass/fail: counts, then each failure with file, line, test name and message, plus one JSON line. Arguments: {"files"?: ["src/a.test.ts"], "grep"?: "test name", "failedOnly"?: true}. No arguments runs every test. Use it after each edit: edit, run_tests, fix, until green. The loop has an iteration cap; when the result says Stop, stop and explain. Waits for the user\'s approval.' },
     { name: 'processes', description: 'List running and recent processes (id, status, command, uptime, port). No arguments. Runs at once.' },
     { name: 'process_output', description: 'Read the latest output of a process. Arguments: {"id": "p3"}. Runs at once.' },
     { name: 'process_stop', description: 'Stop a running process and its children. Arguments: {"id": "p3"}. Processes the user started wait for approval.' },
@@ -59,10 +76,17 @@ export const BUILTIN_TOOLS = [
     { name: 'browser_scroll', description: 'Scroll the page. Arguments: {"direction": "down" | "up" | "top" | "bottom"}.' },
     { name: 'browser_back', description: 'Go back one page. No arguments.' },
     { name: 'browser_screenshot', description: 'Take a screenshot of the browser panel (shown to the user; sent to you when the model reads images). No arguments.' },
+    { name: 'fetch_rule', description: 'Read the full text of a project rule from "Available rules" or a skill from "Available skills". Arguments: {"name": "api-style"}. Runs at once.' },
+    { name: 'use_habit', description: 'Follow a habit (a team playbook) from "Habits": returns its steps, tool limits and done criteria. Arguments: {"name": "Payments bug"}. Runs at once.' },
+    { name: 'browser_console', description: 'Read the page\'s console messages and uncaught errors (latest last). Arguments: {"level"?: "error" | "warning" | "all"}. Runs at once.' },
+    { name: 'browser_network', description: 'List failed requests of the page: HTTP 4xx/5xx and requests with no response (page, assets, fetch / XHR). No arguments. Runs at once.' },
     { name: 'delete', description: 'Delete a file in the project. Arguments: {"path": "relative/path"}. Waits for the user\'s approval.' },
+    ...CODE_TOOLS,
     { name: 'ask_user', description: 'Ask the user a clarifying question and wait for the answer before continuing. Arguments: {"question": "…", "options"?: ["a", "b"]}. The user can also type their own answer. Runs at once and pauses the run.' },
     { name: 'create_library', description: 'Create a new React + Vite client and Node + Express server for a library (books, authors, members, loans, borrow and return) in a new empty folder. Arguments: {"path": "/absolute/or/relative", "react": "feature-folders" | "atomic", "node": "layered" | "modular", "reactExample"?: "/path/to/example", "nodeExample"?: "/path/to/example"}. Named presets or an example folder. If the layout is unclear, call ask_user first. Runs at once; each file shows up for Accept or Reject.' },
-    { name: 'open_workspace', description: 'Open a folder as the Ingot workspace. Arguments: {"path": "/absolute/path"}. Waits for the user\'s approval. Call it last, after install, tests and git.' }
+    { name: 'open_workspace', description: 'Open a folder as the Ingot workspace. Arguments: {"path": "/absolute/path"}. Waits for the user\'s approval. Call it last, after install, tests and git.' },
+    { name: TASK_TOOL, description: TASK_TOOL_DESCRIPTION },
+    { name: ARTIFACT_TOOL, description: ARTIFACT_TOOL_DESCRIPTION }
 ] as const;
 
 const str = (value: unknown): string => typeof value === 'string' ? value : '';
@@ -101,9 +125,16 @@ const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
  * `currentBranch` fills "Git push: <branch> → <remote>" when the call does not name a branch.
  */
 export const describeAction = (call: AgentToolCall, currentBranch?: string): AgentAction | undefined => {
+    if (call.server !== BUILTIN_TOOL_SERVER && isSlackPostTool(call.server, call.tool)) {
+        return slackPostAction(call);
+    }
     if (call.server !== BUILTIN_TOOL_SERVER) {
         const args = Object.values(call.args).filter(v => typeof v === 'string' || typeof v === 'number').join(' ');
         return { kind: 'mcp', label: `${call.server}: ${call.tool}`, detail: args };
+    }
+    // IDEA-259: language-server reads run at once; rename and organize imports land as reviewable edits.
+    if (isCodeTool(call.tool)) {
+        return undefined;
     }
     const a = call.args;
     switch (call.tool) {
@@ -127,9 +158,15 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
             const cwd = str(a.cwd).trim();
             return { kind: 'terminal', label: a.background === true ? 'Run in background' : 'Run command', detail: cwd ? `${command} (${cwd})` : command, command };
         }
+        case 'run_tests': {
+            const scope = [list(a.files).join(' '), str(a.grep) ? `"${str(a.grep)}"` : '', a.failedOnly === true ? 'failed only' : ''].filter(Boolean).join(' ');
+            return { kind: 'terminal', label: 'Run tests', detail: scope || 'all tests', command: RUN_TESTS_COMMAND };
+        }
         case 'scripts': case 'processes': case 'process_output': return undefined;
         // IDEA-186: read-only project tools run at once.
-        case 'read_file': case 'list_dir': case 'glob': case 'grep': case 'ask_user': case 'create_library': return undefined;
+        case 'read_file': case 'list_dir': case 'glob': case 'grep': case 'codebase_search': case 'ask_user': case 'create_library': case 'fetch_rule': case 'use_habit': return undefined;
+        // IDEA-290 / IDEA-291: artifacts are notes for the user, and a subagent asks for approval on its own actions.
+        case ARTIFACT_TOOL: case TASK_TOOL: return undefined;
         case 'open_workspace': return { kind: 'terminal', label: 'Open folder', detail: str(a.path), command: str(a.path) };
         case 'process_stop': return { kind: 'terminal', label: 'Stop process', detail: str(a.id) };
         case 'web_search': return { kind: 'web', label: 'Search web', detail: str(a.query) };
@@ -143,12 +180,17 @@ export const describeAction = (call: AgentToolCall, currentBranch?: string): Age
         case 'browser_scroll': return { kind: 'browser', label: 'Scroll', detail: str(a.direction) || 'down' };
         case 'browser_back': return { kind: 'browser', label: 'Go back', detail: '' };
         case 'browser_screenshot': return { kind: 'browser', label: 'Screenshot', detail: '' };
+        case 'browser_console': return { kind: 'browser', label: 'Read console', detail: str(a.level) || 'all' };
+        case 'browser_network': return { kind: 'browser', label: 'Read failed requests', detail: '' };
         default: return { kind: 'mcp', label: capitalize(call.tool), detail: '' };
     }
 };
 
 /** Whether an action waits for the card, given the settings. */
 export const needsApproval = (action: AgentAction, project: string, alwaysRun: AlwaysRunMap, gitRequireApproval: boolean, commands: AlwaysRunCommands = {}): boolean => {
+    if (action.alwaysAsk) {
+        return true;
+    }
     if (action.kind === 'git' && !gitRequireApproval) {
         return false;
     }
@@ -245,25 +287,50 @@ export const activityLine = (steps: readonly { kind: string; target: string }[])
 export const skippedResult = (action: AgentAction, reason?: string): string =>
     `The user skipped this action (${actionLine(action, 200)}). Do not retry it unless the user asks.${reason?.trim() ? ` Reason: ${reason.trim()}` : ''}`;
 
+/** Tool result for a call to a tool that does not exist (often a malformed native call): names the real ones. */
+export const unknownToolResult = (tool: string, names: readonly string[]): string => [
+    `Unknown Ingot tool "${tool}". Use one of: ${names.join(', ')}.`,
+    `Call it as a block: ${TOOL_OPEN}${BUILTIN_TOOL_SERVER}/<name>, then the JSON arguments on the next line, then ${EDIT_CLOSE}.`
+].join('\n');
+
 /** IDEA-133: which built-in tools Settings › Tools › Agent tools turns on. */
 export interface BuiltinToolSwitches {
     readonly terminal: boolean;
     readonly browser: boolean;
+    /** IDEA-282: the built-in library template (create_library). On unless turned off. */
+    readonly template?: boolean;
 }
 
 /** Tools that start commands (listing scripts and reading processes stay available). */
-export const COMMAND_TOOLS: readonly string[] = ['run', 'run_script'];
+export const COMMAND_TOOLS: readonly string[] = ['run', 'run_script', 'run_tests'];
 
-export const builtinToolEnabled = (name: string, on: BuiltinToolSwitches): boolean =>
-    COMMAND_TOOLS.includes(name) ? on.terminal : name.startsWith('browser_') ? on.browser : true;
+export const builtinToolEnabled = (name: string, on: BuiltinToolSwitches): boolean => {
+    if (name === CREATE_LIBRARY_TOOL) {
+        return on.template !== false;
+    }
+    return COMMAND_TOOLS.includes(name) ? on.terminal : name.startsWith('browser_') ? on.browser : true;
+};
+
+const LIBRARY_TEMPLATE_STEPS = [
+    'New React and Node library: if the user asks to create one, call ingot/ask_user when the React structure (feature-folders or atomic) or the Node structure (layered or modular) or the folder path is unclear. An example folder can be passed as reactExample or nodeExample.',
+    'Then ingot/create_library. Then ingot/run npm install, npm test and npm run build with {"cwd": "<that path>"}. If tests fail, fix the files and rerun npm test, up to 3 times.',
+    'Then ingot/ask_user whether to git init on branch feature/library and make the first commit. If they agree, ingot/run those git commands with that cwd.',
+    'Last, ingot/open_workspace with the same path. Do not hand-write the project when create_library can do it.'
+];
+
+/** IDEA-282: how to build a new multi-app project by hand, step by step, until it really runs. */
+export const NEW_PROJECT_STEPS = [
+    'New project from scratch: start with a PLAN of the apps, folders and files. Write the files with <<<EDIT blocks, a few files per reply, paths relative to the open folder (e.g. server/src/app.ts).',
+    'Keep going without asking: after the files, run npm install, npm run build and npm test in each app with ingot/run {"command": "...", "cwd": "server"}. Read every failure, fix the files, and run again until all of them pass.',
+    'Pin dependency versions that work together. Every app needs a "build" script and a "test" script with real unit or API tests that exit on their own (vitest run, not watch mode).',
+    'Do not git init or commit unless the user asked for it. Finish with a short summary of what runs and how.'
+];
 
 /** The system-prompt section for Ingot's built-in tools. */
 export const builtinToolProtocol = (on: BuiltinToolSwitches = { terminal: true, browser: true }): string => [
     'Ingot tools (same block format, server "ingot"):',
     ...BUILTIN_TOOLS.filter(t => builtinToolEnabled(t.name, on)).map(t => `- ${BUILTIN_TOOL_SERVER}/${t.name}: ${t.description}`),
     'If the user skips an action you get its reason as the tool result; adapt instead of retrying.',
-    'New React and Node library: if the user asks to create one, call ingot/ask_user when the React structure (feature-folders or atomic) or the Node structure (layered or modular) or the folder path is unclear. An example folder can be passed as reactExample or nodeExample.',
-    'Then ingot/create_library. Then ingot/run npm install, npm test and npm run build with {"cwd": "<that path>"}. If tests fail, fix the files and rerun npm test, up to 3 times.',
-    'Then ingot/ask_user whether to git init on branch feature/library and make the first commit. If they agree, ingot/run those git commands with that cwd.',
-    'Last, ingot/open_workspace with the same path. Do not hand-write the project when create_library can do it.'
+    CODE_TOOLS_HINT,
+    ...(on.template === false ? NEW_PROJECT_STEPS : LIBRARY_TEMPLATE_STEPS)
 ].join('\n');

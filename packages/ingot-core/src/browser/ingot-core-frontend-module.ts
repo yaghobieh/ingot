@@ -27,19 +27,38 @@ import { BROWSER_WIDGET_ID } from '../common/browser-tool/browser-tool.consts';
 import { IngotPortsWidget } from './ports/ingot-ports-widget';
 import { IngotPortsContribution } from './ports/ingot-ports-contribution';
 import { PORTS_WIDGET_ID } from './ports/ingot-ports.consts';
+import { TestStore } from './testing/test-store';
+import { TestExplorerWidget } from './testing/test-explorer-widget';
+import { TestExplorerContribution } from './testing/test-explorer-contribution';
+import { TEST_EXPLORER_WIDGET_ID } from './testing/testing.browser-consts';
+import { TEST_SERVICE_PATH } from '../common/testing/testing.consts';
+import { TestService } from '../common/testing/testing.types';
 import { AgentStore } from './agents/agent-store';
+import { CodeToolsService } from './agents/code-tools-service';
 import { MemoryStore } from './agents/memory-store';
+import { AutoContextService } from './agents/auto-context-service';
 import { ChangeTracker } from './changes/change-tracker';
 import { ChangeKeybindingsContribution } from './changes/change-keybindings';
+import { LocalHistoryService } from './local-history/local-history-service';
+import { LocalHistoryWidget } from './local-history/local-history-widget';
+import { LocalHistoryContribution, createLocalHistoryWidgetFactory } from './local-history/local-history-contribution';
+import { InlineEditContribution } from './inline-edit/inline-edit-contribution';
 import { IngotAgentsWidget } from './agents/agents-widget';
 import { EditorCopyTracker } from './agents/editor-copy-tracker';
 import { IngotAgentsContribution } from './agents/agents-contribution';
+import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding';
+import { IngotKeybindingRegistry } from './agents/text-key-guard';
 import { AGENTS_WIDGET_ID } from './agents/agents.consts';
+import { AGENT_REVIEW_WIDGET_ID, AgentReviewContribution, AgentReviewWidget } from './agent-review';
+import { THREADS_WIDGET_ID, ThreadsContribution, ThreadsService, ThreadsWidget, WorktreeSetupService } from './threads';
+import { DiskSyncContribution } from './disk-sync';
 import { IngotStripeWidget } from './stripe/ingot-stripe-widget';
 import { IngotExplorerHeader } from './navigator/explorer-header';
 import { IngotAccountService } from './account/account-service';
 import { IngotAccountContribution } from './account/account-contribution';
 import { IngotFeatureFlags } from './config/feature-flags';
+import { IngotPlanService } from './plan/plan-service';
+import { IngotPlanGateContribution } from './plan/plan-gate-contribution';
 import { IngotUpdateContribution } from './config/update-contribution';
 import { IngotSyncService } from './sync/sync-service';
 import { IngotRightStripeWidget } from './tool-windows/right-stripe-widget';
@@ -67,8 +86,8 @@ import { ModelService } from '../common/models/models.types';
 import { IngotModelClient } from './models/model-client';
 import { IngotModelsWidget } from './models/models-widget';
 import { IngotModelsContribution } from './models/models-contribution';
-import { IngotInlineCompletions } from './models/inline-completions';
 import { bindModelPreferences } from './models/model-preferences';
+import { IngotTabCompletions, IngotTabContribution, IngotTabIgnore, IngotTabNextEdit, IngotTabUsage, bindTabPreferences } from './tab';
 import { bindAccountPreferences } from './account/account-preferences';
 import { IngotAccountClient } from './account/account-client';
 import { ACCOUNT_SERVICE_PATH, AccountBackend } from '../common/account/account-protocol';
@@ -91,11 +110,17 @@ import { aiSettingsPreferenceSchema } from './agents/ai-settings-preferences';
 import { subagentsPreferenceSchema } from './agents/subagents-preferences';
 import { approvalPreferenceSchema } from './agents/approval-preferences';
 import { agentToolsPreferenceSchema } from './agents/agent-tools-preferences';
+import { codebaseIndexPreferenceSchema } from './codebase-index/codebase-index-preferences';
+import { CodebaseIndexClientImpl, CodebaseIndexStore } from './codebase-index/codebase-index-store';
+import { CodebaseIndexContribution } from './codebase-index/codebase-index-contribution';
+import { CODEBASE_INDEX_SERVICE_PATH } from '../common/codebase-index/codebase-index.consts';
+import { CodebaseIndexService } from '../common/codebase-index/codebase-index.types';
 import { ReviewContribution } from './review/review-contribution';
 import { ReviewComments } from './review/review-comments';
 import { IngotLayoutContribution } from './layout/layout-contribution';
 import { ProjectConfigService } from './project-config/project-config-service';
 import { IngotMcpClient } from './project-config/mcp-client';
+import { SlackConnectionService } from './slack';
 import { IngotAgentConfigWidget } from './project-config/agent-config-widget';
 import { IngotAgentConfigContribution } from './project-config/agent-config-contribution';
 import { AGENT_CONFIG_WIDGET_ID } from './project-config/project-config.browser-consts';
@@ -108,6 +133,13 @@ import { ZaprexLauncher } from './agents/zaprex-launcher';
 import { GitService } from '../common/git/git.types';
 import { EDITOR_IMPORT_SERVICE_PATH, EditorImportService } from '../common/import/editor-import.types';
 import { EditorImportContribution } from './import/editor-import-contribution';
+import { CursorImportContribution, cursorImportPreferenceSchema } from './import/cursor-import-contribution';
+import { CursorSyncContribution } from './import/cursor-sync-contribution';
+import { CursorMemoriesContribution } from './import/cursor-memories-contribution';
+import { TeamRulesAdminService } from './team-rules/team-rules-admin-service';
+import { TeamRulesContribution } from './team-rules/team-rules-contribution';
+import { CursorModeService } from './import/cursor-mode-service';
+import { EnvironmentContribution, teamRulesPreferenceSchema } from './project-config/environment-contribution';
 import { GitResourceResolver } from './git/git-resource-resolver';
 import { IngotGitLogWidget } from './git/git-log-widget';
 import { IngotGitContribution } from './git/git-contribution';
@@ -119,6 +151,30 @@ import { LocalChangesWidget } from './commit/local-changes-widget';
 import { IngotDiffWidget } from './commit/ingot-diff-widget';
 import { AiCommitService } from './commit/ai-commit-service';
 import { AgentHooksService } from './hooks/agent-hooks-service';
+import { AgentEventHooks } from './hooks/agent-event-hooks';
+import { WorkspaceOpenHooks } from './hooks/workspace-open-hooks';
+import { InitAgentsContribution } from './project-config/init-agents-contribution';
+import { UserRulesService } from './project-config/user-rules-service';
+import { HabitStore } from './habits/habit-store';
+import { HabitsContribution } from './habits/habits-contribution';
+import { PlaybookService } from './habits/playbook-service';
+import { HabitRunner } from './habits/habit-runner';
+import { habitsPreferenceSchema } from './habits/habits-preferences';
+import { HabitBus } from './habits/habit-bus';
+import { guardsPreferenceSchema } from './habits/guards-preferences';
+import { DecisionLedger } from './decisions/decision-ledger';
+import { DecisionsContribution } from './decisions/decisions-contribution';
+import { FrozenStore } from './frozen/frozen-store';
+import { FrozenContribution } from './frozen/frozen-contribution';
+import { AntiHabitStore } from './doom-loop/anti-habit-store';
+import { LearnedHabitStore } from './habits/learned-store';
+import { FreshContextService } from './fresh-context/fresh-context-service';
+import { freshContextPreferenceSchema } from './fresh-context/fresh-context-preferences';
+import { PlanReviewService } from './plan-review/plan-review-service';
+import { ModelRouter } from './router/model-router';
+import { routerPreferenceSchema } from './router/router-preferences';
+import { AgentAutopilotContribution } from './router/agent-autopilot-contribution';
+import { CostForecastService } from './cost/cost-forecast';
 import { AgentHooksGate } from './hooks/hooks-contribution';
 import { hooksPreferenceSchema } from './hooks/hooks-preferences';
 import { RulesToolsContribution } from './rules-tools/rules-tools-contribution';
@@ -126,6 +182,13 @@ import { LearnedRulesContribution } from './rules-tools/learned-rules-contributi
 import { learnedRulesPreferenceSchema } from './rules-tools/learned-rules-preferences';
 import { RULES_TOOLS_SERVICE_PATH } from '../common/rules-tools/rules-tools.consts';
 import { RulesToolsService } from '../common/rules-tools/rules-tools.types';
+import { AGENT_AUDIT_SERVICE_PATH } from '../common/audit/agent-audit.consts';
+import { AgentAuditService } from '../common/audit/agent-audit.types';
+import { AgentAuditLog } from './policy/agent-audit-log';
+import { AgentPolicyService } from './policy/agent-policy-service';
+import { IngotAuditLogWidget } from './policy/audit-log-widget';
+import { IngotAuditLogContribution } from './policy/audit-log-contribution';
+import { AUDIT_WIDGET_ID } from './policy/policy.consts';
 import { CommitWindow } from './commit/commit-window';
 import { CommitWindowContribution } from './commit/commit-window-contribution';
 import { DiffUndoRedoHandler } from './commit/diff-undo-redo-handler';
@@ -162,9 +225,19 @@ import { IngotBadgeIconTheme, IngotFilesIconTheme, IngotIconTheme } from './icon
 import { IconThemeContribution } from '@theia/core/lib/browser/icon-theme-contribution';
 import { LabelProviderContribution } from '@theia/core/lib/browser/label-provider';
 import { AppearanceContribution, appearancePreferenceSchema } from './theme/appearance-contribution';
+import { LaunchBackgroundContribution } from './theme/launch-background-contribution';
 import { IngotEditorContextMenuContribution } from './editor/editor-context-menu-contribution';
+import { ModalEditingContribution } from './editor/modal-editing-contribution';
+import { modalEditingPreferenceSchema } from './editor/modal-editing-preferences';
 import '../../src/browser/style/index.css';
 import { ErrorReportingContribution } from './error-reporting-contribution';
+import { ArtifactService } from './artifacts/artifact-service';
+import { IngotArtifactsWidget } from './artifacts/artifacts-widget';
+import { IngotArtifactsContribution } from './artifacts/artifacts-contribution';
+import { ARTIFACTS_WIDGET_ID } from './artifacts/artifacts.consts';
+import { IngotAgentManagerWidget } from './agent-manager/agent-manager-widget';
+import { IngotAgentManagerContribution } from './agent-manager/agent-manager-contribution';
+import { AGENT_MANAGER_WIDGET_ID } from './agent-manager/agent-manager.consts';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotWorkspaceFileService).toSelf().inSingletonScope();
@@ -176,6 +249,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         bind(id).toService(IngotGroupsContribution);
     }
     bindModelPreferences(bind);
+    bindTabPreferences(bind);
     bindAccountPreferences(bind);
     bind(PreferenceContribution).toConstantValue({ schema: keymapPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: appearancePreferenceSchema });
@@ -185,7 +259,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(PreferenceContribution).toConstantValue({ schema: aiSettingsPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: subagentsPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: approvalPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: habitsPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: guardsPreferenceSchema });
     bind(PreferenceContribution).toConstantValue({ schema: agentToolsPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: codebaseIndexPreferenceSchema });
     bind(ReviewComments).toSelf().inSingletonScope();
     bind(ReviewContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(ReviewContribution);
@@ -197,6 +274,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(AppearanceContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(AppearanceContribution);
     bind(CommandContribution).toService(AppearanceContribution);
+    bind(LaunchBackgroundContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(LaunchBackgroundContribution);
     bind(NavigationHistory).toSelf().inSingletonScope();
     bind(ProjectConfigService).toSelf().inSingletonScope();
     bind(EditorImportService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<EditorImportService>(ctx.container, EDITOR_IMPORT_SERVICE_PATH)).inSingletonScope();
@@ -204,6 +283,23 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CommandContribution).toService(EditorImportContribution);
     bind(MenuContribution).toService(EditorImportContribution);
     bind(FrontendApplicationContribution).toService(EditorImportContribution);
+    bind(PreferenceContribution).toConstantValue({ schema: cursorImportPreferenceSchema });
+    bind(CursorModeService).toSelf().inSingletonScope();
+    bind(PreferenceContribution).toConstantValue({ schema: teamRulesPreferenceSchema });
+    bind(EnvironmentContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(EnvironmentContribution);
+    bind(CursorImportContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(CursorImportContribution);
+    bind(FrontendApplicationContribution).toService(CursorImportContribution);
+    bind(CursorSyncContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(CursorSyncContribution);
+    bind(FrontendApplicationContribution).toService(CursorSyncContribution);
+    bind(TeamRulesAdminService).toSelf().inSingletonScope();
+    bind(TeamRulesContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(TeamRulesContribution);
+    bind(CursorMemoriesContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(CursorMemoriesContribution);
+    bind(FrontendApplicationContribution).toService(CursorMemoriesContribution);
     bind(ErrorReportingContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(ErrorReportingContribution);
     bind(GitService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<GitService>(ctx.container, GIT_SERVICE_PATH)).inSingletonScope();
@@ -231,6 +327,41 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bindViewContribution(bind, IngotCommitContribution);
     bind(AiCommitService).toSelf().inSingletonScope();
     bind(AgentHooksService).toSelf().inSingletonScope();
+    bind(AgentEventHooks).toSelf().inSingletonScope();
+    bind(WorkspaceOpenHooks).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(WorkspaceOpenHooks);
+    bind(InitAgentsContribution).toSelf().inSingletonScope();
+    bind(UserRulesService).toSelf().inSingletonScope();
+    bind(HabitStore).toSelf().inSingletonScope();
+    bind(PlaybookService).toSelf().inSingletonScope();
+    bind(HabitRunner).toSelf().inSingletonScope();
+    bind(HabitsContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(HabitsContribution);
+    bind(CommandContribution).toService(HabitsContribution);
+    bind(HabitBus).toSelf().inSingletonScope();
+    bind(DecisionLedger).toSelf().inSingletonScope();
+    bind(DecisionsContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(DecisionsContribution);
+    bind(CommandContribution).toService(DecisionsContribution);
+    bind(FrozenStore).toSelf().inSingletonScope();
+    bind(FrozenContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(FrozenContribution);
+    bind(CommandContribution).toService(FrozenContribution);
+    bind(MenuContribution).toService(FrozenContribution);
+    bind(AntiHabitStore).toSelf().inSingletonScope();
+    // IDEA-305/306/307: learned habits, fresh-context handoff, plan-diff review, cost forecast and the model router.
+    bind(LearnedHabitStore).toSelf().inSingletonScope();
+    bind(FreshContextService).toSelf().inSingletonScope();
+    bind(PlanReviewService).toSelf().inSingletonScope();
+    bind(ModelRouter).toSelf().inSingletonScope();
+    bind(CostForecastService).toSelf().inSingletonScope();
+    bind(PreferenceContribution).toConstantValue({ schema: freshContextPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: routerPreferenceSchema });
+    bind(AgentAutopilotContribution).toSelf().inSingletonScope();
+    for (const id of [FrontendApplicationContribution, CommandContribution, KeybindingContribution]) {
+        bind(id).toService(AgentAutopilotContribution);
+    }
+    bind(FrontendApplicationContribution).toService(InitAgentsContribution);
     bind(AgentHooksGate).toSelf().inSingletonScope();
     bind(CommandContribution).toService(AgentHooksGate);
     bind(PreferenceContribution).toConstantValue({ schema: hooksPreferenceSchema });
@@ -241,6 +372,13 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CommandContribution).toService(LearnedRulesContribution);
     bind(FrontendApplicationContribution).toService(LearnedRulesContribution);
     bind(PreferenceContribution).toConstantValue({ schema: learnedRulesPreferenceSchema });
+    // IDEA-263: .ingot/policy.json, the agent audit log and its viewer
+    bind(AgentAuditService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<AgentAuditService>(ctx.container, AGENT_AUDIT_SERVICE_PATH)).inSingletonScope();
+    bind(AgentAuditLog).toSelf().inSingletonScope();
+    bind(AgentPolicyService).toSelf().inSingletonScope();
+    bind(IngotAuditLogWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: AUDIT_WIDGET_ID, createWidget: () => ctx.container.get(IngotAuditLogWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotAuditLogContribution);
     bind(CommitWindow).toSelf().inSingletonScope();
     bind(CommitWindowContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(CommitWindowContribution);
@@ -277,6 +415,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     }
     bind(McpService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<McpService>(ctx.container, MCP_SERVICE_PATH)).inSingletonScope();
     bind(IngotMcpClient).toSelf().inSingletonScope();
+    bind(SlackConnectionService).toSelf().inSingletonScope();
     bind(IngotAgentConfigWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENT_CONFIG_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentConfigWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotAgentConfigContribution);
@@ -295,11 +434,16 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bindViewContribution(bind, IngotDebugContribution);
     bind(ModelService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ModelService>(ctx.container, MODEL_SERVICE_PATH)).inSingletonScope();
     bind(IngotModelClient).toSelf().inSingletonScope();
-    bind(IngotInlineCompletions).toSelf().inSingletonScope();
     bind(IngotModelsWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: MODELS_WIDGET_ID, createWidget: () => ctx.container.get(IngotModelsWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotModelsContribution);
-    bind(FrontendApplicationContribution).toService(IngotModelsContribution);
+    // Tab next-edit prediction (IDEA-285)
+    for (const service of [IngotTabUsage, IngotTabIgnore, IngotTabNextEdit, IngotTabCompletions, IngotTabContribution]) {
+        bind(service).toSelf().inSingletonScope();
+    }
+    for (const id of [FrontendApplicationContribution, CommandContribution, KeybindingContribution]) {
+        bind(id).toService(IngotTabContribution);
+    }
     bind(GroupChannel).toSelf().inSingletonScope();
     bind(IngotGroupChatWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: GROUP_CHAT_WIDGET_ID, createWidget: () => ctx.container.get(IngotGroupChatWidget) })).inSingletonScope();
@@ -332,23 +476,70 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: BROWSER_WIDGET_ID, createWidget: () => ctx.container.get(IngotBrowserWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotBrowserContribution);
     bind(CommandContribution).toService(ProcessesContribution);
+    bind(CodebaseIndexClientImpl).toSelf().inSingletonScope();
+    bind(CodebaseIndexService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<CodebaseIndexService>(ctx.container, CODEBASE_INDEX_SERVICE_PATH, ctx.container.get(CodebaseIndexClientImpl))).inSingletonScope();
+    bind(CodebaseIndexStore).toSelf().inSingletonScope();
+    bind(CodebaseIndexContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(CodebaseIndexContribution);
+    bind(CommandContribution).toService(CodebaseIndexContribution);
     bind(AgentActionsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<AgentActionsService>(ctx.container, AGENT_ACTIONS_SERVICE_PATH)).inSingletonScope();
     bind(ResearchService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<ResearchService>(ctx.container, RESEARCH_SERVICE_PATH)).inSingletonScope();
     bind(PortsService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<PortsService>(ctx.container, PORTS_SERVICE_PATH)).inSingletonScope();
     bind(IngotPortsWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: PORTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotPortsWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotPortsContribution);
+    bind(TestService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<TestService>(ctx.container, TEST_SERVICE_PATH)).inSingletonScope();
+    bind(TestStore).toSelf().inSingletonScope();
+    bind(TestExplorerWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: TEST_EXPLORER_WIDGET_ID, createWidget: () => ctx.container.get(TestExplorerWidget) })).inSingletonScope();
+    bindViewContribution(bind, TestExplorerContribution);
 
+    bind(CodeToolsService).toSelf().inSingletonScope();
     bind(AgentStore).toSelf().inSingletonScope();
     bind(MemoryStore).toSelf().inSingletonScope();
+    bind(AutoContextService).toSelf().inSingletonScope();
     bind(ChangeTracker).toSelf().inSingletonScope();
     bind(ChangeKeybindingsContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(ChangeKeybindingsContribution);
+    // IDEA-262: Local History (.ingot/history) and inline edit (Cmd+K on a selection)
+    bind(LocalHistoryService).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(LocalHistoryService);
+    bind(LocalHistoryWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => createLocalHistoryWidgetFactory(options => {
+        const widget = ctx.container.get(LocalHistoryWidget);
+        widget.init(options);
+        return widget;
+    })).inSingletonScope();
+    bind(LocalHistoryContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(LocalHistoryContribution);
+    bind(InlineEditContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(InlineEditContribution);
     bind(EditorCopyTracker).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(EditorCopyTracker);
     bind(IngotAgentsWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentsWidget) })).inSingletonScope();
     bindViewContribution(bind, IngotAgentsContribution);
+    // IDEA-268: multi-file review, parallel threads, live reload from disk
+    bind(AgentReviewWidget).toSelf().inSingletonScope();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENT_REVIEW_WIDGET_ID, createWidget: () => ctx.container.get(AgentReviewWidget) })).inSingletonScope();
+    bind(AgentReviewContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(AgentReviewContribution);
+    bind(WorktreeSetupService).toSelf().inSingletonScope();
+    bind(ThreadsService).toSelf().inSingletonScope();
+    bind(ThreadsWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: THREADS_WIDGET_ID, createWidget: () => ctx.container.get(ThreadsWidget) })).inSingletonScope();
+    bindViewContribution(bind, ThreadsContribution);
+    bind(DiskSyncContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(DiskSyncContribution);
+    bind(CommandContribution).toService(DiskSyncContribution);
+    // IDEA-290 artifacts viewer, IDEA-291 Agent Manager
+    bind(ArtifactService).toSelf().inSingletonScope();
+    bind(IngotArtifactsWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: ARTIFACTS_WIDGET_ID, createWidget: () => ctx.container.get(IngotArtifactsWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotArtifactsContribution);
+    bind(IngotAgentManagerWidget).toSelf();
+    bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENT_MANAGER_WIDGET_ID, createWidget: () => ctx.container.get(IngotAgentManagerWidget) })).inSingletonScope();
+    bindViewContribution(bind, IngotAgentManagerContribution);
 
     bind(IngotAccountClient).toSelf().inSingletonScope();
     bind(AccountBackend).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<AccountBackend>(ctx.container, ACCOUNT_SERVICE_PATH, ctx.container.get(IngotAccountClient))).inSingletonScope();
@@ -358,6 +549,11 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         bind(id).toService(IngotAccountContribution);
     }
     bind(IngotFeatureFlags).toSelf().inSingletonScope();
+    bind(IngotPlanService).toSelf().inSingletonScope();
+    bind(IngotPlanGateContribution).toSelf().inSingletonScope();
+    for (const id of [CommandContribution, FrontendApplicationContribution]) {
+        bind(id).toService(IngotPlanGateContribution);
+    }
     bind(IngotUpdateContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(IngotUpdateContribution);
     bind(IngotSyncService).toSelf().inSingletonScope();
@@ -384,6 +580,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
 
     bind(IngotAboutDialog).toSelf().inSingletonScope();
     rebind(AboutDialog).toService(IngotAboutDialog);
+
+    bind(IngotKeybindingRegistry).toSelf().inSingletonScope();
+    rebind(KeybindingRegistry).toService(IngotKeybindingRegistry);
 
     bind(SettingsDialogProps).toConstantValue({ title: 'Settings' });
     bind(IngotSettingsDialog).toSelf().inSingletonScope();
@@ -453,6 +652,10 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CommandContribution).toService(IngotEditorContextMenuContribution);
     bind(MenuContribution).toService(IngotEditorContextMenuContribution);
     bind(FrontendApplicationContribution).toService(IngotEditorContextMenuContribution);
+    bind(PreferenceContribution).toConstantValue({ schema: modalEditingPreferenceSchema });
+    bind(ModalEditingContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(ModalEditingContribution);
+    bind(FrontendApplicationContribution).toService(ModalEditingContribution);
     bind(IngotBadgeIconTheme).toSelf().inSingletonScope();
     bind(IconThemeContribution).toService(IngotBadgeIconTheme);
     bind(LabelProviderContribution).toService(IngotBadgeIconTheme);

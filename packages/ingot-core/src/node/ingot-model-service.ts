@@ -4,7 +4,7 @@ import { IngotAccountBackend } from './account/ingot-account-backend';
 import { SIGN_IN_FOR_MODELS } from '../common/models/models.consts';
 import { DEFAULT_KEYCHAIN_SERVICE, MAX_DICTATION_BYTES, PROVIDERS, REQUEST_TIMEOUT_MS, TRANSCRIBE_MODEL, TRANSCRIBE_PATH } from '../common/models/models.consts';
 import type { CompletionRequest, CompletionResult, ModelService, ProviderId, ProviderSettings, ProviderStatus, StreamPoll } from '../common/models/models.types';
-import { buildProviderRequest, findModel, findProvider, parseProviderError, parseProviderResponse, parseStreamEvent, redactSecrets, resolveModelName, toolCallsToProtocol } from '../common/models/models.utils';
+import { buildProviderRequest, findModel, findProvider, nativeToolSuffix, parseProviderError, parseProviderResponse, parseStreamEvent, redactSecrets, resolveModelName } from '../common/models/models.utils';
 import type { CatalogModel, HttpRequestSpec, ProviderInfo } from '../common/models/models.types';
 import { encodeGatewayError, parseGatewayError } from '../common/account/gateway-errors';
 import { ideHeaders } from '../common/account/gateway.utils';
@@ -20,7 +20,7 @@ interface StreamState {
 const STREAM_TTL_MS = 120_000;
 
 /**
- * BYOK model gateway (IDEA-25/26). API keys live only in the OS keychain (via Theia's keytar-backed KeyStoreService)
+ * BYOK model gateway (IDEA-25/26). API keys live only in Ingot's 0600 file key store (~/.ingot/keystore.json, never the OS keychain)
  * and in memory while a request is sent. They are never written to files, logged or returned to the frontend.
  */
 @injectable()
@@ -227,7 +227,7 @@ export class IngotModelService implements ModelService {
                 }
             }
             take(buffer);
-            const protocol = toolCallsToProtocol([...calls.entries()].sort((a, b) => a[0] - b[0]).map(([, call]) => call));
+            const protocol = nativeToolSuffix(state.chunks.join(''), [...calls.entries()].sort((a, b) => a[0] - b[0]).map(([, call]) => call));
             if (protocol) {
                 state.chunks.push(protocol);
             }

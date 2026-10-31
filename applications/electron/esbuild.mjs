@@ -20,6 +20,9 @@ if (existsSync(CORE_RESOURCES)) {
 Object.assign(browserOptions.entryPoints, vendorEntryPoints());
 copyVendorAssets('lib/frontend');
 
+// IDEA-286: monaco-vim imports `monaco-editor`; point it at Theia's Monaco so both share one editor instance.
+browserOptions.alias = { ...browserOptions.alias, 'monaco-editor': '@theia/monaco-editor-core' };
+
 const browserContext = await esbuild.context(browserOptions);
 const nodeContext = await esbuild.context(nodeOptions);
 const electronContext = await esbuild.context(electronOptions);

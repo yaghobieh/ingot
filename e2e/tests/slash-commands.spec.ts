@@ -7,6 +7,8 @@ import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { startFakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
+import { E2E_CONFIG_DIR } from '../src/e2e.consts';
+import { startOpenPlanServer, type FakeIngotServer } from '../src/fake-ingot-server';
 
 /**
  * IDEA-249: `/` lists Markdown commands from `.ingot/commands` and other editors' command / prompt folders in the
@@ -32,6 +34,16 @@ const makeProject = (): string => {
 
 const composer = (page: Page) => page.locator('#ingot-composer-input');
 const item = (page: Page, name: string) => page.locator(`#ingot-slash-item-${name}`);
+
+// The agent chat is a paid feature; the fake account server opens the plan.
+let account: FakeIngotServer;
+test.beforeEach(async () => {
+    account = await startOpenPlanServer();
+});
+test.afterEach(async () => {
+    await account.close();
+    fs.rmSync(path.join(E2E_CONFIG_DIR, 'remote-config.json'), { force: true });
+});
 
 for (const scheme of ['light', 'dark'] as const) {
     test(`IDEA-249 / lists project, other-folder and home commands, .ingot wins (${scheme})`, async ({ page }) => {

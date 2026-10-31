@@ -17,6 +17,8 @@ describe('Ingot keymap', () => {
         expect(key('Run', true)).toBe('ctrl+r');
         expect(key('Run', false)).toBe('shift+f10');
         expect(key('Duplicate Line or Selection', false)).toBe('ctrl+d');
+        expect(key('Agent Audit Log', true)).toBe('ctrlcmd+alt+shift+a');
+        expect(key('Agent Audit Log', false)).toBe('ctrl+alt+shift+a');
     });
 
     it('has no conflicts with itself or the tool window keymap', () => {
@@ -29,6 +31,16 @@ describe('Ingot keymap', () => {
         const winBindings = resolveKeymap(INGOT_KEYMAP, false).filter(b => b.keybinding === 'ctrl+y' || b.keybinding === 'ctrl+n');
         expect(winBindings.length).toBe(2);
         expect(winBindings.every(b => b.when?.includes('!ingotChangesPending'))).toBe(true);
+    });
+
+    it('gives Cmd+K to inline edit only when code is selected in the editor', () => {
+        for (const mac of [true, false]) {
+            const bindings = resolveKeymap(INGOT_KEYMAP, mac).filter(b => b.keybinding === (mac ? 'ctrlcmd+k' : 'ctrl+k'));
+            expect(bindings.map(b => b.command).sort()).toEqual(['ingot.commit.open', 'ingot.inlineEdit.start']);
+            expect(bindings.find(b => b.command === 'ingot.inlineEdit.start')?.when).toBe('editorTextFocus && editorHasSelection');
+            expect(bindings.find(b => b.command === 'ingot.commit.open')?.when).toBeUndefined();
+        }
+        expect(key('Show Local History', true)).toBe('ctrlcmd+alt+shift+h');
     });
 
     it('detects a double Shift tap', () => {

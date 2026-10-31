@@ -11,6 +11,7 @@ import { IngotStripeWidget } from '../stripe/ingot-stripe-widget';
 import { IngotRightStripeWidget } from '../tool-windows/right-stripe-widget';
 import { IngotAgentsContribution } from '../agents/agents-contribution';
 import { IngotLayoutContribution } from '../layout/layout-contribution';
+import { isAgentsWindow } from '../workbench/agents-window';
 import { WidgetManager } from '@theia/core/lib/browser/widget-manager';
 import { ViewContainer } from '@theia/core/lib/browser/view-container';
 import { IngotProjectTabsWidget } from '../groups/project-tabs-widget';
@@ -18,6 +19,8 @@ import { pinProjectLabel } from '../navigator/project-label';
 import { IngotExplorerHeader } from '../navigator/explorer-header';
 import { EXPLORER_CONTAINER_ID } from '../navigator/navigator.consts';
 import { DEFAULT_LAYOUT_COMMANDS, INGOT_SHELL_COMMANDS } from './ingot-shell.consts';
+import { ShellLayoutRestorer } from '@theia/core/lib/browser/shell/shell-layout-restorer';
+import { IngotShellLayoutRestorer } from '../workbench/agents-window-layout-restorer';
 
 
 type SideArea = 'left' | 'right' | 'bottom';
@@ -57,6 +60,9 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
     @inject(IngotExplorerHeader)
     protected readonly explorerHeader: IngotExplorerHeader;
 
+    @inject(ShellLayoutRestorer)
+    protected readonly layoutRestorer: ShellLayoutRestorer;
+
     @inject(IngotLayoutContribution)
     protected readonly layout: IngotLayoutContribution;
 
@@ -66,20 +72,31 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         document.body.classList.add('ingot-shell');
     }
 
-    async onDidInitializeLayout(_app: FrontendApplication): Promise<void> {
+    async onDidInitializeLayout(app: FrontendApplication): Promise<void> {
         // Electron hides the top panel on macOS (native menu); the Ingot main toolbar lives there.
         this.shell.topPanel.show();
         this.attachStripe();
         // The right edge gets Ingot's own slim stripe instead of Theia's side tabs (IDEA-61).
         this.attachRightStripe();
-        await this.agents.openView({ activate: false, reveal: true });
+        // IDEA-281: a restored layout keeps the chat and the bottom panel open or closed as the user left them;
+        // only a fresh window gets the reference layout.
+        const restorer = this.layoutRestorer instanceof IngotShellLayoutRestorer ? this.layoutRestorer : undefined;
+        const restored = !!restorer?.restored;
+        await this.workspace.ready;
+        // IDEA-266: a window without a folder shows only the welcome screen; the agent chat comes with the folder.
+        if (this.workspace.opened || isAgentsWindow()) {
+            await this.agents.openView({ activate: false, reveal: !restored });
+        }
         this.rightStripe.refreshSoon();
         this.renameProjectView();
-        // The reference layout keeps the bottom panel closed; the Terminal opens from the stripe or ⌥F12.
-        this.shell.collapsePanel('bottom');
+        if (!restored) {
+            // The reference layout keeps the bottom panel closed; the Terminal opens from the main toolbar or ⌥F12.
+            this.shell.collapsePanel('bottom');
+        }
         // Chat on the right or at the bottom, as the user chose (IDEA-85).
-        await this.layout.start();
+        await this.layout.start(restored);
         this.rightStripe.refreshSoon();
+        restorer?.keepStored(app);
     }
 
     /** The file tree is labelled with the project name, with a fold chevron and file actions (IDEA-93). */
@@ -96,14 +113,14 @@ export class IngotShellContribution implements FrontendApplicationContribution, 
         }
     }
 
-    /** Puts the bottom tool window group (Terminal, Run, Problems, Ports, Git) into the left stripe. */
+    /** Puts Ingot's stripe (Account, Settings) into the left stripe, under the side bar tabs. */
     protected attachStripe(): void {
         const bottomMenu = this.shell.leftPanelHandler.bottomMenu;
         const layout = bottomMenu.parent?.layout as PanelLayout | undefined;
         if (!layout || layout.widgets.includes(this.stripe)) {
             return;
         }
-        // Directly under the side bar tabs, so the stripe reads Project, Search, Git, Terminal.
+        // Directly under the side bar tabs, so the stripe reads Project, Search, Git.
         layout.insertWidget(layout.widgets.indexOf(this.shell.leftPanelHandler.tabBar) + 1, this.stripe);
     }
 

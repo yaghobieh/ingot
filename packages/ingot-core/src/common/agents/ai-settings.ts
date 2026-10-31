@@ -5,8 +5,14 @@ export const AI_SETTINGS_PREFS = {
     defaultMode: 'ingot.agent.defaultMode',
     defaultModel: 'ingot.agent.defaultModel',
     zaprexButton: 'ingot.zaprex.showButton',
-    aiCommit: 'ingot.commit.ai.enabled'
+    aiCommit: 'ingot.commit.ai.enabled',
+    attachActiveFile: 'ingot.chat.attachActiveFile'
 } as const;
+
+/** Off by default: the open editor file is not attached to chat messages unless the user turns this on. */
+export const ATTACH_ACTIVE_FILE_DEFAULT = false;
+
+export const attachActiveFileOn = (value: unknown): boolean => typeof value === 'boolean' ? value : ATTACH_ACTIVE_FILE_DEFAULT;
 
 export const DEFAULT_AGENT_MODES: readonly AgentMode[] = ['agent', 'ask', 'plan', 'debug', 'multi', 'research'];
 

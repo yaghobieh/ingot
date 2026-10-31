@@ -1,0 +1,223 @@
+/* IDEA-261: Test Explorer tool window. Colors come from --ingot-* tokens only (light and dark). */
+.ingot-tests {
+  background: var(--ingot-bg);
+  color: var(--ingot-text);
+  overflow: auto;
+  font-size: 13px;
+}
+
+.ingot-tests-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.ingot-tests-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--ingot-space-1);
+  padding: var(--ingot-space-1) var(--ingot-space-2);
+  background: var(--ingot-toolbar);
+  border-bottom: 1px solid var(--ingot-border);
+}
+
+.ingot-tests-button,
+.ingot-tests-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ingot-space-1);
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ingot-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ingot-tests-button {
+  padding: 0 var(--ingot-space-2);
+}
+
+.ingot-tests-icon {
+  width: 22px;
+  justify-content: center;
+  padding: 0;
+}
+
+.ingot-tests-button:hover:not(:disabled),
+.ingot-tests-icon:hover:not(:disabled) {
+  background: var(--ingot-panel);
+  border-color: var(--ingot-border);
+}
+
+.ingot-tests-button:focus-visible,
+.ingot-tests-icon:focus-visible {
+  outline: 1px solid var(--ingot-focus-ring);
+}
+
+.ingot-tests-button:disabled,
+.ingot-tests-icon:disabled {
+  color: var(--ingot-text-muted);
+  cursor: default;
+  opacity: .6;
+}
+
+#ingot-tests-run-all .codicon {
+  color: var(--ingot-success);
+}
+
+#ingot-tests-rerun-failed:not(:disabled) .codicon {
+  color: var(--ingot-danger);
+}
+
+.ingot-tests-runner {
+  margin-left: var(--ingot-space-1);
+  padding: 0 6px;
+  border: 1px solid var(--ingot-border);
+  border-radius: 9px;
+  color: var(--ingot-text-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.ingot-tests-spacer {
+  flex: 1;
+}
+
+.ingot-tests-summary {
+  display: inline-flex;
+  gap: var(--ingot-space-2);
+  color: var(--ingot-text-muted);
+  font-size: 12px;
+}
+
+.ingot-tests-count[data-state='passed'] {
+  color: var(--ingot-success);
+}
+
+.ingot-tests-count[data-state='failed'] {
+  color: var(--ingot-danger);
+}
+
+.ingot-tests-empty {
+  padding: var(--ingot-space-2) var(--ingot-space-3);
+  color: var(--ingot-text-muted);
+}
+
+.ingot-tests-error,
+.ingot-tests-message {
+  margin: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ingot-tests-error {
+  margin: var(--ingot-space-2);
+  padding: var(--ingot-space-2);
+  border: 1px solid var(--ingot-danger);
+  border-radius: 5px;
+  background: var(--ingot-surface);
+  color: var(--ingot-danger);
+  max-height: 160px;
+  overflow: auto;
+}
+
+.ingot-tests-tree,
+.ingot-tests-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ingot-tests-tree {
+  padding: var(--ingot-space-1) 0;
+}
+
+.ingot-tests-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 0 var(--ingot-space-2);
+  cursor: pointer;
+}
+
+.ingot-tests-row:hover {
+  background: var(--ingot-panel);
+}
+
+.ingot-tests-children .ingot-tests-row {
+  padding-left: 40px;
+}
+
+.ingot-tests-chevron {
+  color: var(--ingot-text-muted);
+}
+
+.ingot-tests-state {
+  flex: none;
+  color: var(--ingot-text-muted);
+}
+
+.ingot-tests-state[data-state='passed'] {
+  color: var(--ingot-success);
+}
+
+.ingot-tests-state[data-state='failed'] {
+  color: var(--ingot-danger);
+}
+
+.ingot-tests-state[data-state='running'] {
+  color: var(--ingot-primary);
+}
+
+.ingot-tests-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ingot-tests-file > .ingot-tests-row .ingot-tests-name {
+  font-weight: 500;
+}
+
+.ingot-tests-suite {
+  color: var(--ingot-text-muted);
+}
+
+.ingot-tests-detail {
+  flex: 1;
+  color: var(--ingot-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ingot-tests-row-run {
+  visibility: hidden;
+}
+
+.ingot-tests-row:hover .ingot-tests-row-run,
+.ingot-tests-row-run:focus-visible {
+  visibility: visible;
+}
+
+.ingot-tests-row-run .codicon {
+  color: var(--ingot-success);
+}
+
+.ingot-tests-message {
+  margin: 2px var(--ingot-space-3) var(--ingot-space-1) 62px;
+  padding: var(--ingot-space-1) var(--ingot-space-2);
+  border-left: 2px solid var(--ingot-danger);
+  background: var(--ingot-surface);
+  color: var(--ingot-danger);
+  max-height: 120px;
+  overflow: auto;
+}

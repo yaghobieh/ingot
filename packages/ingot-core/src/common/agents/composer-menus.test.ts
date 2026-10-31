@@ -18,7 +18,7 @@ describe('composer menus (IDEA-187)', () => {
     });
 
     it('has the built-in slash commands', () => {
-        expect(SLASH_BUILTINS.map(c => c.name)).toEqual(expect.arrayContaining(['agent', 'ask', 'plan', 'new', 'compact', 'model']));
+        expect(SLASH_BUILTINS.map(c => c.name)).toEqual(expect.arrayContaining(['agent', 'ask', 'plan', 'goal', 'new', 'compact', 'model']));
     });
 });
 

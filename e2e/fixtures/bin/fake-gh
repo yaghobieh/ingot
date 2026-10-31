@@ -1,0 +1,21 @@
+#!/usr/bin/env node
+// e2e stand-in for the GitHub CLI (INGOT_GH_BIN): `pr diff <n>` prints a fixed diff, `pr comment <n> --body <text>`
+// records the comment in fake-gh.log in the project and prints its URL. Anything else fails like an unauthenticated gh.
+const fs = require('fs');
+const path = require('path');
+const [command, sub, number, ...rest] = process.argv.slice(2);
+if (command === 'pr' && sub === 'diff') {
+    process.stdout.write([
+        'diff --git a/src/pay.ts b/src/pay.ts', '--- a/src/pay.ts', '+++ b/src/pay.ts', '@@ -1,2 +1,2 @@',
+        ' export const total = (items: number[]): number =>', '-    items.reduce((a, b) => a + b, 0);', '+    items.reduce((a, b) => a - b, 0);', ''
+    ].join('\n'));
+    process.exit(0);
+}
+if (command === 'pr' && sub === 'comment') {
+    const body = rest[rest.indexOf('--body') + 1] ?? '';
+    fs.appendFileSync(path.join(process.cwd(), 'fake-gh.log'), `${JSON.stringify({ pr: number, body })}\n`);
+    console.log(`https://github.com/acme/shop/pull/${number}#issuecomment-1`);
+    process.exit(0);
+}
+console.error('gh: not logged in');
+process.exit(1);

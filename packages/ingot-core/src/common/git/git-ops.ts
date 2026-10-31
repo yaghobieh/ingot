@@ -75,7 +75,9 @@ export type GitOperation =
     /** IDEA-178: make an Ingot git hook executable; only `pre-commit` / `pre-push` inside the repo's hooks dir. */
     | { kind: 'chmodHook'; stage: 'pre-commit' | 'pre-push' }
     /** IDEA-178: two lines, the common git dir and the hooks dir (respects core.hooksPath). */
-    | { kind: 'hookDirs' };
+    | { kind: 'hookDirs' }
+    /** IDEA-291: a new branch checked out in its own worktree; the backend picks the folder and returns it. */
+    | { kind: 'worktreeAdd'; name: string; branch: string };
 
 export type GitOperationKind = GitOperation['kind'];
 
@@ -105,6 +107,9 @@ const remoteName = (name: string): string => REMOTE_NAME.test(name) ? name : fai
 const remoteUrl = (url: string): string => REMOTE_URL.test(url) && !url.startsWith('-') ? url : fail('Invalid remote URL.');
 const line = (n: number): number => Number.isInteger(n) && n > 0 ? n : fail('Invalid line.');
 const message = (text: string): string => text.trim() ? text : fail('A message is required.');
+const WORKTREE_FOLDER = /^[a-z0-9][a-z0-9-]{0,47}$/;
+/** The worktree folder name; the backend puts it under its own temp folder and appends `HEAD`. */
+const worktreeFolder = (name: string): string => WORKTREE_FOLDER.test(name) ? name : fail(`Invalid worktree name "${name}".`);
 
 /**
  * The argument list for an operation (without the leading `git`). Operations that need several steps,
@@ -169,6 +174,7 @@ export const gitArgs = (op: GitOperation): string[] => {
         case 'hookDirs': return ['rev-parse', '--git-common-dir', '--git-path', 'hooks'];
         case 'chmodHook': return ['rev-parse', '--git-path', `hooks/${op.stage === 'pre-push' ? 'pre-push' : op.stage === 'pre-commit' ? 'pre-commit' : fail('Invalid hook.')}`];
         case 'logOnly': return ['log', '--max-count=200', `--format=${LOG_FORMAT}`, '--decorate=short', branch(op.branch), '--not', 'HEAD', '--'];
+        case 'worktreeAdd': return ['worktree', 'add', '-b', branch(op.branch), worktreeFolder(op.name)];
     }
 };
 

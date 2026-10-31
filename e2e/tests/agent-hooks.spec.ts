@@ -4,6 +4,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { actUntilVisible, dismissNotifications, openIngot, runCommand } from '../src/app.utils';
+import { E2E_CONFIG_DIR } from '../src/e2e.consts';
+import { startOpenPlanServer, type FakeIngotServer } from '../src/fake-ingot-server';
 
 /** IDEA-178: agent git hooks from .ingot/hooks.json. A failing step blocks the commit (tool cards), with Fix with agent or Bypass. */
 const SHOTS_DIR = process.env.INGOT_SHOTS_DIR;
@@ -56,7 +58,14 @@ const shot = async (page: Page, name: string, target = page.locator('body')): Pr
 
 test.describe('IDEA-178 agent git hooks', () => {
     let base = '';
-    test.afterEach(() => {
+    // The agent chat is a paid feature; the fake account server opens the plan for "Fix with agent".
+    let account: FakeIngotServer;
+    test.beforeEach(async () => {
+        account = await startOpenPlanServer();
+    });
+    test.afterEach(async () => {
+        await account.close();
+        fs.rmSync(path.join(E2E_CONFIG_DIR, 'remote-config.json'), { force: true });
         if (base) {
             fs.rmSync(base, { recursive: true, force: true });
         }

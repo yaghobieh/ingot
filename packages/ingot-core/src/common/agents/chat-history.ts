@@ -1,5 +1,6 @@
 import type { AgentSession } from './agents.types';
 import { isAgentMode } from './agent-modes';
+import { restoreGoal } from './goal';
 
 export const CHATS_STORAGE_KEY = 'ingot.chats.v1';
 export const MAX_STORED_CHATS = 100;
@@ -17,7 +18,7 @@ export const filterChats = (chats: readonly AgentSession[], query: string): Agen
 export const serializeChats = (chats: readonly AgentSession[]): string => {
     const sorted = sortChats(chats).filter(c => c.messages.length || c.pinned);
     return JSON.stringify(sorted.slice(0, MAX_STORED_CHATS).map(c => ({
-        ...c, status: c.status === 'thinking' || c.status === 'editing' || c.status === 'review' || c.status === 'paused' || c.status === 'approval' ? 'idle' : c.status, activeFile: undefined, pause: undefined, approval: undefined, ask: undefined,
+        ...c, status: c.status === 'thinking' || c.status === 'editing' || c.status === 'review' || c.status === 'paused' || c.status === 'approval' ? 'idle' : c.status, activeFile: undefined, pause: undefined, approval: undefined, ask: undefined, doom: undefined,
         // Image bytes stay in memory; saved history keeps only their names (local storage is small).
         messages: c.messages
             .filter(m => !(m.tool?.state === 'running' && !m.text))
@@ -39,10 +40,27 @@ export const parseChats = (json: string | null | undefined): AgentSession[] => {
         }
         return value.filter((c): c is AgentSession =>
             !!c && typeof c.id === 'string' && typeof c.title === 'string' && Array.isArray(c.messages) && isAgentMode(c.mode)
-        ).map(c => ({ ...c, ask: undefined, plan: c.plan ?? [], steps: c.steps ?? [], changes: c.changes ?? [] }));
+        ).map(c => ({ ...c, ask: undefined, doom: undefined, plan: c.plan ?? [], steps: c.steps ?? [], changes: c.changes ?? [], goal: restoreGoal(c.goal) }));
     } catch {
         return [];
     }
+};
+
+/**
+ * IDEA-266: the chats a window shows. Each window sees only its workspace's chats; chats saved before chats had a
+ * workspace move into the first workspace that loads them. A window without a folder has no chats.
+ */
+export const windowChats = (stored: readonly AgentSession[], workspace: string | undefined): AgentSession[] =>
+    workspace ? stored.filter(c => !c.workspace || c.workspace === workspace).map(c => ({ ...c, workspace })) : [];
+
+/**
+ * IDEA-266: what a window writes back. Its own chats replace its workspace's stored ones (so deleted chats stay
+ * deleted); other windows' chats are kept as stored, since that copy is the newest one.
+ */
+export const mergeWindowChats = (stored: readonly AgentSession[], mine: readonly AgentSession[], workspace: string): AgentSession[] => {
+    const own = mine.map(c => ({ ...c, workspace }));
+    const ids = new Set(own.map(c => c.id));
+    return [...own, ...stored.filter(c => c.workspace && c.workspace !== workspace && !ids.has(c.id))];
 };
 
 export const chatTime = (updatedAt: number, now: number): string => {

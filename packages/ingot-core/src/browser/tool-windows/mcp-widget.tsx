@@ -6,10 +6,11 @@ import { CommandService } from '@theia/core/lib/common/command';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { OpenerService, open } from '@theia/core/lib/browser/opener-service';
+import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import URI from '@theia/core/lib/common/uri';
 import type { ConfigSource, McpServerConfig, ProjectConfig } from '../../common/project-config/project-config.types';
 import { CONFIG_DIRS, HOOKS_DIR, SUBAGENTS_DIR } from '../../common/project-config/project-config.consts';
-import { scopeLabel, slugify } from '../../common/project-config/project-config.utils';
+import { ruleKindLabel, scopeLabel, slugify } from '../../common/project-config/project-config.utils';
 import {
     ATTENTION_PREVIEW, CUSTOMIZE_TABS, EMPTY_SERVER_FORM, MCP_CATALOG, MCP_CATEGORIES, catalogEntryFor, groupByCategory, catalogToConfig, configToForm, customToConfig, isValidServerName,
     matchesQuery, newItemFile, rowGroup, rowSummary,
@@ -19,8 +20,11 @@ import { IngotMcpClient } from '../project-config/mcp-client';
 import { IngotFeatureFlags } from '../config/feature-flags';
 import { IDE_FLAGS } from '../../common/config/remote-config.consts';
 import { ProjectConfigService } from '../project-config/project-config-service';
-import { MCP_WIDGET_ID } from './tool-windows.consts';
+import { MCP_SECRET_TEXT, MCP_WIDGET_ID } from './tool-windows.consts';
 import { RULES_TAB_TOOLS } from '../rules-tools/rules-tools.browser-consts';
+import { SlackConnectionCard, SlackConnectionService } from '../slack';
+import { SLACK_APPS_URL, SLACK_SERVER_NAME, SLACK_TEXT } from '../../common/slack';
+import { AGENT_COMMANDS } from '../agents/agents.consts';
 
 type ScopeFilter = 'all' | McpScope;
 interface AddForm { entry: McpCatalogEntry; name: string; scope: McpScope; values: Record<string, string>; error?: string; busy?: boolean }
@@ -37,7 +41,7 @@ const KIND_LABEL: Record<ConfigItemKind, string> = { rule: 'Rule', command: 'Com
  * Rules & MCP page (IDEA-62): search, scope selector, kind pills, MCP servers grouped into "Needs Attention" /
  * "Connected" / "Disabled" with per-tool toggles, Add / Edit MCP Server (stdio or HTTP, OAuth), a marketplace,
  * and Rules / Commands / Skills / Subagents / Hooks from the project `.ingot/` and the global `~/.ingot/`.
- * Secrets go to the OS keychain; config files only hold `${keychain}` placeholders.
+ * Secrets go to Ingot's local key file (~/.ingot/keystore.json); config files only hold `${keychain}` placeholders.
  */
 @injectable()
 export class IngotMcpWidget extends ReactWidget {
@@ -49,8 +53,11 @@ export class IngotMcpWidget extends ReactWidget {
     @inject(FileService) protected readonly files: FileService;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(OpenerService) protected readonly opener: OpenerService;
+    @inject(SlackConnectionService) protected readonly slack: SlackConnectionService;
+    @inject(WindowService) protected readonly windows: WindowService;
 
     protected query = '';
+    protected slackConnectRequest = 0;
     protected tab: CustomizeTab = 'mcps';
     protected scope: ScopeFilter = 'all';
     protected showAllAttention = false;
@@ -192,6 +199,8 @@ export class IngotMcpWidget extends ReactWidget {
         const disabled = servers.filter(s => group(s) === 'available');
         const shownAttention = this.showAllAttention ? attention : attention.slice(0, ATTENTION_PREVIEW);
         return <>
+            {matchesQuery(this.query, SLACK_TEXT.title, SLACK_TEXT.description) && <SlackConnectionCard service={this.slack} connectRequest={this.slackConnectRequest}
+                onOpenApps={() => this.windows.openNewWindow(SLACK_APPS_URL, { external: true })} />}
             <div className='ingot-mcp-toolbar'>
                 <button type='button' id='ingot-mcp-add-server' className='ingot-mcp-secondary' onClick={() => this.openServerDialog()}><span className='codicon codicon-add' /> Add MCP Server</button>
             </div>
@@ -240,7 +249,7 @@ export class IngotMcpWidget extends ReactWidget {
     }
 
     protected async remove(server: McpServerConfig): Promise<void> {
-        if (await this.confirm('Remove MCP Server', `Remove "${server.name}" and delete its keychain secrets?`, 'Remove')) {
+        if (await this.confirm('Remove MCP Server', `Remove "${server.name}" and delete its secrets from Ingot's local key file?`, 'Remove')) {
             await this.mcp.removeServer(server.name);
         }
     }
@@ -286,7 +295,7 @@ export class IngotMcpWidget extends ReactWidget {
                 <div className='ingot-mcp-kv'><span>{server.url ? 'URL' : 'Command'}</span><code>{server.url ?? [server.command, ...(server.args ?? [])].join(' ')}</code></div>
                 <div className='ingot-mcp-kv'><span>Scope</span>{scope === 'user' ? 'Global: ~/.ingot/mcp.json, runs in every project' : scope === 'imported' ? 'Imported (read-only), off until enabled' : 'Project: trusted for this project only'}</div>
                 {!!Object.keys(server.env ?? {}).length && <div className='ingot-mcp-kv'><span>Env</span>{Object.keys(server.env ?? {}).join(', ')} <em>(values hidden)</em></div>}
-                {!!(server.secretEnv?.length || server.secretHeaders?.length) && <div className='ingot-mcp-kv'><span>Secrets</span>{[...(server.secretEnv ?? []), ...(server.secretHeaders ?? [])].join(', ')} <em>(OS keychain)</em></div>}
+                {!!(server.secretEnv?.length || server.secretHeaders?.length) && <div className='ingot-mcp-kv'><span>Secrets</span>{[...(server.secretEnv ?? []), ...(server.secretHeaders ?? [])].join(', ')} <em>{MCP_SECRET_TEXT.detailNote}</em></div>}
                 {scope === 'user' && <label className='ingot-mcp-check'><input type='checkbox' className='ingot-mcp-project-off' checked={this.mcp.isProjectDisabled(server.name)}
                     onChange={e => this.mcp.setProjectDisabled(server.name, e.currentTarget.checked)} /> Turn off in this project only</label>}
                 {!!tools.length && <div className='ingot-mcp-tools'>
@@ -317,7 +326,7 @@ export class IngotMcpWidget extends ReactWidget {
             await this.mcp.authenticate(server.name, form.values);
             this.set('authForm', undefined);
         }}>
-            <p>Secrets are stored in the OS keychain, never in files.</p>
+            <p>{MCP_SECRET_TEXT.authNote}</p>
             {names.map(n => <label key={n} className='ingot-mcp-field'>
                 <span>{entry?.fields.find(f => f.name === n)?.label ?? n.replace(/^header:/, 'Header ')}</span>
                 <input type='password' autoComplete='off' name={n} value={form.values[n] ?? ''} onChange={e => this.set('authForm', { ...form, values: { ...form.values, [n]: e.currentTarget.value } })} />
@@ -335,8 +344,8 @@ export class IngotMcpWidget extends ReactWidget {
             <div className='ingot-mcp-kvlist-head'>{label}<button type='button' className='ingot-mcp-link ingot-mcp-kv-add' onClick={() => onChange([...list, { key: '', value: '', secret: false }])}>+ Add</button></div>
             {list.map((kv, i) => <div key={i} className='ingot-mcp-kvrow'>
                 <input className='ingot-mcp-kv-key' placeholder='NAME' value={kv.key} onChange={e => set(i, { key: e.currentTarget.value })} />
-                <input className='ingot-mcp-kv-value' type={kv.secret ? 'password' : 'text'} autoComplete='off' placeholder={kv.secret && !kv.value ? 'stored in keychain' : 'value'} value={kv.value} onChange={e => set(i, { value: e.currentTarget.value })} />
-                <label className='ingot-mcp-check' title='Store the value in the OS keychain'><input type='checkbox' className='ingot-mcp-kv-secret' checked={kv.secret} onChange={e => set(i, { secret: e.currentTarget.checked })} /> Secret</label>
+                <input className='ingot-mcp-kv-value' type={kv.secret ? 'password' : 'text'} autoComplete='off' placeholder={kv.secret && !kv.value ? MCP_SECRET_TEXT.secretPlaceholder : 'value'} value={kv.value} onChange={e => set(i, { value: e.currentTarget.value })} />
+                <label className='ingot-mcp-check' title={MCP_SECRET_TEXT.secretTitle}><input type='checkbox' className='ingot-mcp-kv-secret' checked={kv.secret} onChange={e => set(i, { secret: e.currentTarget.checked })} /> Secret</label>
                 <button type='button' className='codicon codicon-trash' title='Remove' onClick={() => onChange(list.filter((_, j) => j !== i))} />
             </div>)}
         </div>;
@@ -387,7 +396,7 @@ export class IngotMcpWidget extends ReactWidget {
                     <option value='project'>This project only (.ingot/mcp.json)</option>
                 </select>
             </label>
-            <p className='ingot-mcp-hint'>Values marked Secret are saved in the OS keychain; mcp.json only gets a placeholder.</p>
+            <p className='ingot-mcp-hint'>{MCP_SECRET_TEXT.formHint}</p>
             {dialog.error && <div className='ingot-mcp-error'>{dialog.error}</div>}
             <div className='ingot-mcp-form-actions'>
                 <button type='button' className='ingot-mcp-secondary' onClick={() => this.set('serverDialog', undefined)}>Cancel</button>
@@ -433,6 +442,13 @@ export class IngotMcpWidget extends ReactWidget {
     }
 
     protected startAdd(entry: McpCatalogEntry): void {
+        if (entry.id === SLACK_SERVER_NAME) {
+            this.tab = 'mcps';
+            this.marketplace = false;
+            this.slackConnectRequest++;
+            this.update();
+            return;
+        }
         this.set('addForm', { entry, name: entry.id, scope: 'user', values: {} });
     }
 
@@ -471,7 +487,7 @@ export class IngotMcpWidget extends ReactWidget {
                 </select>
             </label>
             {form.entry.fields.map(f => <label key={f.name} className='ingot-mcp-field'>
-                <span>{f.label}{f.secret && <em> · stored in OS keychain</em>}</span>
+                <span>{f.label}{f.secret && <em>{MCP_SECRET_TEXT.fieldNote}</em>}</span>
                 <input name={f.name} type={f.secret ? 'password' : 'text'} autoComplete='off' placeholder={f.placeholder} value={form.values[f.name] ?? ''}
                     onChange={e => update({ values: { ...form.values, [f.name]: e.currentTarget.value } })} />
             </label>)}
@@ -490,7 +506,7 @@ export class IngotMcpWidget extends ReactWidget {
             return this.plainFiles;
         }
         if (kind === 'rule') {
-            return (this.config?.rules ?? []).map(r => ({ key: r.path, name: r.name, detail: r.path, source: r.source, uri: r.uri, extra: r.alwaysApply ? 'always' : r.globs.join(', ') }));
+            return (this.config?.rules ?? []).map(r => ({ key: r.path, name: r.name, detail: r.path, source: r.source, uri: r.uri, extra: ruleKindLabel(r) }));
         }
         return (this.config?.commands ?? []).filter(c => c.kind === kind).map(c => ({ key: c.path, name: kind === 'command' ? `/${c.name}` : c.name, detail: c.description ?? c.path, source: c.source, uri: c.uri }));
     }
@@ -568,6 +584,10 @@ export class IngotMcpWidget extends ReactWidget {
                         <div className='ingot-mcp-summary'>{i.detail}</div>
                     </div>
                     <div className='ingot-mcp-row-actions' onClick={e => e.stopPropagation()}>
+                        {(kind === 'command' || kind === 'skill') && <button type='button' className='ingot-mcp-use-mode' title='Use as mode: pin it into the current chat'
+                            onClick={() => void this.commands.executeCommand(AGENT_COMMANDS.useAsMode.id, i.name)}>
+                            <span className='codicon codicon-pinned' aria-hidden='true' />Use as mode
+                        </button>}
                         {i.uri && <button type='button' className='codicon codicon-edit' title='Edit' onClick={() => open(this.opener, new URI(i.uri!))} />}
                         {i.uri && scopeLabel(i.source) !== 'Imported' && <button type='button' className='codicon codicon-trash ingot-mcp-item-delete' title='Delete' onClick={() => this.deleteItem(i, kind)} />}
                     </div>

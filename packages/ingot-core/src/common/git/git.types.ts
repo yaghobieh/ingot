@@ -34,6 +34,8 @@ export interface GitBlameLine {
 }
 
 import type { GitOperation, GitOpResult } from './git-ops';
+import type { WorktreeCreated } from '../threads/threads.types';
+import type { WorktreeSetupResult } from '../threads/worktree-setup.types';
 
 export const GitService = Symbol('GitService');
 /** Small, explicit Git surface for the Ingot UI (IDEA-32). `root` is the repository folder's file-system path. */
@@ -56,4 +58,11 @@ export interface GitService {
     run(root: string, op: GitOperation): Promise<GitOpResult>;
     /** Clones `url` into `<parent>/<repo>` and returns that folder (IDEA-165 welcome page). */
     clone(url: string, parent: string): Promise<string>;
+    /** IDEA-268: a new worktree on branch `ingot/<name>` at `<repo>.worktrees/<name>`, from the repo's HEAD. */
+    addWorktree(root: string, name: string): Promise<WorktreeCreated>;
+    /**
+     * IDEA-287: runs the `setup-worktree*` entry of worktrees.json (in the worktree first, then the main checkout;
+     * `.ingot`, and `.cursor` when `readCursor`) inside `folder`. Undefined when there is nothing to run.
+     */
+    setupWorktree(root: string, folder: string, readCursor: boolean): Promise<WorktreeSetupResult | undefined>;
 }

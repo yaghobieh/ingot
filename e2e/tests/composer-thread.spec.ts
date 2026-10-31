@@ -1,18 +1,15 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { dismissNotifications, openIngot } from '../src/app.utils';
 import { setAppearance, shot, tokenColor } from '../src/agent-tools.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { startFakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
+import { saveArtifact } from '../src/artifacts.e2e-utils';
 
 /** IDEA-248: Rex above the composer, one overflow menu, a distinct latest turn, jump, and edit-and-rerun. */
-const ARTIFACTS = '/opt/cursor/artifacts/screenshots';
 
 const saveShot = async (page: Page, name: string): Promise<void> => {
-    fs.mkdirSync(ARTIFACTS, { recursive: true });
-    await page.locator('.ingot-agents').screenshot({ path: path.join(ARTIFACTS, name), animations: 'disabled' });
+    await saveArtifact(page.locator('.ingot-agents'), name);
     await shot(page, name);
 };
 
@@ -42,6 +39,8 @@ const pinchThread = async (page: Page): Promise<void> => {
         node.style.flex = 'none';
         node.style.height = '140px';
     });
+    // The thread settles at the bottom of the smaller list before the reader scrolls up.
+    await expect.poll(() => page.locator('.ingot-agents-chat').evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThanOrEqual(2);
     await page.locator('.ingot-agents-chat').evaluate(el => {
         el.scrollTop = 0;
         el.dispatchEvent(new Event('scroll'));
@@ -60,17 +59,19 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
         await pickModel(page, 'ollama-local');
 
         await expect(page.locator('#ingot-composer-zaprex')).toHaveCount(0);
-        await expect(page.locator('#ingot-tb-zaprex')).toBeVisible();
-        await expect(page.locator('.ingot-composer-bar #ingot-composer-mode')).toHaveCount(0);
+        // Signed out: the Zaprex app entry is PRO+ only.
+        await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0);
+        await expect(page.locator('.ingot-composer-bar #ingot-composer-mode')).toHaveText(/Agent/);
         await expect(page.locator('.ingot-composer-bar #ingot-composer-review')).toHaveCount(0);
 
         await page.locator('#ingot-composer-more').click();
         await expect(page.locator('#ingot-composer-more-menu')).toBeVisible();
-        await expect(page.locator('#ingot-composer-mode')).toHaveText(/Agent/);
+        await expect(page.locator('#ingot-composer-more-menu #ingot-composer-mode')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-review')).toBeVisible();
         const surface = await tokenColor(page, '--ingot-surface');
+        const card = await tokenColor(page, '--ingot-agent-card');
         await expect(page.locator('#ingot-composer-more-menu')).toHaveCSS('background-color', surface);
-        await expect(page.locator('.ingot-agents .ingot-composer')).toHaveCSS('background-color', surface);
+        await expect(page.locator('.ingot-agents .ingot-composer')).toHaveCSS('background-color', card);
         await saveShot(page, 'composer-overflow-light.png');
         await page.locator('#ingot-composer-more').click();
 
@@ -83,9 +84,9 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
         const latest = page.locator('.ingot-chat-latest');
         await expect(latest).toContainText('beta second question');
         await expect(page.locator('.ingot-chat-user', { hasText: 'alpha first question' })).not.toHaveClass(/ingot-chat-latest/);
-        const accent = await tokenColor(page, '--theia-focusBorder');
-        const shadow = await latest.evaluate(el => getComputedStyle(el).boxShadow);
-        expect(shadow).toContain(accent.replace(/^rgba?\(/, '').replace(/\).*$/, ''));
+        // The latest prompt is the quiet prompt card: card fill and a 1px border, no accent bar.
+        expect(await latest.evaluate(el => getComputedStyle(el).boxShadow)).toBe('none');
+        await expect(latest).toHaveCSS('background-color', card);
         expect(await latest.evaluate(el => getComputedStyle(el).borderTopWidth)).toBe('1px');
         await saveShot(page, 'chat-latest-light.png');
 
@@ -99,8 +100,8 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
         await expect(page.locator('.ingot-chat-user', { hasText: 'alpha first question' })).toBeInViewport();
         await page.locator('#ingot-jump-latest').click();
         await expect(page.locator('#ingot-jump-latest')).toHaveCount(0);
-        const fromBottom = await page.locator('.ingot-agents-chat').evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight);
-        expect(fromBottom).toBeLessThan(80);
+        // A smooth glide to the very bottom.
+        await expect.poll(() => page.locator('.ingot-agents-chat').evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThanOrEqual(2);
         await page.locator('.ingot-agents-chat-wrap').evaluate(el => {
             const node = el as HTMLElement;
             node.style.flex = '';
@@ -118,6 +119,7 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
         await page.locator('#ingot-chat-edit-input').fill('edited question about the picker');
         await saveShot(page, 'chat-edit-light.png');
         await page.locator('#ingot-chat-edit-submit').click();
+        await page.locator('#ingot-chat-edit-revert').click();
         await expect(page.locator('.ingot-chat-agent .ingot-md').last()).toContainText('edited answer is ready');
         await expect(page.locator('.ingot-agents-chat')).toContainText('edited question about the picker');
         await expect(page.locator('.ingot-agents-chat')).not.toContainText('beta second question');
@@ -126,16 +128,17 @@ test('composer chrome, latest turn, jump and edit', async ({ page }) => {
 
         await setAppearance(page, 'dark');
         await page.locator('#ingot-composer-input').fill('theme check');
-        const darkSend = await tokenColor(page, '--ingot-primary');
-        const darkText = await tokenColor(page, '--ingot-primary-text');
+        const darkSend = await tokenColor(page, '--ingot-agent-accent');
+        const darkText = await tokenColor(page, '--ingot-agent-accent-text');
         const darkSurface = await tokenColor(page, '--ingot-surface');
+        const darkCard = await tokenColor(page, '--ingot-agent-card');
         await expect(page.locator('#ingot-composer-send')).toHaveCSS('background-color', darkSend);
         await expect(page.locator('#ingot-composer-send')).toHaveCSS('color', darkText);
         expect(darkSend).not.toBe('rgb(217, 160, 78)');
         expect(darkSurface).not.toBe(surface);
         await page.locator('#ingot-composer-more').click();
         await expect(page.locator('#ingot-composer-more-menu')).toHaveCSS('background-color', darkSurface);
-        await expect(page.locator('.ingot-agents .ingot-composer')).toHaveCSS('background-color', darkSurface);
+        await expect(page.locator('.ingot-agents .ingot-composer')).toHaveCSS('background-color', darkCard);
         await saveShot(page, 'composer-overflow-dark.png');
     } finally {
         await server.close();

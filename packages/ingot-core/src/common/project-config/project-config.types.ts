@@ -2,7 +2,14 @@
  * Where a rule / command / skill / server came from. `global*` are loaded from the user's home for every project
  * (`~/.ingot`, and imported global folders); project sources win on name conflicts.
  */
-export type ConfigSource = 'ingot' | 'legacy' | 'external' | 'agents' | 'global' | 'global-imported';
+export type ConfigSource = 'ingot' | 'legacy' | 'external' | 'agents' | 'global' | 'global-imported' | 'team';
+
+/**
+ * IDEA-287: how a rule is applied, as in Cursor. `always`: every turn. `auto`: when a file in context matches its globs.
+ * `agent`: listed by name and description; the agent reads it with `ingot/fetch_rule` when relevant. `manual`: only
+ * when the user @-mentions it.
+ */
+export type RuleKind = 'always' | 'auto' | 'agent' | 'manual';
 
 export interface ProjectRule {
     readonly name: string;
@@ -11,9 +18,85 @@ export interface ProjectRule {
     readonly description?: string;
     readonly globs: readonly string[];
     readonly alwaysApply: boolean;
+    readonly kind: RuleKind;
     readonly body: string;
     /** Absolute file URI (for open / delete). */
     readonly uri?: string;
+    /** IDEA-287: project-relative folder of a nested rule (`packages/web`); it only applies to files under it. */
+    readonly scope?: string;
+    /** IDEA-287: a team rule the user cannot turn off. */
+    readonly enforced?: boolean;
+}
+
+/** IDEA-287: one rule of a review (a team rule, a BUGBOT.md or a file it links to); required rules are kept first. */
+export interface ReviewRule {
+    readonly title: string;
+    readonly text: string;
+    readonly required?: boolean;
+}
+
+/** IDEA-287: a file a rule points at with `@path` (Cursor's rule references), attached with the rule. */
+export interface RuleReference {
+    readonly path: string;
+    readonly text: string;
+}
+
+/** IDEA-287: `.ingot/environment.json` (Cursor's `.cursor/environment.json`): how to set the project up and run it. */
+export interface ProjectEnvironment {
+    readonly install?: string;
+    readonly start?: string;
+    readonly terminals: readonly { readonly name: string; readonly command: string; readonly description?: string }[];
+    /** IDEA-287: a Cursor cloud snapshot id (cloud agents only; shown, not used locally). */
+    readonly snapshot?: string;
+    /** IDEA-287: the image to build, as written (`dockerfile` / `context` relative to the folder of environment.json). */
+    readonly build?: EnvironmentBuild;
+    /** IDEA-287: a prebuilt image (`node:22`), the environment's name, the user commands run as, and ports it exposes. */
+    readonly image?: string;
+    readonly name?: string;
+    readonly user?: string;
+    readonly ports?: readonly EnvironmentPort[];
+    /** IDEA-287: `agentCanUpdateSnapshot` (cloud snapshots only). */
+    readonly agentCanUpdateSnapshot?: boolean;
+    /** IDEA-287: Cursor cloud-agent settings that are set but have no local meaning (`egressAllowlist`, `mcpServerAllowlist`…). */
+    readonly cloudOnly?: readonly string[];
+    readonly errors: readonly string[];
+}
+
+export interface EnvironmentPort {
+    readonly port: number;
+    readonly name?: string;
+}
+
+/** A Dockerfile path or, with `dockerfileContents`, the Dockerfile itself (IDEA-287). */
+export interface EnvironmentBuild {
+    readonly dockerfile?: string;
+    readonly dockerfileContents?: string;
+    readonly context?: string;
+}
+
+/** IDEA-287: `build` paths resolved to project-relative paths. */
+export interface ResolvedEnvironmentBuild {
+    readonly dockerfile?: string;
+    readonly dockerfileContents?: string;
+    readonly context: string;
+}
+
+/** IDEA-295: a rule written from the User Rules settings page. */
+export interface RuleDraft {
+    readonly name: string;
+    readonly kind: RuleKind;
+    readonly description?: string;
+    /** Comma-separated globs for `auto` rules. */
+    readonly globs?: string;
+    readonly body: string;
+}
+
+/** IDEA-294: `.ingotignore` (agent + index) and `.ingotindexingignore` (index only) checks, project-relative paths. */
+export interface IgnoreRules {
+    /** Hidden from agent file tools, search, the @ picker and the index. */
+    readonly agent: (path: string) => boolean;
+    /** Kept out of the codebase index (quick open); agents may still read it. */
+    readonly index: (path: string) => boolean;
 }
 
 export interface ProjectCommand {
@@ -26,6 +109,12 @@ export interface ProjectCommand {
     readonly uri?: string;
     /** Argument hint from frontmatter `args` (IDEA-249), shown after the name in the `/` menu. */
     readonly args?: string;
+    /** IDEA-287: skill frontmatter `paths` (or the legacy `globs`): the agent is offered the skill only for matching files. */
+    readonly paths?: readonly string[];
+    /** IDEA-287: skill frontmatter `disable-model-invocation: true`: only `/name` uses it, the agent is not offered it. */
+    readonly manualOnly?: boolean;
+    /** IDEA-287: folder of a nested skill (`apps/web` for `apps/web/.cursor/skills/deploy/SKILL.md`), offered only for files under it. */
+    readonly scope?: string;
 }
 
 export interface McpServerConfig {
@@ -41,6 +130,16 @@ export interface McpServerConfig {
     readonly secretEnv?: readonly string[];
     /** HTTP headers whose values live in the OS keychain (e.g. Authorization). */
     readonly secretHeaders?: readonly string[];
+    /** IDEA-287: dotenv file (relative to the project) whose variables are added to the server's environment. */
+    readonly envFile?: string;
+}
+
+/** IDEA-287: values for `${workspaceFolder}`, `${userHome}`, `${env:NAME}` and friends in mcp.json (as in Cursor). */
+export interface McpVariables {
+    readonly workspaceFolder: string;
+    readonly userHome: string;
+    readonly pathSeparator: string;
+    readonly env: Readonly<Record<string, string | undefined>>;
 }
 
 export interface ProjectConfig {

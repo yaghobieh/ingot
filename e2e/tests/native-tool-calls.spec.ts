@@ -44,7 +44,8 @@ for (const scheme of ['light', 'dark'] as const) {
             for (const raw of ['function_calls', '<invoke', 'parameter name']) {
                 await expect(page.locator('#ingot-agents')).not.toContainText(raw);
             }
-            await expect(page.locator('#ingot-chat-explored')).toContainText(/Explored 1 file, 1 folder/);
+            // package.json plus the applied rules.
+            await expect(page.locator('#ingot-chat-explored')).toContainText(/Explored 2 files, 1 folder/);
             expect(users.some(u => u.startsWith('Tool result (ingot/list_dir)') && u.includes('src/'))).toBe(true);
             expect(users.some(u => u.startsWith('Tool result (ingot/read_file)') && u.includes('"tools-project"'))).toBe(true);
             await shot(page, `native-tool-calls-${scheme}.png`);

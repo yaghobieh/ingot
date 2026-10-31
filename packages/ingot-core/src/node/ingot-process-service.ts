@@ -1,19 +1,24 @@
 import { spawn, type ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { injectable, postConstruct } from '@theia/core/shared/inversify';
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { createRequire } from 'module';
 import { rgArgs } from '../common/agents/workspace-tools';
 import { RG_TIMEOUT_MS } from '../common/agents/work-loop.consts';
 import type {
-    ForegroundOptions, ForegroundResult, PackageScripts, ProcessClient, ProcessInfo, ProcessOutput, ProcessService, ProcessStartOptions,
+    ForegroundOptions, ForegroundResult, HookRunOptions, PackageScripts, ProcessClient, ProcessInfo, ProcessOutput, ProcessService, ProcessStartOptions,
     WorkspaceSearchQuery, WorkspaceSearchResult
 } from '../common/processes/processes.types';
+import type { HookRunOutput } from '../common/hooks/agent-hooks.types';
+import { AGENT_HOOK_MAX_OUTPUT_CHARS, HOOK_CURSOR_PROJECT_ENV, HOOK_PROJECT_ENV } from '../common/hooks/agent-hooks.consts';
 import {
     BACKGROUND_SETTLE_MS, FOREGROUND_TIMEOUT_MS, MAX_FINISHED_PROCESSES, PROCESS_AGENT_OUTPUT_CHARS, PROCESS_BUFFER_CHARS, PROCESS_LIST_DEBOUNCE_MS, STOP_GRACE_MS
 } from '../common/processes/processes.consts';
 import { appendTail, detectPorts, finalStatus, isSafeProjectPath, packageManagerFor, parseScripts, sortProcesses, stripAnsi } from '../common/processes/processes.utils';
 import { registerClientDrop } from '../common/rpc/disconnected-client';
+import { SANDBOX_DENIED_PATTERN } from '../common/policy/agent-policy.consts';
+import { sandboxCommand } from '../common/policy/agent-policy.utils';
+import { CursorModeReader } from './cursor-mode-reader';
 
 interface Entry {
     info: ProcessInfo;
@@ -33,6 +38,7 @@ let nextId = 1;
 @injectable()
 export class IngotProcessService implements ProcessService {
 
+    @inject(CursorModeReader) protected readonly cursorModes: CursorModeReader;
     protected readonly entries = new Map<string, Entry>();
     protected readonly clients = new Set<ProcessClient>();
     protected notifyTimer?: ReturnType<typeof setTimeout>;
@@ -79,7 +85,8 @@ export class IngotProcessService implements ProcessService {
         }
         const max = options.maxOutput ?? PROCESS_AGENT_OUTPUT_CHARS;
         const text = entry.output.length > max ? `… (${entry.output.length - max} earlier characters cut)\n${entry.output.slice(-max)}` : entry.output;
-        return { info: entry.info, output: text, movedToBackground: !finished };
+        const sandboxDenied = !!entry.info.sandboxed && entry.info.status !== 'running' && entry.info.exitCode !== 0 && SANDBOX_DENIED_PATTERN.test(entry.output);
+        return { info: entry.info, output: text, movedToBackground: !finished, ...(sandboxDenied ? { sandboxDenied } : {}) };
     }
 
     async readText(cwd: string, relativePath: string): Promise<string | undefined> {
@@ -148,7 +155,8 @@ export class IngotProcessService implements ProcessService {
         if (!bin || !query.cwd) {
             return { engine: 'none', text: '' };
         }
-        const args = rgArgs({ pattern: query.pattern, path: query.path, glob: query.glob, regex: query.regex, files: query.files });
+        const ignoreFiles = query.agentIgnore ? (await this.cursorModes.agentIgnoreFiles(query.cwd)).filter(f => fs.existsSync(path.join(query.cwd, f))) : [];
+        const args = rgArgs({ pattern: query.pattern, path: query.path, glob: query.glob, globs: query.globs, regex: query.regex, files: query.files, ignoreFiles });
         return new Promise(resolve => {
             let text = '';
             let settled = false;
@@ -190,21 +198,59 @@ export class IngotProcessService implements ProcessService {
         }
     }
 
+    /** IDEA-294: one agent hook command. The payload goes to stdin; stdout / stderr come back capped; killed at the timeout. */
+    async runHook(options: HookRunOptions): Promise<HookRunOutput> {
+        const win = process.platform === 'win32';
+        const shell = win ? { cmd: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/s', '/c', options.command] } : { cmd: process.env.SHELL || '/bin/sh', args: ['-c', options.command] };
+        return new Promise(resolve => {
+            let stdout = '';
+            let stderr = '';
+            let timedOut = false;
+            let settled = false;
+            const finish = (exitCode: number | undefined): void => {
+                if (!settled) {
+                    settled = true;
+                    clearTimeout(timer);
+                    resolve({ stdout, stderr, timedOut, ...(exitCode !== undefined ? { exitCode } : {}) });
+                }
+            };
+            const child = spawn(shell.cmd, shell.args, {
+                cwd: options.cwd, stdio: ['pipe', 'pipe', 'pipe'], detached: !win, windowsHide: true,
+                env: { ...process.env, ...options.env, [HOOK_PROJECT_ENV]: options.projectDir ?? options.cwd, [HOOK_CURSOR_PROJECT_ENV]: options.projectDir ?? options.cwd }
+            });
+            const timer = setTimeout(() => {
+                timedOut = true;
+                this.signal(child, 'SIGKILL');
+                finish(undefined);
+            }, options.timeoutMs);
+            child.stdout?.on('data', (chunk: Buffer) => { stdout = (stdout + chunk.toString('utf8')).slice(-AGENT_HOOK_MAX_OUTPUT_CHARS); });
+            child.stderr?.on('data', (chunk: Buffer) => { stderr = (stderr + chunk.toString('utf8')).slice(-AGENT_HOOK_MAX_OUTPUT_CHARS); });
+            child.on('error', error => {
+                stderr += error.message;
+                finish(1);
+            });
+            child.on('close', code => finish(code ?? undefined));
+            child.stdin?.on('error', () => undefined);
+            child.stdin?.end(options.input);
+        });
+    }
+
     protected spawn(options: ProcessStartOptions): Entry {
         const id = `p${nextId++}`;
         const win = process.platform === 'win32';
-        const shell = win ? { cmd: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/s', '/c', options.command] } : { cmd: process.env.SHELL || '/bin/sh', args: ['-c', options.command] };
+        const plain = win ? { cmd: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/s', '/c', options.command] } : { cmd: process.env.SHELL || '/bin/sh', args: ['-c', options.command] };
+        const shell = options.sandbox ? sandboxCommand(plain, { ...options.sandbox, writable: options.sandbox.writable.map(realDir) }, process.platform) : { ...plain, applied: false };
         const info: ProcessInfo = {
             id, command: options.command, cwd: options.cwd, origin: options.origin ?? 'agent', status: 'running',
-            background: !!options.background, startedAt: Date.now(), ports: []
+            background: !!options.background, startedAt: Date.now(), ports: [], ...(shell.applied ? { sandboxed: true } : {})
         };
         let resolveExit!: () => void;
         const entry: Entry = { info, output: '', dropped: false, stopRequested: false, exited: new Promise(r => { resolveExit = r; }) };
         this.entries.set(id, entry);
         this.prune();
         try {
-            const child = spawn(shell.cmd, shell.args, {
-                cwd: options.cwd, env: { ...process.env, FORCE_COLOR: '0', CI: process.env.CI ?? '' }, stdio: ['ignore', 'pipe', 'pipe'], detached: !win, windowsHide: true
+            const child = spawn(shell.cmd, [...shell.args], {
+                cwd: options.cwd, env: { ...process.env, FORCE_COLOR: '0', CI: process.env.CI ?? '', ...options.env }, stdio: ['ignore', 'pipe', 'pipe'], detached: !win, windowsHide: true
             });
             entry.child = child;
             this.update(entry, { pid: child.pid });
@@ -305,6 +351,15 @@ export class IngotProcessService implements ProcessService {
 }
 
 const delay = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms));
+
+/** The sandbox matches real paths (`/var` is `/private/var` on macOS); a folder that does not exist yet stays as given. */
+const realDir = (dir: string): string => {
+    try {
+        return fs.realpathSync(dir);
+    } catch {
+        return dir;
+    }
+};
 const nodeRequire = createRequire(__filename);
 
 const ripgrepBinary = (): string | undefined => {

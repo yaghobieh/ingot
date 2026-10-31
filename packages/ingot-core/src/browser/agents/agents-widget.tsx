@@ -4,10 +4,29 @@ import { ImageHoverService } from '../preview/image-hover-service';
 import { actionLine, activityLine } from '../../common/agents/agent-actions';
 import { isWorkspaceTool, SKIPPED_DIRS } from '../../common/agents/workspace-tools';
 import { mentionQuery, rankFiles, SLASH_BUILTINS, SlashBuiltinAction } from '../../common/agents/composer-menus';
-import { commandFolder } from '../../common/project-config/project-config.utils';
+import { commandFolder, findRule, ruleMentionItems } from '../../common/project-config/project-config.utils';
+import { RULE_MENTION_PREFIX } from '../../common/project-config/project-config.consts';
+import type { ProjectRule } from '../../common/project-config/project-config.types';
+import { RuleMentionItem } from './rule-mention-item';
+import { HabitCards } from '../habits/habit-cards';
+import { HabitStore } from '../habits/habit-store';
+import { PlaybookService } from '../habits/playbook-service';
+import { PlaybookEditor } from '../habits/playbook-editor';
+import { HabitChecklist, HabitPill } from '../habits/habit-chat';
+import { HabitNote } from '../habits/habit-note';
+import { HABITS_OPEN_COMMAND, NOTE_UNDO_LABELS, SAVED_TO_HABITS } from '../../common/habits/habits.consts';
+import { DoomCard } from '../doom-loop/doom-card';
+import { FrozenStore } from '../frozen/frozen-store';
+import { FrozenSuggestions } from '../frozen/frozen-suggestions';
+import { FROZEN_NOTES } from '../../common/frozen/frozen.consts';
+import { savedHabitFocus, savedHabitKey } from '../../common/habits/habits.utils';
+import type { Habit } from '../../common/habits/habits.types';
+import type { PlaybookScope } from '../../common/habits/playbook.types';
+import { draftFromLearned, draftFromRun, runSummary } from '../../common/habits/playbook-draft.utils';
+import { playbookFileText } from '../../common/habits/playbook.utils';
+import { PLAYBOOK_SCOPE_HINTS, SAVE_RUN_LABEL } from '../../common/habits/playbook.consts';
 import { exploredItems, exploredLine, extractThought } from '../../common/agents/tool-cards';
 import { tabRunState } from '../../common/agents/chat-round';
-import { REACTION_HEART, REACTION_LIKE } from '../../common/agents/chat-round.consts';
 import { ThoughtRow, ToolCardView } from './tool-card';
 import { SUBAGENT_PREFS, subagentsView } from '../../common/agents/subagents';
 import { SubagentsStrip } from './subagents-strip';
@@ -33,11 +52,14 @@ import { IngotAccountService } from '../account/account-service';
 import { AccountAvatar } from '../account/account-avatar';
 import { SIGN_IN_FOR_MODELS } from '../../common/models/models.consts';
 import { MemoryStore } from './memory-store';
+import { AutoContextService } from './auto-context-service';
+import { AUTO_CONTEXT_ICONS } from '../../common/agents/auto-context.consts';
+import type { AutoContextItem } from '../../common/agents/auto-context.types';
 import { CommandRegistry } from '@theia/core/lib/common/command';
 import { IngotModelClient } from '../models/model-client';
 import { MODELS_OPEN_COMMAND } from '../models/models.browser-consts';
 import type { AgentMode, AgentSession } from '../../common/agents/agents.types';
-import { changesSummary, editedFilesLabel, fileBadge, fileWord, formatWorked, stepVerb } from '../../common/agents/agents.utils';
+import { changesSummary, editedFilesLabel, fileBadge, fileWord, formatWorked, stepText, workingLabel } from '../../common/agents/agents.utils';
 import { AgentStore } from './agent-store';
 import { EditorManager } from '@theia/editor/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
@@ -56,28 +78,56 @@ import { WindowService } from '@theia/core/lib/browser/window/window-service';
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { lineCount } from '../../common/agents/context-chips';
-import type { AgentStep } from '../../common/agents/agents.types';
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import { EditorCopyTracker } from './editor-copy-tracker';
 import { ContextMenuRenderer } from '@theia/core/lib/browser/context-menu-renderer';
 import { LAYOUT_CONTEXT_MENU } from '../layout/layout.browser-consts';
 import { ChangeTracker } from '../changes/change-tracker';
 import { CodeChangeBlock } from '../changes/code-change-block';
-import { changeStats, isPending } from '../../common/changes/changes.utils';
+import { isPending } from '../../common/changes/changes.utils';
 import { formatCountdown, reviewFileState } from '../../common/review/review';
 import { ReviewComments } from '../review/review-comments';
+import { AGENT_REVIEW_COMMANDS } from '../agent-review/agent-review.consts';
 import type { CodeChange } from '../../common/changes/changes.types';
-import { AGENT_COMMANDS, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
+import { AGENT_COMMANDS, AGENT_EMPTY_MARK_SIZE, AGENT_MARK_SIZE, AGENTS_FOCUS_KEY, AGENTS_WIDGET_ID, AGENTS_WIDGET_LABEL } from './agents.consts';
+import { RexMark } from '../brand/rex-mark';
+import { AttachIcon, CheckIcon, ChevronIcon, HistoryIcon, MoreIcon, PlusIcon, SendIcon } from './agent-icons';
+import { AGENT_ICON_SIZE } from './agent-icons.consts';
 import { ProcessStore } from '../processes/process-store';
 import { ProcessesPanel } from '../processes/processes-panel';
-import { BROWSER_COMMANDS } from '../browser-tool/browser-contribution';
+import { BROWSER_COMMANDS } from '../browser-tool/browser-tool.browser-consts';
+import { BROWSER_RUN_COMMAND } from '../../common/browser-tool/browser-tool.consts';
 import { PROCESS_COMMANDS } from '../processes/processes.browser-consts';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
 import { RUN_PREFS } from '../../common/processes/run-settings';
 import { isSafeRelativePath } from '../../common/groups/channel.utils';
 import { composerBarWidthClass } from '../../common/agents/composer-bar';
-import { distanceFromBottom, latestUserIndex, scrollTopAfterUpdate, showJumpToLatest, userJumpTargets } from '../../common/agents/chat-thread';
-type Popover = 'mode' | 'model' | 'history' | 'context' | 'more' | 'jumps' | undefined;
+import { distanceFromBottom, followAfterScroll, isAtBottom, latestUserIndex, scrollTopAfterUpdate, showJumpToLatest, userJumpTargets } from '../../common/agents/chat-thread';
+import { mentionChips, sumDiffs, threadLayout } from '../../common/agents/agent-panel';
+import type { ThreadLayout } from '../../common/agents/agent-panel.types';
+import { AskCard, EditRerunForm, QueuedChip, ReplyReactions } from './composer-usability';
+import { editRerunPlan, promptClickAction } from '../../common/agents/composer-usability';
+import { EDIT_PROMPT_TITLE, PROMPT_CLICK_IGNORE } from '../../common/agents/composer-usability.consts';
+import type { EditRerunChoice } from '../../common/agents/composer-usability.types';
+import { goalMetCount, goalProgress } from '../../common/agents/goal';
+import { GOAL_STOP_LABELS, PERCENT } from '../../common/agents/goal.consts';
+import type { AgentGoal } from '../../common/agents/goal.types';
+import { modePillLabel } from '../../common/agents/custom-mode';
+import { SandboxPresetService } from '../sandbox/sandbox-preset-service';
+import { SandboxMenu } from '../sandbox/sandbox-menu';
+import { SANDBOX_PILL_ID } from '../sandbox/sandbox.browser-consts';
+import { SANDBOX_INFO } from '../../common/sandbox/sandbox.consts';
+import { presetLabel, presetTitle } from '../../common/sandbox/sandbox.utils';
+import { PlanReviewCard } from '../plan-review/plan-review-card';
+import { CostForecastService } from '../cost/cost-forecast';
+import type { CostForecast } from '../../common/cost/cost.types';
+import { approxUsd, formatPrice, formatUsd } from '../../common/cost/cost.utils';
+import { rotSummary } from '../../common/fresh-context/fresh-context.utils';
+import { FRESH_HANDOFF_COMMAND } from '../../common/fresh-context/fresh-context.consts';
+import { ModelRouter } from '../router/model-router';
+import { ROUTER_PREFS } from '../../common/router/router.consts';
+import { COST_PREFS } from '../../common/cost/cost.consts';
+type Popover = 'mode' | 'model' | 'history' | 'context' | 'more' | 'header' | 'jumps' | 'sandbox' | undefined;
 const COMPOSER_HEIGHT_KEY = 'ingot.composer.height';
 
 /** Right tool window: chats as tabs with History, conversation with plan and tool steps, composer with mode, model and context (IDEA-27/28, IDEA-77). */
@@ -87,8 +137,10 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(AgentStore) protected readonly store: AgentStore;
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
     @inject(ReviewComments) protected readonly reviewComments: ReviewComments;
-    /** Code-change blocks the user collapsed (they start open). */
+    /** Code-change blocks the user collapsed (they start open while the file streams). */
     protected readonly collapsedChanges = new Set<string>();
+    /** Edited-file rows whose diff is open inside the edited-files card. */
+    protected readonly expandedFiles = new Set<string>();
     @inject(IngotModelClient) protected readonly models: IngotModelClient;
     @inject(MessageService) protected readonly messages: MessageService;
     @inject(IngotAccountService) protected readonly account: IngotAccountService;
@@ -97,6 +149,12 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(EditorManager) protected readonly editors: EditorManager;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
+    @inject(AutoContextService) protected readonly autoContext: AutoContextService;
+    @inject(HabitStore) protected readonly habits: HabitStore;
+    @inject(FrozenStore) protected readonly frozen: FrozenStore;
+    @inject(PlaybookService) protected readonly playbooks: PlaybookService;
+    /** IDEA-296: a habit being drafted ("Save as habit", "Make it a habit") in the editor above the composer. */
+    protected habitDraft?: { title: string; text: string; learned?: Habit };
     @inject(ContextKeyService) protected readonly contextKeys: ContextKeyService;
     @inject(KeybindingRegistry) protected readonly keybindings: KeybindingRegistry;
     @inject(EditorCopyTracker) protected readonly copies: EditorCopyTracker;
@@ -106,6 +164,11 @@ export class IngotAgentsWidget extends ReactWidget {
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(PreferenceService) protected readonly preferences: PreferenceService;
     @inject(ImageHoverService) protected readonly imageHovers: ImageHoverService;
+    @inject(SandboxPresetService) protected readonly sandbox: SandboxPresetService;
+    @inject(CostForecastService) protected readonly costs: CostForecastService;
+    @inject(ModelRouter) protected readonly router: ModelRouter;
+    /** IDEA-307: a run over the cost warning waits on "Send anyway". */
+    protected costConfirm?: CostForecast;
 
     protected readonly markdown = new AgentMarkdownRenderer(() => this.update());
     /** The mode the Deep research toggle returns to. */
@@ -139,19 +202,22 @@ export class IngotAgentsWidget extends ReactWidget {
     protected mention?: { query: string; index: number };
     protected mentionDismissed?: string;
     protected mentionFiles?: { root: string; at: number; files: string[]; loading?: Promise<void> };
+    protected mentionRules: readonly ProjectRule[] = [];
     /** Height set by dragging the handle (IDEA-67); persisted. */
     protected manualHeight?: number;
     /** In-place edit of a sent user message. */
     protected editingIndex?: number;
     protected editDraft = '';
     protected chatScroll?: HTMLDivElement | null;
-    protected stickToLatest = true;
-    /** scrollTop to put back when the reader is not following the latest line. */
-    protected savedScroll = 0;
-    /** Follow flag captured before the next render. */
-    protected pendingFollow = true;
-    /** Ignores the scroll event caused by restoring or following. */
-    protected applyingScroll = false;
+    protected chatThread?: HTMLDivElement | null;
+    /** New content keeps the latest line in view; off as soon as the reader scrolls up, on again at the bottom. */
+    protected following = true;
+    /** scrollTop after the last scroll event or follow, to tell a move up by the reader from content growth. */
+    protected lastTop = 0;
+    /** The chat whose thread is shown; a different chat starts at its latest line. */
+    protected shownSession?: string;
+    /** A smooth "Jump to latest" is under way; following waits for it instead of snapping. */
+    protected gliding = false;
     protected chatSize?: ResizeObserver;
     /** The review file list starts open; the summary button collapses it. */
     protected reviewListOpen = true;
@@ -175,7 +241,8 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected acceptSlash(item: { name: string; action?: SlashBuiltinAction }): void {
         this.slashIndex = 0;
-        if (!item.action) {
+        // IDEA-289 / IDEA-292: /browser and /goal prefix the text typed after them, like a project command.
+        if (!item.action || item.action.kind === 'goal' || item.action.kind === 'browser' || item.action.kind === 'args') {
             this.inline?.setText(`/${item.name} `);
             this.focusComposer();
             return;
@@ -208,6 +275,12 @@ export class IngotAgentsWidget extends ReactWidget {
             case 'memories':
                 this.toggleMemories();
                 return;
+            case 'prompt':
+                this.store.send(action.prompt);
+                break;
+            case 'browser':
+                this.inline?.setText(`/${BROWSER_RUN_COMMAND} `);
+                break;
         }
         this.update();
         this.focusComposer();
@@ -218,7 +291,7 @@ export class IngotAgentsWidget extends ReactWidget {
         if (!this.mention || this.mentionDismissed === this.mention.query) {
             return [];
         }
-        return rankFiles(this.mentionFiles?.files ?? [], this.mention.query);
+        return [...ruleMentionItems(this.mentionRules, this.mention.query), ...rankFiles(this.mentionFiles?.files ?? [], this.mention.query)];
     }
 
     protected updateMention(): void {
@@ -261,8 +334,9 @@ export class IngotAgentsWidget extends ReactWidget {
                 }
             }
         };
-        entry.loading = walk(root, 0).then(() => {
-            entry.files = files;
+        void this.store.mentionRules().then(rules => { this.mentionRules = rules; this.update(); });
+        entry.loading = Promise.all([walk(root, 0), this.store.agentIgnore(root)]).then(([, ignore]) => {
+            entry.files = files.filter(f => !ignore.agent(f));
             entry.at = Date.now();
             entry.loading = undefined;
             this.update();
@@ -273,16 +347,19 @@ export class IngotAgentsWidget extends ReactWidget {
     protected acceptMention(path: string): void {
         const query = this.mention?.query ?? '';
         this.mention = undefined;
+        const rule = path.startsWith(RULE_MENTION_PREFIX) ? findRule(this.mentionRules, path.slice(RULE_MENTION_PREFIX.length)) : undefined;
+        if (rule) {
+            this.inline?.replaceBeforeCaret(query.length + 1, '');
+            this.inline?.insertCode({ path: rule.path, uri: rule.uri ?? '', start: 1, end: lineCount(rule.body), text: rule.body, whole: true, rule: rule.name });
+            this.focusComposer();
+            return;
+        }
         this.inline?.replaceBeforeCaret(query.length + 1, `@${path} `);
         this.focusComposer();
     }
 
     protected focusComposer(): void {
-        if (this.inline) {
-            this.inline.focus();
-        } else {
-            this.focusComposer();
-        }
+        (this.inline ?? this.node).focus();
     }
 
     /** Creates the inline editor once React has mounted its element (IDEA-98). */
@@ -310,6 +387,7 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         this.draft = text;
         this.composerEmpty = this.inline?.empty ?? true;
+        this.costConfirm = undefined;
         this.updateMention();
         this.update();
     }
@@ -320,13 +398,18 @@ export class IngotAgentsWidget extends ReactWidget {
         this.title.label = AGENTS_WIDGET_LABEL;
         this.title.caption = AGENTS_WIDGET_LABEL;
         this.title.closable = true;
-        this.title.iconClass = 'ingot-icon ingot-icon-ai';
+        this.title.iconClass = 'ingot-icon ingot-icon-rex';
         this.addClass('ingot-agents');
         this.listenForDrops();
         this.toDispose.push(this.store.onDidChange(() => this.holdScroll()));
+        this.toDispose.push(this.autoContext.onDidChange(() => this.update()));
         this.toDispose.push(this.account.onDidChange(() => this.update()));
         this.toDispose.push(this.processes.onDidChange(() => this.update()));
-        this.toDispose.push(this.preferences.onPreferenceChanged(e => { if (e.preferenceName === RUN_PREFS.showProcesses) { this.update(); } }));
+        this.toDispose.push(this.preferences.onPreferenceChanged(e => {
+            if (e.preferenceName === RUN_PREFS.showProcesses || e.preferenceName === ROUTER_PREFS.enabled || e.preferenceName === COST_PREFS.forecast || e.preferenceName === COST_PREFS.warnUsd) {
+                this.update();
+            }
+        }));
         this.toDispose.push(this.tracker.onDidChange(() => {
             // IDEA-105: deciding a file during a checkpoint is review activity, so the countdown stops.
             const current = this.store.current;
@@ -339,6 +422,7 @@ export class IngotAgentsWidget extends ReactWidget {
         const ticker = setInterval(() => { if (this.store.current?.pause?.continueAt !== undefined) { this.update(); } }, 500);
         this.toDispose.push({ dispose: () => clearInterval(ticker) });
         this.toDispose.push(this.models.onDidChange(() => this.update()));
+        this.toDispose.push(this.sandbox.onDidChange(() => this.update()));
         this.toDispose.push(this.reviewComments.onDidChange(() => this.update()));
         this.toDispose.push(this.flags.onDidChange(() => this.update()));
         this.toDispose.push(this.editors.onCurrentEditorChanged(() => this.update()));
@@ -361,8 +445,13 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected override onUpdateRequest(msg: Message): void {
         super.onUpdateRequest(msg);
-        this.applyScroll(this.pendingFollow);
-        requestAnimationFrame(() => { this.fitComposer(); this.checkTabOverflow(); this.applyScroll(this.pendingFollow); });
+        const session = this.store.current?.id;
+        if (session !== this.shownSession) {
+            this.shownSession = session;
+            this.resumeFollowing();
+        }
+        this.followLatest();
+        requestAnimationFrame(() => { this.fitComposer(); this.checkTabOverflow(); this.followLatest(); });
     }
 
     /** Min ~4 lines, grows with content up to half the panel then scrolls; a dragged height wins (IDEA-67). */
@@ -545,6 +634,7 @@ export class IngotAgentsWidget extends ReactWidget {
 
     protected override onActivateRequest(msg: Message): void {
         super.onActivateRequest(msg);
+        this.autoContext.refresh();
         if (this.composer) {
             this.focusComposer();
         } else {
@@ -559,20 +649,45 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     /** Sends text and chips in the order they were typed (IDEA-98). */
-    protected submit(): void {
+    protected submit(confirmed = false): void {
         const inline = this.inline;
         if (!inline || inline.empty) {
             return;
         }
+        const forecast = this.store.isRunning(this.store.current?.id) ? undefined : this.forecast();
+        if (forecast?.over && !confirmed) {
+            this.costConfirm = forecast;
+            this.update();
+            return;
+        }
+        this.costConfirm = undefined;
         const composed = composeParts(inline.parts);
         const prompt = composed.text.trim() || 'Explain this code.';
-        this.stickToLatest = true;
+        this.resumeFollowing();
         this.editingIndex = undefined;
-        this.store.send(prompt, composed.chips, composed.expanded ? composed : undefined);
+        this.store.send(prompt, composed.chips, composed.expanded ? composed : undefined, this.autoContext.attach);
         inline.clear();
         this.draft = '';
         this.composerEmpty = true;
         this.update();
+    }
+
+    /** IDEA-267: a suggested follow-up is sent like a typed prompt, with the current IDE context. */
+    protected sendFollowUp(text: string): void {
+        this.resumeFollowing();
+        this.store.send(text, [], undefined, this.autoContext.attach);
+        this.update();
+    }
+
+    /** Clicking a context chip shows what it stands for: the file at the line, or the memories. */
+    protected openAutoContext(item: AutoContextItem): void {
+        if (item.kind === 'memory') {
+            this.toggleMemories();
+            return;
+        }
+        if (item.uri) {
+            void this.editors.open(new URI(item.uri), { mode: 'activate', selection: item.line ? { start: { line: item.line - 1, character: 0 } } : undefined });
+        }
     }
 
     /** Keybinding label for a command, for tooltips (follows the user's keymap). */
@@ -639,13 +754,16 @@ export class IngotAgentsWidget extends ReactWidget {
         return <div className={`ingot-agents-root${empty ? ' ingot-agents-root-empty' : ''}`}>
             <div className='ingot-agents-header' onContextMenu={e => this.openLayoutMenu(e)}>
                 {this.renderTabs(tabs, current)}
-                <button type='button' id='ingot-agents-new' className='ingot-icon-button codicon codicon-add' aria-label='New chat'
-                    title={`New chat${this.shortcut(AGENT_COMMANDS.newAgent.id) ? ` (${this.shortcut(AGENT_COMMANDS.newAgent.id)})` : ''}`} onClick={() => this.newChat()} />
-                <button type='button' id='ingot-agents-processes' className={`ingot-icon-button codicon codicon-server-process${this.processes.pinned ? ' active' : ''}`}
-                    aria-label='Processes' aria-pressed={this.processes.pinned} title={`Processes${this.processes.running.length ? ` · ${this.processes.running.length} running` : ''}`}
-                    onClick={() => this.processes.setPinned(!this.processes.pinned)} />
-                <button type='button' id='ingot-agents-history' className={`ingot-icon-button codicon codicon-history${this.popover === 'history' ? ' active' : ''}`} aria-label='Chat history'
-                    title={`Chat history${this.shortcut(AGENT_COMMANDS.history.id) ? ` (${this.shortcut(AGENT_COMMANDS.history.id)})` : ''}`} onClick={() => this.toggleHistory()} />
+                <div className='ingot-agents-header-actions'>
+                    <button type='button' id='ingot-agents-new' className='ingot-agents-icon-button' aria-label='New chat'
+                        title={`New chat${this.shortcut(AGENT_COMMANDS.newAgent.id) ? ` (${this.shortcut(AGENT_COMMANDS.newAgent.id)})` : ''}`} onClick={() => this.newChat()}><PlusIcon /></button>
+                    <button type='button' id='ingot-agents-history' className={`ingot-agents-icon-button${this.popover === 'history' ? ' active' : ''}`} aria-label='Chat history'
+                        title={`Chat history${this.shortcut(AGENT_COMMANDS.history.id) ? ` (${this.shortcut(AGENT_COMMANDS.history.id)})` : ''}`} onClick={() => this.toggleHistory()}><HistoryIcon /></button>
+                    <button type='button' id='ingot-agents-more' className={`ingot-agents-icon-button${this.popover === 'header' ? ' active' : ''}`} aria-label='More'
+                        aria-haspopup='menu' aria-expanded={this.popover === 'header'} title='More'
+                        onClick={() => { this.popover = this.popover === 'header' ? undefined : 'header'; this.update(); }}><MoreIcon /></button>
+                </div>
+                {this.popover === 'header' && this.renderHeaderMenu()}
                 {this.popover === 'history' && <ChatHistory chats={this.store.sessions} current={current?.id}
                     onOpen={id => { this.store.reopen(id); this.popover = undefined; this.update(); }}
                     onRename={(id, title) => this.store.rename(id, title)} onDelete={id => this.store.remove(id)} onPin={id => this.store.togglePin(id)}
@@ -660,8 +778,10 @@ export class IngotAgentsWidget extends ReactWidget {
             {this.showMemories
                 ? <div className='ingot-agents-chat ingot-agents-memories-pane'><MemoriesManager store={this.memoryStore} onClose={() => this.toggleMemories()} /></div>
                 : <div className='ingot-agents-chat-wrap'>
-                    <div className='ingot-agents-chat' ref={el => this.bindChat(el)}>{current && current.messages.length ? this.renderSession(current)
+                    <div className='ingot-agents-chat' ref={this.chatRef}>{current && current.messages.length
+                        ? <div className='ingot-agents-thread' ref={this.threadRef}>{this.renderSession(current)}</div>
                         : <div className='ingot-agents-empty-state' id='ingot-agents-empty-state'>
+                            <RexMark className='ingot-agent-mark ingot-agents-empty-mark' size={AGENT_EMPTY_MARK_SIZE} />
                             <div className='ingot-agents-empty-title'>{PRODUCT.name}</div>
                             <div className='ingot-agents-hint'>Describe a task and an agent will plan, edit and ask you to review.</div>
                         </div>}</div>
@@ -669,12 +789,63 @@ export class IngotAgentsWidget extends ReactWidget {
                 </div>}
             {!this.showMemories && this.renderProcesses()}
             {!this.showMemories && this.renderSubagents(current)}
-            {!this.showMemories && current && this.renderAsk(current)}
+            {!this.showMemories && current?.doom && <DoomCard verdict={current.doom} onAction={action => void this.store.resolveDoom(current.id, action)} />}
+            {!this.showMemories && <FrozenSuggestions store={this.frozen} onFreeze={path => void this.freezeSuggested(path)} />}
             {!this.showMemories && this.renderApproval(current)}
             {!this.showMemories && this.renderChangesBar(current)}
+            {!this.showMemories && <HabitCards store={this.habits} onMakeHabit={habit => this.draftHabit('Make it a habit', playbookFileText(draftFromLearned(habit)), habit)} />}
+            {!this.showMemories && this.renderHabitDraft()}
+            {!this.showMemories && current?.habit && <HabitPill key={current.id} habit={current.habit}
+                load={() => this.playbooks.enabledPlaybooks(current.project ? new URI(current.project) : undefined)}
+                onChoose={id => void this.store.chooseHabit(current.id, id)} />}
+            {!this.showMemories && current?.goal && this.renderGoal(current, current.goal)}
+            {!this.showMemories && current && this.renderHandoffOffer(current)}
+            {!this.showMemories && this.renderCostConfirm()}
             {this.renderComposer()}
             {empty && <div className='ingot-agents-disclaimer'>AI can make mistakes. Review generated code before you keep it.</div>}
         </div>;
+    }
+
+    /** IDEA-303: the user froze a file they keep reverting agent edits to; it is saved to Habits too. */
+    protected async freezeSuggested(path: string): Promise<void> {
+        const zone = await this.frozen.freeze({ path, source: 'learned', reason: 'You kept rejecting agent edits to it' });
+        const session = this.store.current;
+        if (zone && session) {
+            this.store.addNote(session, { kind: 'frozen', text: FROZEN_NOTES.frozen, detail: zone.path, ref: zone.id });
+            this.store.addNote(session, { kind: 'habit', text: SAVED_TO_HABITS, detail: `Ask before changing ${zone.path}`, focus: savedHabitFocus(savedHabitKey('frozen', zone.path)) });
+        }
+    }
+
+    /** IDEA-296: "Save as habit" on a finished run: a habit drafted from the prompt, the steps taken and the files and commands. */
+    protected saveRunAsHabit(session: AgentSession): void {
+        const run = runSummary(session.messages, session.steps);
+        if (run) {
+            this.draftHabit('Save this run as a habit', playbookFileText(draftFromRun(run)));
+        }
+    }
+
+    protected draftHabit(title: string, text: string, learned?: Habit): void {
+        this.habitDraft = { title, text, learned };
+        this.update();
+    }
+
+    protected async saveHabitDraft(text: string, scope: PlaybookScope): Promise<readonly string[]> {
+        const draft = this.habitDraft;
+        const { path, playbook, errors } = await this.playbooks.create(scope, text);
+        if (path) {
+            if (playbook) {
+                await this.habits.savedPlaybook(playbook, path, draft?.learned);
+            }
+            this.habitDraft = undefined;
+            this.update();
+        }
+        return errors;
+    }
+
+    protected renderHabitDraft(): React.ReactNode {
+        return this.habitDraft && <PlaybookEditor key={this.habitDraft.text} id='ingot-habit-draft' title={this.habitDraft.title} text={this.habitDraft.text} scope='project'
+            saveLabel='Save habit' hint={`Edit the steps, then save. ${PLAYBOOK_SCOPE_HINTS.project}`}
+            onSave={(text, scope) => this.saveHabitDraft(text, scope)} onCancel={() => { this.habitDraft = undefined; this.update(); }} />;
     }
 
     /** Open chats as one compact row of tabs (IDEA-98): pinned first, drag to reorder, middle-click closes, right-click menu. */
@@ -705,7 +876,7 @@ export class IngotAgentsWidget extends ReactWidget {
                         {run === 'running' && <span className={`ingot-agent-status ingot-status-${t.status}`} />}
                         {run === 'running' && <span className='ingot-tab-progress' aria-label='Running' />}
                         {run === 'waiting' && <span className='ingot-tab-wait' title='Waiting for an answer' aria-label='Waiting for an answer' />}
-                        {run === 'done' && <span className='ingot-tab-done codicon codicon-check' aria-label='Done' />}
+                        {run === 'done' && <span className='ingot-tab-done' role='img' aria-label='Done'><CheckIcon /></span>}
                         {this.renamingTab === t.id
                             ? <input className='ingot-input ingot-chat-tab-rename' autoFocus defaultValue={label} aria-label='Chat title'
                                 onClick={e => e.stopPropagation()}
@@ -776,6 +947,22 @@ export class IngotAgentsWidget extends ReactWidget {
                 {item('close-others', 'Close Others', () => this.store.closeOthers(tab.id))}
                 <div className='ingot-tab-menu-sep' />
                 {item('delete', 'Delete…', () => this.deleteChat(tab.id), true)}
+            </div>
+        </div>;
+    }
+
+    /** Header "More": the processes list and memories, so the bar keeps to New chat, History and More. */
+    protected renderHeaderMenu(): React.ReactNode {
+        const close = (): void => { this.popover = undefined; this.update(); };
+        const running = this.processes.running.length;
+        return <div className='ingot-tab-menu-backdrop' onMouseDown={close} onKeyDown={e => { if (e.key === 'Escape') { close(); } }}>
+            <div className='ingot-tab-menu ingot-agents-header-menu' id='ingot-agents-header-menu' role='menu' onMouseDown={e => e.stopPropagation()}>
+                <button type='button' role='menuitemcheckbox' id='ingot-agents-processes' className={`ingot-tab-menu-item${this.processes.pinned ? ' active' : ''}`}
+                    aria-checked={this.processes.pinned} aria-label='Processes' autoFocus
+                    onClick={() => { close(); this.processes.setPinned(!this.processes.pinned); }}>
+                    Processes{running ? ` · ${running} running` : ''}
+                </button>
+                <button type='button' role='menuitem' id='ingot-agents-memories' className='ingot-tab-menu-item' onClick={() => { close(); this.toggleMemories(); }}>Memories</button>
             </div>
         </div>;
     }
@@ -858,15 +1045,26 @@ export class IngotAgentsWidget extends ReactWidget {
                 <span className={`codicon codicon-chevron-${open ? 'down' : 'right'}`} aria-hidden='true' />
             </button>
             {open && <ul className='ingot-chat-explored-list'>
-                {items.map((st, i) => <li key={i}><span className={`codicon codicon-${st.kind === 'search' ? 'search' : st.target.endsWith('/') ? 'folder' : 'file'}`} aria-hidden='true' />{st.kind === 'search' ? `"${st.target}"` : st.target}</li>)}
+                {items.map((st, i) => <li key={i} data-kind={st.kind}>
+                    <span className={`codicon codicon-${st.kind === 'search' ? 'search' : st.kind === 'rule' ? 'law' : st.target.endsWith('/') ? 'folder' : 'file'}`} aria-hidden='true' />
+                    {st.kind === 'read' && !st.target.endsWith('/')
+                        ? <button type='button' className='ingot-chat-explored-open' onClick={() => this.openWorkspacePath(st.target)}>{st.target}</button>
+                        : st.kind === 'search' ? `"${st.target}"` : st.target}
+                </li>)}
+                {items.some(st => st.kind === 'rule') && <li data-kind='why'><span className='codicon codicon-question' aria-hidden='true' />
+                    <button type='button' className='ingot-chat-explored-open ingot-chat-read-why'
+                        onClick={() => this.commands.executeCommand(RULES_INSIGHT_COMMANDS.ruleHitsForLastTurn.id, session.id)}>Why these rules?</button></li>}
             </ul>}
         </div>;
     }
 
-    protected renderMessage(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+    protected renderMessage(session: AgentSession, m: AgentSession['messages'][number], i: number, layout: ThreadLayout): React.ReactNode {
         // IDEA-186: hidden nudges are for the model only; project reads are summed up in the Explored row.
         if (m.hidden || (m.role === 'tool' && m.tool?.server === 'ingot' && isWorkspaceTool(m.tool.tool) && m.tool.state === 'done')) {
             return undefined;
+        }
+        if (m.note || m.planReview) {
+            return this.renderNote(session, m, i);
         }
         if (m.refs?.length) {
             return this.renderSubagentRef(session, m, i);
@@ -876,9 +1074,12 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         if (m.role === 'tool' && m.tool) {
             const key = `${session.id}:tool:${i}`;
-            return <ToolCardView key={i} info={m.tool} text={m.text} from={m.from} expanded={this.expandedSteps.has(key)}
-                onToggle={() => { if (!this.expandedSteps.delete(key)) { this.expandedSteps.add(key); } this.update(); }}
-                openLink={url => this.windows.openNewWindow(url, { external: true })} />;
+            return <React.Fragment key={i}>
+                <ToolCardView info={m.tool} text={m.text} from={m.from} expanded={this.expandedSteps.has(key)}
+                    onToggle={() => { if (!this.expandedSteps.delete(key)) { this.expandedSteps.add(key); } this.update(); }}
+                    openLink={url => this.windows.openNewWindow(url, { external: true })} />
+                {this.renderToolImages(m)}
+            </React.Fragment>;
         }
         const thought = m.role === 'agent' && !m.parts ? extractThought(m.text) : undefined;
         if (thought?.thought !== undefined) {
@@ -888,13 +1089,129 @@ export class IngotAgentsWidget extends ReactWidget {
             return <React.Fragment key={i}>
                 <ThoughtRow id={`ingot-thought-${i}`} thought={thought.thought} thinking={thinking} durationMs={m.thoughtMs} expanded={this.expandedSteps.has(key)}
                     onToggle={() => { if (!this.expandedSteps.delete(key)) { this.expandedSteps.add(key); } this.update(); }} />
-                {this.renderMessageBody(session, body, i)}
+                {this.renderMessageBody(session, body, i, layout)}
             </React.Fragment>;
         }
-        return this.renderMessageBody(session, m, i);
+        return this.renderMessageBody(session, m, i, layout);
     }
 
-    protected renderMessageBody(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+    /** The agent line, Explored row, checklist and edited-files card that open a reply of the latest turn. */
+    protected renderReplyHead(session: AgentSession, i: number, layout: ThreadLayout): React.ReactNode {
+        const latest = i === layout.turnLead;
+        const explored = latest ? exploredLine(session.steps, this.store.isRunning(session.id)) : undefined;
+        return <>
+            {layout.leads.has(i) && <div className='ingot-chat-agent-head'>
+                <RexMark className='ingot-agent-mark' size={AGENT_MARK_SIZE} />
+                <b>{AGENT_TITLE}</b>
+                {latest && <span className='ingot-dim'>· {WORKED_FOR} {this.workedFor(session)}</span>}
+            </div>}
+            {explored && this.renderExplored(session, explored)}
+            {i === layout.turnLast && this.renderChecklist(session)}
+            {i === layout.turnLast && session.habit && !session.habit.off && <HabitChecklist habit={session.habit} />}
+            {i === layout.editsAt && this.renderEditedCard(session)}
+        </>;
+    }
+
+    /** IDEA-130 / IDEA-289: screenshots a tool returned (browser_screenshot), as thumbnails that open in the lightbox. */
+    protected renderToolImages(m: AgentSession['messages'][number]): React.ReactNode {
+        const images = (m.images ?? []).filter(img => img.data);
+        return images.length > 0 && <div className='ingot-chat-tool-images'>{images.map(img =>
+            <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
+                onClick={() => { this.lightbox = img; this.update(); }} />)}</div>;
+    }
+
+    /**
+     * The silver note, with the IDEA-306 plan review card under it: a habit opens on the Habits page; Undo puts a learned /
+     * saved habit back, unlocks or unfreezes; the action opens the brief / plan / template or runs on the original model.
+     */
+    protected renderNote(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+        const note = m.note;
+        const undo = note?.undo;
+        const onUndo = undo
+            ? async () => { await this.habits.undo(undo); this.store.markNoteUndone(session.id, i); }
+            : note?.ref ? () => this.store.undoNote(session.id, i) : undefined;
+        return <div key={i} id={`ingot-msg-${i}`} className='ingot-chat-note-row'>
+            {note && <HabitNote note={note} undoLabel={onUndo && NOTE_UNDO_LABELS[note.kind]} onUndo={onUndo && (() => void onUndo())}
+                onOpen={note.kind === 'habit' ? () => this.commands.executeCommand(HABITS_OPEN_COMMAND.id, note.focus) : undefined}
+                onAction={note.action ? () => this.noteAction(session, m, i) : undefined} />}
+            {m.planReview && <PlanReviewCard review={m.planReview} onOpen={path => this.openWorkspacePath(path)} />}
+        </div>;
+    }
+
+    /** IDEA-305/306/307: the silver note's button (open the brief / plan / template, or run again on the original model). */
+    protected noteAction(session: AgentSession, m: AgentSession['messages'][number], i: number): void {
+        if (m.note?.action === 'use-original') {
+            void this.store.useOriginalModel(session.id, i);
+        } else if (m.note?.path) {
+            this.openWorkspacePath(m.note.path);
+        }
+    }
+
+    /** IDEA-305: the stale-chat offer above the composer. */
+    protected renderHandoffOffer(session: AgentSession): React.ReactNode {
+        const offer = session.handoffOffer;
+        if (!offer || this.store.isRunning(session.id)) {
+            return undefined;
+        }
+        return <div id='ingot-handoff-offer' className='ingot-handoff-offer' role='status'>
+            <span className='codicon codicon-debug-restart' aria-hidden='true' />
+            <span className='ingot-handoff-offer-text'>This chat is getting long ({rotSummary(offer.verdict)}). Continue in a fresh chat from a brief of the plan, decisions and diff?</span>
+            <span className='ingot-handoff-offer-actions'>
+                <button type='button' id='ingot-handoff-accept' className='ingot-btn-primary' title={this.shortcut(FRESH_HANDOFF_COMMAND.id) || undefined}
+                    onClick={() => void this.store.handOffFresh(session.id)}>Start fresh chat</button>
+                <button type='button' id='ingot-handoff-dismiss' className='ingot-btn-secondary' onClick={() => this.store.dismissHandoff(session.id)}>Not now</button>
+            </span>
+        </div>;
+    }
+
+    /** IDEA-307: the composer's estimate of the next run (current draft) on the model it would use. */
+    protected forecast(): CostForecast | undefined {
+        const text = this.draft.trim();
+        if (!text) {
+            return undefined;
+        }
+        const tokens = this.store.requestTokens(this.store.current);
+        const files = this.inline ? composeParts(this.inline.parts).chips.length : 0;
+        return this.costs.forecast({ model: this.store.resolveModel(this.store.model), prompt: text, mode: this.store.mode, files, historyTokens: tokens.history, systemTokens: tokens.system });
+    }
+
+    protected forecastTitle(f: CostForecast): string {
+        return [
+            `Estimated cost of the next run: ${formatUsd(f.estimate.usd)} (about ${formatTokens(f.estimate.inputTokens)} input + ${formatTokens(f.estimate.outputTokens)} output tokens on ${this.models.label(f.model)}, ${formatPrice(f.price)}).`,
+            f.routed ? `Routed to a cheaper model for this simple step (${this.models.label(f.routed.from)} → ${this.models.label(f.routed.to)}).` : '',
+            f.over ? `Over your ${formatUsd(f.warnUsd)} warning: you will be asked before it runs.` : ''
+        ].filter(Boolean).join(' ');
+    }
+
+    protected renderCostForecast(): React.ReactNode {
+        const f = this.forecast();
+        if (!f) {
+            return undefined;
+        }
+        return <span id='ingot-cost-forecast' className={`ingot-cost-forecast${f.over ? ' over' : ''}${f.routed ? ' routed' : ''}`} data-usd={f.estimate.usd.toFixed(4)} data-model={f.model}
+            title={this.forecastTitle(f)} aria-label={this.forecastTitle(f)}>
+            {f.over && <span className='codicon codicon-warning' aria-hidden='true' />}
+            {f.routed && <span className='codicon codicon-arrow-swap' aria-hidden='true' />}
+            <span>{approxUsd(f.estimate.usd)}</span>
+        </span>;
+    }
+
+    protected renderCostConfirm(): React.ReactNode {
+        const f = this.costConfirm;
+        if (!f) {
+            return undefined;
+        }
+        return <div id='ingot-cost-confirm' className='ingot-cost-confirm' role='alertdialog' aria-label='Cost warning'>
+            <span className='codicon codicon-warning' aria-hidden='true' />
+            <span className='ingot-cost-confirm-text'>This run may cost about {formatUsd(f.estimate.usd)} on {this.models.label(f.model)}, over your {formatUsd(f.warnUsd)} warning.</span>
+            <span className='ingot-cost-confirm-actions'>
+                <button type='button' id='ingot-cost-send' className='ingot-btn-primary' onClick={() => this.submit(true)}>Send anyway</button>
+                <button type='button' id='ingot-cost-cancel' className='ingot-btn-secondary' onClick={() => { this.costConfirm = undefined; this.update(); this.focusComposer(); }}>Cancel</button>
+            </span>
+        </div>;
+    }
+
+    protected renderMessageBody(session: AgentSession, m: AgentSession['messages'][number], i: number, layout: ThreadLayout): React.ReactNode {
         return m.memory
             ? <div key={i} className={`ingot-chat-memory${m.memory.undone ? ' undone' : ''}`}>
                     <span className='codicon codicon-lightbulb' />
@@ -903,37 +1220,36 @@ export class IngotAgentsWidget extends ReactWidget {
                 </div>
                 : (
                 <div key={i} id={`ingot-msg-${i}`} className={`ingot-chat-msg ingot-chat-${m.role}${m.role === 'user' && i === latestUserIndex(session.messages) ? ' ingot-chat-latest' : ''}${m.role === 'user' && this.account.account ? ' ingot-chat-has-avatar' : ''}`}
-                    onClick={event => this.onLatestClick(session, i, event)}>
+                    title={m.role === 'user' && this.editingIndex !== i ? EDIT_PROMPT_TITLE : undefined}
+                    onClick={event => m.role === 'user' && this.onPromptClick(session, i, event)}>
                     {m.role === 'user' && this.account.account && <AccountAvatar account={this.account.account} src={this.account.avatarSrc} className='ingot-chat-user-avatar' textless />}
                     {m.from && <div className='ingot-chat-from'>{m.from}</div>}
                     {m.parts ? this.renderParts(m.parts, m.images) : m.chips && m.chips.length > 0 && <div className='ingot-chat-chips'>{m.chips.map((c, j) => <span key={j} className={`ingot-chip ingot-chip-sent ingot-chip-${c.kind ?? 'code'}`} title={c.kind === 'memory' ? 'Memory' : c.kind === 'rule' ? `Rule ${c.path}` : c.path}>
                         {c.kind === 'memory' && <span className='codicon codicon-lightbulb' />}{c.kind === 'rule' && <span className='codicon codicon-law' />}{c.label}</span>)}</div>}
-                    {m.role === 'agent' && <div className='ingot-chat-agent-head'><span className='ingot-agent-mark' aria-hidden='true'>In</span><b>{AGENT_TITLE}</b><span className='ingot-dim'>· {WORKED_FOR} {this.workedFor(session)}</span></div>}
-                    {m.role === 'agent' && i === session.messages.map(message => message.role).lastIndexOf('agent') && this.renderChecklist(session)}
+                    {m.role === 'agent' && this.renderReplyHead(session, i, layout)}
                     {m.parts ? '' : m.role === 'agent' && m.research
                         ? <ResearchCard view={m.research} variant='reply' answerHtml={m.research.stage === 'done' && m.text ? this.markdown.render(m.text) : undefined}
                             onAnswerClick={e => this.onMarkdownClick(e)} openLink={url => this.windows.openNewWindow(url, { external: true })} />
                         : m.role === 'agent'
-                        ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} />
-                            : this.store.isRunning(session.id) ? <span className='ingot-chat-typing'>…</span> : '')
+                        ? (m.text ? <div className='ingot-md' onClick={e => this.onMarkdownClick(e)} onMouseOver={e => this.onMarkdownHover(e)} onMouseOut={() => this.imageHovers.hide()} dangerouslySetInnerHTML={{ __html: this.markdown.render(m.text) }} /> : '')
                         : this.editingIndex === i ? this.renderEditForm(session, i) : m.text}
-                    {m.role === 'tool' && !!m.images?.length && <div className='ingot-chat-tool-images'>{m.images.filter(img => img.data).map(img =>
-                        <img key={img.id} className='ingot-chat-tool-image' src={`data:${img.mediaType};base64,${img.data}`} alt={img.name}
-                            onClick={() => { this.lightbox = img; this.update(); }} />)}</div>}
+                    {m.role === 'user' && !!m.auto?.length && this.editingIndex !== i && <div className='ingot-chat-auto' title='IDE context sent with this message'>
+                        {m.auto.map((a, j) => <span key={j} className='ingot-chat-auto-item'><span className={`codicon codicon-${AUTO_CONTEXT_ICONS[a.kind]}`} />{a.label}</span>)}
+                    </div>}
+                    {m.role === 'tool' && this.renderToolImages(m)}
                     {m.role === 'agent' && i === session.messages.length - 1 && session.status === 'editing' && session.activeFile && !this.tracker.forMessage(session.id, i).length && <div className='ingot-chat-editing'>Editing {session.activeFile}…</div>}
-                    {m.role === 'agent' && this.tracker.forMessage(session.id, i).map(change => <CodeChangeBlock key={change.id} change={change}
+                    {m.role === 'agent' && this.tracker.forMessage(session.id, i).filter(change => change.status === 'streaming').map(change => <CodeChangeBlock key={change.id} change={change}
                         expanded={!this.collapsedChanges.has(change.id)}
                         onToggle={() => { if (!this.collapsedChanges.delete(change.id)) { this.collapsedChanges.add(change.id); } this.update(); }}
                         onOpen={hunkId => this.tracker.reveal(change.id, hunkId)}
                         onDecide={(hunks, state) => this.tracker.decide(change.id, hunks, state)} />)}
-                    {(m.role === 'user' || m.role === 'agent') && this.editingIndex !== i && <span className='ingot-reactions'>
-                        <button type='button' id={`ingot-react-like-${i}`} className={`ingot-react${m.reactions?.includes(REACTION_LIKE) ? ' on' : ''}`}
-                            aria-pressed={!!m.reactions?.includes(REACTION_LIKE)} aria-label='Like' title='Like'
-                            onClick={() => this.store.toggleReaction(session.id, i, REACTION_LIKE)}><span className='codicon codicon-thumbsup' /></button>
-                        <button type='button' id={`ingot-react-heart-${i}`} className={`ingot-react${m.reactions?.includes(REACTION_HEART) ? ' on' : ''}`}
-                            aria-pressed={!!m.reactions?.includes(REACTION_HEART)} aria-label='Heart' title='Heart'
-                            onClick={() => this.store.toggleReaction(session.id, i, REACTION_HEART)}><span className='codicon codicon-heart' /></button>
-                    </span>}
+                    {m.role === 'agent' && this.renderFollowUps(session, m, i)}
+                    {m.role === 'agent' && !!m.text && !(this.store.isRunning(session.id) && i === session.messages.length - 1)
+                        && <ReplyReactions index={i} reactions={m.reactions} onToggle={kind => this.store.toggleReaction(session.id, i, kind)} />}
+                    {m.role === 'user' && this.store.isQueued(session.id, m) && <QueuedChip />}
+                    {m.role === 'agent' && i === session.messages.map(message => message.role).lastIndexOf('agent') && !this.store.isRunning(session.id) && session.status !== 'error' && <button type='button'
+                        id='ingot-save-habit' className='ingot-chat-save-habit' title='Save what this run did as a habit (a playbook for this kind of task)'
+                        onClick={() => this.saveRunAsHabit(session)}><span className='codicon codicon-checklist' /> {SAVE_RUN_LABEL}</button>}
                     {m.role === 'user' && this.editingIndex !== i && <button type='button' className='ingot-chat-edit' id={`ingot-edit-msg-${i}`}
                         title='Edit this message and run again from here' onClick={() => this.startEdit(session, i)}>Edit</button>}
                     {(m.role === 'user' || m.role === 'agent') && this.store.canRevertTo(session.id, i) && <button type='button' className='ingot-chat-revert' id={`ingot-revert-${i}`}
@@ -947,27 +1263,6 @@ export class IngotAgentsWidget extends ReactWidget {
                     </div>}
                     {m.text === NO_MODEL_MESSAGE && <div><button type='button' id='ingot-open-models' className='ingot-btn-primary ingot-chat-action' onClick={() => this.commands.executeCommand(MODELS_OPEN_COMMAND.id)}>Choose a model</button></div>}
                 </div>);
-    }
-
-    /** Collapsible "Read rules · AGENTS.md, engineering" row shown above the reply (IDEA-100). */
-    protected renderReadStep(session: AgentSession, step: AgentStep, index: number): React.ReactNode {
-        const key = `${session.id}:${index}`;
-        const open = this.expandedSteps.has(key);
-        const rules = step.target.startsWith('rules: ');
-        const items = (rules ? step.target.slice('rules: '.length) : step.target).split(', ').filter(Boolean);
-        return <div key={`read-${index}`} className={`ingot-chat-read${open ? ' open' : ''}`}>
-            <button type='button' className='ingot-chat-read-row' aria-expanded={open}
-                onClick={() => { if (open) { this.expandedSteps.delete(key); } else { this.expandedSteps.add(key); } this.update(); }}>
-                <span className='codicon codicon-check ingot-chat-read-mark' />
-                <span className='ingot-chat-read-label'>{rules ? 'Read rules' : 'Read'}</span>
-                <span className='ingot-chat-read-items'>{items.map((item, j) => <code key={j} onClick={e => { e.stopPropagation(); this.openWorkspacePath(item); }}>{item}</code>)}</span>
-                <span className='ingot-flex' />
-                <span className={`codicon codicon-chevron-${open ? 'down' : 'right'}`} />
-            </button>
-            {open && <ul className='ingot-chat-read-list'>{items.map((item, j) => <li key={j}><span className={`codicon codicon-${rules ? 'law' : 'file'}`} /><button type='button' className='ingot-chat-read-open' onClick={() => this.openWorkspacePath(item)}>{item}</button></li>)}
-                {rules && <li><span className='codicon codicon-question' /><button type='button' className='ingot-chat-read-open ingot-chat-read-why'
-                    onClick={() => this.commands.executeCommand(RULES_INSIGHT_COMMANDS.ruleHitsForLastTurn.id, session.id)}>Why these rules?</button></li>}</ul>}
-        </div>;
     }
 
     /** How long this chat has been working, shown beside the agent name. */
@@ -1029,23 +1324,36 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     protected renderSession(session: AgentSession): React.ReactNode {
-        const lastAgent = session.messages.map(m => m.role).lastIndexOf('agent');
-        const readSteps = session.steps.map((step, index) => ({ step, index })).filter(({ step }) => step.kind === 'read');
-        // IDEA-177: tool steps are drawn as cards; the muted "Explored N files, M searches" line sums up the run.
-        const hasCards = session.messages.some(m => m.tool);
-        const explored = hasCards ? exploredLine(session.steps, this.store.isRunning(session.id)) : undefined;
+        // Reads and applied rules fold into one "Explored N files" row under the latest turn's agent line.
+        const run = this.tracker.lastRun(session.id).filter(c => c.status !== 'streaming');
+        const active = this.store.isRunning(session.id) || session.status === 'paused' || session.steps.length > 0;
+        const layout = threadLayout(session.messages, run[0]?.messageIndex, active);
+        const pending = session.messages.length;
         return <>
-            {session.messages.map((m, i) => i === lastAgent && readSteps.length > 0 && !hasCards
-                ? <React.Fragment key={i}>{readSteps.map(({ step, index }) => this.renderReadStep(session, step, index))}{this.renderMessage(session, m, i)}</React.Fragment>
-                : this.renderMessage(session, m, i))}
-            {lastAgent < 0 && !hasCards && readSteps.map(({ step, index }) => this.renderReadStep(session, step, index))}
-            {explored && this.renderExplored(session, explored)}
+            {session.messages.map((m, i) => this.renderMessage(session, m, i, layout))}
+            {layout.turnLead === pending && <div className='ingot-chat-msg ingot-chat-agent ingot-chat-pending' id='ingot-chat-pending'>
+                {this.renderReplyHead(session, pending, layout)}
+            </div>}
+            {this.renderAsk(session)}
             {session.changes.length > 0 && !this.tracker.pending(session.id).length && <div className='ingot-chat-changes'>
                 <span>{changesSummary(session.changes.length)}</span>
                 <span className='ingot-flex' />
                 <span className='ingot-dim'>Kept</span>
             </div>}
+            {this.renderWorking(session)}
         </>;
+    }
+
+    /** "Getting it done…" with a shimmer while the run works; the "Thinking…" row stands in for it while a thought streams. */
+    protected renderWorking(session: AgentSession): React.ReactNode {
+        const last = session.messages[session.messages.length - 1];
+        const label = this.store.isRunning(session.id) ? workingLabel(session) : undefined;
+        if (!label || (last?.role === 'agent' && !last.parts && extractThought(last.text).thinking)) {
+            return undefined;
+        }
+        return <div className='ingot-chat-working' id='ingot-chat-working' role='status'>
+            <span className='ingot-chat-working-text ingot-shimmer'>{label}</span>
+        </div>;
     }
 
     /** Set by review clicks so the tracker update that follows counts as interaction (stops the countdown). */
@@ -1061,43 +1369,63 @@ export class IngotAgentsWidget extends ReactWidget {
         if (!ask) {
             return undefined;
         }
-        return <form id='ingot-ask' className='ingot-ask' onSubmit={event => {
-            event.preventDefault();
-            const input = event.currentTarget.querySelector('input');
-            const text = input instanceof HTMLInputElement ? input.value : '';
-            this.store.answerQuestion(session.id, text);
-        }}>
-            <p id='ingot-ask-question'>{ask.question}</p>
-            {!!ask.options?.length && <span className='ingot-ask-options'>
-                {ask.options.map(option => <button type='button' key={option} className='ingot-ask-option' onClick={() => this.store.answerQuestion(session.id, option)}>{option}</button>)}
-            </span>}
-            <input id='ingot-ask-input' className='ingot-input' aria-label='Your answer' placeholder='Or type an answer' />
-            <button type='submit' id='ingot-ask-submit' className='ingot-btn-primary'>Send</button>
-        </form>;
+        return <AskCard key={`${session.id}:${ask.question}`} question={ask.question} options={ask.options}
+            onAnswer={text => { this.resumeFollowing(); this.store.answerQuestion(session.id, text); }} />;
     }
 
-    /** Green checks under the agent name. File edits stay in the edited-files card, not here. */
+    /** Plan items and run steps under the agent line, one line each. Reads sit in Explored, edits in the edited-files card. */
     protected renderChecklist(session: AgentSession): React.ReactNode {
-        const work = session.steps.filter(step => step.kind !== 'edit' && step.kind !== 'read');
+        const work = session.steps.filter(step => step.kind === 'run');
         if (!session.plan.length && !work.length) {
             return undefined;
         }
+        const running = this.store.isRunning(session.id);
+        const mark = (state: 'done' | 'active' | 'todo'): React.ReactNode => state === 'done'
+            ? <span className='ingot-plan-mark ingot-plan-check' role='img' aria-label={state}><CheckIcon /></span>
+            : <span className={`ingot-plan-mark codicon codicon-${state === 'active' && running ? 'loading codicon-modifier-spin' : 'circle-large'}`} aria-label={state} />;
         return <div id='ingot-checklist' className='ingot-chat-plan ingot-checklist'>
             {session.plan.map((item, index) => <div key={`plan-${index}`} className={`ingot-plan-item ingot-check-row ingot-plan-${item.state}`}>
-                <span className='ingot-plan-mark'>{item.state === 'done' ? '✓' : item.state === 'active' ? '●' : '○'}</span>
-                <span className='ingot-step-text'>{item.text}</span>
+                {mark(item.state)}
+                <span className='ingot-step-text' title={item.text}>{item.text}</span>
             </div>)}
-            {work.map((step, index) => <div key={`step-${index}`} className={`ingot-check-row${step.done ? ' done' : ''}`}>
-                <span className='ingot-step-mark'>{step.done ? '✓' : '●'}</span>
-                <span className='ingot-step-text'>{stepVerb(step)} {step.target}</span>
+            {work.map((step, index) => <div key={`step-${index}`} className={`ingot-check-row ingot-plan-${step.done ? 'done' : 'active'}`}>
+                {mark(step.done ? 'done' : 'active')}
+                <span className='ingot-step-text' title={step.target}>{stepText(step)}</span>
             </div>)}
         </div>;
     }
 
+    protected diffCounts(stats: { added: number; removed: number }): React.ReactNode {
+        return <>
+            <span className={`ingot-plus${stats.added ? '' : ' zero'}`}>+{stats.added}</span>{' '}
+            <span className={`ingot-minus${stats.removed ? '' : ' zero'}`}>−{stats.removed}</span>
+        </>;
+    }
+
+    /** "Edited N files" in the reply that made them: colored type badge, name, folder, +/− per file; click opens the diff. */
+    protected renderEditedCard(session: AgentSession): React.ReactNode {
+        const review = this.store.review;
+        const run = this.tracker.lastRun(session.id).filter(c => c.status !== 'streaming');
+        if (!run.length) {
+            return undefined;
+        }
+        const stats = sumDiffs(run.map(change => this.tracker.stats(change)));
+        return <div className='ingot-edited-card' id='ingot-edited-card'>
+            <button type='button' id='ingot-changes-summary' className='ingot-edited-head' aria-expanded={this.reviewListOpen}
+                onClick={() => { this.reviewListOpen = !this.reviewListOpen; this.update(); }}>
+                <ChevronIcon open={this.reviewListOpen} />
+                <span className='ingot-edited-title'>{editedFilesLabel(run.length)}{review.enabled ? '' : <span className='ingot-dim'> · review off</span>}</span>
+                <span className='ingot-edited-total ingot-diff-counts'>{this.diffCounts(stats)}</span>
+            </button>
+            {this.reviewListOpen && <div className={`ingot-review-files${review.enabled ? '' : ' info'}`} id='ingot-review-files'>
+                {run.map((change, i) => this.renderReviewFile(session, change, i, review.enabled))}
+            </div>}
+        </div>;
+    }
+
     /**
-     * IDEA-105 review panel above the composer: the checkpoint card (countdown, Continue now / Wait / Stop), the
-     * changed-files list (+/−, status, per-file Accept / Reject, click opens the diff) and Accept All / Reject All.
-     * With review off the list is information only.
+     * IDEA-105 review bar above the composer: the checkpoint row (countdown, Continue now / Wait / Stop), then
+     * "N files +X −Y" with Reject all / Review / Accept all while edits wait for a decision.
      */
     protected renderChangesBar(session: AgentSession | undefined): React.ReactNode {
         if (!session) {
@@ -1105,35 +1433,22 @@ export class IngotAgentsWidget extends ReactWidget {
         }
         const review = this.store.review;
         const run = this.tracker.lastRun(session.id).filter(c => c.status !== 'streaming');
-        const pending = run.filter(isPending);
+        const pending = review.enabled ? run.filter(isPending) : [];
         const paused = session.status === 'paused' && session.pause;
         const drafts = this.reviewComments.drafts(session.id);
-        if (!pending.length && !paused && !drafts.length && !(run.length && !review.enabled && this.lastRunVisible(session))) {
+        if (!pending.length && !paused && !drafts.length) {
             return undefined;
         }
-        const counted = pending.length ? pending : run;
-        const stats = counted.map(c => changeStats(c.hunks)).reduce((a, b) => ({ added: a.added + b.added, removed: a.removed + b.removed }), { added: 0, removed: 0 });
-        const first = run.find(change => change.status !== 'streaming');
+        const stats = sumDiffs(pending.map(change => this.tracker.stats(change)));
         return <div className='ingot-review' id='ingot-review'>
-            <div className='ingot-review-card'>
-                {paused && session.pause && this.renderPause(session, session.pause)}
-                <button type='button' id='ingot-changes-summary' className='ingot-edited-head' aria-expanded={this.reviewListOpen}
-                    onClick={() => { this.reviewListOpen = !this.reviewListOpen; this.update(); }}>
-                    <span className={`codicon codicon-chevron-${this.reviewListOpen ? 'down' : 'right'}`} />
-                    <span>{editedFilesLabel(run.length)}{review.enabled ? '' : ' · review off'}</span>
-                    <span className='ingot-edited-total'><span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
-                </button>
-                {this.reviewListOpen && <div className={`ingot-review-files${review.enabled ? '' : ' info'}`} id='ingot-review-files'>
-                    {run.map((change, i) => this.renderReviewFile(session, change, i, review.enabled))}
-                </div>}
-                {pending.length > 0 && review.enabled && <div className='ingot-review-footer' id='ingot-changes-bar'>
-                    <span className='ingot-review-totals'>{pending.length} {fileWord(pending.length)} · <span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
-                    <span className='ingot-flex' />
-                    <button type='button' id='ingot-changes-reject-all' className='ingot-review-link' onClick={() => { this.touchReview(session); void this.tracker.decideAll('rejected', session.id); }}>{REJECT_ALL}</button>
-                    <button type='button' id='ingot-review-open' className='ingot-review-link' onClick={() => { if (first) { this.touchReview(session); void this.tracker.reveal(first.id); } }}>{REVIEW_WORD}</button>
-                    <button type='button' id='ingot-changes-accept-all' className='ingot-btn-primary ingot-review-accept' onClick={() => { this.touchReview(session); void this.tracker.decideAll('accepted', session.id); }}>{ACCEPT_ALL}</button>
-                </div>}
-            </div>
+            {paused && session.pause && this.renderPause(session, session.pause)}
+            {pending.length > 0 && <div className='ingot-review-footer' id='ingot-changes-bar'>
+                <span className='ingot-review-totals'>{pending.length} {fileWord(pending.length)} · <span className='ingot-diff-counts'>{this.diffCounts(stats)}</span></span>
+                <button type='button' id='ingot-changes-reject-all' className='ingot-review-link' onClick={() => { this.touchReview(session); void this.tracker.decideAll('rejected', session.id); }}>{REJECT_ALL}</button>
+                <button type='button' id='ingot-review-open' className='ingot-review-link' title={`Review all changes side by side${this.shortcut(AGENT_REVIEW_COMMANDS.open.id) ? ` (${this.shortcut(AGENT_REVIEW_COMMANDS.open.id)})` : ''}`}
+                    onClick={() => { this.touchReview(session); void this.commands.executeCommand(AGENT_REVIEW_COMMANDS.open.id, session.id); }}>{REVIEW_WORD}</button>
+                <button type='button' id='ingot-changes-accept-all' className='ingot-btn-primary ingot-review-accept' onClick={() => { this.touchReview(session); void this.tracker.decideAll('accepted', session.id); }}>{ACCEPT_ALL}</button>
+            </div>}
             {drafts.length > 0 && <div className='ingot-review-comments-bar' id='ingot-review-comments-bar'>
                 <span className='codicon codicon-comment' />
                 <span id='ingot-review-comments-count'>{drafts.length} pending {drafts.length === 1 ? 'comment' : 'comments'}</span>
@@ -1166,11 +1481,12 @@ export class IngotAgentsWidget extends ReactWidget {
                 <div className='ingot-approval-line' id='ingot-approval-line' title={full} aria-label={actionLine(approval, 200)}>
                     <span className='ingot-approval-label'>{approval.label}{approval.detail ? ':' : ''}</span>{approval.detail && <span className='ingot-approval-detail'> {approval.detail.replace(/\s+/g, ' ').trim()}</span>}
                 </div>
+                {approval.sandbox && <div className='ingot-approval-sandbox' id='ingot-approval-sandbox'><span className='codicon codicon-shield' aria-hidden='true' /> {approval.sandbox}</div>}
                 <div className='ingot-approval-actions'>
                     {!this.composerEmpty && <span className='ingot-approval-note ingot-dim'>Your note is sent as the reason</span>}
                     <button type='button' id='ingot-approval-skip' className='ingot-approval-skip' title='Skip (Esc)' onClick={() => this.decideFromComposer('skip')}>Skip</button>
-                    <button type='button' id='ingot-approval-always' className='ingot-approval-always' title={approval.command ? `Run "${approval.command}" now and every time in this project without asking` : `Run this and future ${approval.kind === 'mcp' ? 'MCP tool calls' : approval.kind} actions in this project without asking`}
-                        onClick={() => this.store.decideApproval(session.id, 'always')}>Always Run</button>
+                    {!approval.once && !approval.alwaysAsk && !approval.sandbox && <button type='button' id='ingot-approval-always' className='ingot-approval-always' title={approval.command ? `Run "${approval.command}" now and every time in this project without asking` : `Run this and future ${approval.kind === 'mcp' ? 'MCP tool calls' : approval.kind} actions in this project without asking`}
+                        onClick={() => this.store.decideApproval(session.id, 'always')}>Always Run</button>}
                     <button type='button' id='ingot-approval-run' className='ingot-approval-run' title='Run (Enter)' onClick={() => this.store.decideApproval(session.id, 'run')}>Run <span className='ingot-approval-key'>⏎</span></button>
                 </div>
             </div>
@@ -1207,13 +1523,6 @@ export class IngotAgentsWidget extends ReactWidget {
         this.composer?.focus();
     }
 
-    /** Review off: the info list stays until the next message. */
-    protected lastRunVisible(session: AgentSession): boolean {
-        const lastAgent = session.messages.map(m => m.role).lastIndexOf('agent');
-        const lastUser = session.messages.map(m => m.role).lastIndexOf('user');
-        return lastAgent > lastUser;
-    }
-
     protected renderPause(session: AgentSession, pause: NonNullable<AgentSession['pause']>): React.ReactNode {
         const left = pause.continueAt === undefined ? undefined : (pause.continueAt - Date.now()) / 1000;
         return <div className='ingot-review-pause' id='ingot-review-pause' role='status'>
@@ -1234,21 +1543,33 @@ export class IngotAgentsWidget extends ReactWidget {
         const stats = this.tracker.stats(change);
         const state = isPending(change) ? 'pending' : reviewFileState(change.status);
         const label = !enabled ? 'Applied' : state === 'pending' ? 'Pending' : state === 'accepted' ? 'Accepted' : state === 'rejected' ? 'Rejected' : 'Partly kept';
-        return <div key={change.id} id={`ingot-review-file-${index}`} data-path={change.path} className={`ingot-review-file ${enabled ? state : 'applied'}`}
+        const open = this.expandedFiles.has(change.id);
+        const toggle = (): void => { if (!this.expandedFiles.delete(change.id)) { this.expandedFiles.add(change.id); } this.update(); };
+        return <React.Fragment key={change.id}>
+        <div id={`ingot-review-file-${index}`} data-path={change.path} className={`ingot-review-file ${enabled ? state : 'applied'}${open ? ' open' : ''}`}
             role='button' tabIndex={0} title={change.path}
             onClick={() => { this.touchReview(session); void this.tracker.reveal(change.id, undefined, true); }}>
             <span className={`ingot-file-badge ingot-file-badge-${badge.tone}`} aria-hidden='true'>{badge.label}</span>
             <span className='ingot-review-file-name'>{name}</span>
             <span className='ingot-review-file-dir'>{folder}</span>
-            <span className='ingot-review-file-stats'><span className='ingot-plus'>+{stats.added}</span> <span className='ingot-minus'>−{stats.removed}</span></span>
-            <span className={`ingot-review-file-state ${enabled ? state : 'applied'}`}>{label}</span>
+            <span className='ingot-review-file-stats ingot-diff-counts'>{this.diffCounts(stats)}</span>
+            <span className={`ingot-review-file-state ${enabled ? state : 'applied'}`} title={label}>
+                {enabled && (state === 'accepted' || state === 'rejected') && <span className={`codicon codicon-${state === 'accepted' ? 'check' : 'close'}`} aria-hidden='true' />}
+                <span className='ingot-sr-only'>{label}</span>
+            </span>
             {enabled && state === 'pending' && <>
                 <button type='button' className='ingot-btn-ghost ingot-review-file-reject' title='Reject this file'
                     onClick={e => { e.stopPropagation(); this.touchReview(session); void this.tracker.decide(change.id, 'all', 'rejected'); }}><span className='codicon codicon-close' /></button>
                 <button type='button' className='ingot-btn-ghost ingot-review-file-accept' title='Accept this file'
                     onClick={e => { e.stopPropagation(); this.touchReview(session); void this.tracker.decide(change.id, 'all', 'accepted'); }}><span className='codicon codicon-check' /></button>
             </>}
-        </div>;
+            <button type='button' className={`ingot-btn-ghost ingot-review-file-diff${enabled && state === 'pending' ? ' with-actions' : ''}`} aria-expanded={open}
+                title={open ? 'Hide the diff' : 'Show the diff here'} onClick={e => { e.stopPropagation(); toggle(); }}><span className='codicon codicon-diff' /></button>
+        </div>
+        {open && <CodeChangeBlock change={change} expanded onToggle={toggle}
+            onOpen={hunkId => this.tracker.reveal(change.id, hunkId)}
+            onDecide={(hunks, decision) => { this.touchReview(session); void this.tracker.decide(change.id, hunks, decision); }} />}
+        </React.Fragment>;
     }
 
     /** IDEA-132: processes started by the agent or the user, live, above the composer. */
@@ -1276,10 +1597,16 @@ export class IngotAgentsWidget extends ReactWidget {
                     <div key={`${item.kind}:${item.name}`} id={item.action ? `ingot-slash-builtin-${item.name}` : `ingot-slash-item-${item.name}`} role='option' aria-selected={i === this.slashIndex}
                         className={`ingot-slash-item${i === this.slashIndex ? ' selected' : ''}`} onMouseDown={e => { e.preventDefault(); this.acceptSlash(item); }}>
                         <code>/{item.name}</code>{item.args && <span className='ingot-slash-args'>{item.args}</span>}<span className='ingot-badge' title={item.kind}>{item.kind}</span><span className='ingot-slash-desc'>{item.description}</span>
+                        {!item.action && <button type='button' className='ingot-slash-use-mode' id={`ingot-slash-mode-${item.name}`} title='Use as mode: pin it into this chat'
+                            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); void this.useAsMode(item.name); }}>
+                            <span className='codicon codicon-pinned' aria-hidden='true' />Use as mode
+                        </button>}
                     </div>
                 ))}
             </div>}
             {this.renderMentionMenu()}
+            {this.renderMentionChips()}
+            {this.renderAutoContext()}
             <div id={COMPOSER_INPUT_ID} ref={el => this.setComposer(el)} className='ingot-composer-input' data-placeholder={COMPOSER_PLACEHOLDER}
                 aria-label='Message' suppressContentEditableWarning
                 onPaste={e => this.onPaste(e)}
@@ -1332,23 +1659,35 @@ export class IngotAgentsWidget extends ReactWidget {
                         this.decideFromComposer(e.key === 'Enter' && this.composerEmpty ? 'run' : 'skip');
                         return;
                     }
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.submit(); }
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); this.submit(); }
                     if (e.key === 'Escape' && this.store.current && this.store.isRunning(this.store.current.id)) { e.preventDefault(); this.store.stop(this.store.current.id); }
                 }} />
             <div className='ingot-composer-bar' ref={el => this.observeBar(el)}>
-                <label className='ingot-icon-button codicon codicon-attach ingot-composer-attach' id='ingot-composer-attach' title='Attach images (or paste / drop them)' aria-label='Attach images' tabIndex={0}
+                <label className='ingot-icon-button ingot-composer-attach' id='ingot-composer-attach' title='Attach images (or paste / drop them)' aria-label='Attach images' tabIndex={0}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.querySelector('input')?.click(); } }}>
+                    <AttachIcon />
                     <input type='file' accept='image/png,image/jpeg,image/gif,image/webp' multiple hidden onChange={e => this.attachImages(e.currentTarget)} />
                 </label>
+                <button type='button' id='ingot-composer-mode' className={`ingot-pill ingot-mode-pill${this.popover === 'mode' ? ' active' : ''}`} data-mode={info.id}
+                    aria-haspopup='menu' aria-expanded={this.popover === 'mode'}
+                    title={`Mode: ${info.label}. ${info.description}${this.shortcut(AGENT_COMMANDS.cycleMode.id) ? ` (${this.shortcut(AGENT_COMMANDS.cycleMode.id)} to switch)` : ''}`}
+                    onClick={() => { this.popover = this.popover === 'mode' ? undefined : 'mode'; this.update(); }}>
+                    <span className={`codicon codicon-${info.icon} ingot-mode-icon`} style={{ color: info.color }} aria-hidden='true' />
+                    <span className='ingot-pill-label'>{info.label}</span><ChevronIcon className='ingot-pill-caret' size={AGENT_ICON_SIZE.caret} />
+                </button>
                 {this.renderModelPill()}
                 {this.renderResearchToggle(info)}
-                <button type='button' id='ingot-composer-more' className={`ingot-icon-button codicon codicon-ellipsis${this.popover === 'more' ? ' active' : ''}`}
+                {this.renderCustomModePill()}
+                {this.renderSandboxPill()}
+                <span className='ingot-flex' />
+                <button type='button' id='ingot-composer-more' className={`ingot-icon-button ingot-composer-more${this.popover === 'more' ? ' active' : ''}`}
                     data-mode={info.id} aria-label='More' aria-haspopup='menu' aria-expanded={this.popover === 'more'}
                     title={`More · Mode: ${info.label}`}
-                    onClick={() => { this.popover = this.popover === 'more' ? undefined : 'more'; this.update(); }} />
-                <span className='ingot-flex' />
+                    onClick={() => { this.popover = this.popover === 'more' ? undefined : 'more'; this.update(); }}><MoreIcon /></button>
+                {this.flags.enabled(IDE_FLAGS.micDictation) && this.renderMic()}
+                {this.renderCostForecast()}
                 {this.store.isRunning(this.store.current?.id) && <button type='button' id='ingot-composer-stop' className='ingot-composer-send ingot-composer-stop' aria-label='Stop' title='Stop (Esc)' onClick={() => this.store.stop(this.store.current!.id)}><span className='codicon codicon-debug-stop' /></button>}
-                {(!this.store.isRunning(this.store.current?.id) || !this.composerEmpty) && <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' title={this.composerEmpty ? 'Type a message to send' : this.store.isRunning(this.store.current?.id) ? 'Send to the running agent' : 'Send (Enter)'} disabled={this.composerEmpty} onClick={() => this.submit()}><span className='codicon codicon-arrow-up' /></button>}
+                {(!this.store.isRunning(this.store.current?.id) || !this.composerEmpty) && <button type='button' id='ingot-composer-send' className='ingot-composer-send' aria-label='Send' title={this.composerEmpty ? 'Type a message to send' : this.store.isRunning(this.store.current?.id) ? 'Send to the running agent' : 'Send (Enter)'} disabled={this.composerEmpty} onClick={() => this.submit()}><SendIcon /></button>}
             </div>
             </div>
             {this.renderComposerPopovers(info)}
@@ -1381,14 +1720,9 @@ export class IngotAgentsWidget extends ReactWidget {
         const current = this.store.current;
         return <div className='ingot-composer-menus'>
             {this.popover === 'more' && <div id='ingot-composer-more-menu' className='ingot-popover ingot-composer-more-menu' role='menu'>
-                <button type='button' id='ingot-composer-mode' className='ingot-more-item' role='menuitem' data-mode={info.id} aria-haspopup='menu'
-                    title={`Mode: ${info.label}. ${info.description}${key ? ` (${key} to switch)` : ''}`}
-                    onClick={() => { this.popover = 'mode'; this.update(); }}>
-                    <span className={`codicon codicon-${info.icon}`} style={{ color: info.color }} /><span className='ingot-pill-label'>{info.label}</span>
-                </button>
                 {this.renderReviewToggle()}
+                {this.renderRouterToggle()}
                 {usage && usageRatio(usage) > 0 && this.renderUsageRing()}
-                {this.flags.enabled(IDE_FLAGS.micDictation) && this.renderMic()}
             </div>}
             {this.popover === 'mode' && <ModeMenu mode={info.id} shortcut={key} onClose={() => this.closePopover()}
                 onPick={mode => { this.store.mode = mode; this.store.changed(); this.closePopover(); }} />}
@@ -1397,6 +1731,63 @@ export class IngotAgentsWidget extends ReactWidget {
                 onCompact={() => { this.closePopover(); this.store.compact(current.id); }}
                 onNewWithSummary={() => { this.closePopover(); this.store.summarizeAndContinue(current.id); }} />}
         </div>;
+    }
+
+    /** IDEA-292: `/goal` progress (criteria, iterations, budget) with Stop while it runs. */
+    protected renderGoal(session: AgentSession, goal: AgentGoal): React.ReactNode {
+        const running = goal.state === 'running';
+        const percent = Math.round(goalProgress(goal) * PERCENT);
+        const status = running ? 'Working' : goal.state === 'done' ? 'Done' : GOAL_STOP_LABELS[goal.reason ?? 'user'];
+        return <div id='ingot-goal-banner' className={`ingot-goal-banner ingot-goal-${goal.state}`} role='status' aria-label={`Goal: ${goal.objective}`}>
+            <div className='ingot-goal-head'>
+                <span className={`codicon codicon-${goal.state === 'done' ? 'pass-filled' : 'target'}`} aria-hidden='true' />
+                <span className='ingot-goal-label'>Goal</span>
+                <span className='ingot-goal-objective' title={goal.objective}>{goal.objective}</span>
+                <span className='ingot-goal-state' id='ingot-goal-state'>{status}</span>
+                {running
+                    ? <button type='button' id='ingot-goal-stop' className='ingot-goal-stop' title='Stop the goal' onClick={() => this.store.stopGoal(session.id)}>
+                        <span className='codicon codicon-debug-stop' aria-hidden='true' />Stop
+                    </button>
+                    : <button type='button' id='ingot-goal-dismiss' className='ingot-icon-button codicon codicon-close' aria-label='Dismiss goal' title='Dismiss' onClick={() => this.store.dismissGoal(session.id)} />}
+            </div>
+            <div className='ingot-goal-bar' role='progressbar' aria-valuemin={0} aria-valuemax={PERCENT} aria-valuenow={percent}><span style={{ width: `${percent}%` }} /></div>
+            <div className='ingot-goal-meta' id='ingot-goal-meta'>
+                <span>{goal.criteria.length ? `${goalMetCount(goal)}/${goal.criteria.length} criteria` : 'Listing criteria'}</span>
+                <span>Iteration {Math.min(goal.iteration + (running ? 1 : 0), goal.maxIterations)}/{goal.maxIterations}</span>
+                <span>{formatTokens(goal.tokensUsed)} / {formatTokens(goal.tokenBudget)} tokens</span>
+            </div>
+            {goal.criteria.length > 0 && <ul className='ingot-goal-criteria' id='ingot-goal-criteria'>
+                {goal.criteria.map((item, i) => <li key={i} className={item.met ? 'met' : ''}>
+                    <span className={`codicon codicon-${item.met ? 'check' : 'circle-large-outline'}`} aria-hidden='true' />{item.text}
+                </li>)}
+            </ul>}
+        </div>;
+    }
+
+    /** IDEA-292: the pinned command or skill of this chat, with a clear button. */
+    protected renderCustomModePill(): React.ReactNode {
+        const current = this.store.current;
+        const mode = current?.customMode;
+        if (!current || !mode) {
+            return undefined;
+        }
+        return <span id='ingot-custom-mode-pill' className='ingot-pill ingot-custom-mode-pill' title={`Mode: ${mode.name}${mode.description ? ` · ${mode.description}` : ''}. Its instructions are in every request of this chat.`}>
+            <span className={`codicon codicon-${mode.kind === 'skill' ? 'mortar-board' : 'terminal'}`} aria-hidden='true' />
+            <span className='ingot-pill-label'>{modePillLabel(mode)}</span>
+            <button type='button' id='ingot-custom-mode-clear' className='codicon codicon-close' aria-label='Clear mode' title='Clear mode' onClick={() => this.store.clearMode(current.id)} />
+        </span>;
+    }
+
+    async useAsMode(name: string): Promise<void> {
+        this.inline?.clear();
+        this.draft = '';
+        this.composerEmpty = true;
+        const mode = await this.store.useAsMode(name);
+        if (!mode) {
+            this.messages.warn(`No command or skill named "${name}" in this project.`);
+        }
+        this.update();
+        this.focusComposer();
     }
 
     protected renderReviewToggle(): React.ReactNode {
@@ -1410,66 +1801,107 @@ export class IngotAgentsWidget extends ReactWidget {
         </button>;
     }
 
-    /** Remember the reading position, then render. Follow only if the reader was already at the bottom. */
+    /** IDEA-307: Autopilot model router on / off (Settings › Context, plans & cost). */
+    protected renderRouterToggle(): React.ReactNode {
+        const on = this.router.enabled;
+        return <button type='button' id='ingot-composer-router' className={`ingot-more-item ingot-composer-router${on ? ' on' : ''}`} role='menuitem'
+            aria-pressed={on} aria-label={on ? 'Model router on' : 'Model router off'}
+            title={on ? 'Autopilot model router on: simple steps go to a cheaper model (never Chinese-origin models). Click to turn off' : 'Autopilot model router off. Click to send simple steps to a cheaper model'}
+            onClick={() => void this.router.setEnabled(!on)}>
+            <span className='codicon codicon-arrow-swap' aria-hidden='true' />
+            <span>{on ? 'Router on' : 'Router off'}</span>
+        </button>;
+    }
+
+    /** Store changes re-render; the reading position stays where it is unless the thread follows the latest line. */
     protected holdScroll(): void {
-        this.noticeReaderScroll();
-        this.pendingFollow = this.stickToLatest;
         this.update();
     }
 
-    protected applyScroll(follow: boolean): void {
+    /** Follow the latest line again from wherever the list is (new chat, sent message, edited prompt). */
+    protected resumeFollowing(): void {
+        this.following = true;
+        this.lastTop = 0;
+    }
+
+    /** Keeps the latest line in view while following; the browser keeps scrollTop on its own otherwise. */
+    protected followLatest(): void {
         const node = this.chatScroll;
         if (!node) {
             return;
         }
-        this.noticeReaderScroll();
-        const next = scrollTopAfterUpdate(this.savedScroll, node.scrollHeight, node.clientHeight, follow && this.stickToLatest);
-        if (node.scrollTop === next) {
-            return;
+        // A scroll up whose event is not dispatched yet (a reply chunk re-rendered first) still stops following.
+        this.following = followAfterScroll(this.following, node.scrollTop, this.lastTop, distanceFromBottom(node.scrollTop, node.scrollHeight, node.clientHeight));
+        if (this.following && !this.gliding) {
+            const bottom = scrollTopAfterUpdate(node.scrollTop, node.scrollHeight, node.clientHeight, true);
+            if (node.scrollTop !== bottom) {
+                node.scrollTop = bottom;
+            }
+            this.lastTop = node.scrollTop;
         }
-        this.applyingScroll = true;
-        node.scrollTop = next;
-        this.savedScroll = node.scrollTop;
-        this.applyingScroll = false;
+        this.refreshJump();
     }
 
-    /** The scroll event lands a frame late; a render in between must not pull a reader who scrolled away back to the bottom. */
-    protected noticeReaderScroll(): void {
-        const thread = this.chatScroll;
-        if (thread && !this.applyingScroll && thread.scrollTop !== this.savedScroll) {
-            this.onChatScroll();
-        }
-    }
+    /** Stable refs: an inline ref runs again on every render and would rebuild the resize observer each time. */
+    protected readonly chatRef = (el: HTMLDivElement | null): void => this.bindChat(el);
+    protected readonly threadRef = (el: HTMLDivElement | null): void => this.bindThread(el);
 
     protected bindChat(el: HTMLDivElement | null): void {
         if (this.chatScroll === el) {
             return;
         }
         this.chatScroll?.removeEventListener('scroll', this.onChatScrollBound);
-        this.chatSize?.disconnect();
-        this.chatSize = undefined;
+        this.chatScroll?.removeEventListener('scrollend', this.onChatScrollEndBound);
         this.chatScroll = el;
-        if (!el) {
-            return;
-        }
-        // The run card and the files panel sit under the thread and change its height. Put the same place back.
-        this.chatSize = new ResizeObserver(() => this.applyScroll(this.stickToLatest));
-        this.chatSize.observe(el);
-        // Native listener: a scroll from the reader cancels follow before the next frame paints.
-        el.addEventListener('scroll', this.onChatScrollBound, { passive: true });
+        this.observeThread();
+        // Native listener: a scroll up by the reader stops following before the next frame paints.
+        el?.addEventListener('scroll', this.onChatScrollBound, { passive: true });
+        el?.addEventListener('scrollend', this.onChatScrollEndBound, { passive: true });
     }
 
-    protected readonly onChatScrollBound = (): void => this.noticeReaderScroll();
+    protected bindThread(el: HTMLDivElement | null): void {
+        if (this.chatThread !== el) {
+            this.chatThread = el;
+            this.observeThread();
+        }
+    }
+
+    /** The panels under the thread change its height, and replies grow without a render (highlighting, images). */
+    protected observeThread(): void {
+        this.chatSize?.disconnect();
+        this.chatSize = new ResizeObserver(() => this.followLatest());
+        for (const el of [this.chatScroll, this.chatThread]) {
+            if (el) {
+                this.chatSize.observe(el);
+            }
+        }
+    }
+
+    protected readonly onChatScrollBound = (): void => this.onChatScroll();
 
     protected onChatScroll(): void {
         const thread = this.chatScroll;
-        if (!thread || this.applyingScroll) {
+        if (!thread) {
             return;
         }
-        this.savedScroll = thread.scrollTop;
-        const show = showJumpToLatest(distanceFromBottom(thread.scrollTop, thread.scrollHeight, thread.clientHeight));
-        this.stickToLatest = !show;
-        this.pendingFollow = this.stickToLatest;
+        const distance = distanceFromBottom(thread.scrollTop, thread.scrollHeight, thread.clientHeight);
+        this.following = followAfterScroll(this.following, thread.scrollTop, this.lastTop, distance);
+        this.lastTop = thread.scrollTop;
+        if (!this.following || isAtBottom(distance)) {
+            this.gliding = false;
+        }
+        this.refreshJump();
+    }
+
+    protected readonly onChatScrollEndBound = (): void => {
+        this.gliding = false;
+        this.followLatest();
+    };
+
+    /** "Jump to latest" shows only while the reader has scrolled away from new content. */
+    protected refreshJump(): void {
+        const thread = this.chatScroll;
+        const show = !!thread && !this.following && showJumpToLatest(distanceFromBottom(thread.scrollTop, thread.scrollHeight, thread.clientHeight));
         if (show !== this.showJump) {
             this.showJump = show;
             this.update();
@@ -1492,37 +1924,54 @@ export class IngotAgentsWidget extends ReactWidget {
         </div>;
     }
 
+    /** Glides down to the latest line and follows from there; scrolling up during the glide cancels it. */
     protected jumpToLatest(): void {
         const thread = this.chatScroll;
-        this.stickToLatest = true;
-        this.pendingFollow = true;
+        this.following = true;
         this.showJump = false;
         this.popover = this.popover === 'jumps' ? undefined : this.popover;
         if (thread) {
-            this.applyingScroll = true;
-            thread.scrollTop = thread.scrollHeight;
-            this.savedScroll = thread.scrollTop;
-            this.applyingScroll = false;
+            this.lastTop = thread.scrollTop;
+            this.gliding = true;
+            thread.scrollTo({ top: thread.scrollHeight - thread.clientHeight, behavior: 'smooth' });
         }
         this.update();
     }
 
-    /** The pinned prompt scrolls back to its place in the thread. Buttons inside it keep their own actions. */
-    protected onLatestClick(session: AgentSession, index: number, event: React.MouseEvent): void {
-        if (index !== latestUserIndex(session.messages) || this.editingIndex === index) {
-            return;
-        }
+    /** IDEA-280: a click on a sent prompt opens the inline edit; the pinned latest prompt first scrolls back to its place. */
+    protected onPromptClick(session: AgentSession, index: number, event: React.MouseEvent): void {
         const target = event.target;
-        if (target instanceof Element && target.closest('button, input, textarea, a')) {
-            return;
+        const action = promptClickAction({
+            editing: this.editingIndex === index,
+            onControl: target instanceof Element && !!target.closest(PROMPT_CLICK_IGNORE),
+            selecting: !!window.getSelection()?.toString(),
+            latest: index === latestUserIndex(session.messages),
+            pinnedOffset: this.pinnedOffset(index)
+        });
+        if (action === 'reveal') {
+            this.revealMessage(index);
+        } else if (action === 'edit') {
+            this.startEdit(session, index);
         }
-        this.revealMessage(index);
+    }
+
+    /** How far the thread is scrolled past the message's in-flow top (> 0 while a sticky prompt is pinned). */
+    protected pinnedOffset(index: number): number {
+        const thread = this.chatScroll;
+        const node = this.node.querySelector(`#ingot-msg-${index}`);
+        if (!thread || !(node instanceof HTMLElement)) {
+            return 0;
+        }
+        const previous = node.style.position;
+        node.style.position = 'static';
+        const natural = node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop;
+        node.style.position = previous;
+        return thread.scrollTop - natural;
     }
 
     /** Scrolls a message to the top of the thread using its in-flow position, not the sticky offset. */
     protected revealMessage(index: number): void {
-        this.stickToLatest = false;
-        this.pendingFollow = false;
+        this.following = false;
         const thread = this.chatScroll;
         const node = this.node.querySelector(`#ingot-msg-${index}`);
         if (thread && node instanceof HTMLElement) {
@@ -1537,17 +1986,11 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     protected jumpToMessage(index: number): void {
-        this.stickToLatest = false;
-        this.pendingFollow = false;
+        this.following = false;
         this.popover = undefined;
         this.update();
-        requestAnimationFrame(() => {
-            this.node.querySelector(`#ingot-msg-${index}`)?.scrollIntoView({ block: 'start' });
-            if (this.chatScroll) {
-                this.savedScroll = this.chatScroll.scrollTop;
-            }
-            this.onChatScroll();
-        });
+        // scrollIntoView would also scroll every scrollable ancestor, including the editor area beside the chat.
+        requestAnimationFrame(() => this.revealMessage(index));
     }
 
     protected startEdit(session: AgentSession, index: number): void {
@@ -1557,24 +2000,22 @@ export class IngotAgentsWidget extends ReactWidget {
     }
 
     protected renderEditForm(session: AgentSession, index: number): React.ReactNode {
-        return <form id='ingot-chat-edit' className='ingot-chat-edit-form' data-index={index} onSubmit={event => { event.preventDefault(); this.submitEdit(session); }}>
-            <textarea id='ingot-chat-edit-input' className='ingot-chat-edit-input' value={this.editDraft} aria-label='Edit message'
-                onChange={event => { this.editDraft = event.target.value; this.update(); }} />
-            <span className='ingot-chat-edit-actions'>
-                <button type='button' id='ingot-chat-edit-cancel' className='ingot-btn-ghost' onClick={() => { this.editingIndex = undefined; this.update(); }}>Cancel</button>
-                <button type='submit' id='ingot-chat-edit-submit' className='ingot-btn-primary' disabled={!this.editDraft.trim()}>Send</button>
-            </span>
-        </form>;
+        return <EditRerunForm key={`edit-${session.id}-${index}`} index={index} initial={this.editDraft}
+            onChoose={(choice, text) => this.submitEdit(session, choice, text)}
+            onCancel={() => { this.editingIndex = undefined; this.update(); }} />;
     }
 
-    protected submitEdit(session: AgentSession): void {
+    protected submitEdit(session: AgentSession, choice: EditRerunChoice, text: string): void {
         const index = this.editingIndex;
-        const text = this.editDraft;
+        const plan = editRerunPlan(choice);
+        if (!plan.rerun) {
+            return;
+        }
         this.editingIndex = undefined;
-        this.stickToLatest = true;
+        this.resumeFollowing();
         this.update();
         if (index !== undefined) {
-            void this.store.editUserMessage(session.id, index, text);
+            void this.store.editUserMessage(session.id, index, text, plan.revert);
         }
     }
 
@@ -1587,6 +2028,10 @@ export class IngotAgentsWidget extends ReactWidget {
         return <div id='ingot-mention-menu' className='ingot-slash-menu ingot-mention-menu' role='listbox' aria-label='Mention a file'>
             {items.map((path, i) => {
                 const slash = path.lastIndexOf('/');
+                const rule = path.startsWith(RULE_MENTION_PREFIX) ? findRule(this.mentionRules, path.slice(RULE_MENTION_PREFIX.length)) : undefined;
+                if (rule) {
+                    return <RuleMentionItem key={path} rule={rule} selected={i === this.mention!.index} onPick={() => this.acceptMention(path)} />;
+                }
                 return <div key={path} data-path={path} role='option' aria-selected={i === this.mention!.index}
                     className={`ingot-slash-item ingot-mention-item${i === this.mention!.index ? ' selected' : ''}`}
                     onMouseDown={e => { e.preventDefault(); this.acceptMention(path); }}>
@@ -1596,6 +2041,52 @@ export class IngotAgentsWidget extends ReactWidget {
                 </div>;
             })}
             {!items.length && <div className='ingot-mention-empty'>{loading ? 'Loading files…' : 'No matching files'}</div>}
+        </div>;
+    }
+
+    /** Files and folders `@`-mentioned in the draft, with their type badge; they are sent as context. */
+    protected renderMentionChips(): React.ReactNode {
+        const chips = mentionChips(this.draft);
+        if (!chips.length) {
+            return undefined;
+        }
+        return <div className='ingot-composer-chips' id='ingot-composer-chips'>
+            {chips.map(chip => <button type='button' key={chip.path} className='ingot-context-chip' data-path={chip.path} title={chip.path}
+                onClick={() => this.openWorkspacePath(chip.path)}>
+                <span className={`ingot-chip-badge ingot-chip-badge-${chip.badge.tone}`}>{chip.badge.label}</span>{chip.label}
+            </button>)}
+        </div>;
+    }
+
+    /** IDEA-267: IDE context that goes with the next message; × removes a chip until that context changes. */
+    protected renderAutoContext(): React.ReactNode {
+        const items = this.autoContext.items;
+        if (!items.length && !this.autoContext.hasDismissed) {
+            return undefined;
+        }
+        return <div id='ingot-auto-context' className='ingot-auto-context' aria-label='Context sent with the next message'>
+            {items.map(item => <span key={item.key} id={`ingot-auto-chip-${item.kind}`} className={`ingot-auto-chip ingot-auto-chip-${item.kind}`} data-kind={item.kind} title={item.title}>
+                <button type='button' className='ingot-auto-chip-label' onClick={() => this.openAutoContext(item)}>
+                    <span className={`codicon codicon-${AUTO_CONTEXT_ICONS[item.kind]}`} />{item.label}
+                </button>
+                <button type='button' className='ingot-auto-chip-remove codicon codicon-close' aria-label={`Remove ${item.label} from context`}
+                    title='Do not send this with the next message' onClick={() => this.autoContext.dismiss(item.key)} />
+            </span>)}
+            {this.autoContext.hasDismissed && <button type='button' id='ingot-auto-context-restore' className='ingot-auto-context-restore codicon codicon-discard'
+                aria-label='Restore removed context' title='Restore removed context' onClick={() => this.autoContext.restoreAll()} />}
+        </div>;
+    }
+
+    /** IDEA-267: suggested next prompts under the final reply, while the chat is idle. */
+    protected renderFollowUps(session: AgentSession, m: AgentSession['messages'][number], i: number): React.ReactNode {
+        const lastAgent = session.messages.map((message, index) => ({ message, index })).reverse().find(({ message }) => message.role === 'agent' && !message.hidden && message.text)?.index;
+        const idle = !this.store.isRunning(session.id) && session.status !== 'review' && session.status !== 'approval' && !session.ask;
+        if (!m.followUps?.length || i !== lastAgent || !idle) {
+            return undefined;
+        }
+        return <div id='ingot-follow-ups' className='ingot-follow-ups' role='group' aria-label='Suggested next steps'>
+            {m.followUps.map((text, j) => <button key={j} type='button' id={`ingot-follow-up-${j}`} className='ingot-follow-up' title={`Send: ${text}`}
+                onClick={() => this.sendFollowUp(text)}><span className='codicon codicon-arrow-right' />{text}</button>)}
         </div>;
     }
 
@@ -1643,7 +2134,7 @@ export class IngotAgentsWidget extends ReactWidget {
             <button type='button' id='ingot-composer-model' className={`ingot-pill ingot-model-pill${ready ? '' : ' ingot-pill-warn'}`} data-model={model} aria-haspopup='listbox'
                 aria-expanded={this.popover === 'model'} title={ready ? `Model: ${this.modelLabel(resolved)}` : this.account.signedIn ? 'This model is not ready yet: pick another or add a key' : 'Sign in to use Ingot models'}
                 onClick={() => { this.popover = this.popover === 'model' ? undefined : 'model'; this.update(); }}>
-                {!ready && <span className='ingot-pill-dot' aria-hidden='true' />}<span className='ingot-pill-label'>{this.modelLabel(model)}</span><span className='codicon codicon-chevron-down ingot-pill-caret' />
+                {!ready && <span className='ingot-pill-dot' aria-hidden='true' />}<span className='ingot-pill-label'>{this.modelLabel(model)}</span><ChevronIcon className='ingot-pill-caret' size={AGENT_ICON_SIZE.caret} />
             </button>
             {this.popover === 'model' && <ModelPicker current={model} models={this.models.catalog}
                 autoResolved={resolved !== AUTO_MODEL_ID && model === AUTO_MODEL_ID ? this.modelLabel(resolved) : undefined}
@@ -1655,6 +2146,26 @@ export class IngotAgentsWidget extends ReactWidget {
                 onSignIn={this.account.signedIn ? undefined : () => { this.closePopover(); this.account.signIn(false); }}
                 onClose={() => this.closePopover()} />}
         </span>;
+    }
+
+    /** IDEA-288: sandbox and approvals preset of the open project. */
+    protected renderSandboxPill(): React.ReactNode {
+        const root = this.sandbox.defaultRoot;
+        const preset = this.sandbox.peek(root);
+        return <span className='ingot-pill-anchor'>
+            <button type='button' id={SANDBOX_PILL_ID} className={`ingot-pill ingot-sandbox-pill ingot-sandbox-${preset.sandbox}`} data-sandbox={preset.sandbox} data-approvals={preset.approvals}
+                data-network={String(preset.network)} aria-haspopup='menu' aria-expanded={this.popover === 'sandbox'} title={presetTitle(preset)} disabled={!root}
+                onClick={() => this.toggleSandboxMenu()}>
+                <span className={`codicon codicon-${SANDBOX_INFO[preset.sandbox].icon}`} aria-hidden='true' /><span className='ingot-pill-label'>{presetLabel(preset)}</span><span className='codicon codicon-chevron-down ingot-pill-caret' />
+            </button>
+            {this.popover === 'sandbox' && root && <SandboxMenu preset={preset} onClose={() => this.closePopover()}
+                onChange={next => void this.sandbox.set(root, next).catch(error => this.messages.error(`Could not save the sandbox preset: ${error instanceof Error ? error.message : String(error)}`))} />}
+        </span>;
+    }
+
+    toggleSandboxMenu(): void {
+        this.popover = this.popover === 'sandbox' ? undefined : 'sandbox';
+        this.update();
     }
 
     /** Ring showing how full the context window was on the last request; hover for the breakdown. */

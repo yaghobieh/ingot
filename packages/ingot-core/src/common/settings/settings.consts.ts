@@ -41,25 +41,31 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
     {
         id: 'tools', label: 'Tools', icon: 'tools', children: [
             {
-                id: 'ai', label: 'AI Models', preferences: ['ingot.autocomplete.enabled', 'ingot.autocomplete.model', 'ingot.autocomplete.debounceMs', 'ingot.models.ollamaUrl'],
+                id: 'ai', label: 'AI Models',
+                preferences: [
+                    'ingot.tab.enabled', 'ingot.autocomplete.model', 'ingot.tab.debounceMs', 'ingot.tab.maxRequestsPerDay', 'ingot.tab.maxTokensPerDay',
+                    'ingot.tab.devOpenRouter.enabled', 'ingot.tab.devOpenRouter.model', 'ingot.models.ollamaUrl'
+                ],
                 actions: [{ id: 'openModels', label: 'Manage API Keys…' }]
             },
             {
                 id: 'ai-zaprex', label: 'AI & Zaprex',
-                description: 'Agent defaults, Harmony mode (Zaprex takes one scoped piece of a heavy run), how subagents show, the Zaprex button, Commit with AI and agent git hooks.',
+                description: 'Agent defaults, chat context, Harmony mode (Zaprex takes one scoped piece of a heavy run), how subagents show, the Zaprex button, Commit with AI and agent git hooks.',
                 preferences: [
-                    'ingot.agent.defaultMode', 'ingot.agent.defaultModel',
+                    'ingot.agent.defaultMode', 'ingot.agent.defaultModel', 'ingot.chat.attachActiveFile',
                     'ingot.zaprex.harmony.enabled', 'ingot.zaprex.harmony.maxPieces', 'ingot.zaprex.harmony.askFirst',
                     'ingot.agents.subagents.view', 'ingot.zaprex.showButton',
                     'ingot.commit.ai.enabled', 'ingot.commit.madeWithTrailer',
-                    'ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'
+                    'ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks', 'ingot.agent.hooks.agentEvents'
                 ],
                 groups: [
                     { label: 'Agent defaults', preferences: ['ingot.agent.defaultMode', 'ingot.agent.defaultModel'] },
+                    { label: 'Chat', preferences: ['ingot.chat.attachActiveFile'] },
                     { label: 'Harmony mode', preferences: ['ingot.zaprex.harmony.enabled', 'ingot.zaprex.harmony.maxPieces', 'ingot.zaprex.harmony.askFirst'] },
                     { label: 'Subagents & Zaprex', preferences: ['ingot.agents.subagents.view', 'ingot.zaprex.showButton'] },
                     { label: 'Commits', preferences: ['ingot.commit.ai.enabled', 'ingot.commit.madeWithTrailer'] },
-                    { label: 'Agent git hooks', preferences: ['ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'] }
+                    { label: 'Agent git hooks', preferences: ['ingot.agent.hooks.enabled', 'ingot.agent.hooks.installGitHooks'] },
+                    { label: 'Agent event hooks', preferences: ['ingot.agent.hooks.agentEvents'] }
                 ]
             },
             {
@@ -78,17 +84,51 @@ export const SETTINGS_TREE: readonly SettingsPage[] = [
                 preferences: [
                     'ingot.agent.terminal.enabled', 'ingot.agent.terminal.requireApproval', 'ingot.agent.terminal.foregroundTimeoutSeconds', 'ingot.agent.terminal.maxOutputChars',
                     'ingot.agent.processes.showInChat',
-                    'ingot.agent.browser.enabled', 'ingot.agent.browser.requireApproval', 'ingot.agent.browser.approveReads',
+                    'ingot.agent.browser.enabled', 'ingot.agent.browser.everyRun', 'ingot.agent.browser.requireApproval', 'ingot.agent.browser.approveReads',
                     'ingot.agent.workLoop', 'ingot.agent.maxToolRounds', 'ingot.agent.maxToolResultChars'
                 ],
                 groups: [
                     { label: 'Terminal & scripts', preferences: ['ingot.agent.terminal.enabled', 'ingot.agent.terminal.requireApproval', 'ingot.agent.terminal.foregroundTimeoutSeconds', 'ingot.agent.terminal.maxOutputChars'] },
                     { label: 'Background processes', preferences: ['ingot.agent.processes.showInChat'] },
-                    { label: 'Browser', preferences: ['ingot.agent.browser.enabled', 'ingot.agent.browser.requireApproval', 'ingot.agent.browser.approveReads'] },
-                    { label: 'Work loop', preferences: ['ingot.agent.workLoop', 'ingot.agent.maxToolRounds', 'ingot.agent.maxToolResultChars'] }
+                    { label: 'Browser', preferences: ['ingot.agent.browser.enabled', 'ingot.agent.browser.everyRun', 'ingot.agent.browser.requireApproval', 'ingot.agent.browser.approveReads'] },
+                    { label: 'Work loop', preferences: ['ingot.agent.workLoop', 'ingot.agent.maxToolRounds', 'ingot.agent.maxToolResultChars'] },
+                    { label: 'Doom-loop breaker', preferences: ['ingot.agent.doomLoop.enabled', 'ingot.agent.doomLoop.maxRepeats'] }
+                ]
+            },
+            {
+                id: 'agent-autopilot', label: 'Context, plans & cost',
+                description: 'Fresh context: when a chat goes stale, continue in a new chat from a brief (.ingot/handoffs). Approved plans are saved in .ingot/plans and checked against the diff after the run. The composer estimates what the next run costs, and the Autopilot model router sends simple steps to a cheaper model (never Chinese-origin models). Habits learns your handoff point, plan templates and preferred models.',
+                preferences: [
+                    'ingot.agent.freshContext.mode', 'ingot.agent.freshContext.turns', 'ingot.agent.freshContext.failures', 'ingot.agent.freshContext.tokenRatio',
+                    'ingot.agent.cost.forecast', 'ingot.agent.cost.warnUsd', 'ingot.agent.router.enabled'
+                ],
+                groups: [
+                    { label: 'Fresh context', preferences: ['ingot.agent.freshContext.mode', 'ingot.agent.freshContext.turns', 'ingot.agent.freshContext.failures', 'ingot.agent.freshContext.tokenRatio'] },
+                    { label: 'Cost forecast', preferences: ['ingot.agent.cost.forecast', 'ingot.agent.cost.warnUsd'] },
+                    { label: 'Autopilot model router', preferences: ['ingot.agent.router.enabled'] }
                 ]
             },
             { id: 'agent-config', label: 'Rules & MCP', actions: [{ id: 'openAgentConfig', label: 'Open Rules, Commands & MCP Servers…' }] },
+            {
+                id: 'user-rules', label: 'User Rules', custom: 'rules',
+                description: 'Rules agents follow. Always rules apply to every request; auto rules when matching files are in context; agent-requested rules are listed by description and read on demand; manual rules only when you @-mention them in the composer.'
+            },
+            {
+                id: 'team-rules', label: 'Team Rules', custom: 'teamRules', adminOnly: true,
+                description: 'Rules for everyone on your Ingot team (admins only). Enabled rules reach every member; enforced ones cannot be turned off. Team rules come before project and user rules.'
+            },
+            {
+                id: 'habits', label: 'Habits', custom: 'habits', preferences: ['ingot.habits.playbooks.autoSelect', 'ingot.habits.threshold'],
+                description: 'Habits are playbooks: what to do in which scenario (for example a bug in payments: search the logs, check the service, run the tests). Project habits live in .ingot/habits (commit them to share), global ones in ~/.ingot/habits. Learned patterns are what Ingot notices you repeat; they can become a rule, command, hook or habit.'
+            },
+            {
+                id: 'decisions', label: 'Decisions', custom: 'decisions',
+                description: 'Decisions you agreed on with the agent ("use pnpm, not npm"). Confirm a decision the agent proposes in the chat, or lock one here; agents ask before going against a locked decision. A decision confirmed again and again becomes an always-applied rule and a habit.'
+            },
+            {
+                id: 'frozen', label: 'Frozen Zones', custom: 'frozen', preferences: ['ingot.frozen.revertThreshold', 'ingot.frozen.inferMinAgeDays'],
+                description: 'Files and functions agents may not change without your approval in the chat. Ingot suggests freezing a file you keep reverting agent edits to, and can find stable files from green tests and old commits.'
+            },
             {
                 id: 'memories', label: 'Memories', custom: 'memories',
                 description: 'Facts and preferences agents remember between chats. Project memories stay on this machine (git-ignored); global ones apply to every project.'

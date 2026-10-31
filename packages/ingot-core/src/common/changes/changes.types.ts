@@ -28,6 +28,14 @@ export interface CodeChange {
     readonly status: ChangeStatus;
 }
 
+/** IDEA-262: an agent edit reached a file. `before` when it lands for review, `after` once decided, right before the save. */
+export interface AgentEditEvent {
+    readonly uri: string;
+    readonly sessionId: string;
+    readonly phase: 'before' | 'after';
+    readonly text: string;
+}
+
 /** File contents before an agent run, keyed by URI; `undefined` = the file did not exist (IDEA-102 checkpoints). */
 export interface Checkpoint {
     readonly sessionId: string;

@@ -15,6 +15,8 @@ export const HOOKS_RAN_ENV = 'INGOT_HOOKS_RAN';
 export const HOOK_MARKER = '# ingot-agent-hooks';
 export const HOOK_RUNNER = 'ingot-hooks.cjs';
 export const HOOK_TIMEOUT_SECONDS = 300;
+/** Keys the git stages share the file with: Cursor-style agent hooks (IDEA-294) live under `version` / `hooks`. */
+export const SHARED_HOOK_KEYS: readonly string[] = ['$schema', 'description', 'version', 'hooks'];
 export const AGENT_HOOK_MAX_DIFF = 12000;
 
 export interface ShellHookStep { readonly name: string; readonly run: string; readonly timeoutSeconds?: number }
@@ -75,7 +77,7 @@ export const parseHooks = (text: string | undefined): HooksParse => {
         });
     }
     for (const key of Object.keys(raw as object)) {
-        if (!(HOOK_STAGES as readonly string[]).includes(key) && key !== '$schema' && key !== 'description') {
+        if (!(HOOK_STAGES as readonly string[]).includes(key) && !SHARED_HOOK_KEYS.includes(key)) {
             errors.push(`Unknown hook "${key}" (use "pre-commit" or "pre-push").`);
         }
     }

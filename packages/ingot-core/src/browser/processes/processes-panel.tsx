@@ -1,7 +1,8 @@
 import * as React from '@theia/core/shared/react';
 import type { ProcessInfo, ProcessOutput } from '../../common/processes/processes.types';
 import { formatUptime, isListed, STATUS_LABELS, uptimeOf } from '../../common/processes/processes.utils';
-import { PROCESS_OUTPUT_POLL_MS, PROCESS_UPTIME_TICK_MS } from './processes.browser-consts';
+import { PROCESS_ORIGIN_MARK_SIZE, PROCESS_OUTPUT_POLL_MS, PROCESS_UPTIME_TICK_MS } from './processes.browser-consts';
+import { RexMark } from '../brand/rex-mark';
 
 export interface ProcessesPanelProps {
     readonly processes: readonly ProcessInfo[];
@@ -65,7 +66,9 @@ const ProcessRow = ({ process: p, now, open, onToggle, props }: { process: Proce
         <div className='ingot-process-row' role='button' tabIndex={0} title={`${p.command}\n${p.cwd}`} aria-expanded={open}
             onClick={onToggle} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}>
             <span className='ingot-process-dot' aria-hidden='true' />
-            <span className={`ingot-process-origin codicon codicon-${p.origin === 'agent' ? 'sparkle' : 'person'}`} title={p.origin === 'agent' ? 'Started by the agent' : 'Started by you'} />
+            {p.origin === 'agent'
+                ? <span className='ingot-process-origin' title='Started by the agent'><RexMark size={PROCESS_ORIGIN_MARK_SIZE} label='Started by the agent' /></span>
+                : <span className='ingot-process-origin codicon codicon-person' title='Started by you' />}
             <code className='ingot-process-command'>{p.command}</code>
             {p.ports.map(port => <button type='button' key={port} className='ingot-process-port' title={`Open http://localhost:${port} in the Ingot browser`}
                 onClick={e => { e.stopPropagation(); props.onOpenPort(port); }}>:{port}</button>)}

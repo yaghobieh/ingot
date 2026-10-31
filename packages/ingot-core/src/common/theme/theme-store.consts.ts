@@ -10,6 +10,12 @@ export const VSIX_CACHE_SIZE = 8;
 /** Extensions in the Themes category that only ship file or product icons. */
 export const ICON_THEME_PATTERN = /\bicons?\b|icon[- ]?theme|product[- ]?icon/i;
 
+/**
+ * IDEA-281: installed and imported color themes live in the Ingot config folder (~/.ingot/themes.json), so every
+ * project, reload and new version sees them. They used to sit in per-project browser storage.
+ */
+export const USER_THEMES_FILE = 'themes.json';
+
 /** Per-slot theme used by Light, Dark and System (System follows the OS). */
 export const THEME_SLOT_PREFERENCES = {
     light: 'ingot.appearance.lightTheme',

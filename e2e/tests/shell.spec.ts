@@ -13,10 +13,12 @@ test.describe('IDEA-13/14 main toolbar and tool windows', () => {
         await expect(page.locator('#ingot-tb-search')).toContainText('Shift Shift');
         await expect(page.locator('#ingot-tb-run-config')).toContainText('dev');
         await expect(page.locator('#ingot-tb-project')).toContainText('sample-project');
-        // IDEA-118: the AI button became the title bar window actions (panel, chat, the Zaprex T-rex since IDEA-179, Agents Window).
-        for (const id of ['vcs', 'run-config', 'run', 'debug', 'stop', 'search', 'panel', 'chat', 'zaprex', 'agents-window']) {
+        // IDEA-118: the AI button became the title bar window actions (panel, chat, Agents Window).
+        for (const id of ['vcs', 'run-config', 'run', 'debug', 'stop', 'search', 'panel', 'chat', 'agents-window']) {
             await expect(page.locator(`#ingot-tb-${id}`)).toBeVisible();
         }
+        // The Zaprex T-rex (IDEA-179) is PRO+ only; this run is signed out.
+        await expect(page.locator('#ingot-tb-zaprex')).toHaveCount(0);
         // IDEA-92: no 'New Session' (the Agents panel's + makes a new chat).
         await expect(page.locator('#ingot-tb-new-session')).toHaveCount(0);
         await expect(toolbar).not.toContainText('New Session');
@@ -65,19 +67,6 @@ test.describe('IDEA-15/16 welcome screen, brand and themes', () => {
         await expect(welcome.locator('svg.ingot-mark .im-slash').first()).toBeAttached();
         await expect(welcome.locator('#ingot-welcome-open')).toBeVisible();
         await expect(welcome.locator('#ingot-welcome-clone')).toBeVisible();
-        await expect(welcome.locator('#ingot-welcome-open-plugins')).toBeVisible();
-    });
-
-    test('switches between Light, Dark and System from the welcome page', async ({ page }) => {
-        await openIngot(page);
-        await runCommand(page, 'Welcome to Ingot');
-        const welcome = page.locator('#ingot-welcome');
-        await welcome.locator('#ingot-theme-dark').click();
-        await expect(page.locator('body')).toHaveClass(/theia-dark/);
-        await expect(welcome.locator('#ingot-theme-dark')).toHaveClass(/active/);
-        await welcome.locator('#ingot-theme-light').click();
-        await expect(page.locator('body')).toHaveClass(/theia-light/);
-        await welcome.locator('#ingot-theme-system').click();
-        await expect(welcome.locator('#ingot-theme-system')).toHaveClass(/active/);
+        await expect(welcome.locator('#ingot-welcome-ssh')).toBeVisible();
     });
 });

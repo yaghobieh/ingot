@@ -1,8 +1,8 @@
 import type { PreferenceSchema } from '@theia/core/lib/common/preferences';
-import { AI_SETTINGS_PREFS, DEFAULT_AGENT_MODES } from '../../common/agents/ai-settings';
+import { AI_SETTINGS_PREFS, ATTACH_ACTIVE_FILE_DEFAULT, DEFAULT_AGENT_MODES } from '../../common/agents/ai-settings';
 import { MADE_WITH_PREF } from '../../common/git/made-with';
 
-/** IDEA-182: agent defaults, the Zaprex button and Commit with AI (Settings › Tools › AI & Zaprex). */
+/** IDEA-182: agent defaults, the Zaprex button, Commit with AI and chat context (Settings › Tools › AI & Zaprex). */
 export const aiSettingsPreferenceSchema: PreferenceSchema = {
     properties: {
         [AI_SETTINGS_PREFS.defaultMode]: {
@@ -16,7 +16,11 @@ export const aiSettingsPreferenceSchema: PreferenceSchema = {
         },
         [AI_SETTINGS_PREFS.zaprexButton]: {
             type: 'boolean', default: true,
-            description: 'Show the Zaprex T-rex in the title bar and the chat toolbar. Harmony mode offers still appear in the chat when it is hidden.'
+            description: 'Show the Zaprex T-rex ("Hand off to Rex") in the title bar on PRO+ while an agent run is heavy: many files, a multi-step plan or a long run.'
+        },
+        [AI_SETTINGS_PREFS.attachActiveFile]: {
+            type: 'boolean', default: ATTACH_ACTIVE_FILE_DEFAULT,
+            description: 'Attach the file open in the editor to chat messages as a removable chip. Off: add files with @ or by pasting code.'
         },
         [AI_SETTINGS_PREFS.aiCommit]: {
             type: 'boolean', default: true,

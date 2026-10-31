@@ -23,6 +23,8 @@ coverage/
 
 # os / editor
 .ingot-tmp/
+# IDEA-260: local codebase index (vectors, manifest)
+.ingot/index/
 .DS_Store
 *.log
 .idea/
@@ -40,7 +42,10 @@ dist-electron/
 applications/*/gen-esbuild*.mjs
 e2e/.ingot-e2e-config/
 e2e/.ingot-e2e-keystore/
+e2e/.ingot-agent-quality-config/
+e2e/.ingot-agent-quality-keystore/
 e2e/fixtures/sample-project/saved-by-e2e.ingot-workspace
+e2e/fixtures/sample-project/.ingot/frozen.json
 e2e/fixtures/e2e-group.ingot-group
 
 # IDEA-108: copied from packages/ingot-core/resources at bundle time

@@ -1,0 +1,32 @@
+/* IDEA-270: built-in Slack connection card on the MCP page. Colors come from --ingot-* tokens only. */
+.ingot-slack-card { display: flex; flex-direction: column; gap: var(--ingot-space-2); margin: var(--ingot-space-3) 0; padding: var(--ingot-space-3);
+  border: 1px solid var(--ingot-border); border-radius: 10px; background: var(--ingot-surface); color: var(--ingot-text); }
+.ingot-slack-head { display: flex; align-items: center; gap: 10px; }
+.ingot-slack-icon { flex: none; width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  background: var(--ingot-selection); color: var(--ingot-primary); font-size: 16px; }
+.ingot-slack-text { flex: 1; min-width: 0; }
+.ingot-slack-title { font-weight: 500; }
+.ingot-slack-tag { margin-left: 6px; padding: 0 7px; line-height: 18px; border-radius: 9px; font-size: 11px; font-weight: 400;
+  background: var(--ingot-panel); color: var(--ingot-text-muted); }
+.ingot-slack-status { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 12px; color: var(--ingot-text-muted); }
+.ingot-slack-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ingot-text-muted); }
+.ingot-slack-card[data-state='connected'] .ingot-slack-dot { background: var(--ingot-success); }
+.ingot-slack-card[data-state='connecting'] .ingot-slack-dot { background: var(--ingot-warning); }
+.ingot-slack-card[data-state='error'] .ingot-slack-dot,
+.ingot-slack-card[data-state='needs-token'] .ingot-slack-dot { background: var(--ingot-danger); }
+.ingot-slack-card[data-state='error'] .ingot-slack-status { color: var(--ingot-danger); }
+.ingot-slack-actions { display: flex; align-items: center; gap: 6px; }
+.ingot-slack-primary, .ingot-slack-secondary { height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid transparent; font: inherit; cursor: pointer; }
+.ingot-slack-primary { background: var(--ingot-primary); color: var(--ingot-primary-text); }
+.ingot-slack-primary:hover:not(:disabled) { background: var(--ingot-primary-hover); }
+.ingot-slack-secondary { background: transparent; color: var(--ingot-text); border-color: var(--ingot-border); }
+.ingot-slack-secondary:hover:not(:disabled) { background: var(--ingot-panel); }
+.ingot-slack-primary:disabled, .ingot-slack-secondary:disabled { opacity: .55; cursor: default; }
+.ingot-slack-desc, .ingot-slack-hint { margin: 0; font-size: 12px; color: var(--ingot-text-muted); }
+.ingot-slack-hint a { color: var(--ingot-primary); }
+.ingot-slack-form { display: flex; flex-direction: column; gap: var(--ingot-space-2); padding-top: var(--ingot-space-2); border-top: 1px solid var(--ingot-border); }
+.ingot-slack-field { display: flex; flex-direction: column; gap: var(--ingot-space-1); font-size: 12px; color: var(--ingot-text-muted); }
+.ingot-slack-card .ingot-slack-field input { height: 28px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--ingot-border); background: var(--ingot-bg); color: var(--ingot-text); font: inherit; }
+.ingot-slack-card .ingot-slack-field input:focus { outline: 1px solid var(--ingot-focus-ring); border-color: var(--ingot-focus-ring); }
+.ingot-slack-error { font-size: 12px; color: var(--ingot-danger); }
+.ingot-slack-form-actions { display: flex; justify-content: flex-end; gap: 6px; }

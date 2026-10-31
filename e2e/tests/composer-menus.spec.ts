@@ -4,6 +4,8 @@ import * as path from 'path';
 import { expect, test, type Page } from '@playwright/test';
 import { composerPlainText } from '../src/composer.e2e-utils';
 import { dismissNotifications, openIngot } from '../src/app.utils';
+import { E2E_CONFIG_DIR } from '../src/e2e.consts';
+import { startOpenPlanServer, type FakeIngotServer } from '../src/fake-ingot-server';
 
 /** IDEA-187: `/` built-in commands, the `@` file picker, and dropping files anywhere on the chat panel. */
 const SHOTS = process.env.INGOT_SCREENSHOT_DIR;
@@ -43,8 +45,17 @@ for (const scheme of ['light', 'dark'] as const) {
     test.describe(`IDEA-187 composer / and @ menus, drag and drop (${scheme})`, () => {
         test.setTimeout(120_000);
         let dir: string;
-        test.beforeEach(() => { dir = makeProject(); });
-        test.afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+        // The agent chat is a paid feature; the fake account server opens the plan.
+        let account: FakeIngotServer;
+        test.beforeEach(async () => {
+            account = await startOpenPlanServer();
+            dir = makeProject();
+        });
+        test.afterEach(async () => {
+            await account.close();
+            fs.rmSync(path.join(E2E_CONFIG_DIR, 'remote-config.json'), { force: true });
+            fs.rmSync(dir, { recursive: true, force: true });
+        });
 
         test('/ lists built-in commands and runs them', async ({ page }) => {
             await openIngot(page, dir);

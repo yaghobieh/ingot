@@ -1,5 +1,7 @@
-import { FILE_SCHEME_PREFIX, HOME_TILDE, MAX_INITIALS, MAX_RECENT_PROJECTS } from './welcome.consts';
-import type { RecentProject } from './welcome.types';
+import {
+    FILE_SCHEME_PREFIX, HOME_TILDE, KIND_LABELS, MAX_INITIALS, MAX_RECENT_PROJECTS, PLAN_FREE, PLAN_SIGNED_OUT, SSH_MAX_PORT, SSH_PORT_FLAG, SSH_URL_PREFIX
+} from './welcome.consts';
+import type { RecentProject, SshTarget } from './welcome.types';
 import { isWorkspaceFileName, projectDisplayName } from '../workspace/workspace.utils';
 import { isGroupFileName } from '../groups/groups.utils';
 
@@ -41,12 +43,37 @@ export const isCloneUrl = (url: string): boolean => {
 /** The folder a clone lands in: `<parent>/<repo>`. */
 export const cloneTarget = (parent: string, url: string): string => `${parent.replace(/\/+$/, '')}/${repoNameFromUrl(url)}`;
 
-/** Workspaces shown on the welcome page: the first few, or all after "Show More...". */
-export const visibleWorkspaces = <T>(items: readonly T[], expanded: boolean, limit: number): { readonly shown: readonly T[]; readonly more: boolean } =>
-    ({ shown: expanded ? items : items.slice(0, limit), more: !expanded && items.length > limit });
+/** IDEA-266: a recent row reads "alloy (Workspace)" on the left and the folder it lives in on the right. */
+export const recentProjectLabel = (project: Pick<RecentProject, 'name' | 'kind'>): string =>
+    KIND_LABELS[project.kind] ? `${project.name} (${KIND_LABELS[project.kind]})` : project.name;
 
-/** Open VSX ids look like `namespace.name`; returns the API path parts. */
-export const openVsxParts = (id: string): { readonly namespace: string; readonly name: string } => {
-    const dot = id.indexOf('.');
-    return { namespace: id.slice(0, dot), name: id.slice(dot + 1) };
+export const recentProjectLocation = (project: Pick<RecentProject, 'path'>): string => {
+    const slash = project.path.lastIndexOf('/');
+    return slash > 0 ? project.path.slice(0, slash) : project.path;
 };
+
+/** IDEA-266: the plan under the logo ("Pro · Settings"). */
+export const welcomePlanLabel = (account: { readonly signedIn: boolean; readonly user?: { readonly plan?: string } }): string => {
+    if (!account.signedIn) {
+        return PLAN_SIGNED_OUT;
+    }
+    const plan = account.user?.plan?.trim();
+    return plan ? plan[0].toUpperCase() + plan.slice(1) : PLAN_FREE;
+};
+
+/** IDEA-266: Connect via SSH accepts `host`, `user@host`, `user@host:port` or `ssh://user@host:port`; nothing that ssh could read as an option. */
+export const parseSshTarget = (input: string): SshTarget | undefined => {
+    const trimmed = input.trim();
+    const value = trimmed.startsWith(SSH_URL_PREFIX) ? trimmed.slice(SSH_URL_PREFIX.length) : trimmed;
+    const m = /^((?:[\w.-]+@)?[A-Za-z0-9][\w.-]*)(?::(\d{1,5}))?$/.exec(value);
+    if (!m || value.startsWith('-')) {
+        return undefined;
+    }
+    const port = m[2] ? Number(m[2]) : undefined;
+    if (port !== undefined && (port < 1 || port > SSH_MAX_PORT)) {
+        return undefined;
+    }
+    return port ? { destination: m[1], port } : { destination: m[1] };
+};
+
+export const sshArgs = (target: SshTarget): string[] => target.port ? [SSH_PORT_FLAG, String(target.port), target.destination] : [target.destination];

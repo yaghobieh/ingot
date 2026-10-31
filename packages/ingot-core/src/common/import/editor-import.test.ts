@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareVersions, latestPerId, mergeKeybindings, mergeSettings, openVsxPath, parseExtensionFolder, parseExtensionsManifest, parseJsonc, userSettingsDirs } from './editor-import';
+import { compareVersions, latestPerId, mergeKeybindings, mergeSettings, openVsxPath, parseExtensionFolder, parseExtensionsManifest, parseJsonc, userSettingsDirs, usesUnsupportedApi } from './editor-import';
 
 describe('import from another editor (IDEA-107)', () => {
     it('reads extension folder names', () => {
@@ -24,6 +24,11 @@ describe('import from another editor (IDEA-107)', () => {
         expect(compareVersions('1.10.0', '1.9.9')).toBeGreaterThan(0);
         const list = latestPerId([{ id: 'a.b', version: '1.0.0' }, { id: 'a.b', version: '1.2.0' }, { id: 'c.d', version: '0.1.0' }]);
         expect(list).toEqual([{ id: 'a.b', version: '1.2.0' }, { id: 'c.d', version: '0.1.0' }]);
+    });
+    it('skips extensions that need remote resolvers (Remote - SSH)', () => {
+        expect(usesUnsupportedApi({ enabledApiProposals: ['resolvers', 'tunnels'] })).toBe(true);
+        expect(usesUnsupportedApi({ enabledApiProposals: ['terminalDataWriteEvent'] })).toBe(false);
+        expect(usesUnsupportedApi({})).toBe(false);
     });
     it('builds Open VSX paths and settings folders', () => {
         expect(openVsxPath('esbenp.prettier-vscode')).toBe('/api/esbenp/prettier-vscode');

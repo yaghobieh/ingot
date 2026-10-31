@@ -8,9 +8,9 @@ import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { SHELL_SELECTOR } from '../src/e2e.consts';
+import { saveArtifact } from '../src/artifacts.e2e-utils';
 
 /** A scripted model creates a library, runs its tests, offers git, and opens the folder. */
-const SHOTS = '/opt/cursor/artifacts/screenshots';
 const OPTIONS = [
     'React feature-folders, Node layered',
     'React feature-folders, Node modular',
@@ -19,10 +19,7 @@ const OPTIONS = [
 ];
 const PROMPT = 'Create for me a new React and Node.js project with full APIs for a library, use structure X for React and Node.js structure Y, open it at path';
 
-const save = async (page: Page, name: string): Promise<void> => {
-    fs.mkdirSync(SHOTS, { recursive: true });
-    await page.screenshot({ path: path.join(SHOTS, name) });
-};
+const save = (page: Page, name: string): Promise<void> => saveArtifact(page, name);
 
 const both = async (page: Page, name: string): Promise<void> => {
     await setAppearance(page, 'light');

@@ -41,14 +41,13 @@ test.describe('IDEA-51 workspaces (.ingot-workspace / .code-workspace)', () => {
         await expect(treeRoot(page, 'second-project')).toBeVisible({ timeout: 30_000 });
     });
 
-    test('Welcome shows workspaces among recent projects and offers Open Workspace', async ({ page }) => {
+    test('Welcome shows workspaces among recent projects', async ({ page }) => {
         await openIngot(page, MULTI_ROOT_WORKSPACE);
         await openIngot(page, FIXTURE_WORKSPACE);
         await page.keyboard.press('F1');
         await page.getByRole('textbox', { name: 'Type to narrow down results.' }).fill('>Welcome to Ingot');
         await page.getByRole('option', { name: /Welcome to Ingot/ }).first().click();
-        await expect(page.locator('#ingot-welcome-open-workspace')).toBeVisible();
-        await expect(page.locator('.ingot-welcome-project', { hasText: 'multi-root' })).toContainText('Workspace');
+        await expect(page.locator('.ingot-welcome-project', { hasText: 'multi-root' })).toContainText('(Workspace)');
     });
 
     test('saves the open project as an .ingot-workspace from the project ▾ popup', async ({ page }) => {

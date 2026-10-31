@@ -1,13 +1,13 @@
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { WindowService } from '@theia/core/lib/browser/window/window-service';
-import { ZAPREX_OPEN_LINK, ZAPREX_WEB_FALLBACK, type ZaprexDesktopInfo } from '../../common/zaprex/handoff';
+import { ZAPREX_WEB_FALLBACK, type ZaprexDesktopInfo } from '../../common/zaprex/handoff';
 import { ZaprexDesktopService } from '../../common/zaprex/zaprex-desktop.types';
 
 const DETECT_TTL_MS = 15_000;
 
 /**
- * IDEA-185: opens Zaprex. With the desktop app installed the T-rex uses the `zaprex://` deep link; otherwise it opens
- * zaprex.dev/app?from=ingot, which offers the download for this OS or "Stay here" (web, where Harmony pieces are off).
+ * IDEA-185 / IDEA-266: opens Zaprex. The Rex button starts the real desktop app (`open -a Zaprex` on macOS, the installed
+ * exe / binary elsewhere); without it, it opens zaprex.dev/app?from=ingot, which offers the download for this OS.
  */
 @injectable()
 export class ZaprexLauncher {
@@ -31,12 +31,10 @@ export class ZaprexLauncher {
     }
 
     async openApp(): Promise<void> {
-        const info = await this.info();
-        if (info.installed) {
-            await this.desktop.open(ZAPREX_OPEN_LINK);
-            return;
+        const launched = await this.desktop.launch().catch(() => false);
+        if (!launched) {
+            this.openWeb();
         }
-        this.openWeb();
     }
 
     openWeb(): void {

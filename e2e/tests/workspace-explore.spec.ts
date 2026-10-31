@@ -79,9 +79,11 @@ for (const scheme of ['light', 'dark'] as const) {
             await expect(page.locator('#ingot-agents')).not.toContainText('Calling tools');
             await expect(page.locator('#ingot-agents .ingot-chat-step')).toHaveCount(0);
             const explored = page.locator('#ingot-chat-explored');
-            await expect(explored).toContainText(/Explored 1 file, 1 folder, 1 search/);
+            // The applied rules count as read files in the same row.
+            await expect(explored).toContainText(/Explored 2 files, 1 folder, 1 search/);
             await explored.locator('.ingot-chat-explored-head').click();
-            await expect(explored.locator('.ingot-chat-explored-list li')).toHaveText(['./', 'package.json', '"total"']);
+            await expect(explored.locator('.ingot-chat-explored-list li:not([data-kind="rule"])')).toHaveText(['./', 'package.json', '"total"']);
+            await expect(explored.locator('.ingot-chat-explored-list li[data-kind="rule"]')).toHaveCount(1);
 
             // The model got the local-first protocol with the repo from the git remote, never a made-up one.
             const system = systems[systems.length - 1];

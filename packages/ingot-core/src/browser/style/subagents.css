@@ -28,7 +28,6 @@ body.ingot-dark .ingot-sa-list { border-color: rgba(255, 255, 255, .07); }
 .ingot-sa-row:hover, .ingot-sa-row.selected { background: var(--ingot-selection, rgba(59, 111, 217, .1)); }
 .ingot-sa-row:focus-visible { outline: 2px solid var(--ingot-primary, #3B6FD9); outline-offset: -2px; }
 .ingot-sa-who { width: 16px; height: 16px; display: inline-grid; place-items: center; flex: none; }
-.ingot-sa-ingot { font-size: 8px; font-weight: 800; border-radius: 4px; background: #3B6FD9; color: #fff; letter-spacing: -.5px; }
 .ingot-sa-zaprex { background-size: contain; background-repeat: no-repeat; background-position: center; }
 .ingot-sa-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ingot-sa-detail { color: var(--ingot-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; font-size: 11px; }

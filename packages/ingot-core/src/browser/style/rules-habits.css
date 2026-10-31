@@ -1,0 +1,127 @@
+/* IDEA-287 / IDEA-295 / IDEA-296: rule mentions, the User Rules page, Habit cards and the Habits page. Design tokens only. */
+
+.ingot-mention-rule .codicon-law,
+.ingot-chip-rule .codicon-law { color: var(--ingot-accent); }
+
+.ingot-rules-manager { display: flex; flex-direction: column; gap: var(--ingot-space-3); font-size: 12px; }
+.ingot-rules-head { display: flex; align-items: center; gap: var(--ingot-space-2); }
+.ingot-rules-hint { margin: 0 0 var(--ingot-space-2); font-size: 11px; color: var(--ingot-text-muted); }
+.ingot-rules-row { display: flex; align-items: center; gap: var(--ingot-space-2); padding: 5px 8px; border: 1px solid var(--ingot-border); border-radius: 6px; margin-bottom: 4px; color: var(--ingot-text); }
+.ingot-rules-row .codicon-law { color: var(--ingot-accent); }
+.ingot-rules-row-head { display: flex; align-items: center; gap: var(--ingot-space-2); color: var(--ingot-text); }
+.ingot-rules-name { font-weight: 500; white-space: nowrap; }
+.ingot-rules-kind { font-size: 11px; color: var(--ingot-text-muted); white-space: nowrap; }
+.ingot-rules-desc { font-size: 11px; color: var(--ingot-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ingot-rules-edit { display: flex; flex-direction: column; gap: 6px; padding: 6px; margin-bottom: 4px; border: 1px solid var(--ingot-focus-ring); border-radius: 6px; }
+.ingot-rules-edit textarea { resize: vertical; font-family: var(--theia-code-font-family, monospace); font-size: 12px; }
+.ingot-rules-bar { display: flex; align-items: center; gap: 6px; }
+.ingot-rules-bar .ingot-input { flex: 1; height: 26px; }
+.ingot-rules-error { font-size: 11px; color: var(--ingot-danger); }
+.ingot-team-rules-store { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px; font-size: 11px; color: var(--ingot-text-muted); background: var(--ingot-surface); border: 1px solid var(--ingot-border); }
+.ingot-team-rules-store.local { border-color: var(--ingot-warning); }
+.ingot-team-rules-store.local .codicon { color: var(--ingot-warning); }
+.ingot-team-rules-store.server .codicon { color: var(--ingot-success); }
+.ingot-team-rules-flags { display: flex; align-items: center; gap: var(--ingot-space-3); font-size: 11px; color: var(--ingot-text); }
+.ingot-team-rules-flags label { display: inline-flex; align-items: center; gap: 4px; }
+.ingot-team-rule-badge { font-size: 10px; padding: 0 5px; border-radius: 8px; border: 1px solid var(--ingot-border); color: var(--ingot-text-muted); white-space: nowrap; }
+.ingot-team-rule-badge.enforced { border-color: var(--ingot-accent); color: var(--ingot-accent); }
+
+.ingot-habit-cards { display: flex; flex-direction: column; gap: var(--ingot-space-2); margin: var(--ingot-space-2) 0; }
+.ingot-habit-card { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--ingot-border); border-left: 3px solid var(--ingot-accent); border-radius: 6px; background: var(--ingot-surface); color: var(--ingot-text); font-size: 12px; }
+.ingot-habit-card-head { display: flex; align-items: center; gap: 6px; }
+.ingot-habit-card-head .codicon { color: var(--ingot-accent); }
+.ingot-habit-title { font-weight: 500; }
+.ingot-habit-evidence { font-size: 11px; color: var(--ingot-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-habit-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ingot-habit-saved { font-size: 11px; color: var(--ingot-success); }
+
+.ingot-habits-manager { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.ingot-habit-row { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border: 1px solid var(--ingot-border); border-radius: 6px; color: var(--ingot-text); }
+.ingot-habit-row.off { opacity: 0.6; }
+.ingot-habit-row-head { display: flex; align-items: center; gap: var(--ingot-space-2); }
+.ingot-habit-kind { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 5px; border-radius: 4px; border: 1px solid var(--ingot-border); color: var(--ingot-text-muted); }
+.ingot-habit-count { font-size: 11px; color: var(--ingot-text-muted); white-space: nowrap; }
+.ingot-habit-status { font-size: 11px; color: var(--ingot-info); white-space: nowrap; }
+.ingot-habit-examples { margin: 0; padding-left: 18px; font-size: 11px; color: var(--ingot-text-muted); }
+.ingot-habit-examples li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* IDEA-296 Habits v2: habit pill and menu, live checklist, "Save as habit", the habit editor and the playbook rows. */
+.ingot-agents-root > .ingot-habit-cards,
+.ingot-agents-root > .ingot-playbook-editor,
+.ingot-agents-root > .ingot-habit-pill-wrap { flex: none; margin-left: 10px; margin-right: 10px; }
+.ingot-agents-root > .ingot-playbook-editor { margin-bottom: var(--ingot-space-2); background: var(--ingot-surface); max-height: 50%; overflow: auto; }
+.ingot-habit-pill-wrap { position: relative; margin-bottom: 6px; display: flex; }
+.ingot-habit-pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 8px; border: 1px solid var(--ingot-border); border-radius: 999px; background: var(--ingot-surface); color: var(--ingot-text); font: inherit; font-size: 11px; cursor: pointer; }
+.ingot-habit-pill:hover, .ingot-habit-pill[aria-expanded='true'] { border-color: var(--ingot-accent); }
+.ingot-habit-pill:focus-visible { outline: 1px solid var(--ingot-focus-ring); }
+.ingot-habit-pill > .codicon-checklist { color: var(--ingot-accent); }
+.ingot-habit-pill > span:not(.codicon) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-habit-pill.off { color: var(--ingot-text-muted); }
+.ingot-habit-pill.off > .codicon-checklist { color: var(--ingot-text-muted); }
+.ingot-habit-pill-progress { color: var(--ingot-text-muted); font-variant-numeric: tabular-nums; }
+.ingot-habit-menu { position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 20; display: flex; flex-direction: column; min-width: 260px; max-width: 100%; max-height: 260px; overflow: auto; padding: 4px; border: 1px solid var(--ingot-border); border-radius: 6px; background: var(--ingot-panel); color: var(--ingot-text); box-shadow: 0 6px 18px color-mix(in srgb, var(--ingot-text) 18%, transparent); }
+.ingot-habit-menu-item { display: grid; grid-template-columns: 16px auto 1fr auto; align-items: center; gap: 6px; padding: 4px 6px; border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.ingot-habit-menu-item:hover, .ingot-habit-menu-item:focus-visible { background: var(--ingot-selection); outline: none; }
+.ingot-habit-menu-item.selected .codicon-check { color: var(--ingot-accent); }
+.ingot-habit-menu-name { font-weight: 500; white-space: nowrap; }
+.ingot-habit-menu-when { font-size: 11px; color: var(--ingot-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ingot-habit-menu-off { grid-template-columns: 16px 1fr; border-top: 1px solid var(--ingot-border); border-radius: 0 0 4px 4px; color: var(--ingot-text-muted); }
+.ingot-habit-menu-empty { padding: 4px 6px; font-size: 11px; }
+.ingot-habit-source { font-size: 10px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--ingot-border); color: var(--ingot-text-muted); white-space: nowrap; }
+
+.ingot-habit-checklist { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 6px; padding: 6px 8px; border: 1px solid var(--ingot-border); border-left: 3px solid var(--ingot-accent); border-radius: 6px; background: var(--ingot-surface); font-size: 12px; color: var(--ingot-text); }
+.ingot-habit-checklist-head { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.ingot-habit-checklist-head .codicon { color: var(--ingot-accent); }
+.ingot-habit-check { display: flex; gap: 6px; align-items: baseline; }
+.ingot-habit-check-mark { width: 12px; flex: none; text-align: center; color: var(--ingot-text-muted); }
+.ingot-habit-check.done { color: var(--ingot-text-muted); }
+.ingot-habit-check.done .ingot-habit-check-mark { color: var(--ingot-success); }
+.ingot-habit-criteria-head { margin-top: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ingot-text-muted); }
+
+.ingot-chat-save-habit { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; margin-right: 4px; padding: 1px 6px; border: 1px solid var(--ingot-border); border-radius: 4px; background: transparent; color: var(--ingot-text-muted); font: inherit; font-size: 11px; cursor: pointer; }
+.ingot-chat-save-habit:hover, .ingot-chat-save-habit:focus-visible { border-color: var(--ingot-accent); color: var(--ingot-text); outline: none; }
+
+.ingot-playbook-editor { display: flex; flex-direction: column; gap: 6px; padding: 8px; margin-bottom: 4px; border: 1px solid var(--ingot-focus-ring); border-radius: 6px; color: var(--ingot-text); font-size: 12px; }
+.ingot-playbook-editor textarea { resize: vertical; min-height: 120px; font-family: var(--theia-code-font-family, monospace); font-size: 12px; }
+.ingot-playbook-editor-title { font-weight: 500; }
+.ingot-playbook-editor .codicon-checklist { color: var(--ingot-accent); }
+.ingot-playbook-summary, .ingot-playbook-warning { font-size: 11px; color: var(--ingot-text-muted); }
+
+/* The one silver note in the agent chat (Habits, Decisions, Frozen Zones, handoff, plan check, router): opens the habit, with Undo or an action. */
+.ingot-habit-note {
+    display: flex; align-items: center; gap: 2px; width: fit-content; max-width: 100%; margin: 4px 0; padding: 0 2px 0 0;
+    border: 1px solid var(--ingot-silver-line); border-radius: 999px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--ingot-silver) 12%, transparent), color-mix(in srgb, var(--ingot-silver) 4%, transparent));
+    color: var(--ingot-text-muted); font-size: 11px; line-height: 18px;
+}
+.ingot-habit-note-open { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 0 6px 0 7px; border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; text-align: left; }
+button.ingot-habit-note-open { cursor: pointer; }
+button.ingot-habit-note-open:hover .ingot-habit-note-text { color: var(--ingot-text); }
+.ingot-habit-note-open:focus-visible, .ingot-habit-note-undo:focus-visible, .ingot-habit-note-action:focus-visible { outline: 1px solid var(--ingot-focus-ring); outline-offset: 1px; }
+:is(#ingot-agents, .ingot-agents-root) .ingot-habit-note .codicon { font-size: 11px; color: var(--ingot-silver); }
+.ingot-habit-note-text { font-weight: 500; white-space: nowrap; }
+.ingot-habit-note-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-silver); }
+.ingot-habit-note-detail::before { content: '·'; margin-right: 5px; }
+.ingot-habit-note-undo, .ingot-habit-note-action { flex: none; padding: 0 6px; border: 0; border-left: 1px solid var(--ingot-silver-line); background: transparent; color: var(--ingot-text-muted); font: inherit; cursor: pointer; }
+.ingot-habit-note-undo:hover, .ingot-habit-note-action:hover { color: var(--ingot-text); }
+.ingot-habit-note.undone { opacity: 0.7; }
+.ingot-habit-note.undone .ingot-habit-note-detail { text-decoration: line-through; }
+
+/* A row opened from a "Saved to Habits" note: a silver ring that settles to a faint outline. */
+.ingot-habit-row.ingot-habit-highlight, .ingot-playbook-row.ingot-habit-highlight, .ingot-learned-row.ingot-habit-highlight {
+    border-color: color-mix(in srgb, var(--ingot-text-muted) 60%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ingot-text-muted) 18%, transparent);
+    animation: ingot-habit-reveal 2.4s ease-out 1;
+}
+@keyframes ingot-habit-reveal { from { background: color-mix(in srgb, var(--ingot-text-muted) 16%, transparent); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .ingot-habit-row.ingot-habit-highlight, .ingot-playbook-row.ingot-habit-highlight, .ingot-learned-row.ingot-habit-highlight { animation: none; } }
+
+.ingot-habits-page { display: flex; flex-direction: column; gap: var(--ingot-space-3); }
+.ingot-playbooks { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.ingot-playbook-scope { display: flex; flex-direction: column; gap: 4px; margin-top: var(--ingot-space-2); }
+.ingot-playbook-scope-title { font-weight: 500; color: var(--ingot-text); }
+.ingot-playbook-row { display: flex; align-items: center; gap: var(--ingot-space-2); padding: 5px 8px; border: 1px solid var(--ingot-border); border-radius: 6px; color: var(--ingot-text); }
+.ingot-playbook-row .codicon-checklist { color: var(--ingot-accent); }
+.ingot-playbook-row.off { opacity: 0.6; }
+.ingot-playbook-error { display: flex; flex-direction: column; gap: 2px; padding: 5px 8px; border: 1px solid var(--ingot-danger); border-radius: 6px; color: var(--ingot-text); }
+.ingot-playbook-error .codicon-warning { color: var(--ingot-warning); }

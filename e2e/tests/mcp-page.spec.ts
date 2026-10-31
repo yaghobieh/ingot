@@ -152,7 +152,7 @@ test.describe('IDEA-62 Rules & MCP page', () => {
         await market.locator('.ingot-mcp-add').click();
         const form = page.locator('#ingot-mcp-addform');
         await expect(form.locator('input[name=RESEND_API_KEY]')).toHaveAttribute('type', 'password');
-        await expect(form).toContainText('stored in OS keychain');
+        await expect(form).toContainText("stored in Ingot's local key file (~/.ingot/keystore.json)");
         await form.getByRole('button', { name: 'Cancel' }).click();
         await expect(form).toBeHidden();
     });

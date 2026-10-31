@@ -3,6 +3,9 @@ import { FAKE_INGOT_PORT } from './e2e.consts';
 
 const STREAM_DELAY_MS = 20;
 const ALLOWANCE = 1_000_000;
+const FAKE_DEFAULT_PLAN = 'pro';
+/** IDEA-271 remote flag that gates AI features behind a paid plan. */
+const PLAN_GATE_FLAG = 'plan_gate';
 
 export interface FakeIngotServer {
     readonly url: string;
@@ -13,6 +16,8 @@ export interface FakeIngotServer {
     usedTokens: number;
     /** IDEA-124 controls: `/api/me` role, 403 account_blocked on every authed call, models dropped from /v1/models. */
     role: 'user' | 'admin';
+    /** `user.plan` in status and /api/me (default `pro`; `pro+` unlocks the Zaprex app). */
+    plan: string;
     /** IDEA-143: `user.avatarUrl` in status and /api/me ('' = no photo, initials). */
     avatarUrl: string;
     blocked: boolean;
@@ -21,11 +26,17 @@ export interface FakeIngotServer {
     readonly chatErrors: FakeGatewayError[];
     /** GET /v1/config (IDEA-125): flags and update policy served, and who asked (version header, signed in). */
     flags: Record<string, boolean>;
+    /** `config` of GET /v1/config (IDEA-287: `teamRules`). */
+    config: Record<string, unknown>;
     update: { minVersion?: string; latestVersion?: string; updateAvailable?: boolean; forceUpdate?: boolean };
     readonly configCalls: { version: string; signedIn: boolean }[];
     /** /v1/sync store (IDEA-126), by `kind|key`, and the writes the IDE made. */
     readonly sync: Map<string, FakeSyncItem>;
     readonly syncWrites: { method: string; kind: string; key: string; baseVersion?: number; device?: string }[];
+    /** IDEA-287 /v1/team/rules: off answers 404 (no such API yet); on serves `teamRules` to admins and publishes enabled ones in config. */
+    teamRulesApi: boolean;
+    teamRules: Record<string, unknown>[];
+    readonly teamRulesWrites: Record<string, unknown>[][];
     /** Adds an item as if another device wrote it. */
     seedSync(kind: string, key: string, data: unknown): void;
     close(): Promise<void>;
@@ -61,14 +72,14 @@ const send = (res: http.ServerResponse, status: number, body: unknown): void => 
  */
 export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<FakeIngotServer> => {
     const state: FakeIngotServer = {
-        url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', avatarUrl: '', blocked: false, disabledModels: new Set(), chatErrors: [],
-        flags: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], seedSync: () => undefined,
+        url: `http://127.0.0.1:${port}`, calls: [], authorizations: [], usedTokens: 0, role: 'user', plan: FAKE_DEFAULT_PLAN, avatarUrl: '', blocked: false, disabledModels: new Set(), chatErrors: [],
+        flags: {}, config: {}, update: {}, configCalls: [], sync: new Map(), syncWrites: [], teamRulesApi: false, teamRules: [], teamRulesWrites: [], seedSync: () => undefined,
         close: async () => undefined
     };
     const access = 'ingot_at_e2e_access';
     const status = () => ({
-        user: { id: 'u1', email: 'test@ingot.dev', name: 'Test User', avatarUrl: state.avatarUrl, plan: 'pro' },
-        balance: { plan: 'pro', period: { start: '', end: '' }, tokens: { allowance: ALLOWANCE, granted: 0, used: state.usedTokens, remaining: ALLOWANCE - state.usedTokens }, spend: { budgetUsd: null, usedUsd: 0, remainingUsd: null }, byModel: [] },
+        user: { id: 'u1', email: 'test@ingot.dev', name: 'Test User', avatarUrl: state.avatarUrl, plan: state.plan },
+        balance: { plan: state.plan, period: { start: '', end: '' }, tokens: { allowance: ALLOWANCE, granted: 0, used: state.usedTokens, remaining: ALLOWANCE - state.usedTokens }, spend: { budgetUsd: null, usedUsd: 0, remainingUsd: null }, byModel: [] },
         activity: []
     });
     let seq = 0;
@@ -131,7 +142,7 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
                 state.configCalls.push({ version, signedIn: authed });
                 const u = state.update;
                 send(res, 200, {
-                    flags: state.flags, values: {}, config: {}, ttlSeconds: 300, signedIn: authed,
+                    flags: state.flags, values: {}, config: state.config, ttlSeconds: 300, signedIn: authed,
                     ide: {
                         version, minVersion: u.minVersion ?? null, latestVersion: u.latestVersion ?? null, updateAvailable: !!u.updateAvailable, forceUpdate: !!u.forceUpdate,
                         downloadUrl: `${state.url}/download`, releaseNotesUrl: `${state.url}/release-notes`
@@ -171,6 +182,22 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
                 const conflict = !!existing && body.baseVersion !== undefined && body.baseVersion !== existing.version;
                 const { item, previous } = writeSync(kind, key, body.data, req.method === 'DELETE', body.device ?? null);
                 send(res, 200, { item, conflict, ...(conflict ? { previous } : {}) });
+                return;
+            }
+            if (url.pathname === '/v1/team/rules') {
+                if (!state.teamRulesApi) {
+                    send(res, 404, { error: 'not_found' });
+                } else if (state.role !== 'admin') {
+                    send(res, 403, { error: 'forbidden' });
+                } else if (req.method === 'PUT') {
+                    const rules = (JSON.parse(raw || '{}') as { rules?: Record<string, unknown>[] }).rules ?? [];
+                    state.teamRules = rules;
+                    state.teamRulesWrites.push(rules);
+                    state.config = { ...state.config, teamRules: rules.filter(rule => rule.enabled !== false) };
+                    send(res, 200, { rules });
+                } else {
+                    send(res, 200, { rules: state.teamRules });
+                }
                 return;
             }
             if (url.pathname === '/api/ide/status') {
@@ -227,3 +254,10 @@ export const startFakeIngotServer = async (port = FAKE_INGOT_PORT): Promise<Fake
     return state;
 };
 
+
+/** IDEA-287: a signed-out e2e user is on the free plan; this serves `plan_gate: false` so agent chat opens without an account. */
+export const startOpenPlanServer = async (): Promise<FakeIngotServer> => {
+    const server = await startFakeIngotServer();
+    server.flags = { ...server.flags, [PLAN_GATE_FLAG]: false };
+    return server;
+};

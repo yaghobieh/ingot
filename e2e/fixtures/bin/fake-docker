@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+// e2e stand-in for docker (INGOT_DOCKER_BIN): records its arguments in the project and prints a docker-like result.
+// With `-f -` it also records the Dockerfile read from stdin in fake-docker.stdin.
+const fs = require('fs');
+const path = require('path');
+const args = process.argv.slice(2);
+fs.appendFileSync(path.join(process.cwd(), 'fake-docker.log'), `${args.join(' ')}\n`);
+if (args[args.indexOf('-f') + 1] === '-') {
+    fs.writeFileSync(path.join(process.cwd(), 'fake-docker.stdin'), fs.readFileSync(0, 'utf8'));
+}
+console.log('Successfully built fake-image');

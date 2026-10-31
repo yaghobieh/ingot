@@ -28,6 +28,20 @@ export const composeText = (oldText: string, hunks: readonly ChangeHunk[]): stri
     return out.join('\n');
 };
 
+/** What the review diff compares against (IDEA-268): the old text with only the accepted hunks applied. */
+export const reviewBase = (change: Pick<CodeChange, 'oldText' | 'hunks'>): string =>
+    composeText(change.oldText, change.hunks.map(h => h.state === 'accepted' ? h : { ...h, state: 'rejected' as const }));
+
+/**
+ * The user edited a file whose hunks wait for review (IDEA-268): decided hunks fold into the base and the edited
+ * text is diffed against it again, so the pending hunks match what the editor shows.
+ */
+export const rebaseChange = (change: CodeChange, text: string, idPrefix: string): CodeChange => {
+    const base = reviewBase(change);
+    const hunks = buildHunks(base, text, idPrefix);
+    return { ...change, oldText: base, newText: text, hunks, status: hunks.length ? 'applied' : statusOf(change.hunks.filter(h => h.state !== 'pending')) };
+};
+
 /** Where each hunk starts in the composed (current) text, so the editor can decorate and scroll to it. */
 export const hunkLines = (hunks: readonly ChangeHunk[]): Map<string, { start: number; length: number }> => {
     const lines = new Map<string, { start: number; length: number }>();
@@ -38,6 +52,17 @@ export const hunkLines = (hunks: readonly ChangeHunk[]): Map<string, { start: nu
         shift += shown.length - hunk.removed.length;
     }
     return lines;
+};
+
+/** IDEA-268: one-based line in the current text where each pending hunk's Accept / Reject row goes (clamped to the file). */
+export const reviewAnchors = (hunks: readonly ChangeHunk[], lineCount: number): { hunkId: string; line: number; added: number; removed: number }[] => {
+    const lines = hunkLines(hunks);
+    return hunks.filter(h => h.state === 'pending').map(h => ({
+        hunkId: h.id,
+        line: Math.max(1, Math.min(lineCount, (lines.get(h.id)?.start ?? 0) + 1)),
+        added: h.added.length,
+        removed: h.removed.length
+    }));
 };
 
 export const statusOf = (hunks: readonly ChangeHunk[]): ChangeStatus => {

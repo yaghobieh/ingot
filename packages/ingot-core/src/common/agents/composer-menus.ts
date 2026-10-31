@@ -1,7 +1,10 @@
 /** IDEA-187: the composer's `/` built-in commands and `@` file mentions. */
 import type { AgentMode } from './agents.types';
+import { INIT_COMMAND } from '../project-config/init-agents.consts';
 
-export type SlashBuiltinAction = { kind: 'mode'; mode: AgentMode } | { kind: 'new' } | { kind: 'compact' } | { kind: 'model' } | { kind: 'history' } | { kind: 'memories' };
+/** `goal` (IDEA-292), `browser` (IDEA-289) and `args` (IDEA-287 `/bugbot`) fill in `/name ` for the text instead of running right away. */
+export type SlashBuiltinAction = { kind: 'mode'; mode: AgentMode } | { kind: 'new' } | { kind: 'compact' } | { kind: 'model' } | { kind: 'history' } | { kind: 'memories' } | { kind: 'prompt'; prompt: string } | { kind: 'goal' }
+    | { kind: 'browser' } | { kind: 'args' };
 
 export interface SlashBuiltin {
     readonly name: string;
@@ -15,12 +18,16 @@ export const SLASH_BUILTINS: readonly SlashBuiltin[] = [
     { name: 'plan', description: 'Plan mode: a step-by-step plan to build later', action: { kind: 'mode', mode: 'plan' } },
     { name: 'debug', description: 'Debug mode: find the cause, then fix', action: { kind: 'mode', mode: 'debug' } },
     { name: 'multi', description: 'Multi-agent: split the task across parallel agents', action: { kind: 'mode', mode: 'multi' } },
+    { name: 'goal', description: 'Keep working until the done criteria pass', action: { kind: 'goal' } },
     { name: 'research', description: 'Deep research: read many web sources, answer with citations', action: { kind: 'mode', mode: 'research' } },
     { name: 'new', description: 'Start a new chat', action: { kind: 'new' } },
     { name: 'compact', description: 'Summarize this chat to free up context', action: { kind: 'compact' } },
     { name: 'model', description: 'Pick the model', action: { kind: 'model' } },
     { name: 'history', description: 'Open chat history', action: { kind: 'history' } },
-    { name: 'memories', description: 'Manage memories', action: { kind: 'memories' } }
+    { name: 'memories', description: 'Manage memories', action: { kind: 'memories' } },
+    { name: 'bugbot', description: 'Review the local changes for bugs; add #12 or a PR URL to review a GitHub pull request', action: { kind: 'args' } },
+    { name: 'init', description: 'Write AGENTS.md for this repo (stack, scripts, layout)', action: { kind: 'prompt', prompt: INIT_COMMAND } },
+    { name: 'browser', description: 'Let the agent use the Browser panel for this run: navigate, click, type, screenshots, console and failed requests', action: { kind: 'browser' } }
 ];
 
 /** The `@query` right before the caret, if one is being typed (start of text or after a space). */

@@ -8,6 +8,7 @@ import { IngotMcpClient } from './mcp-client';
 import { ProjectConfigService } from './project-config-service';
 import { AGENT_CONFIG_WIDGET_ID, AGENT_CONFIG_WIDGET_LABEL } from './project-config.browser-consts';
 import { SOURCE_LABELS } from '../../common/project-config/project-config.consts';
+import { ruleKindLabel } from '../../common/project-config/project-config.utils';
 
 const STATE_LABEL = { disabled: 'Disabled', starting: 'Starting…', connected: 'Connected', error: 'Error', 'needs-auth': 'Needs authentication' } as const;
 
@@ -78,7 +79,7 @@ export class IngotAgentConfigWidget extends ReactWidget {
             <h2>Rules</h2>
             <p className='ingot-models-lead'>From <code>.ingot/rules</code>, existing rule folders in the project and <code>AGENTS.md</code>. Rules with globs apply only when a matching file is in the agent's context.</p>
             <ul id='ingot-config-rules' className='ingot-mcp-tools'>
-                {config?.rules.map(r => <li key={r.path}><a href='#' onClick={e => { e.preventDefault(); this.open(r.path); }}>{r.name}</a> <span className='ingot-badge'>{SOURCE_LABELS[r.source]}</span> {r.alwaysApply ? 'always' : r.globs.join(', ')}</li>)}
+                {config?.rules.map(r => <li key={r.path}><a href='#' onClick={e => { e.preventDefault(); this.open(r.path); }}>{r.name}</a> <span className='ingot-badge'>{SOURCE_LABELS[r.source]}</span> {ruleKindLabel(r)}</li>)}
                 {config && config.rules.length === 0 && <li className='ingot-models-lead'>No rules yet.</li>}
             </ul>
             <h2>Commands & skills</h2>

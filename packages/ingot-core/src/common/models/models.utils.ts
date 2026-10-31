@@ -136,13 +136,19 @@ export interface StreamEvent {
     readonly finish?: string;
 }
 
+const TOOL_BLOCK_OPEN = '<<<TOOL ';
+
 /** One finished native tool call, turned into the text protocol the agent already runs. */
 export const toolCallsToProtocol = (calls: readonly { readonly name: string; readonly arguments: string }[]): string =>
     calls.filter(call => call.name).map(call => {
         const name = call.name.includes('/') ? call.name : `ingot/${call.name}`;
         const args = call.arguments.trim() || '{}';
-        return `\n<<<TOOL ${name}\n${args}\n>>>END\n`;
+        return `\n${TOOL_BLOCK_OPEN}${name}\n${args}\n>>>END\n`;
     }).join('');
+
+/** Native calls to append to a reply: none when the text already calls tools (some upstreams send both copies). */
+export const nativeToolSuffix = (content: string, calls: readonly { readonly name: string; readonly arguments: string }[]): string =>
+    content.includes(TOOL_BLOCK_OPEN) ? '' : toolCallsToProtocol(calls);
 
 type Json = Record<string, unknown>;
 const asObj = (v: unknown): Json => (v && typeof v === 'object' ? v as Json : {});
@@ -184,21 +190,6 @@ export const redactSecrets = (text: string, secrets: readonly (string | undefine
     }
     return out.replace(/(Bearer\s+)[\w.-]{8,}/gi, '$1[redacted]').replace(/\b(sk-[\w-]{6})[\w-]{6,}/g, '$1…[redacted]');
 };
-
-/** Strips markdown fences and a repeated prefix from a completion. */
-export const cleanCompletion = (text: string, linePrefix = ''): string => {
-    let out = text.replace(/^```[\w-]*\n?/, '').replace(/\n?```\s*$/, '');
-    if (linePrefix.trim() && out.startsWith(linePrefix)) {
-        out = out.slice(linePrefix.length);
-    }
-    return out.replace(/<CURSOR>/g, '');
-};
-
-/** Prompt for inline completion: the code around the cursor with a <CURSOR> marker. */
-export const buildCompletionMessages = (prefix: string, suffix: string, language: string, systemPrompt: string): ChatMessage[] => [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: `Language: ${language}\n\n${prefix}<CURSOR>${suffix}` }
-];
 
 /**
  * Extracts the text delta from one line of a streaming response: SSE `data:` lines for Anthropic, Gemini and

@@ -54,7 +54,7 @@
   "scripts": {
     "bundle": "npm run rebuild && theia build --mode production",
     "rebuild": "theia rebuild:electron --cacheRoot ../..",
-    "start": "theia start --plugins=local-dir:../../plugins",
+    "start": "node ../../scripts/start-electron-dev.mjs --plugins=local-dir:../../plugins",
     "watch": "theia build --watch --mode development",
     "clean": "theia clean",
     "package": "electron-builder --config electron-builder.yml --publish never"
@@ -96,12 +96,7 @@
           "java.configuration.updateBuildConfiguration": "automatic"
         },
         "electron": {
-          "showWindowEarly": true,
-          "splashScreenOptions": {
-            "content": "resources/splash.svg",
-            "width": 480,
-            "height": 300
-          }
+          "showWindowEarly": true
         }
       }
     },

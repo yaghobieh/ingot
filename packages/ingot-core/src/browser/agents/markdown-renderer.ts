@@ -2,6 +2,7 @@ import * as markdownit from '@theia/core/shared/markdown-it';
 import * as monaco from '@theia/monaco-editor-core';
 import { CODE_LANGUAGE_ALIASES, COPY_LABEL } from './markdown.consts';
 import { BADGE_PATTERN, flowSteps, normalizeReply } from '../../common/agents/reply-format';
+import { copyIconHtml } from './agent-icons.utils';
 
 /** The CommonJS export is the factory itself at runtime; typings model it as `default`. */
 const createMarkdown = ((markdownit as unknown as { default?: unknown }).default ?? markdownit) as typeof markdownit.default;
@@ -31,7 +32,7 @@ export class AgentMarkdownRenderer {
             const code = token.content.replace(/\n$/, '');
             const body = this.highlight(code, lang) ?? escapeHtml(code);
             return `<div class="ingot-md-code"><div class="ingot-md-code-head"><span class="ingot-md-code-lang">${escapeHtml(lang)}</span>`
-                + `<button type="button" class="ingot-md-copy" data-md-copy="1" aria-label="Copy code"><span class="codicon codicon-copy"></span>${COPY_LABEL}</button></div>`
+                + `<button type="button" class="ingot-md-copy" data-md-copy="1" aria-label="Copy code" title="Copy code">${copyIconHtml()}<span class="ingot-md-copy-label">${COPY_LABEL}</span></button></div>`
                 + `<pre><code class="language-${escapeHtml(lang)}">${body}</code></pre></div>`;
         };
         const codeInline = md.renderer.rules.code_inline!;

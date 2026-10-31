@@ -81,14 +81,13 @@ test.describe('IDEA-100 agent replies (desktop)', () => {
         await md.locator('.ingot-md-copy').click();
         await expect.poll(() => readClipboard(app)).toBe('const answer = 42;');
 
-        // Rules apply silently: no chips on the message or in the composer; they show in "Read rules".
+        // Rules apply silently: no chips on the message or in the composer; they are listed in the Explored row.
         await expect(page.locator('#ingot-agents .ingot-chat-user').last().locator('.ingot-chip')).toHaveCount(0);
         await expect(page.locator('#ingot-composer-input .ingot-chip')).toHaveCount(0);
-        const read = page.locator('#ingot-agents .ingot-chat-read').last();
-        await expect(read).toContainText('Read rules');
-        await expect(read).toContainText('AGENTS.md');
-        await read.locator('.ingot-chat-read-row').click();
-        await expect(read.locator('.ingot-chat-read-list li')).toContainText(['AGENTS.md']);
+        const explored = page.locator('#ingot-chat-explored');
+        await expect(explored).toContainText('Explored');
+        await explored.locator('.ingot-chat-explored-head').click();
+        await expect(explored.locator('li[data-kind="rule"]')).toContainText(['AGENTS.md']);
         if (process.env.SHOTS_DIR) {
             await page.screenshot({ path: path.join(process.env.SHOTS_DIR, 'electron-agent-reply.png') });
         }
@@ -197,9 +196,7 @@ test.describe('IDEA-100 agent replies (desktop)', () => {
         if (!await composer(page).isVisible()) {
             await page.locator('#ingot-rs-agents').click();
         }
-        await page.locator('#ingot-composer-more').click();
-        await expect(page.locator('#ingot-composer-mic')).toBeVisible();
-        await page.locator('#ingot-composer-more').click();
+        await expect(page.locator('.ingot-composer-bar #ingot-composer-mic')).toBeVisible();
         await pickModel(page, 'ollama-local');
         await composer(page).click();
         await page.keyboard.type('how do branches work here');
