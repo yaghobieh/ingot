@@ -61,6 +61,7 @@ import { restorePlan } from '../../common/changes/changes.utils';
 import { ProjectConfigService } from '../project-config/project-config-service';
 import { IngotMcpClient } from '../project-config/mcp-client';
 import { applicableRules, expandCommand, findRule, formatRuleIndex, formatRules, requestableRules } from '../../common/project-config/project-config.utils';
+import { formatEnvironment } from '../../common/project-config/environment.utils';
 import type { IgnoreRules, ProjectCommand, ProjectRule } from '../../common/project-config/project-config.types';
 import { FETCH_RULE_TOOL } from '../../common/project-config/project-config.consts';
 import { AgentEventHooks } from '../hooks/agent-event-hooks';
@@ -897,7 +898,11 @@ export class AgentStore {
         const workspace = await this.workspaceInfo(root);
         this.github = workspace.github;
         const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
-        const rulesText = [formatRules(rules), info.canUseTools ? formatRuleIndex(requestableRules(config.rules), `${BUILTIN_TOOL_SERVER}/${FETCH_RULE_TOOL}`) : ''].filter(Boolean).join('\n\n');
+        const environment = await this.projectConfig.loadEnvironment(root).catch(() => undefined);
+        const rulesText = [
+            formatRules(rules), info.canUseTools ? formatRuleIndex(requestableRules(config.rules), `${BUILTIN_TOOL_SERVER}/${FETCH_RULE_TOOL}`) : '',
+            formatEnvironment(environment?.environment, environment?.source ?? '')
+        ].filter(Boolean).join('\n\n');
         const habitText = await this.habitRunner.prepare(session, {
             root, prompt: lastUser?.m.text ?? '', attachments: prompt, canUseTools: info.canUseTools,
             files: [...new Set([...context.paths, ...(activePath ? [activePath] : []), ...(lastUser?.m.chips ?? []).map(c => c.path).filter(Boolean)])]

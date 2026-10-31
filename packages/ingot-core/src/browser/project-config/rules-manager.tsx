@@ -128,6 +128,17 @@ export class RulesManager extends React.Component<{ service: UserRulesService },
         return <div id='ingot-rules-manager' className='ingot-rules-manager'>
             {this.renderSection('global', 'Global rules', 'Saved in ~/.ingot/rules. They apply in every project.', list.global)}
             {this.renderSection('project', 'Project rules', this.props.service.root ? 'Saved in .ingot/rules of this project (and its AGENTS.md); commit them to share.' : 'Open a project to add project rules.', list.project)}
+            {list.team.length > 0 && <section className='ingot-settings-card ingot-rules-section' id='ingot-rules-team'>
+                <h3 className='ingot-settings-card-title'>Team rules</h3>
+                <p className='ingot-dim ingot-rules-hint'>Set by your Ingot team for every member. Enforced rules always apply; turn the others off for yourself.</p>
+                {list.team.map(r => <label key={r.path} className='ingot-rules-row' data-rule={r.name} title={r.description ?? r.name}>
+                    <input type='checkbox' aria-label={`Use team rule ${r.name}`} checked={r.enforced || !list.disabledTeam.includes(r.name)} disabled={r.enforced}
+                        onChange={e => void this.props.service.setTeamRuleEnabled(r, e.currentTarget.checked)} />
+                    <span className='ingot-rules-name'>{r.name}</span>
+                    <span className='ingot-rules-kind'>{ruleKindLabel(r)}</span>
+                    {r.enforced && <span className='ingot-rules-kind'>enforced</span>}
+                </label>)}
+            </section>}
             {list.other.length > 0 && <section className='ingot-settings-card ingot-rules-section' id='ingot-rules-other'>
                 <h3 className='ingot-settings-card-title'>Also read</h3>
                 <p className='ingot-dim ingot-rules-hint'>Rules from other editors' folders and subfolders. Edit them where they live.</p>

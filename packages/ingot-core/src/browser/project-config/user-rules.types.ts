@@ -9,4 +9,7 @@ export interface UserRulesList {
     readonly project: readonly ProjectRule[];
     /** Read too (other editors' folders, nested rules), edited where they live. */
     readonly other: readonly ProjectRule[];
+    /** IDEA-287: team rules from the account; the ones not enforced can be turned off. */
+    readonly team: readonly ProjectRule[];
+    readonly disabledTeam: readonly string[];
 }

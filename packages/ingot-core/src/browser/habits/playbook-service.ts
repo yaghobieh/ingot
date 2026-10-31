@@ -9,6 +9,7 @@ import { CONFIG_DIRS } from '../../common/project-config/project-config.consts';
 import { HABITS_DIR, PLAYBOOK_EXTENSIONS, PLAYBOOK_PREFS, PLAYBOOK_SOURCE_ORDER } from '../../common/habits/playbook.consts';
 import type { Playbook, PlaybookFileError, PlaybookList, PlaybookScope, PlaybookSource } from '../../common/habits/playbook.types';
 import { parsePlaybook, playbookFileName } from '../../common/habits/playbook.utils';
+import { readsCursor } from '../../common/import/cursor-mode.utils';
 
 interface PlaybookFolder {
     readonly source: PlaybookSource;
@@ -59,10 +60,12 @@ export class PlaybookService {
     protected async folders(root: URI | undefined): Promise<PlaybookFolder[]> {
         const global = (await this.projectConfig.globalDir()).resolve(HABITS_DIR);
         const project = (dir: string): PlaybookFolder['label'] => name => `${dir}/${HABITS_DIR}/${name}`;
+        // IDEA-287: `.cursor/habits` only while the workspace reads `.cursor` live (a conversion copies them into `.ingot/habits`).
+        const live = readsCursor(await this.projectConfig.cursorMode(root));
         return [
             { source: 'global', dir: global, label: name => `~/${CONFIG_DIRS.ingot}/${HABITS_DIR}/${name}` },
             ...(root ? [
-                { source: 'cursor' as const, dir: root.resolve(CONFIG_DIRS.external).resolve(HABITS_DIR), label: project(CONFIG_DIRS.external) },
+                ...(live ? [{ source: 'cursor' as const, dir: root.resolve(CONFIG_DIRS.external).resolve(HABITS_DIR), label: project(CONFIG_DIRS.external) }] : []),
                 { source: 'project' as const, dir: root.resolve(CONFIG_DIRS.ingot).resolve(HABITS_DIR), label: project(CONFIG_DIRS.ingot) }
             ] : [])
         ];
