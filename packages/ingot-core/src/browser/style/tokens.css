@@ -38,6 +38,8 @@
   --ingot-editor-bg: #FFFFFF;
   --ingot-editor-line-highlight: #F3F5F9;
   --ingot-editor-gutter: #9AA0AB;
+  --ingot-silver: #7D8591;
+  --ingot-silver-line: #C9CED6;
 }
 
 /* Dark tokens follow the active dark theme (Theia sets body.theia-dark), not only an explicit data-theme. */
@@ -64,4 +66,6 @@ body.ingot-dark {
   --ingot-editor-bg: #1E2027;
   --ingot-editor-line-highlight: #262932;
   --ingot-editor-gutter: #5E6673;
+  --ingot-silver: #A9B0BB;
+  --ingot-silver-line: #4A4F5B;
 }

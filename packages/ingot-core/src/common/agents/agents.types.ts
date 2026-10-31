@@ -44,6 +44,8 @@ export interface AgentMessage {
     /** When a think block opened, and how long it lasted once it closed. */
     readonly thoughtStarted?: number;
     readonly thoughtMs?: number;
+    /** IDEA-302..304: a silver "saved" note (Decisions, Frozen Zones, Habits). Not sent to the model. */
+    readonly note?: import('../habits/habits.types').HabitNoteInfo;
 }
 
 /** What went into the last request of a chat (IDEA-77): shown as chips and in the usage ring. */
@@ -99,6 +101,8 @@ export interface AgentSession {
     ask?: { readonly question: string; readonly options?: readonly string[] };
     /** IDEA-296: the habit (scenario playbook) this chat follows, with its live checklist. */
     habit?: import('../habits/playbook.types').ActiveHabit;
+    /** IDEA-304: the run paused because it went in circles; the card offers reset or a different approach. */
+    doom?: import('../doom-loop/doom-loop.types').DoomVerdict;
 }
 
 export interface ReviewPause {

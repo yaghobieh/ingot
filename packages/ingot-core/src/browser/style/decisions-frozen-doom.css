@@ -1,0 +1,42 @@
+/* IDEA-302..304: the silver "saved" note (Decisions, Frozen Zones, Doom-Loop Breaker, Habits), the paused-run card, settings rows. */
+
+.ingot-habit-note {
+  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; max-width: 100%;
+  margin: 2px 0; padding: 1px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; line-height: 1.7; color: var(--ingot-text-muted);
+  background: color-mix(in srgb, var(--ingot-silver) 14%, var(--ingot-surface));
+  border: 1px solid var(--ingot-silver-line);
+}
+.ingot-habit-note .codicon { font-size: 12px; color: var(--ingot-silver); }
+.ingot-habit-note-text { white-space: nowrap; }
+.ingot-habit-note-detail { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ingot-habit-note-undo {
+  margin-left: 2px; padding: 0; border: none; background: none; cursor: pointer;
+  font: inherit; font-weight: 500; color: var(--ingot-accent);
+}
+.ingot-habit-note-undo:hover { text-decoration: underline; }
+.ingot-habit-note.undone { opacity: 0.6; }
+.ingot-habit-note.undone .ingot-habit-note-text { text-decoration: line-through; }
+
+.ingot-doom-card {
+  display: flex; flex-direction: column; gap: 6px; margin: 0 var(--ingot-space-2) 6px; padding: 8px 10px;
+  border: 1px solid var(--ingot-border); border-left: 3px solid var(--ingot-warning); border-radius: 6px;
+  background: var(--ingot-surface); color: var(--ingot-text); font-size: 12px;
+}
+.ingot-doom-head { display: flex; align-items: center; gap: 6px; }
+.ingot-doom-head .codicon { color: var(--ingot-warning); }
+.ingot-doom-title { font-weight: 600; }
+.ingot-doom-reason { color: var(--ingot-text); }
+.ingot-doom-tried { color: var(--ingot-text-muted); font-size: 11px; }
+.ingot-doom-tried-title { font-weight: 600; margin-bottom: 2px; }
+.ingot-doom-tried ol { margin: 0; padding-left: 18px; max-height: 96px; overflow-y: auto; }
+.ingot-doom-tried li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--theia-code-font-family, monospace); }
+.ingot-doom-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ingot-doom-actions .codicon { font-size: 12px; }
+
+.ingot-frozen-suggestion .ingot-habit-card-head .codicon { color: var(--ingot-info); }
+.ingot-frozen-suggestion code { font-size: 11px; }
+
+.ingot-decision-add { display: flex; gap: 6px; align-items: center; }
+.ingot-decision-add input { flex: 1; min-width: 0; }
+.ingot-decision-row .codicon-lock, .ingot-frozen-row .codicon-snowflake { color: var(--ingot-silver); }

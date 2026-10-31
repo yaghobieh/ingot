@@ -17,7 +17,7 @@ export const filterChats = (chats: readonly AgentSession[], query: string): Agen
 export const serializeChats = (chats: readonly AgentSession[]): string => {
     const sorted = sortChats(chats).filter(c => c.messages.length || c.pinned);
     return JSON.stringify(sorted.slice(0, MAX_STORED_CHATS).map(c => ({
-        ...c, status: c.status === 'thinking' || c.status === 'editing' || c.status === 'review' || c.status === 'paused' || c.status === 'approval' ? 'idle' : c.status, activeFile: undefined, pause: undefined, approval: undefined, ask: undefined,
+        ...c, status: c.status === 'thinking' || c.status === 'editing' || c.status === 'review' || c.status === 'paused' || c.status === 'approval' ? 'idle' : c.status, activeFile: undefined, pause: undefined, approval: undefined, ask: undefined, doom: undefined,
         // Image bytes stay in memory; saved history keeps only their names (local storage is small).
         messages: c.messages
             .filter(m => !(m.tool?.state === 'running' && !m.text))
@@ -39,7 +39,7 @@ export const parseChats = (json: string | null | undefined): AgentSession[] => {
         }
         return value.filter((c): c is AgentSession =>
             !!c && typeof c.id === 'string' && typeof c.title === 'string' && Array.isArray(c.messages) && isAgentMode(c.mode)
-        ).map(c => ({ ...c, ask: undefined, plan: c.plan ?? [], steps: c.steps ?? [], changes: c.changes ?? [] }));
+        ).map(c => ({ ...c, ask: undefined, doom: undefined, plan: c.plan ?? [], steps: c.steps ?? [], changes: c.changes ?? [] }));
     } catch {
         return [];
     }

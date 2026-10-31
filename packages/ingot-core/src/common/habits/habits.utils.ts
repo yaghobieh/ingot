@@ -3,7 +3,7 @@ import {
     COMMAND_MAX_CHARS, COMMAND_MIN_CHARS, HABITS_FILE_VERSION, INSTRUCTION_FILLER, INSTRUCTION_MAX_CHARS, INSTRUCTION_MAX_WORDS, INSTRUCTION_MIN_CHARS,
     INSTRUCTION_START, MAX_EXAMPLE_CHARS, MAX_HABIT_EXAMPLES, MAX_HABITS, REJECTION_PATTERNS, TRIVIAL_COMMANDS
 } from './habits.consts';
-import type { Habit, HabitEvidence, HabitFile, HabitsFile, HabitTarget } from './habits.types';
+import type { Habit, HabitEvidence, HabitFile, HabitsFile, HabitTarget, SavedHabit } from './habits.types';
 
 const clip = (text: string): string => {
     const flat = text.replace(/\s+/g, ' ').trim();
@@ -81,7 +81,26 @@ export const recordEvidence = (habits: readonly Habit[], evidence: HabitEvidence
 export const habitTitle = (habit: Pick<Habit, 'kind' | 'label'>): string =>
     habit.kind === 'instruction' ? `You often ask to ${habit.label.charAt(0).toLowerCase()}${habit.label.slice(1)}.`
         : habit.kind === 'command' ? `You often run \`${habit.label}\`.`
-            : `You often reject edits that ${habit.label}.`;
+            : habit.kind === 'decision' ? `You keep confirming: ${habit.label}.`
+                : habit.kind === 'frozen' ? `You always revert edits to ${habit.label}.`
+                    : habit.kind === 'anti' ? `Don't do this here: ${habit.label}.`
+                        : `You often reject edits that ${habit.label}.`;
+
+/**
+ * IDEA-302..304: records a habit that a feature already saved (it never needs a card): new ones start accepted, known
+ * ones count up and keep their on/off state.
+ */
+export const saveHabit = (habits: readonly Habit[], saved: SavedHabit, now: number): { habits: Habit[]; habit: Habit } => {
+    const existing = habits.find(h => h.key === saved.key);
+    const examples = [...(existing?.examples ?? []).filter(e => e !== saved.example), clip(saved.example)].slice(-MAX_HABIT_EXAMPLES);
+    const habit: Habit = existing
+        ? { ...existing, label: saved.label, text: saved.text, count: existing.count + 1, examples, lastSeen: now, status: 'accepted', savedAs: saved.savedAs }
+        : {
+            id: slugify(saved.key.replace(':', '-')) || `habit-${now}`, kind: saved.kind, key: saved.key, label: saved.label, text: saved.text, count: 1, examples,
+            enabled: true, status: 'accepted', firstSeen: now, lastSeen: now, savedAs: saved.savedAs
+        };
+    return { habits: existing ? habits.map(h => h === existing ? habit : h) : [...habits, habit], habit };
+};
 
 /** What a habit can become: rules for instructions and rejected styles, commands (and hooks) for terminal commands. */
 export const habitTargets = (habit: Pick<Habit, 'kind'>): HabitTarget[] =>

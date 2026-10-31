@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addStopHook, commandEvidence, habitFile, habitTargets, habitTitle, instructionEvidence, parseHabits, recordEvidence, rejectionEvidence, serializeHabits, terminalInput } from './habits.utils';
+import { addStopHook, commandEvidence, habitFile, habitTargets, habitTitle, instructionEvidence, parseHabits, recordEvidence, rejectionEvidence, saveHabit, serializeHabits, terminalInput } from './habits.utils';
 import type { Habit } from './habits.types';
 
 describe('IDEA-296 habits', () => {
@@ -48,6 +48,18 @@ describe('IDEA-296 habits', () => {
         expect(hooks).toEqual({ version: 1, 'pre-commit': ['lint'], hooks: { stop: [{ command: 'a' }, { command: 'npm test' }] } });
         expect(JSON.parse(addStopHook(undefined, 'npm test')).hooks.stop).toEqual([{ command: 'npm test' }]);
         expect(JSON.parse(addStopHook(JSON.stringify(hooks), 'npm test')).hooks.stop.length).toBe(2);
+    });
+
+    it('IDEA-302..304: records habits a feature already saved, counting repeats', () => {
+        const saved = { kind: 'frozen' as const, key: 'frozen:src/legacy.ts', label: 'src/legacy.ts', text: 'Freeze src/legacy.ts.', example: 'rejected 3 edits', savedAs: '.ingot/frozen.json' };
+        let { habits, habit } = saveHabit([], saved, 1);
+        expect(habit).toMatchObject({ id: 'frozen-src-legacy-ts', kind: 'frozen', status: 'accepted', count: 1, enabled: true, savedAs: '.ingot/frozen.json', examples: ['rejected 3 edits'] });
+        ({ habits, habit } = saveHabit([{ ...habits[0], enabled: false }], { ...saved, example: 'again' }, 2));
+        expect(habits).toHaveLength(1);
+        expect(habit).toMatchObject({ count: 2, enabled: false, lastSeen: 2, examples: ['rejected 3 edits', 'again'] });
+        expect(habitTitle({ kind: 'frozen', label: 'src/legacy.ts' })).toBe('You always revert edits to src/legacy.ts.');
+        expect(habitTitle({ kind: 'decision', label: 'Use pnpm, not npm' })).toBe('You keep confirming: Use pnpm, not npm.');
+        expect(habitTitle({ kind: 'anti', label: 'Editing math.js' })).toBe("Don't do this here: Editing math.js.");
     });
 });
 

@@ -2,7 +2,9 @@
  * IDEA-296 Habits: patterns Ingot notices in how the user works (local only), proposed as a rule, command or hook
  * once they repeat.
  */
-export type HabitKind = 'instruction' | 'command' | 'rejection';
+export type HabitKind = 'instruction' | 'command' | 'rejection' | SavedHabitKind;
+/** IDEA-302..304: habits saved straight from a feature (a promoted decision, a learned freeze, a failed approach). */
+export type SavedHabitKind = 'decision' | 'frozen' | 'anti';
 export type HabitStatus = 'learning' | 'proposed' | 'accepted' | 'dismissed';
 export type HabitTarget = 'rule' | 'command' | 'hook';
 
@@ -34,6 +36,29 @@ export interface HabitEvidence {
     readonly label: string;
     readonly text: string;
     readonly example: string;
+}
+
+/** A habit that is already saved somewhere (`.ingot/decisions.md`, `.ingot/frozen.json`, `.ingot/anti-habits.md`). */
+export interface SavedHabit {
+    readonly kind: SavedHabitKind;
+    readonly key: string;
+    readonly label: string;
+    readonly text: string;
+    readonly example: string;
+    readonly savedAs: string;
+}
+
+export type HabitNoteKind = 'decision' | 'frozen' | 'habit';
+
+/** IDEA-302..304: the small silver line in the chat when something is saved ("Locked in Decisions", "Frozen", "Saved to Habits"). */
+export interface HabitNoteInfo {
+    readonly kind: HabitNoteKind;
+    readonly text: string;
+    /** What was saved: the decision, the frozen zone, the failed approach. */
+    readonly detail?: string;
+    /** Id of the saved item, for the note's undo (unlock, unfreeze). */
+    readonly ref?: string;
+    readonly undone?: boolean;
 }
 
 export interface HabitsFile {

@@ -37,7 +37,11 @@ export const REJECTION_PATTERNS: readonly { readonly id: string; readonly test: 
 
 export const HABIT_TARGET_LABELS = { rule: 'Make it a rule', command: 'Make it a command', hook: 'Make it a hook' } as const;
 
-export const HABIT_KIND_LABELS = { instruction: 'Instruction', command: 'Command', rejection: 'Rejected edit' } as const;
+export const HABIT_KIND_LABELS = { instruction: 'Instruction', command: 'Command', rejection: 'Rejected edit', decision: 'Decision', frozen: 'Frozen', anti: "Don't" } as const;
+/** IDEA-302..304: the small silver note in the chat when something lands in Habits. */
+export const SAVED_TO_HABITS = 'Saved to Habits';
+/** The undo link of a silver note that saved a decision or a frozen zone. */
+export const NOTE_UNDO_LABELS: Readonly<Partial<Record<'decision' | 'frozen' | 'habit', string>>> = { decision: 'Unlock', frozen: 'Unfreeze' };
 export const HABIT_STATUS_LABELS = { learning: 'learning', proposed: 'suggested', accepted: 'saved', dismissed: 'dismissed' } as const;
 /** Settings page and Find Action command for the Habits panel. */
 export const HABITS_SETTINGS_PAGE = 'habits';

@@ -2,7 +2,7 @@ import { inject, injectable } from '@theia/core/shared/inversify';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { DisposableCollection } from '@theia/core/lib/common/disposable';
 import { PreferenceService } from '@theia/core/lib/common/preferences';
-import type URI from '@theia/core/lib/common/uri';
+import URI from '@theia/core/lib/common/uri';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service';
@@ -12,10 +12,11 @@ import { ChangeTracker } from '../changes/change-tracker';
 import { ProcessStore } from '../processes/process-store';
 import { HOOKS_FILE } from '../../common/git/hooks';
 import { DEFAULT_HABIT_THRESHOLD, HABITS_FILE, HABITS_GITIGNORE, HABITS_GITIGNORE_ENTRY, HABITS_PREFS, MIN_HABIT_THRESHOLD } from '../../common/habits/habits.consts';
-import type { Habit, HabitEvidence, HabitTarget } from '../../common/habits/habits.types';
+import type { Habit, HabitEvidence, HabitTarget, SavedHabit } from '../../common/habits/habits.types';
 import {
-    addStopHook, commandEvidence, habitFile, instructionEvidence, parseHabits, recordEvidence, rejectionEvidence, serializeHabits, terminalInput
+    addStopHook, commandEvidence, habitFile, instructionEvidence, parseHabits, recordEvidence, rejectionEvidence, saveHabit, serializeHabits, terminalInput
 } from '../../common/habits/habits.utils';
+import { HabitBus } from './habit-bus';
 
 /**
  * IDEA-296 Habits: counts what the user repeats (instructions in prompts, terminal commands, rejected agent styles) in
@@ -31,6 +32,7 @@ export class HabitStore {
     @inject(ChangeTracker) protected readonly tracker: ChangeTracker;
     @inject(ProcessStore) protected readonly processes: ProcessStore;
     @inject(TerminalService) protected readonly terminals: TerminalService;
+    @inject(HabitBus) protected readonly bus: HabitBus;
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
@@ -78,7 +80,29 @@ export class HabitStore {
             }
         }));
         this.toDispose.push(this.workspace.onWorkspaceChanged(() => this.load(true)));
+        this.toDispose.push(this.bus.onDidSave(({ root, habit }) => this.saveFromFeature(root, habit)));
         void this.load();
+    }
+
+    /**
+     * IDEA-302..304: a promoted decision, a learned freeze or a failed approach. Saved even while "Learn habits" is off:
+     * the user did it on purpose, and the source file already holds it.
+     */
+    protected saveFromFeature(rootUri: string, saved: SavedHabit): void {
+        this.queue = this.queue.then(async () => {
+            const root = this.root;
+            if (root && root.toString() === rootUri) {
+                await this.load();
+                this.items = saveHabit(this.items, saved, Date.now()).habits;
+                await this.persist();
+                return;
+            }
+            const other = new URI(rootUri);
+            const uri = other.resolve(HABITS_FILE);
+            const current = parseHabits(await this.files.read(uri).then(r => r.value, () => undefined));
+            await this.files.write(uri, serializeHabits(saveHabit(current, saved, Date.now()).habits));
+            await this.ignoreInGit(other);
+        }).catch(() => undefined);
     }
 
     async load(force = false): Promise<void> {
