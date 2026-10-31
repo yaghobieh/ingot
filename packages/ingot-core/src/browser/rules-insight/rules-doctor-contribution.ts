@@ -7,11 +7,11 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import URI from '@theia/core/lib/common/uri';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
-import type { FileChangesEvent } from '@theia/filesystem/lib/common/files';
+import { FileChangeType, type FileChangesEvent } from '@theia/filesystem/lib/common/files';
 import { ProblemManager } from '@theia/markers/lib/browser/problem/problem-manager';
 import { ProblemContribution } from '@theia/markers/lib/browser/problem/problem-contribution';
 import { RulesInsightService } from '../../common/rules-insight/rules-insight.types';
-import { DOCTOR_DEBOUNCE_MS, DOCTOR_MARKER_OWNER, RULES_INSIGHT_COMMANDS, SCHEMA_MARKER_OWNER, SCHEMA_SOURCE } from '../../common/rules-insight/rules-insight.consts';
+import { DOCTOR_DEBOUNCE_MS, DOCTOR_MARKER_OWNER, RULES_INSIGHT_COMMANDS, SCHEMA_MARKER_OWNER, SCHEMA_SOURCE, WALK_SKIP } from '../../common/rules-insight/rules-insight.consts';
 import { doctorSummaryText, findingToDiagnostic, globalRelative, groupFindings } from '../../common/rules-insight/rules-insight.utils';
 import { DOCTOR_CONFIG_FILE } from '../../common/rules-engine/rules-engine.consts';
 import { classifyRulePath } from '../../common/rules-engine/rule-docs.utils';
@@ -38,6 +38,7 @@ export class RulesDoctorContribution implements FrontendApplicationContribution,
     protected markedUris: MarkedFile[] = [];
     protected timer?: ReturnType<typeof setTimeout>;
     protected configDir?: URI;
+    protected filesStale = false;
 
     get report(): DoctorReport | undefined {
         return this.lastReport;
@@ -52,9 +53,23 @@ export class RulesDoctorContribution implements FrontendApplicationContribution,
         this.workspace.ready.then(() => this.schedule()).catch(() => undefined);
         this.workspace.onWorkspaceChanged(() => this.schedule());
         this.files.onDidFilesChange(event => {
-            if (this.affectsRules(event)) {
+            const structural = this.addsOrRemovesProjectFiles(event);
+            this.filesStale ||= structural;
+            if (structural || this.affectsRules(event)) {
                 this.schedule();
             }
+        });
+    }
+
+    /** New or deleted files can bring a dead glob back to life (or kill one), so the cached file list is dropped. */
+    protected addsOrRemovesProjectFiles(event: FileChangesEvent): boolean {
+        const root = this.root;
+        return event.changes.some(change => {
+            if (change.type === FileChangeType.UPDATED) {
+                return false;
+            }
+            const rel = root?.relative(change.resource)?.toString();
+            return rel !== undefined && !rel.split('/').some(part => (WALK_SKIP as readonly string[]).includes(part));
         });
     }
 
@@ -95,6 +110,10 @@ export class RulesDoctorContribution implements FrontendApplicationContribution,
         if (!root) {
             this.publish(undefined, undefined);
             return undefined;
+        }
+        if (this.filesStale) {
+            this.filesStale = false;
+            await this.service.invalidateFiles(root.path.fsPath());
         }
         const report = await this.service.doctor(root.path.fsPath());
         this.publish(root, report);

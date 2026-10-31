@@ -10,6 +10,8 @@ export interface RulesInsightService {
     provenance(root: string, path: string): Promise<RuleProvenance>;
     /** Project files (relative, gitignore respected), for glob previews. */
     listFiles(root: string): Promise<string[]>;
+    /** Drops the cached file list, after files were added or removed. */
+    invalidateFiles(root: string): Promise<void>;
     /** Habit playbooks of the project (`.ingot/habits`), for rule hits. */
     habits(root: string): Promise<RuleDoc[]>;
 }

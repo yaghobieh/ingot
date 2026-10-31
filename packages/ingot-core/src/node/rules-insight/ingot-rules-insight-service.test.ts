@@ -82,6 +82,17 @@ describe('IngotRulesInsightService', () => {
         expect((await service.provenance(root, '~/.ingot/rules/me.md')).sourceLabel).toBeTruthy();
     });
 
+    it('sees a new file once the cached file list is dropped', async () => {
+        const deadGlob = async () => (await service.doctor(root)).findings.some(f => f.code === 'dead-glob' && f.path === '.ingot/rules/ts.md');
+        expect(await deadGlob()).toBe(true);
+        write(root, 'missing/found.ts', 'export {};\n');
+        expect(await deadGlob()).toBe(true);
+        await service.invalidateFiles(root);
+        expect(await deadGlob()).toBe(false);
+        fs.rmSync(path.join(root, 'missing'), { recursive: true, force: true });
+        await service.invalidateFiles(root);
+    });
+
     it('rejects a missing project folder', async () => {
         await expect(service.doctor(path.join(root, 'nope'))).rejects.toThrow('Not a project folder');
     });

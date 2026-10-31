@@ -50,6 +50,10 @@ export class IngotRulesInsightService implements RulesInsightService {
         return files;
     }
 
+    async invalidateFiles(root: string): Promise<void> {
+        this.fileCache.delete(this.checkRoot(root));
+    }
+
     protected async workspace(root: string): Promise<RulesWorkspace> {
         const dir = this.checkRoot(root);
         const configDir = FileUri.fsPath(await this.env.getConfigDirUri());
