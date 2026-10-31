@@ -13,7 +13,10 @@ import { PRODUCT } from '../../common/product.consts';
 import type { AgentSession } from '../../common/agents/agents.types';
 import type { ThreadGroup } from '../../common/threads/threads.types';
 import { finishedThreads, finishMessage, groupThreads, threadState, worktreeName } from '../../common/threads/threads.utils';
+import { WORKTREE_SETUP_TEXT } from '../../common/threads/worktree-setup.consts';
+import { worktreeSetupSummary } from '../../common/threads/worktree-setup.utils';
 import { THREADS_TEXT, THREADS_TOAST_MS } from './threads.consts';
+import { WorktreeSetupService } from './worktree-setup-service';
 
 const userTurns = (session: AgentSession): number => session.messages.filter(m => m.role === 'user').length;
 
@@ -31,6 +34,7 @@ export class ThreadsService {
     @inject(ApplicationShell) protected readonly shell: ApplicationShell;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
     @inject(GitService) protected readonly git: GitService;
+    @inject(WorktreeSetupService) protected readonly worktreeSetup: WorktreeSetupService;
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
@@ -151,6 +155,12 @@ export class ThreadsService {
             const made = await this.git.addWorktree(root, worktreeName('', session.id));
             this.store.update(session.id, { worktree: { path: URI.fromFilePath(made.folder).toString(), branch: made.branch } });
             this.messages.info(`${THREADS_TEXT.worktreeMade}: ${made.folder} (${made.branch}).`, { timeout: THREADS_TOAST_MS });
+            void this.worktreeSetup.run(root, made.folder).then(result => {
+                if (result) {
+                    const text = worktreeSetupSummary(result);
+                    void (result.ok ? this.messages.info(text, { timeout: THREADS_TOAST_MS }) : this.messages.error(text));
+                }
+            }, (error: unknown) => this.messages.error(`${WORKTREE_SETUP_TEXT.failed}: ${error instanceof Error ? error.message : String(error)}`));
             await this.open(session.id);
             return session;
         } catch (error) {

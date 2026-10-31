@@ -48,7 +48,7 @@ import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding';
 import { IngotKeybindingRegistry } from './agents/text-key-guard';
 import { AGENTS_WIDGET_ID } from './agents/agents.consts';
 import { AGENT_REVIEW_WIDGET_ID, AgentReviewContribution, AgentReviewWidget } from './agent-review';
-import { THREADS_WIDGET_ID, ThreadsContribution, ThreadsService, ThreadsWidget } from './threads';
+import { THREADS_WIDGET_ID, ThreadsContribution, ThreadsService, ThreadsWidget, WorktreeSetupService } from './threads';
 import { DiskSyncContribution } from './disk-sync';
 import { IngotStripeWidget } from './stripe/ingot-stripe-widget';
 import { IngotExplorerHeader } from './navigator/explorer-header';
@@ -521,6 +521,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: AGENT_REVIEW_WIDGET_ID, createWidget: () => ctx.container.get(AgentReviewWidget) })).inSingletonScope();
     bind(AgentReviewContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(AgentReviewContribution);
+    bind(WorktreeSetupService).toSelf().inSingletonScope();
     bind(ThreadsService).toSelf().inSingletonScope();
     bind(ThreadsWidget).toSelf();
     bind(WidgetFactory).toDynamicValue(ctx => ({ id: THREADS_WIDGET_ID, createWidget: () => ctx.container.get(ThreadsWidget) })).inSingletonScope();
