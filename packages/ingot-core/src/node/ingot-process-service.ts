@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { injectable, postConstruct } from '@theia/core/shared/inversify';
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { createRequire } from 'module';
 import { rgArgs } from '../common/agents/workspace-tools';
 import { RG_TIMEOUT_MS } from '../common/agents/work-loop.consts';
@@ -11,12 +11,12 @@ import type {
 } from '../common/processes/processes.types';
 import type { HookRunOutput } from '../common/hooks/agent-hooks.types';
 import { AGENT_HOOK_MAX_OUTPUT_CHARS, HOOK_CURSOR_PROJECT_ENV, HOOK_PROJECT_ENV } from '../common/hooks/agent-hooks.consts';
-import { AGENT_IGNORE_FILES } from '../common/project-config/project-config.consts';
 import {
     BACKGROUND_SETTLE_MS, FOREGROUND_TIMEOUT_MS, MAX_FINISHED_PROCESSES, PROCESS_AGENT_OUTPUT_CHARS, PROCESS_BUFFER_CHARS, PROCESS_LIST_DEBOUNCE_MS, STOP_GRACE_MS
 } from '../common/processes/processes.consts';
 import { appendTail, detectPorts, finalStatus, isSafeProjectPath, packageManagerFor, parseScripts, sortProcesses, stripAnsi } from '../common/processes/processes.utils';
 import { registerClientDrop } from '../common/rpc/disconnected-client';
+import { CursorModeReader } from './cursor-mode-reader';
 
 interface Entry {
     info: ProcessInfo;
@@ -36,6 +36,7 @@ let nextId = 1;
 @injectable()
 export class IngotProcessService implements ProcessService {
 
+    @inject(CursorModeReader) protected readonly cursorModes: CursorModeReader;
     protected readonly entries = new Map<string, Entry>();
     protected readonly clients = new Set<ProcessClient>();
     protected notifyTimer?: ReturnType<typeof setTimeout>;
@@ -151,7 +152,7 @@ export class IngotProcessService implements ProcessService {
         if (!bin || !query.cwd) {
             return { engine: 'none', text: '' };
         }
-        const ignoreFiles = query.agentIgnore ? AGENT_IGNORE_FILES.filter(f => fs.existsSync(path.join(query.cwd, f))) : [];
+        const ignoreFiles = query.agentIgnore ? (await this.cursorModes.agentIgnoreFiles(query.cwd)).filter(f => fs.existsSync(path.join(query.cwd, f))) : [];
         const args = rgArgs({ pattern: query.pattern, path: query.path, glob: query.glob, globs: query.globs, regex: query.regex, files: query.files, ignoreFiles });
         return new Promise(resolve => {
             let text = '';
@@ -212,7 +213,7 @@ export class IngotProcessService implements ProcessService {
             };
             const child = spawn(shell.cmd, shell.args, {
                 cwd: options.cwd, stdio: ['pipe', 'pipe', 'pipe'], detached: !win, windowsHide: true,
-                env: { ...process.env, [HOOK_PROJECT_ENV]: options.cwd, [HOOK_CURSOR_PROJECT_ENV]: options.cwd }
+                env: { ...process.env, [HOOK_PROJECT_ENV]: options.projectDir ?? options.cwd, [HOOK_CURSOR_PROJECT_ENV]: options.projectDir ?? options.cwd }
             });
             const timer = setTimeout(() => {
                 timedOut = true;
