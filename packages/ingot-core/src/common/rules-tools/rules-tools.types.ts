@@ -1,4 +1,5 @@
 import type { ExportPlan, ExportTarget, PrunePlan, RuleTestReport } from '../rules-kit';
+import type { LearnedRuleProposal, RejectedHunk } from '../learned-rules';
 
 export const RulesToolsService = Symbol('RulesToolsService');
 
@@ -39,4 +40,12 @@ export interface RulesToolsService {
     applyPrune(root: string, days: number, only: readonly string[]): Promise<PrunePlan>;
     /** Counts one agent turn for each project rule path that was in its context (`.ingot/.state/rule-hits.json`). */
     recordRuleHits(root: string, paths: readonly string[]): Promise<void>;
+    /** IDEA-328: a new proposal when the rejected code matches a known pattern (`.ingot/.state/learned-rules.json`). */
+    learnFromRejection(root: string, hunks: readonly RejectedHunk[]): Promise<LearnedRuleProposal | undefined>;
+    /** IDEA-328: a new proposal when the user has made the same correction often enough. */
+    learnFromMessage(root: string, message: string): Promise<LearnedRuleProposal | undefined>;
+    listLearnedRules(root: string): Promise<LearnedRuleProposal[]>;
+    /** Writes the rule file (with the reviewed body) and returns its project-relative path. */
+    acceptLearnedRule(root: string, id: string, body: string): Promise<string>;
+    dismissLearnedRule(root: string, id: string): Promise<void>;
 }

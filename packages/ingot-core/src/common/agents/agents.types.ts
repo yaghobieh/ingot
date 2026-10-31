@@ -110,3 +110,9 @@ export interface ModelOption {
     readonly id: string;
     readonly label: string;
 }
+
+/** IDEA-328: a prompt the user sent to an agent (also mid-run steering). */
+export interface SentPromptEvent {
+    readonly sessionId: string;
+    readonly text: string;
+}

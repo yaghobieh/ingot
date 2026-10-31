@@ -27,3 +27,17 @@ export const CAP_DIGITS = 2;
 export const NO_KEY_MESSAGE = 'No OpenRouter key. Add one on the Models page (OpenRouter), or use the free mock model.';
 export const PRUNE_MIN_DAYS = 1;
 export const PRUNE_MAX_DAYS = 3650;
+
+export const LEARNED_COMMANDS = {
+    review: { id: 'ingot.rules.learned', label: 'Review Learned Rules…', category: 'Rules' } as Command,
+    toggle: { id: 'ingot.rules.learnFromReviews.toggle', label: 'Learn Rules from Reviews (On/Off)', category: 'Rules' } as Command
+};
+export const LEARNED_TEXT = {
+    drafted: (title: string) => `Ingot drafted a rule from your reviews: "${title}"`,
+    review: 'Review',
+    later: 'Later',
+    on: 'Learn rules from reviews is on. Ingot will suggest rules after rejected changes and repeated corrections.',
+    off: 'Learn rules from reviews is off.',
+    offHint: 'Learn rules from reviews is off. Turn it on to get rule suggestions from rejected changes and repeated corrections.',
+    turnOn: 'Turn On'
+} as const;

@@ -55,3 +55,4 @@
 .ingot-rules-pill-icon.warn { color: var(--ingot-warning); }
 .ingot-rules-pill-icon.fail { color: var(--ingot-danger); }
 #ingot-rules-test-rate { font-size: 18px; }
+.ingot-rules-findings code, .ingot-rules-item-meta code { color: var(--ingot-text); }

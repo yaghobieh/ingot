@@ -24,7 +24,7 @@ import { postConstruct } from '@theia/core/shared/inversify';
 import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { ACTIVE_STATUSES, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE, STREAM_POKE_MS } from '../../common/agents/agents.consts';
-import type { AgentMessage, AgentMode, AgentSession } from '../../common/agents/agents.types';
+import type { AgentMessage, AgentMode, AgentSession, SentPromptEvent } from '../../common/agents/agents.types';
 import type { ToolCallInfo } from '../../common/agents/tool-cards';
 import { hookCardInfo } from '../../common/git/hooks';
 import { AgentHooksService } from '../hooks/agent-hooks-service';
@@ -196,6 +196,9 @@ export class AgentStore {
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
+    protected readonly onDidSendPromptEmitter = new Emitter<SentPromptEvent>();
+    /** IDEA-328: what the user typed to an agent, for learned rules. */
+    readonly onDidSendPrompt: Event<SentPromptEvent> = this.onDidSendPromptEmitter.event;
 
     protected items: AgentSession[] = [];
     protected selected?: string;
@@ -443,6 +446,7 @@ export class AgentStore {
         }
         if (askedNow && this.isRunning(session.id)) {
             session.messages.push({ role: 'user', text: askedNow });
+            this.onDidSendPromptEmitter.fire({ sessionId: session.id, text: askedNow });
             this.steers.set(session.id, [...(this.steers.get(session.id) ?? []), askedNow]);
             session.updatedAt = Date.now();
             this.changed();
@@ -466,6 +470,9 @@ export class AgentStore {
                 : { role: 'user', text: prompt.trim() });
         }
         const asked = prompt.trim();
+        if (asked && !asked.startsWith('/')) {
+            this.onDidSendPromptEmitter.fire({ sessionId: session.id, text: composed?.text.trim() || asked });
+        }
         this.loops.set(session.id, {
             prompt: asked, wants: this.workLoopOn() && wantsWorkLoop(asked), edits: [], checks: [], fixAttempts: 0,
             e2eNudged: false, commitNudged: false, commitBlocked: false, committed: false, verifiedEdits: 0, required: []

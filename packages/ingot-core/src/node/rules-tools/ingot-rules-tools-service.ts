@@ -9,6 +9,10 @@ import {
 import type { ExportPlan, ExportTarget, PrunePlan, RuleTestReport } from '../../common/rules-kit';
 import { DEFAULT_KEYCHAIN_SERVICE } from '../../common/models/models.consts';
 import {
+    decideProposal, LEARNED_STATE_FILE, learnFromMessage, learnFromRejection, parseLearnedState, pendingProposals, renderLearnedRule, serializeLearnedState
+} from '../../common/learned-rules';
+import type { LearnedRuleProposal, LearnedRulesState, RejectedHunk } from '../../common/learned-rules';
+import {
     NO_KEY_MESSAGE, OPENROUTER_BASE_URL_ENV, OPENROUTER_KEY_ACCOUNT, OPENROUTER_KEY_ENV, TEST_REPORT_FILE
 } from '../../common/rules-tools/rules-tools.consts';
 import type { RuleTestListing, RuleTestRequest, RulesToolsService } from '../../common/rules-tools/rules-tools.types';
@@ -21,8 +25,8 @@ export class IngotRulesToolsService implements RulesToolsService {
     @inject(KeyStoreService) protected readonly keyStore: KeyStoreService;
 
     protected readonly keychainService = process.env.INGOT_KEYCHAIN_SERVICE || DEFAULT_KEYCHAIN_SERVICE;
-    /** Hit writes per project, one at a time so concurrent agent turns never lose counts. */
-    protected readonly hitWrites = new Map<string, Promise<void>>();
+    /** State writes per project and file, one at a time so concurrent agent turns never lose updates. */
+    protected readonly stateWrites = new Map<string, Promise<unknown>>();
 
     protected checkRoot(root: string): void {
         if (!root || !fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
@@ -114,18 +118,79 @@ export class IngotRulesToolsService implements RulesToolsService {
         return this.prunePlan(root, days);
     }
 
+    protected queue<T>(root: string, file: string, task: () => T): Promise<T> {
+        const key = path.join(root, file);
+        const run = (this.stateWrites.get(key) ?? Promise.resolve()).catch(() => undefined).then(task);
+        this.stateWrites.set(key, run);
+        return run;
+    }
+
     async recordRuleHits(root: string, paths: readonly string[]): Promise<void> {
         const rules = paths.filter(file => file.startsWith(RULES_DIR));
         if (!rules.length || !root || !fs.existsSync(path.join(root, RULES_DIR))) {
             return;
         }
-        const previous = this.hitWrites.get(root) ?? Promise.resolve();
-        const next = previous.then(() => {
+        await this.queue(root, RULE_HITS_FILE, () => {
             const file = path.join(root, RULE_HITS_FILE);
             const current = fs.existsSync(file) ? parseHitLog(fs.readFileSync(file, 'utf8')) : undefined;
             writeState(root, RULE_HITS_FILE, serializeHitLog(recordHits(current, rules, new Date())));
         }).catch(() => undefined);
-        this.hitWrites.set(root, next);
-        await next;
+    }
+
+    protected readLearned(root: string): LearnedRulesState {
+        const file = path.join(root, LEARNED_STATE_FILE);
+        return parseLearnedState(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined);
+    }
+
+    protected existingRules(root: string): string[] {
+        return openProject(root).files.filter(file => file.startsWith(RULES_DIR));
+    }
+
+    /** Runs `change` on the learned-rules state and saves it; returns the new proposal, if any. */
+    protected learn(root: string, change: (state: LearnedRulesState, taken: string[]) => { state: LearnedRulesState; proposal?: LearnedRuleProposal }): Promise<LearnedRuleProposal | undefined> {
+        this.checkRoot(root);
+        return this.queue(root, LEARNED_STATE_FILE, () => {
+            const before = this.readLearned(root);
+            const { state, proposal } = change(before, this.existingRules(root));
+            if (state !== before) {
+                writeState(root, LEARNED_STATE_FILE, serializeLearnedState(state));
+            }
+            return proposal;
+        });
+    }
+
+    async learnFromRejection(root: string, hunks: readonly RejectedHunk[]): Promise<LearnedRuleProposal | undefined> {
+        return this.learn(root, (state, taken) => learnFromRejection(state, hunks, new Date(), taken));
+    }
+
+    async learnFromMessage(root: string, message: string): Promise<LearnedRuleProposal | undefined> {
+        return this.learn(root, (state, taken) => learnFromMessage(state, message, new Date(), taken));
+    }
+
+    async listLearnedRules(root: string): Promise<LearnedRuleProposal[]> {
+        this.checkRoot(root);
+        return pendingProposals(this.readLearned(root));
+    }
+
+    async acceptLearnedRule(root: string, id: string, body: string): Promise<string> {
+        this.checkRoot(root);
+        return this.queue(root, LEARNED_STATE_FILE, () => {
+            const state = this.readLearned(root);
+            const proposal = pendingProposals(state).find(item => item.id === id);
+            if (!proposal) {
+                throw new Error('This proposal was already handled.');
+            }
+            const text = body.trim() || proposal.body;
+            applyWrites(root, [{ path: proposal.path, content: renderLearnedRule(proposal, text) }]);
+            writeState(root, LEARNED_STATE_FILE, serializeLearnedState(decideProposal(state, id, 'accepted', new Date(), text)));
+            return proposal.path;
+        });
+    }
+
+    async dismissLearnedRule(root: string, id: string): Promise<void> {
+        this.checkRoot(root);
+        await this.queue(root, LEARNED_STATE_FILE, () => {
+            writeState(root, LEARNED_STATE_FILE, serializeLearnedState(decideProposal(this.readLearned(root), id, 'dismissed', new Date())));
+        });
     }
 }

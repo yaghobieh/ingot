@@ -151,6 +151,36 @@ describe('IngotRulesToolsService prune and rule hits', () => {
     });
 });
 
+describe('IngotRulesToolsService learned rules', () => {
+    it('proposes from a rejected hunk, then writes the reviewed rule on accept', async () => {
+        const tools = service();
+        const proposal = await tools.learnFromRejection(root, [{ path: 'src/app.ts', added: ['console.log(1);'], removed: [] }]);
+        expect(proposal?.path).toBe('.ingot/rules/learned-no-console-log-in-code.md');
+        expect(await tools.listLearnedRules(root)).toHaveLength(1);
+        expect(fs.existsSync(path.join(root, proposal!.path))).toBe(false);
+
+        const written = await tools.acceptLearnedRule(root, proposal!.id, 'No console.log; use the logger.');
+        expect(read(written)).toBe('---\ndescription: No console.log in code\nglobs: **/*.ts\nlearned: rejection\n---\nNo console.log; use the logger.\n');
+        expect(await tools.listLearnedRules(root)).toHaveLength(0);
+        await expect(tools.acceptLearnedRule(root, proposal!.id, 'again')).rejects.toThrow('already handled');
+        expect(read('.ingot/.state/.gitignore')).toBe('*\n');
+    });
+
+    it('proposes a repeated correction once; a dismissed one stays dismissed', async () => {
+        const tools = service();
+        expect(await tools.learnFromMessage(root, 'No, use pnpm instead of npm.')).toBeUndefined();
+        const [, second] = await Promise.all([
+            tools.learnFromMessage(root, 'Add a cart page'),
+            tools.learnFromMessage(root, 'Again, use pnpm instead of npm')
+        ]);
+        expect(second?.source).toBe('correction');
+        await tools.dismissLearnedRule(root, second!.id);
+        expect(await tools.listLearnedRules(root)).toHaveLength(0);
+        expect(await tools.learnFromMessage(root, 'I said use pnpm instead of npm!')).toBeUndefined();
+        expect(fs.readdirSync(path.join(root, '.ingot/rules')).some(file => file.startsWith('learned-'))).toBe(false);
+    });
+});
+
 describe('rules-project', () => {
     it('never writes outside the project', () => {
         expect(() => applyWrites(root, [{ path: '../escape.md', content: 'x' }])).toThrow('outside the project');

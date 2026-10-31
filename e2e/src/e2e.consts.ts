@@ -47,5 +47,7 @@ export const E2E_USER_SETTINGS = {
     'ingot.agent.terminal.requireApproval': true,
     'ingot.agent.browser.enabled': true,
     'ingot.agent.browser.requireApproval': true,
-    'ingot.agent.browser.approveReads': false
+    'ingot.agent.browser.approveReads': false,
+    // IDEA-328: learned rules are opt-in; a spec that turns them on must not leave them on.
+    'ingot.rules.learnFromReviews': false
 } as const;
