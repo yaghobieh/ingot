@@ -7,6 +7,8 @@ import { setAppearance, shot, toolBlock } from '../src/agent-tools.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { connectOllama } from '../src/models.e2e-utils';
+import { E2E_CONFIG_DIR } from '../src/e2e.consts';
+import { startOpenPlanServer, type FakeIngotServer } from '../src/fake-ingot-server';
 
 /**
  * IDEA-263: `.ingot/policy.json` denies, allows and asks; restricted mode sandboxes commands; every call lands in the
@@ -27,8 +29,10 @@ test.describe('IDEA-263 agent policy, sandbox and audit log', () => {
     test.setTimeout(180_000);
     let dir: string;
     let server: FakeOllama;
+    let account: FakeIngotServer;
 
     test.beforeEach(async () => {
+        account = await startOpenPlanServer();
         dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-policy-')));
         fs.mkdirSync(path.join(dir, '.ingot'));
         fs.mkdirSync(path.join(dir, 'src'));
@@ -53,6 +57,8 @@ test.describe('IDEA-263 agent policy, sandbox and audit log', () => {
 
     test.afterEach(async () => {
         await server.close();
+        await account.close();
+        fs.rmSync(path.join(E2E_CONFIG_DIR, 'remote-config.json'), { force: true });
         fs.rmSync(dir, { recursive: true, force: true });
         fs.rmSync(ESCAPE_FILE, { force: true });
     });
@@ -61,6 +67,7 @@ test.describe('IDEA-263 agent policy, sandbox and audit log', () => {
 
     test('denies, allows, sandboxes and asks per the policy, and the audit log shows every call', async ({ page }) => {
         await openIngot(page, dir);
+        await expect.poll(() => account.configCalls.length).toBeGreaterThan(0);
         await dismissNotifications(page);
         await connectOllama(page, server);
         await page.locator('#ingot-agents-new').click();
