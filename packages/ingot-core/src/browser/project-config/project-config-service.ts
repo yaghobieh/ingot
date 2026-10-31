@@ -7,6 +7,7 @@ import {
 } from '../../common/project-config/project-config.consts';
 import type { ConfigSource, McpServerConfig, ProjectCommand, ProjectConfig, ProjectRule } from '../../common/project-config/project-config.types';
 import { commandFromFile, mergeByName, parseMcpJson, ruleFromFile } from '../../common/project-config/project-config.utils';
+import { LOCK_FILE, overriddenRules, parseLock } from '../../common/ingot-kit';
 
 interface DirConfig { rules: ProjectRule[]; commands: ProjectCommand[]; mcpServers: McpServerConfig[] }
 const EMPTY_DIR: DirConfig = { rules: [], commands: [], mcpServers: [] };
@@ -61,8 +62,11 @@ export class ProjectConfigService {
             this.loadAgentsFiles(root, 'agents', name => name, AGENTS_FILES),
             this.loadExtraCommands(root, 'external', rel)
         ]) : [EMPTY_DIR, EMPTY_DIR, EMPTY_DIR, [], []];
+        // IDEA-322: a project rule cannot replace a rule from an org-enforced pack (.ingot/ingot-lock.json).
+        const merged = [...globalAgents, ...agents, ...mergeByName(importedGlobal.rules, global.rules, external.rules, legacy.rules, ingot.rules)];
+        const overridden = new Set(root ? overriddenRules(parseLock(await this.read(root.resolve(LOCK_FILE))), merged) : []);
         return {
-            rules: [...globalAgents, ...agents, ...mergeByName(importedGlobal.rules, global.rules, external.rules, legacy.rules, ingot.rules)],
+            rules: merged.filter(rule => !overridden.has(rule)),
             // Later wins: other editors' folders (home, then project) < imported < legacy < `.ingot` (IDEA-249).
             commands: mergeByName(globalExtra, importedGlobal.commands, global.commands, projectExtra, external.commands, legacy.commands, ingot.commands),
             mcpServers: mergeByName(external.mcpServers, legacy.mcpServers, ingot.mcpServers)
