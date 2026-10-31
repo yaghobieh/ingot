@@ -1,4 +1,4 @@
-import { ACTIVE_STATUSES, EDITING_LABEL, FILE_BADGE_LABELS, MAX_TITLE_LENGTH, STATUS_LABELS, WORKING_LABEL } from './agents.consts';
+import { ACTIVE_STATUSES, FILE_BADGE_LABELS, MAX_TITLE_LENGTH, STATUS_LABELS } from './agents.consts';
 import type { AgentSession, AgentStep } from './agents.types';
 
 const SECOND_MS = 1_000;
@@ -33,17 +33,6 @@ export const agentSubtitle = (session: AgentSession, now: number): string => {
         return `${label} · ${files} ${files === 1 ? 'file' : 'files'}`;
     }
     return `${label} · ${relativeTime(session.updatedAt, now)}`;
-};
-
-/**
- * The shimmering line at the end of a running chat: "Editing cart.ts…" while a file streams, otherwise "Getting it done…".
- * None while the run waits on the user (approval card or a question).
- */
-export const workingLabel = (session: Pick<AgentSession, 'status' | 'activeFile' | 'ask'>): string | undefined => {
-    if (session.ask || session.status === 'approval') {
-        return undefined;
-    }
-    return session.status === 'editing' && session.activeFile ? `${EDITING_LABEL} ${session.activeFile}…` : WORKING_LABEL;
 };
 
 export const activeAgentCount = (sessions: readonly AgentSession[]): number => sessions.filter(s => ACTIVE_STATUSES.includes(s.status)).length;

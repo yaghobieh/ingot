@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentSession } from './agents.types';
-import { activeAgentCount, agentSubtitle, changesSummary, CHILD_LOOP_GENERATION, editedFilesLabel, fileBadge, formatWorked, relativeTime, resolveLoopGeneration, titleFromPrompt, workingLabel } from './agents.utils';
+import { activeAgentCount, agentSubtitle, changesSummary, CHILD_LOOP_GENERATION, editedFilesLabel, fileBadge, formatWorked, relativeTime, resolveLoopGeneration, titleFromPrompt } from './agents.utils';
 
 const session = (over: Partial<AgentSession>): AgentSession => ({
     id: '1', title: 't', status: 'idle', updatedAt: 0, mode: 'agent', model: 'm', messages: [], plan: [], steps: [], changes: [], ...over
@@ -18,14 +18,6 @@ describe('agents utils', () => {
         expect(agentSubtitle(session({ status: 'review', changes: [1, 2, 3, 4].map(n => ({ uri: `${n}`, label: `${n}`, added: 1, removed: 0 })) }), 0)).toBe('Ready for review · 4 files');
         expect(agentSubtitle(session({ status: 'review', steps: [{ kind: 'edit', target: 'a.ts', done: false }] }), 0)).toBe('Ready for review · 1 file');
         expect(agentSubtitle(session({ status: 'done' }), 18 * 60_000)).toBe('Done · 18 min ago');
-    });
-
-    it('labels the shimmering working line, and hides it while the run waits on the user', () => {
-        expect(workingLabel(session({ status: 'thinking' }))).toBe('Getting it done…');
-        expect(workingLabel(session({ status: 'editing', activeFile: 'src/cart.ts' }))).toBe('Editing src/cart.ts…');
-        expect(workingLabel(session({ status: 'editing' }))).toBe('Getting it done…');
-        expect(workingLabel(session({ status: 'approval' }))).toBeUndefined();
-        expect(workingLabel(session({ status: 'thinking', ask: { question: 'Which one?' } }))).toBeUndefined();
     });
 
     it('counts active agents and summarises changes', () => {
