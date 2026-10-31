@@ -8,7 +8,7 @@ import { dismissNotifications, openIngot } from '../src/app.utils';
 /** IDEA-56: the editor right-click menu, clicked through on a real throwaway Git repository. */
 const REFERENCE_ORDER = [
     'Go to Definition', 'Go to Type Definition', 'Go to Source Definition', 'Go to Implementations', 'Go to References',
-    'Add Symbol to Current Chat', 'Add Symbol to New Chat', 'Create Rule', 'Peek',
+    'Add Symbol to Current Chat', 'Add Symbol to New Chat', 'Create Rule', 'Freeze Function for Agents', 'Peek',
     'Find All References', 'Find All Implementations', 'Show Call Hierarchy',
     'Rename Symbol', 'Change All Occurrences', 'Format Document', 'Refactor...', 'Source Action...',
     'Open Changes', 'Open on Remote (Web)', 'File Annotations', 'File History', 'Git',

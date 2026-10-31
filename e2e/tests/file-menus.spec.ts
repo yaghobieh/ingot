@@ -10,7 +10,7 @@ const TREE_ORDER = [
     'New File…', 'New Folder…',
     'Open to the Side', 'Open in Browser', 'Open With…',
     'Open in Integrated Terminal', 'Select for Compare',
-    'Add File to Agent Chat', 'Add File to New Agent Chat',
+    'Add File to Agent Chat', 'Add File to New Agent Chat', 'Freeze for Agents',
     'Open Changes', 'Open on Remote (Web)',
     'File History', 'Open Timeline',
     'Cut', 'Copy', 'Paste',
