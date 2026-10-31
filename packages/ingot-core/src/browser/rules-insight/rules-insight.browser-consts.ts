@@ -1,4 +1,15 @@
+import type { MenuPath } from '@theia/core/lib/common/menu';
+import { NAVIGATOR_CONTEXT_MENU } from '@theia/navigator/lib/browser/navigator-contribution';
 import type { EffectiveStatus, RuleSource } from '../../common/rules-engine/rules-engine.types';
+import { EDITOR_MENU } from '../editor/editor-menu.consts';
+
+/** Both context menus drop groups not prefixed `ingot_`, so the action joins their agent groups. */
+export const EFFECTIVE_MENU = {
+    label: 'Show Effective Rules',
+    order: 'z_rules',
+    editor: EDITOR_MENU.ai,
+    explorer: [...NAVIGATOR_CONTEXT_MENU, 'ingot_3_agent']
+} satisfies { label: string; order: string; editor: MenuPath; explorer: MenuPath };
 
 /** Codicon per rule source in the Rule Hits and Effective Rules panels. */
 export const HIT_ICONS: Readonly<Record<RuleSource, string>> = {

@@ -6,15 +6,13 @@ import { SelectionService } from '@theia/core/lib/common/selection-service';
 import { UriSelection } from '@theia/core/lib/common/selection';
 import URI from '@theia/core/lib/common/uri';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
-import { EDITOR_CONTEXT_MENU } from '@theia/editor/lib/browser/editor-menu';
-import { NavigatorContextMenu } from '@theia/navigator/lib/browser/navigator-contribution';
 import { EFFECTIVE_RULES_LABEL, EFFECTIVE_RULES_WIDGET_ID, RULE_HITS_LABEL, RULE_HITS_WIDGET_ID, RULES_INSIGHT_COMMANDS } from '../../common/rules-insight/rules-insight.consts';
 import { EffectiveRulesWidget } from './effective-rules-widget';
 import { RuleHitsWidget } from './rule-hits-widget';
+import { EFFECTIVE_MENU } from './rules-insight.browser-consts';
 
 const RULE_HITS_RANK = 250;
 const EFFECTIVE_RULES_RANK = 260;
-const MENU_ORDER = 'z_ingot_rules';
 
 /** Rule Hits tool window (IDEA-318). */
 @injectable()
@@ -52,8 +50,9 @@ export class EffectiveRulesContribution extends AbstractViewContribution<Effecti
 
     override registerMenus(menus: MenuModelRegistry): void {
         super.registerMenus(menus);
-        menus.registerMenuAction(EDITOR_CONTEXT_MENU, { commandId: RULES_INSIGHT_COMMANDS.effective.id, label: 'Show Effective Rules', order: MENU_ORDER });
-        menus.registerMenuAction(NavigatorContextMenu.NAVIGATION, { commandId: RULES_INSIGHT_COMMANDS.effective.id, label: 'Show Effective Rules', order: MENU_ORDER });
+        const action = { commandId: RULES_INSIGHT_COMMANDS.effective.id, label: EFFECTIVE_MENU.label, order: EFFECTIVE_MENU.order };
+        menus.registerMenuAction(EFFECTIVE_MENU.editor, action);
+        menus.registerMenuAction(EFFECTIVE_MENU.explorer, action);
     }
 
     /** A URI argument, a path string, or the explorer selection; falls back to the active editor. */

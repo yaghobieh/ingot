@@ -1,5 +1,6 @@
 import * as React from '@theia/core/shared/react';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
+import type { Message } from '@theia/core/shared/@lumino/messaging';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import { OpenerService, open } from '@theia/core/lib/browser/opener-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
@@ -42,6 +43,12 @@ export class EffectiveRulesWidget extends ReactWidget {
         this.addClass('ingot-toolwindow');
         this.node.tabIndex = 0;
         this.toDispose.push(this.doctor.onDidReport(() => { if (this.result) { this.load(); } }));
+        this.update();
+    }
+
+    protected override onActivateRequest(msg: Message): void {
+        super.onActivateRequest(msg);
+        this.node.focus();
     }
 
     protected get root(): URI | undefined {
@@ -99,7 +106,7 @@ export class EffectiveRulesWidget extends ReactWidget {
     protected render(): React.ReactNode {
         const query = this.file.toLowerCase();
         const suggestions = this.files.filter(f => f.toLowerCase().includes(query)).slice(0, FILE_SUGGESTION_LIMIT);
-        return <div className='ingot-tw ingot-er' id='ingot-effective-rules'>
+        return <div className='ingot-tw ingot-er'>
             <div className='ingot-tw-header'>
                 <span className='ingot-tw-title'>{EFFECTIVE_RULES_LABEL}</span>
                 {this.result && <span className='ingot-rh-tokens' title='Estimated tokens the agent reads for this file'>~{formatTokens(this.result.tokens)} tokens</span>}
