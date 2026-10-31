@@ -20,6 +20,7 @@ import { IngotFeatureFlags } from '../config/feature-flags';
 import { IDE_FLAGS } from '../../common/config/remote-config.consts';
 import { ProjectConfigService } from '../project-config/project-config-service';
 import { MCP_WIDGET_ID } from './tool-windows.consts';
+import { RULES_TAB_TOOLS } from '../rules-tools/rules-tools.browser-consts';
 
 type ScopeFilter = 'all' | McpScope;
 interface AddForm { entry: McpCatalogEntry; name: string; scope: McpScope; values: Record<string, string>; error?: string; busy?: boolean }
@@ -526,6 +527,14 @@ export class IngotMcpWidget extends ReactWidget {
         await this.reloadItems();
     }
 
+    /** IDEA-319/320/323: export, test and prune the project's `.ingot/rules` (the same engine as the `ingot` CLI). */
+    protected renderRulesTools(): React.ReactNode {
+        return <div className='ingot-mcp-rules-tools'>
+            {RULES_TAB_TOOLS.map(tool => <button key={tool.id} type='button' id={`ingot-mcp-rules-${tool.id}`} className='ingot-mcp-secondary' title={tool.command.label}
+                onClick={() => this.commands.executeCommand(tool.command.id).catch(() => undefined)}><span className={`codicon codicon-${tool.icon}`} /> {tool.label}</button>)}
+        </div>;
+    }
+
     protected renderItems(kind: ConfigItemKind): React.ReactNode {
         if (!this.config && kind !== 'subagent' && kind !== 'hook') {
             void this.reloadItems();
@@ -536,6 +545,7 @@ export class IngotMcpWidget extends ReactWidget {
         return <section className='ingot-mcp-section' id={`ingot-mcp-items-${kind}`}>
             <div className='ingot-mcp-section-head'>
                 <h3>{CUSTOMIZE_TABS.find(t => t.id === this.tab)?.label} <span>{items.length}</span></h3>
+                {kind === 'rule' && this.renderRulesTools()}
                 <button type='button' id={`ingot-mcp-new-${kind}`} className='ingot-mcp-secondary' onClick={() => this.set('newItem', { kind, name: '', scope: this.root ? 'project' : 'user' })}>
                     <span className='codicon codicon-add' /> New {label}
                 </button>

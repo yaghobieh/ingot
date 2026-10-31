@@ -35,3 +35,11 @@ export interface Checkpoint {
     readonly messageIndex: number;
     readonly files: Readonly<Record<string, string | undefined>>;
 }
+
+/** IDEA-328: hunks the user rejected in one decision. */
+export interface RejectedHunksEvent {
+    readonly sessionId: string;
+    /** Project-relative path. */
+    readonly path: string;
+    readonly hunks: readonly ChangeHunk[];
+}

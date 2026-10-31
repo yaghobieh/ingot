@@ -1,5 +1,7 @@
 import { inject, injectable, optional } from '@theia/core/shared/inversify';
 import { RuleHitsStore } from '../rules-insight/rule-hits-store';
+import { RulesToolsService } from '../../common/rules-tools/rules-tools.types';
+import type { ProjectRule } from '../../common/project-config/project-config.types';
 import { IngotModelClient } from '../models/model-client';
 import { ZaprexLauncher } from './zaprex-launcher';
 import { ZaprexDesktopService } from '../../common/zaprex/zaprex-desktop.types';
@@ -23,7 +25,7 @@ import { postConstruct } from '@theia/core/shared/inversify';
 import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { ACTIVE_STATUSES, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE, STREAM_POKE_MS } from '../../common/agents/agents.consts';
-import type { AgentMessage, AgentMode, AgentSession } from '../../common/agents/agents.types';
+import type { AgentMessage, AgentMode, AgentSession, SentPromptEvent } from '../../common/agents/agents.types';
 import type { ToolCallInfo } from '../../common/agents/tool-cards';
 import { hookCardInfo } from '../../common/git/hooks';
 import { AgentHooksService } from '../hooks/agent-hooks-service';
@@ -150,6 +152,7 @@ export class AgentStore {
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
     @inject(TerminalService) protected readonly terminals: TerminalService;
+    @inject(RulesToolsService) @optional() protected readonly rulesTools?: RulesToolsService;
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
 
@@ -195,6 +198,9 @@ export class AgentStore {
 
     protected readonly onDidChangeEmitter = new Emitter<void>();
     readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
+    protected readonly onDidSendPromptEmitter = new Emitter<SentPromptEvent>();
+    /** IDEA-328: what the user typed to an agent, for learned rules. */
+    readonly onDidSendPrompt: Event<SentPromptEvent> = this.onDidSendPromptEmitter.event;
 
     protected items: AgentSession[] = [];
     protected selected?: string;
@@ -442,6 +448,7 @@ export class AgentStore {
         }
         if (askedNow && this.isRunning(session.id)) {
             session.messages.push({ role: 'user', text: askedNow });
+            this.onDidSendPromptEmitter.fire({ sessionId: session.id, text: askedNow });
             this.steers.set(session.id, [...(this.steers.get(session.id) ?? []), askedNow]);
             session.updatedAt = Date.now();
             this.changed();
@@ -465,6 +472,9 @@ export class AgentStore {
                 : { role: 'user', text: prompt.trim() });
         }
         const asked = prompt.trim();
+        if (asked && !asked.startsWith('/')) {
+            this.onDidSendPromptEmitter.fire({ sessionId: session.id, text: composed?.text.trim() || asked });
+        }
         this.loops.set(session.id, {
             prompt: asked, wants: this.workLoopOn() && wantsWorkLoop(asked), edits: [], checks: [], fixAttempts: 0,
             e2eNudged: false, commitNudged: false, commitBlocked: false, committed: false, verifiedEdits: 0, required: []
@@ -850,6 +860,14 @@ export class AgentStore {
         return generation;
     }
 
+    /** IDEA-323: which `.ingot/rules` agents actually use, for `ingot rules prune`; best effort, never blocks the turn. */
+    protected recordRuleHits(root: URI | undefined, rules: readonly ProjectRule[]): void {
+        const paths = rules.filter(rule => rule.source === 'ingot').map(rule => rule.path);
+        if (root && paths.length && this.rulesTools) {
+            this.rulesTools.recordRuleHits(root.path.fsPath(), paths).catch(() => undefined);
+        }
+    }
+
     protected async runModel(session: AgentSession, generation = this.generationFor(session.id)): Promise<void> {
         this.enterLoop(session.id);
         try {
@@ -874,6 +892,7 @@ export class AgentStore {
         const activePath = active && root?.isEqualOrParent(active) ? root.relative(active)?.toString() : undefined;
         const rules = applicableRules(config.rules, activePath ? [...context.paths, activePath] : context.paths);
         this.ruleHits?.record({ sessionId: session.id, prompt, files: activePath ? [...context.paths, activePath] : context.paths, rules, root: root?.path.fsPath() });
+        this.recordRuleHits(root, rules);
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);

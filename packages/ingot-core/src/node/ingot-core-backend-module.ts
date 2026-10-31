@@ -43,6 +43,9 @@ import { DebugToolsService } from '../common/debug/debug.types';
 import { IngotRulesInsightService } from './rules-insight/ingot-rules-insight-service';
 import { RULES_INSIGHT_SERVICE_PATH } from '../common/rules-insight/rules-insight.consts';
 import { RulesInsightService } from '../common/rules-insight/rules-insight.types';
+import { IngotRulesToolsService } from './rules-tools/ingot-rules-tools-service';
+import { RULES_TOOLS_SERVICE_PATH } from '../common/rules-tools/rules-tools.consts';
+import { RulesToolsService } from '../common/rules-tools/rules-tools.types';
 
 import { BackendApplicationContribution } from '@theia/core/lib/node/backend-application';
 import { IngotAccountBackend } from './account/ingot-account-backend';
@@ -106,6 +109,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(McpService).toService(IngotMcpService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(MCP_SERVICE_PATH, () => ctx.container.get<McpService>(McpService))).inSingletonScope();
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(MODEL_SERVICE_PATH, () => ctx.container.get<ModelService>(ModelService))).inSingletonScope();
+    bind(IngotRulesToolsService).toSelf().inSingletonScope();
+    bind(RulesToolsService).toService(IngotRulesToolsService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(RULES_TOOLS_SERVICE_PATH, () => ctx.container.get<RulesToolsService>(RulesToolsService))).inSingletonScope();
     bind(IngotDebugToolsService).toSelf().inSingletonScope();
     bind(DebugToolsService).toService(IngotDebugToolsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(DEBUG_TOOLS_SERVICE_PATH, () => ctx.container.get<DebugToolsService>(DebugToolsService))).inSingletonScope();
