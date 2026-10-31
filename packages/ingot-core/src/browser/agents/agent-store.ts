@@ -1908,7 +1908,6 @@ export class AgentStore {
         return created;
     }
 
-    /** Drops edits that delete or skip tests unless the user asked for that. */
     /** IDEA-325 / IDEA-326: the run's policy; the nearest .ingot/policy.yaml `model` replaces the chat's model. */
     protected async applyPolicy(session: AgentSession, root: URI | undefined, paths: readonly string[]): Promise<void> {
         await this.policyGate.prepareRun(session.id, root, paths, findModel(this.resolveModel(session.model))?.cost);
@@ -1923,6 +1922,7 @@ export class AgentStore {
         }
     }
 
+    /** Drops edits that delete or skip tests unless the user asked for that, and edits the policy forbids. */
     protected async editsAllowed(session: AgentSession, proposed: readonly AgentEdit[], root: URI | undefined): Promise<AgentEdit[]> {
         const { kept: edits, refused } = await this.policyGate.filterEdits(session.id, proposed, root);
         refused.forEach(text => session.messages.push({ role: 'system', text }));

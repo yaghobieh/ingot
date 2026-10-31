@@ -73,7 +73,6 @@ export class IngotPolicyWidget extends ReactWidget {
         const hasRoot = this.scan.layers.some(layer => !layer.dir);
         return <div className='ingot-policy-root'>
             <div className='ingot-dot-toolbar'>
-                <span className='ingot-dot-title'>{POLICY_WIDGET_LABEL}</span>
                 <span className='ingot-beta-pill'>{POLICY_TEXT.beta}</span>
                 <span className='ingot-dot-spacer' />
                 {!hasRoot && <button type='button' id='ingot-policy-create' className='ingot-dot-button primary' disabled={!root}
