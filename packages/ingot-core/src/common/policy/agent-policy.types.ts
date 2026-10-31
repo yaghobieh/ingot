@@ -46,6 +46,15 @@ export interface PolicyLoad {
     readonly ignored?: readonly string[];
     /** IDEA-287: deny rules that only a Cursor file added, so a refusal names that file. */
     readonly origins?: readonly PolicyOrigin[];
+    /** IDEA-287: permissions.json `mcpAllowlist` (`server:tool`): MCP calls that run without the approval card. */
+    readonly mcpAllow?: readonly string[];
+    /** IDEA-287: permissions.json `autoRun` guidance that auto-review weighs. */
+    readonly autoRun?: AutoRunGuidance;
+}
+
+export interface AutoRunGuidance {
+    readonly allow: readonly string[];
+    readonly block: readonly string[];
 }
 
 /** A rule as a refusal names it (`commands.deny "sudo"`) and the file it came from. */

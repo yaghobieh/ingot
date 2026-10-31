@@ -263,14 +263,15 @@ export interface RiskBudget {
 }
 
 /** Asks the reviewer model about one action. No budget, no answer or an unclear one count as high risk. */
-export const assessRisk = async (model: RiskModel, action: string, check: SandboxCheck, preset: SandboxPreset, budget: RiskBudget): Promise<RiskAssessment> => {
+export const assessRisk = async (model: RiskModel, action: string, check: SandboxCheck, preset: SandboxPreset, budget: RiskBudget, guidance = ''): Promise<RiskAssessment> => {
     if (budget.remaining <= 0) {
         return { risk: 'high', reason: AUTO_REVIEW_TEXT.budget, source: 'budget' };
     }
     const user = [
         `Action: ${action.slice(0, budget.maxActionChars)}`,
         `Sandbox: ${presetTitle(preset)}`,
-        check.reasons.length ? `Why it was flagged: ${check.reasons.join(', ')}` : 'It stays inside the sandbox, but the user\'s settings ask before running it.'
+        check.reasons.length ? `Why it was flagged: ${check.reasons.join(', ')}` : 'It stays inside the sandbox, but the user\'s settings ask before running it.',
+        ...(guidance ? [guidance] : [])
     ].join('\n');
     try {
         const parsed = parseRisk(await model.complete(AUTO_REVIEW_SYSTEM, user, budget.maxTokens));

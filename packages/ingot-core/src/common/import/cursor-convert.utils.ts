@@ -1,11 +1,11 @@
 import { parseFrontmatter } from '../project-config/project-config.utils';
 import {
-    AGENTS_RULE_NAME, CONVERTED_RULE_EXT, CURSOR_DIR_PREFIX, CURSOR_ENVIRONMENT_PATH, CURSOR_HOOKS_PATH, CURSOR_ITEM_LABELS, CURSOR_WORKTREES_PATH, CURSORRULES_TARGET,
+    AGENTS_RULE_NAME, CONVERTED_RULE_EXT, CURSOR_DIR_PREFIX, CURSOR_ENVIRONMENT_PATH, CURSOR_HOOKS_PATH, CURSOR_ITEM_LABELS, CURSOR_PERMISSIONS_PATH, CURSOR_WORKTREES_PATH, CURSORRULES_TARGET,
     INGOT_DIR_PREFIX, INGOT_HOOKS_PATH, MERGE_TARGETS
 } from './cursor-convert.consts';
 import { convertWorktreesJson } from '../threads/worktree-setup.utils';
 import { parsePolicy } from '../policy/agent-policy.utils';
-import { CURSOR_CLI_FILE, CURSOR_SANDBOX_FILE } from '../policy/cursor-policy.consts';
+import { CURSOR_CLI_FILE, CURSOR_SANDBOX_FILE, INGOT_PERMISSIONS_FILE } from '../policy/cursor-policy.consts';
 import { applyOverlay, cursorPermissionsOverlay, cursorSandboxOverlay, isEmptyOverlay } from '../policy/cursor-policy.utils';
 import { parseEnvironmentJson, resolveEnvironmentBuild } from '../project-config/environment.utils';
 import type { CursorConversionInput, CursorConversionPlan, CursorConversionStep, CursorItemKind, CursorSourceFile } from './cursor-convert.types';
@@ -117,6 +117,9 @@ export const cursorTargetFor = (path: string): Mapping | undefined => {
     }
     if (path === CURSOR_WORKTREES_PATH) {
         return { kind: 'worktrees', target: '.ingot/worktrees.json', convert: convertWorktreesJson };
+    }
+    if (path === CURSOR_PERMISSIONS_PATH) {
+        return { kind: 'permissions', target: INGOT_PERMISSIONS_FILE, convert: text => text };
     }
     return undefined;
 };

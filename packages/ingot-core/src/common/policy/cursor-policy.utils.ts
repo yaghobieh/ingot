@@ -1,11 +1,12 @@
 import { parse } from 'jsonc-parser';
 import {
-    CURSOR_CLI_FILE, CURSOR_PERMISSION_PATTERN, CURSOR_SANDBOX_FILE, CURSOR_SANDBOX_TYPES, CURSOR_SHELL_ANY_ARGS, CURSOR_SHELL_ARGS_SEPARATOR, EMPTY_OVERLAY,
-    READONLY_WORKSPACE_GLOB
+    CURSOR_PERMISSION_PATTERN, CURSOR_SANDBOX_TYPES, CURSOR_SANDBOX_UNSUPPORTED_FLAGS, CURSOR_SANDBOX_UNSUPPORTED_LISTS, CURSOR_SHELL_ANY_ARGS,
+    CURSOR_SHELL_ARGS_SEPARATOR, EMPTY_OVERLAY, READONLY_WORKSPACE_GLOB, TRAILING_WILDCARD
 } from './cursor-policy.consts';
+import { MCP_ALLOW_SEPARATOR } from './agent-policy.consts';
 import { policyRuleRef } from './agent-policy.utils';
-import type { AgentPolicy, NetworkDefault, PolicyOrigin } from './agent-policy.types';
-import type { CursorPermissionKind, PolicyOverlay } from './cursor-policy.types';
+import type { AgentPolicy, AutoRunGuidance, NetworkDefault, PolicyOrigin } from './agent-policy.types';
+import type { CursorPermissionKind, PolicyOverlay, PolicySourceOverlay } from './cursor-policy.types';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const strings = (value: unknown): string[] => Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string').map(v => v.trim()).filter(Boolean) : [];
@@ -29,9 +30,9 @@ export const parseCursorPermission = (token: string): { kind: CursorPermissionKi
 };
 
 /**
- * `.cursor/cli.json` permissions. Shell allow / deny → commands (allow runs without the approval card, as in Cursor);
- * Write deny → read-only paths; WebFetch → network hosts. `Write` allow (Ingot already reviews every edit), `Read` and
- * `Mcp` have no Ingot rule and are listed as ignored.
+ * `.cursor/cli.json` (and `~/.cursor/cli-config.json`) permissions. Shell allow / deny → commands (allow runs without the
+ * approval card, as in Cursor); Write deny → read-only paths; WebFetch → network hosts. `Write` allow (Ingot already
+ * reviews every edit), `Read` and `Mcp` have no Ingot rule and are listed as ignored.
  */
 export const cursorPermissionsOverlay = (text: string | undefined): PolicyOverlay => {
     const permissions = json(text)?.permissions;
@@ -57,8 +58,9 @@ export const cursorPermissionsOverlay = (text: string | undefined): PolicyOverla
 };
 
 /**
- * `.cursor/sandbox.json`: `insecure_none` turns the sandbox off, `workspace_readonly` makes the project read-only,
- * `additionalReadwritePaths` become extra writable folders and `networkPolicy` the network rules.
+ * `.cursor/sandbox.json` (and `~/.cursor/sandbox.json`): `insecure_none` turns the sandbox off, `workspace_readonly` makes
+ * the project read-only, `additionalReadwritePaths` become extra writable folders and `networkPolicy` the network rules.
+ * Read boundaries, extra read paths and the temp / build-cache / strict switches have no Ingot rule and are listed.
  */
 export const cursorSandboxOverlay = (text: string | undefined): PolicyOverlay => {
     const raw = json(text);
@@ -67,7 +69,10 @@ export const cursorSandboxOverlay = (text: string | undefined): PolicyOverlay =>
     }
     const network = isRecord(raw.networkPolicy) ? raw.networkPolicy : {};
     const networkDefault: NetworkDefault | undefined = network.default === 'allow' || network.default === 'deny' ? network.default : undefined;
-    const ignored = [...strings(raw.additionalReadonlyPaths), ...strings(raw.additionalReadPaths)].map(p => `additionalReadonlyPaths: ${p}`);
+    const ignored = [
+        ...CURSOR_SANDBOX_UNSUPPORTED_LISTS.flatMap(key => strings(raw[key]).map(p => `${key}: ${p}`)),
+        ...CURSOR_SANDBOX_UNSUPPORTED_FLAGS.filter(key => (raw[key] ?? network[key]) !== undefined).map(key => `${key}: ${String(raw[key] ?? network[key])}`)
+    ];
     return {
         ...EMPTY_OVERLAY,
         allowWrite: strings(raw.additionalReadwritePaths),
@@ -80,18 +85,48 @@ export const cursorSandboxOverlay = (text: string | undefined): PolicyOverlay =>
     };
 };
 
-export const mergeOverlays = (a: PolicyOverlay, b: PolicyOverlay): PolicyOverlay => ({
-    commandsAllow: unique(a.commandsAllow, b.commandsAllow), commandsDeny: unique(a.commandsDeny, b.commandsDeny),
-    readOnly: unique(a.readOnly, b.readOnly),
-    networkAllow: unique(a.networkAllow, b.networkAllow), networkDeny: unique(a.networkDeny, b.networkDeny),
-    allowWrite: unique(a.allowWrite, b.allowWrite), ignored: unique(a.ignored, b.ignored),
-    ...((b.networkDefault ?? a.networkDefault) ? { networkDefault: b.networkDefault ?? a.networkDefault } : {}),
-    ...((b.sandboxMode ?? a.sandboxMode) ? { sandboxMode: b.sandboxMode ?? a.sandboxMode } : {})
-});
+/** `npm:install*` → `npm install`, `git` → `git`: a permissions.json terminal entry as a policy command (prefix match). */
+export const terminalAllowPattern = (entry: string): string => cursorShellPattern(entry.replace(TRAILING_WILDCARD, ''));
+
+/**
+ * IDEA-287: `permissions.json` (`~/.cursor`, `.cursor`, `.ingot`). `terminalAllowlist` → commands that run without the
+ * card, `mcpAllowlist` → MCP tools that run without the card, `autoRun` → guidance auto-review weighs. Like Cursor, the
+ * files' arrays are concatenated; a listed allowlist is added to Ingot's approvals (Ingot has no in-app list to replace).
+ */
+export const cursorAllowlistOverlay = (text: string | undefined): PolicyOverlay => {
+    const raw = json(text);
+    if (!raw) {
+        return EMPTY_OVERLAY;
+    }
+    const autoRun = isRecord(raw.autoRun) ? raw.autoRun : {};
+    const mcp = strings(raw.mcpAllowlist);
+    return {
+        ...EMPTY_OVERLAY,
+        commandsAllow: strings(raw.terminalAllowlist).map(terminalAllowPattern).filter(Boolean),
+        mcpAllow: mcp.filter(entry => entry.includes(MCP_ALLOW_SEPARATOR)),
+        autoRunAllow: strings(autoRun.allow_instructions),
+        autoRunBlock: strings(autoRun.block_instructions),
+        ignored: mcp.filter(entry => !entry.includes(MCP_ALLOW_SEPARATOR)).map(entry => `mcpAllowlist: ${entry}`)
+    };
+};
+
+/** `b` is the higher-priority file (the project over the user). Lists are unioned; as Cursor, a `deny` network default wins. */
+export const mergeOverlays = (a: PolicyOverlay, b: PolicyOverlay): PolicyOverlay => {
+    const networkDefault = a.networkDefault === 'deny' || b.networkDefault === 'deny' ? 'deny' : b.networkDefault ?? a.networkDefault;
+    return {
+        commandsAllow: unique(a.commandsAllow, b.commandsAllow), commandsDeny: unique(a.commandsDeny, b.commandsDeny),
+        readOnly: unique(a.readOnly, b.readOnly),
+        networkAllow: unique(a.networkAllow, b.networkAllow), networkDeny: unique(a.networkDeny, b.networkDeny),
+        allowWrite: unique(a.allowWrite, b.allowWrite), mcpAllow: unique(a.mcpAllow, b.mcpAllow),
+        autoRunAllow: unique(a.autoRunAllow, b.autoRunAllow), autoRunBlock: unique(a.autoRunBlock, b.autoRunBlock), ignored: unique(a.ignored, b.ignored),
+        ...(networkDefault ? { networkDefault } : {}),
+        ...((b.sandboxMode ?? a.sandboxMode) ? { sandboxMode: b.sandboxMode ?? a.sandboxMode } : {})
+    };
+};
 
 export const isEmptyOverlay = (overlay: PolicyOverlay): boolean =>
     !overlay.networkDefault && !overlay.sandboxMode && [overlay.commandsAllow, overlay.commandsDeny, overlay.readOnly, overlay.networkAllow,
-        overlay.networkDeny, overlay.allowWrite].every(list => !list.length);
+        overlay.networkDeny, overlay.allowWrite, overlay.mcpAllow, overlay.autoRunAllow, overlay.autoRunBlock].every(list => !list.length);
 
 /**
  * Lists are added to the policy. The network default and sandbox mode come from Cursor only when there is no
@@ -107,15 +142,21 @@ export const applyOverlay = (policy: AgentPolicy, overlay: PolicyOverlay, ingotF
     };
 };
 
-/** Deny rules that `.cursor/cli.json` or `.cursor/sandbox.json` added and `own` (the `.ingot/policy.json` policy) lacks. */
-export const cursorOrigins = (own: AgentPolicy, merged: AgentPolicy, cli: PolicyOverlay, sandbox: PolicyOverlay): PolicyOrigin[] => {
+/** Deny rules that a Cursor file added and `own` (the `.ingot/policy.json` policy) lacks, named after the first file that has them. */
+export const cursorOrigins = (own: AgentPolicy, merged: AgentPolicy, sources: readonly PolicySourceOverlay[]): PolicyOrigin[] => {
     const added = (list: readonly string[], ownList: readonly string[]): string[] => list.filter(p => !ownList.includes(p));
-    const from = (file: string, overlay: PolicyOverlay): PolicyOrigin[] => [
+    const origins = sources.flatMap(({ file, overlay }) => [
         ...added(overlay.commandsDeny, own.commands.deny).map(p => ({ rule: policyRuleRef.commandDeny(p), file })),
         ...added(overlay.networkDeny, own.network.deny).map(p => ({ rule: policyRuleRef.networkDeny(p), file })),
         ...added(overlay.readOnly, own.paths.readOnly).map(p => ({ rule: policyRuleRef.readOnly(p), file })),
         ...(overlay.networkDefault === 'deny' && own.network.default !== 'deny' && merged.network.default === 'deny'
             ? [{ rule: policyRuleRef.networkDefaultDeny(), file }] : [])
-    ];
-    return [...from(CURSOR_CLI_FILE, cli), ...from(CURSOR_SANDBOX_FILE, sandbox)];
+    ]);
+    return origins.filter((origin, i) => origins.findIndex(o => o.rule === origin.rule) === i);
 };
+
+/** IDEA-287: permissions.json `autoRun` as the extra lines auto-review reads; empty without guidance. */
+export const autoRunGuidanceText = (guidance: AutoRunGuidance | undefined): string => [
+    ...(guidance?.allow.length ? ['Lean toward allowing calls like these (the user\'s permissions.json):', ...guidance.allow.map(line => `- ${line}`)] : []),
+    ...(guidance?.block.length ? ['Lean toward asking the user for calls like these (the user\'s permissions.json):', ...guidance.block.map(line => `- ${line}`)] : [])
+].join('\n');

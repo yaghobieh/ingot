@@ -136,6 +136,7 @@ import { AgentPolicyService } from '../policy/agent-policy-service';
 import { AgentAuditLog } from '../policy/agent-audit-log';
 import { SANDBOX_TEXT } from '../../common/policy/agent-policy.consts';
 import type { PolicyDecision, SandboxSpec } from '../../common/policy/agent-policy.types';
+import { autoRunGuidanceText } from '../../common/policy/cursor-policy.utils';
 import {
     checkEdit, checkToolCall, outsideApproval, policyBlockedText, policySourceOf, sandboxRetryApproval, sandboxSpec
 } from '../../common/policy/agent-policy.utils';
@@ -2754,8 +2755,10 @@ export class AgentStore {
 
     /** IDEA-288: auto-review's verdict, noted in the chat. True runs the action without the card. */
     protected async autoReview(session: AgentSession, action: AgentAction, check: SandboxCheck): Promise<boolean> {
-        const preset = this.sandbox.peek(this.rootFor(session));
-        const assessed = await this.autoReviewer.assess(session.id, this.resolveModel(session.model), actionLine(action, 200), check, preset);
+        const root = this.rootFor(session);
+        const preset = this.sandbox.peek(root);
+        const guidance = autoRunGuidanceText((await this.policy.load(root?.path.fsPath()).catch(() => undefined))?.autoRun);
+        const assessed = await this.autoReviewer.assess(session.id, this.resolveModel(session.model), actionLine(action, 200), check, preset, guidance);
         const low = assessed.risk === 'low';
         session.messages.push({ role: 'system', text: `Auto-review: ${low ? 'low risk, running' : 'needs your approval'}: ${actionLine(action)}. ${assessed.reason}` });
         this.changed();

@@ -96,6 +96,7 @@ describe('convert Cursor config into .ingot', () => {
         const worktrees = cursorTargetFor('.cursor/worktrees.json')!;
         expect(worktrees.target).toBe('.ingot/worktrees.json');
         expect(JSON.parse(worktrees.convert!('{"setup-worktree": "setup.sh"}'))).toEqual({ 'setup-worktree': '../.cursor/setup.sh' });
+        expect(cursorTargetFor('.cursor/permissions.json')).toMatchObject({ kind: 'permissions', target: '.ingot/permissions.json' });
 
         const plan = planCursorConversion({
             sources: [

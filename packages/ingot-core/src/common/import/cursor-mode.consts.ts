@@ -27,7 +27,8 @@ export const CURSOR_MODE_DETAILS = {
 /** Files and folders that make Ingot ask on first open (project root). */
 export const CURSOR_SIGNALS = [
     '.cursor/rules', '.cursor/commands', '.cursor/skills', '.cursor/mcp.json', '.cursor/hooks.json', '.cursor/BUGBOT.md', '.cursor/environment.json',
-    '.cursor/agents', '.cursor/worktrees.json', '.cursorrules', '.cursorignore', '.cursorindexingignore', 'AGENTS.md'
+    '.cursor/agents', '.cursor/worktrees.json', '.cursor/cli.json', '.cursor/sandbox.json', '.cursor/permissions.json', '.cursorrules', '.cursorignore',
+    '.cursorindexingignore', 'AGENTS.md'
 ] as const;
 
 export const CURSOR_PROMPT = {

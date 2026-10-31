@@ -3,7 +3,7 @@ import { BUILTIN_TOOL_SERVER, type AgentAction } from '../agents/agent-actions';
 import type { AgentToolCall } from '../agents/agent-protocol';
 import { globMatcher } from '../agents/workspace-tools';
 import {
-    BUILTIN_READ_ONLY, COMMAND_SEPARATORS, DEFAULT_POLICY, LOCAL_HOSTS, POLICY_FILE, POLICY_REASON, SAFE_OUTSIDE_PREFIXES, SANDBOX_CARD, SANDBOX_EXEC,
+    BUILTIN_READ_ONLY, COMMAND_SEPARATORS, DEFAULT_POLICY, LOCAL_HOSTS, MCP_ALLOW_SEPARATOR, POLICY_FILE, POLICY_REASON, REGEX_SPECIAL_CHARS, SAFE_OUTSIDE_PREFIXES, SANDBOX_CARD, SANDBOX_EXEC,
     SANDBOX_HOME_CACHES, SANDBOX_TEMP_DIRS, WEB_SEARCH_HOST
 } from './agent-policy.consts';
 import type {
@@ -368,10 +368,26 @@ const invalid = (load: Omit<PolicyLoad, 'exists'>): PolicyDecision => ({ verdict
 export const checkEdit = (load: Omit<PolicyLoad, 'exists'>, path: string): PolicyDecision =>
     load.errors.length ? invalid(load) : checkWrite(load.policy, path);
 
-/** The policy's verdict on one built-in tool call. MCP tools and reads are left to the approval settings. */
+const wildcardPart = (pattern: string, value: string): boolean => {
+    const body = pattern.split('*').map(part => part.replace(REGEX_SPECIAL_CHARS, '\\$&')).join('.*');
+    return new RegExp(`^${body}$`, 'i').test(value);
+};
+
+/** IDEA-287: a permissions.json `mcpAllowlist` entry (`server:tool`, `*` anywhere, case-insensitive) that covers the call, if any. */
+export const mcpAllowEntry = (patterns: readonly string[], server: string, tool: string): string | undefined =>
+    patterns.find(pattern => {
+        const at = pattern.indexOf(MCP_ALLOW_SEPARATOR);
+        return at > 0 && wildcardPart(pattern.slice(0, at), server) && wildcardPart(pattern.slice(at + 1), tool);
+    });
+
+/**
+ * The policy's verdict on one built-in tool call. MCP tools are left to the approval settings unless a permissions.json
+ * `mcpAllowlist` entry covers them (IDEA-287); reads always are.
+ */
 export const checkToolCall = (load: Omit<PolicyLoad, 'exists'>, call: AgentToolCall, context: PolicyContext): PolicyDecision => {
     if (call.server !== BUILTIN_TOOL_SERVER) {
-        return DEFAULT;
+        const entry = mcpAllowEntry(load.mcpAllow ?? [], call.server, call.tool);
+        return entry ? { verdict: 'allow', reason: `${POLICY_REASON.mcpAllowed} "${entry}"` } : DEFAULT;
     }
     if (load.errors.length && WRITE_TOOLS.includes(call.tool)) {
         return invalid(load);

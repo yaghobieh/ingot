@@ -5,7 +5,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { actUntilVisible, dismissNotifications, openIngot } from '../src/app.utils';
 import { setAppearance, shot, toolBlock } from '../src/agent-tools.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
-import { E2E_CONFIG_DIR } from '../src/e2e.consts';
+import { E2E_CONFIG_DIR, IMPORT_HOME } from '../src/e2e.consts';
 import { startFakeOllama, type FakeOllama } from '../src/fake-ollama';
 import { startOpenPlanServer, type FakeIngotServer } from '../src/fake-ingot-server';
 import { createTempRepo, git } from '../src/git-repo';
@@ -233,5 +233,40 @@ test.describe('IDEA-287 Cursor docs re-audit', () => {
         await page.locator('#ingot-audit-filter').fill(path.basename(dir));
         await expect(page.locator('#ingot-audit-table .ingot-audit-row').filter({ hasText: 'rm -rf build' })).toHaveAttribute('data-decision', 'denied');
         await shots(page, 'cursor-policy-audit');
+    });
+
+    test('.cursor/permissions.json runs allowlisted commands without the card; ~/.cursor/sandbox.json blocks hosts', async ({ page }) => {
+        write(dir, '.cursor/permissions.json', '{\n  // terminal allowlist, as in Cursor\n  "terminalAllowlist": ["echo"],\n  "mcpAllowlist": ["github:*"]\n}\n');
+        write(IMPORT_HOME, '.cursor/sandbox.json', JSON.stringify({ networkPolicy: { deny: ['evil.example'] }, disableTmpWrite: true }));
+        try {
+            reply = (_system, user) => {
+                if (user.startsWith('Tool result (ingot/web_fetch)')) {
+                    return 'Done with the policy.';
+                }
+                if (user.startsWith('Tool result (ingot/run)')) {
+                    return toolBlock('web_fetch', { url: 'https://evil.example/data' });
+                }
+                return toolBlock('run', { command: 'echo PERMISSIONS-ALLOWLIST-OK' });
+            };
+            await start(page);
+            await send(page, 'say hello then fetch the data');
+            await expect(agentReplies(page).last()).toContainText('Done with the policy.', { timeout: 60_000 });
+            await expect(page.locator('#ingot-approval')).toHaveCount(0);
+            expect(server.requests.some(r => r.user.startsWith('Tool result (ingot/run)') && r.user.includes('PERMISSIONS-ALLOWLIST-OK'))).toBe(true);
+            expect(server.requests.some(r => r.user.startsWith('Tool result (ingot/web_fetch)') && r.user.includes('Blocked by ~/.cursor/sandbox.json'))).toBe(true);
+
+            const audit = page.locator('#ingot-audit');
+            await actUntilVisible(() => page.keyboard.press('Control+Alt+Shift+A'), audit);
+            const policy = page.locator('#ingot-audit-policy');
+            await expect(policy.locator('[data-source="~/.cursor/sandbox.json"]')).toBeVisible();
+            await expect(policy.locator('[data-source=".cursor/permissions.json"]')).toBeVisible();
+            await expect(page.locator('#ingot-audit-policy-ignored')).toHaveText('Cursor entries not applied: 1');
+            await page.locator('#ingot-audit-filter').fill(path.basename(dir));
+            await expect(page.locator('#ingot-audit-table .ingot-audit-row').filter({ hasText: 'PERMISSIONS-ALLOWLIST-OK' })).toHaveAttribute('data-decision', 'allowed');
+            await expect(page.locator('#ingot-audit-table .ingot-audit-row').filter({ hasText: 'evil.example' })).toHaveAttribute('data-decision', 'denied');
+            await shots(page, 'cursor-permissions-audit');
+        } finally {
+            fs.rmSync(path.join(IMPORT_HOME, '.cursor', 'sandbox.json'), { force: true });
+        }
     });
 });

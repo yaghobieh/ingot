@@ -16,12 +16,13 @@ export class AutoReviewer {
         return Math.max(0, AUTO_REVIEW_BUDGET.maxChecksPerChat - (this.used.get(chatId) ?? 0));
     }
 
-    async assess(chatId: string, chatModel: string, action: string, check: SandboxCheck, preset: SandboxPreset): Promise<RiskAssessment> {
+    /** `guidance`: IDEA-287 permissions.json `autoRun` instructions, steering (not enforcing) the verdict. */
+    async assess(chatId: string, chatModel: string, action: string, check: SandboxCheck, preset: SandboxPreset, guidance = ''): Promise<RiskAssessment> {
         const remaining = this.remaining(chatId);
         if (remaining > 0) {
             this.used.set(chatId, (this.used.get(chatId) ?? 0) + 1);
         }
         const model = this.reviewModels.model(this.reviewModels.modelFor(chatModel));
-        return assessRisk(model, action, check, preset, { remaining, maxTokens: AUTO_REVIEW_BUDGET.maxTokens, maxActionChars: AUTO_REVIEW_BUDGET.maxActionChars });
+        return assessRisk(model, action, check, preset, { remaining, maxTokens: AUTO_REVIEW_BUDGET.maxTokens, maxActionChars: AUTO_REVIEW_BUDGET.maxActionChars }, guidance);
     }
 }

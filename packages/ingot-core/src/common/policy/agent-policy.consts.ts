@@ -44,8 +44,12 @@ export const POLICY_REASON = {
     notWritable: 'does not let the agent write',
     readOnly: 'keeps this path read-only',
     deniedHost: 'blocks the host',
-    outside: 'reaches outside the project'
+    outside: 'reaches outside the project',
+    mcpAllowed: 'permissions.json mcpAllowlist allows'
 } as const;
+/** IDEA-287: the separator of a permissions.json `mcpAllowlist` entry (`server:tool`). */
+export const MCP_ALLOW_SEPARATOR = ':';
+export const REGEX_SPECIAL_CHARS = /[.+?^${}()|[\]\\]/g;
 
 /** Approval card labels for the restricted mode (these cards have no "Always Run"). */
 export const SANDBOX_CARD = {
