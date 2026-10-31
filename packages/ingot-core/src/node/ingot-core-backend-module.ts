@@ -40,6 +40,10 @@ import { IngotDebugToolsService } from './ingot-debug-tools-service';
 import { DEBUG_TOOLS_SERVICE_PATH } from '../common/debug/debug.consts';
 import { DebugToolsService } from '../common/debug/debug.types';
 
+import { IngotRulesInsightService } from './rules-insight/ingot-rules-insight-service';
+import { RULES_INSIGHT_SERVICE_PATH } from '../common/rules-insight/rules-insight.consts';
+import { RulesInsightService } from '../common/rules-insight/rules-insight.types';
+
 import { BackendApplicationContribution } from '@theia/core/lib/node/backend-application';
 import { IngotAccountBackend } from './account/ingot-account-backend';
 import { AccountDeepLinkEndpoint } from './account/account-deeplink-endpoint';
@@ -105,4 +109,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotDebugToolsService).toSelf().inSingletonScope();
     bind(DebugToolsService).toService(IngotDebugToolsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(DEBUG_TOOLS_SERVICE_PATH, () => ctx.container.get<DebugToolsService>(DebugToolsService))).inSingletonScope();
+    bind(IngotRulesInsightService).toSelf().inSingletonScope();
+    bind(RulesInsightService).toService(IngotRulesInsightService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(RULES_INSIGHT_SERVICE_PATH, () => ctx.container.get<RulesInsightService>(RulesInsightService))).inSingletonScope();
 });
