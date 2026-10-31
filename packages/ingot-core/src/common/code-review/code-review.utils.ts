@@ -1,5 +1,7 @@
-import { REVIEW_SEVERITIES, REVIEW_SYSTEM, SEVERITY_ALIASES } from './code-review.consts';
-import type { DiffFile, PullRequestRef, ReviewBudget, ReviewFinding, ReviewModel, ReviewOutcome, ReviewSeverity } from './code-review.types';
+import {
+    BUGBOT_COMMENT_MARKER, BUGBOT_COMMENT_TITLE, BUGBOT_LOCAL_WORDS, BUGBOT_PROMPT, REVIEW_SEVERITIES, REVIEW_SYSTEM, SEVERITY_ALIASES, SEVERITY_LABELS
+} from './code-review.consts';
+import type { BugbotRequest, DiffFile, PullRequestRef, ReviewBudget, ReviewFinding, ReviewModel, ReviewOutcome, ReviewSeverity } from './code-review.types';
 
 const FILE_HEADER = /^diff --git a\/(.+?) b\/(.+)$/;
 const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
@@ -140,7 +142,8 @@ export const sortFindings = (findings: readonly ReviewFinding[]): ReviewFinding[
 };
 
 /** Reviews a diff in at most `budget.maxCalls` capped model calls. A failed call is reported, the others still count. */
-export const reviewDiff = async (diff: string, label: string, model: ReviewModel, budget: ReviewBudget): Promise<ReviewOutcome> => {
+export const reviewDiff = async (diff: string, label: string, model: ReviewModel, budget: ReviewBudget, guidance = ''): Promise<ReviewOutcome> => {
+    const system = guidance.trim() ? `${REVIEW_SYSTEM}\n\n${guidance.trim()}` : REVIEW_SYSTEM;
     const files = parseUnifiedDiff(diff);
     const { chunks, skipped } = budgetChunks(files, budget);
     const findings: ReviewFinding[] = [];
@@ -149,7 +152,7 @@ export const reviewDiff = async (diff: string, label: string, model: ReviewModel
     for (const [index, chunk] of chunks.entries()) {
         calls++;
         try {
-            const reply = await model.complete(REVIEW_SYSTEM, reviewUserPrompt(label, chunk), budget.maxTokens);
+            const reply = await model.complete(system, reviewUserPrompt(label, chunk), budget.maxTokens);
             findings.push(...parseFindings(reply, chunk, `f${index + 1}`));
         } catch (error) {
             errors.push(error instanceof Error ? error.message : String(error));
@@ -186,4 +189,34 @@ export const severityCounts = (findings: readonly ReviewFinding[]): Record<Revie
     const counts: Record<ReviewSeverity, number> = { critical: 0, high: 0, medium: 0, low: 0 };
     findings.forEach(finding => counts[finding.severity]++);
     return counts;
+};
+
+/** `/bugbot …` from the chat: a pull request, the local changes, or extra instructions; undefined for other prompts. */
+export const parseBugbotPrompt = (prompt: string): BugbotRequest | undefined => {
+    const match = BUGBOT_PROMPT.exec(prompt.trim());
+    if (!match) {
+        return undefined;
+    }
+    const args = (match[1] ?? '').trim();
+    const ref = args.replace(/^(?:pr|pull request|pull)\s+/i, '');
+    if (parsePullRequestRef(ref)) {
+        return { kind: 'pr', ref };
+    }
+    return BUGBOT_LOCAL_WORDS.includes(args.toLowerCase()) ? { kind: 'local' } : { kind: 'instructions', text: args };
+};
+
+const cell = (text: string): string => text.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
+
+/** The pull request comment: a summary line and one table row per finding, most severe first. */
+export const bugbotCommentBody = (label: string, findings: readonly ReviewFinding[], reviewedFiles: readonly string[], model?: string): string => {
+    const counts = severityCounts(findings);
+    const summary = findings.length
+        ? `Found ${findings.length} issue${findings.length === 1 ? '' : 's'} (${REVIEW_SEVERITIES.filter(s => counts[s]).map(s => `${counts[s]} ${SEVERITY_LABELS[s].toLowerCase()}`).join(', ')}) in ${label}.`
+        : `No problems found in ${reviewedFiles.length} file${reviewedFiles.length === 1 ? '' : 's'} of ${label}.`;
+    const rows = sortFindings(findings).map(f => `| ${SEVERITY_LABELS[f.severity]} | \`${cell(f.path)}:${f.line}\` | **${cell(f.title)}**${f.detail ? ` ${cell(f.detail)}` : ''} |`);
+    return [
+        BUGBOT_COMMENT_MARKER, BUGBOT_COMMENT_TITLE, '', summary,
+        ...(rows.length ? ['', '| Severity | Where | Finding |', '| --- | --- | --- |', ...rows] : []),
+        '', `<sub>Reviewed by Ingot${model ? ` with ${model}` : ''}. Findings are suggestions; check them before changing code.</sub>`
+    ].join('\n');
 };

@@ -58,12 +58,24 @@ export interface PullRequestRef {
     readonly repo?: string;
 }
 
+/** What `/bugbot` was asked to review. */
+export type BugbotRequest = { readonly kind: 'pr'; readonly ref: string } | { readonly kind: 'local' } | { readonly kind: 'instructions'; readonly text: string };
+
+export interface PostResult {
+    readonly ok: boolean;
+    /** The comment's URL when GitHub returned one. */
+    readonly url?: string;
+    readonly error?: string;
+}
+
 export const CodeReviewService = Symbol('IngotCodeReviewService');
 
-/** Backend: read-only diffs for review. Nothing here writes to the repository or to GitHub. */
+/** Backend: read-only diffs for review; the only write is the opt-in PR comment of `/bugbot` (IDEA-287). */
 export interface CodeReviewService {
     /** Staged, unstaged and untracked changes against HEAD. */
     localDiff(root: string): Promise<DiffResult>;
     /** A pull request's diff through the GitHub CLI, else the GitHub API with the user's token. */
     pullRequestDiff(root: string, ref: string): Promise<DiffResult>;
+    /** Comments on the pull request (GitHub CLI, else the API with the user's token). Only when the user asks for it. */
+    postPullRequestComment(root: string, ref: string, body: string): Promise<PostResult>;
 }

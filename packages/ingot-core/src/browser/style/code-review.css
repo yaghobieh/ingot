@@ -27,6 +27,7 @@
 }
 .ingot-code-review-btn:hover:not(:disabled) { background: var(--ingot-selection); }
 .ingot-code-review-btn:disabled, .ingot-code-review-icon:disabled { opacity: .5; cursor: default; }
+.ingot-code-review-posted { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ingot-success); }
 .ingot-code-review-icon { width: 22px; height: 22px; border: 0; border-radius: 5px; background: transparent; color: var(--ingot-text-muted); cursor: pointer; }
 .ingot-code-review-icon:hover:not(:disabled) { background: var(--ingot-selection); color: var(--ingot-text); }
 .ingot-code-review-status { padding: 6px var(--ingot-space-3); color: var(--ingot-text-muted); font-size: 12px; flex: none; }

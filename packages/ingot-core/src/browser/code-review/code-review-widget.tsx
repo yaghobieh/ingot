@@ -3,7 +3,7 @@ import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import { CommandRegistry } from '@theia/core/lib/common/command';
 import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
-import { REVIEW_SEVERITIES, SEVERITY_LABELS } from '../../common/code-review/code-review.consts';
+import { BUGBOT_POST_COMMAND, REVIEW_SEVERITIES, SEVERITY_LABELS } from '../../common/code-review/code-review.consts';
 import type { ReviewFinding } from '../../common/code-review/code-review.types';
 import { severityCounts } from '../../common/code-review/code-review.utils';
 import { fileIconClass } from '../../common/icons/file-icon-map';
@@ -71,6 +71,10 @@ export class CodeReviewWidget extends ReactWidget {
                     onClick={() => void this.commands.executeCommand(CODE_REVIEW_COMMANDS.changes.id)}><span className='codicon codicon-git-compare' aria-hidden='true' /> Review Changes</button>
                 <button type='button' id='ingot-code-review-pr' className='ingot-code-review-btn' disabled={this.store.running}
                     onClick={() => void this.commands.executeCommand(CODE_REVIEW_COMMANDS.githubPr.id)}><span className='codicon codicon-github' aria-hidden='true' /> Review PR</button>
+                {run?.status === 'done' && run.pullRequest && (run.postedUrl !== undefined
+                    ? <span id='ingot-code-review-posted' className='ingot-code-review-posted'><span className='codicon codicon-check' aria-hidden='true' /> Posted to the PR</span>
+                    : <button type='button' id='ingot-code-review-post' className='ingot-code-review-btn' disabled={run.posting}
+                        onClick={() => void this.commands.executeCommand(BUGBOT_POST_COMMAND.id)}><span className='codicon codicon-comment' aria-hidden='true' /> {run.posting ? 'Posting…' : 'Post to GitHub PR'}</button>)}
                 {run && <button type='button' className='ingot-code-review-icon codicon codicon-clear-all' title='Clear findings' aria-label='Clear findings' disabled={this.store.running}
                     onClick={() => this.store.clear()} />}
             </div>

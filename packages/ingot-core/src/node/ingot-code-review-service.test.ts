@@ -22,6 +22,7 @@ describe.skipIf(isWin)('IDEA-293 code review backend', () => {
     let server: http.Server;
     let api: string;
     const requests: { url?: string; accept?: string; auth?: string }[] = [];
+    const comments: { url?: string; body: string }[] = [];
 
     beforeAll(async () => {
         dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ingot-review-')));
@@ -31,6 +32,15 @@ describe.skipIf(isWin)('IDEA-293 code review backend', () => {
         git(dir, 'commit', '-q', '-m', 'init');
         git(dir, 'remote', 'add', 'origin', 'https://github.com/acme/app.git');
         server = http.createServer((req, res) => {
+            if (req.method === 'POST') {
+                let raw = '';
+                req.on('data', chunk => { raw += chunk; }).on('end', () => {
+                    comments.push({ url: req.url, body: (JSON.parse(raw) as { body: string }).body });
+                    res.writeHead(201, { 'content-type': 'application/json' });
+                    res.end(JSON.stringify({ html_url: 'https://github.com/acme/app/pull/7#issuecomment-1' }));
+                });
+                return;
+            }
             requests.push({ url: req.url, accept: req.headers.accept, auth: req.headers.authorization });
             res.writeHead(req.url === '/repos/acme/app/pulls/7' ? 200 : 404, { 'content-type': 'text/plain' });
             res.end(req.url === '/repos/acme/app/pulls/7' ? PR_DIFF : 'Not Found');
@@ -86,5 +96,20 @@ describe.skipIf(isWin)('IDEA-293 code review backend', () => {
         delete process.env.GITHUB_TOKEN;
         expect((await service.pullRequestDiff(dir, 'main')).error).toBe(PR_HELP);
         expect((await service.pullRequestDiff(dir, '3')).error).toBe(PR_NO_ACCESS);
+    });
+
+    it('IDEA-287: posts the /bugbot review as a PR comment through gh, else the API', async () => {
+        const gh = path.join(dir, '..', `fake-gh-post-${process.pid}.sh`);
+        fs.writeFileSync(gh, `#!/bin/sh\n[ "$1 $2 $3 $4" = "pr comment 12 --body" ] && echo 'https://github.com/acme/app/pull/12#issuecomment-9' && exit 0\nexit 1\n`, { mode: 0o755 });
+        process.env[GH_BIN_ENV] = gh;
+        expect(await service.postPullRequestComment(dir, '#12', 'Review')).toEqual({ ok: true, url: 'https://github.com/acme/app/pull/12#issuecomment-9' });
+        fs.rmSync(gh);
+
+        process.env[GH_BIN_ENV] = '/nonexistent/gh';
+        process.env[GITHUB_API_ENV] = api;
+        process.env.GH_TOKEN = ['test', 'token'].join('-');
+        expect(await service.postPullRequestComment(dir, '7', 'Ingot review body')).toEqual({ ok: true, url: 'https://github.com/acme/app/pull/7#issuecomment-1' });
+        expect(comments.at(-1)).toEqual({ url: '/repos/acme/app/issues/7/comments', body: 'Ingot review body' });
+        expect((await service.postPullRequestComment(dir, 'main', 'x')).error).toBe(PR_HELP);
     });
 });

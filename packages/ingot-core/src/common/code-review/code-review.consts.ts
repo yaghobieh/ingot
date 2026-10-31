@@ -41,6 +41,7 @@ export const DIFF_TIMEOUT_MS = 30_000;
 
 export const GITHUB_API_URL = 'https://api.github.com';
 export const GITHUB_DIFF_MEDIA_TYPE = 'application/vnd.github.v3.diff';
+export const GITHUB_JSON_MEDIA_TYPE = 'application/vnd.github+json';
 /** Overrides for tests and GitHub Enterprise. */
 export const GH_BIN_ENV = 'INGOT_GH_BIN';
 export const GITHUB_API_ENV = 'INGOT_GITHUB_API_URL';
@@ -51,3 +52,21 @@ export const GITHUB_MCP_TOKEN = 'GITHUB_PERSONAL_ACCESS_TOKEN';
 
 export const PR_HELP = 'Enter a pull request number (#12) or URL (https://github.com/owner/repo/pull/12).';
 export const PR_NO_ACCESS = 'Could not read the pull request. Sign in to the GitHub CLI (gh auth login), set GH_TOKEN, or add a token to the GitHub MCP server.';
+
+/** IDEA-287: `/bugbot` in the chat runs this review; with a PR (#12, `pr 12`, a URL) it reviews the pull request. */
+export const BUGBOT_SLASH = 'bugbot';
+export const BUGBOT_PROMPT = /^\/bugbot(?:\s+([\s\S]*))?$/i;
+export const BUGBOT_LOCAL_WORDS: readonly string[] = ['', 'run', 'local', 'review'];
+export const BUGBOT_AUTO_POST_PREF = 'ingot.review.bugbot.postToGitHub';
+/** Marks Ingot's comment on a pull request. */
+export const BUGBOT_COMMENT_MARKER = '<!-- ingot-bugbot -->';
+export const BUGBOT_COMMENT_TITLE = '## Ingot Bugbot review';
+export const BUGBOT_POST_COMMAND = { id: 'ingot.codeReview.postToPr', label: 'Post Review to GitHub PR', category: 'Ingot' } as const;
+export const BUGBOT_TEXT = {
+    started: 'Bugbot is reviewing',
+    panel: 'Findings are in the Review panel and the editor.',
+    posted: 'Posted the review to the pull request',
+    postHint: 'Use "Post to GitHub PR" in the Review panel to comment on the pull request.',
+    noPullRequest: 'Only a pull request review can be posted to GitHub.',
+    busy: 'A review is already running.'
+} as const;

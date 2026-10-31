@@ -2,10 +2,10 @@ import { execFile } from 'child_process';
 import { inject, injectable, optional } from '@theia/core/shared/inversify';
 import { KeyStoreService } from '@theia/core/lib/common/key-store';
 import {
-    DIFF_MAX_BUFFER, DIFF_TIMEOUT_MS, GH_BIN_ENV, GITHUB_API_ENV, GITHUB_API_URL, GITHUB_DIFF_MEDIA_TYPE, GITHUB_MCP_SERVER, GITHUB_MCP_TOKEN, GITHUB_TOKEN_ENVS,
+    DIFF_MAX_BUFFER, DIFF_TIMEOUT_MS, GH_BIN_ENV, GITHUB_API_ENV, GITHUB_API_URL, GITHUB_DIFF_MEDIA_TYPE, GITHUB_JSON_MEDIA_TYPE, GITHUB_MCP_SERVER, GITHUB_MCP_TOKEN, GITHUB_TOKEN_ENVS,
     LOCAL_CHANGES_LABEL, MAX_UNTRACKED_FILES, PR_HELP, PR_NO_ACCESS
 } from '../common/code-review/code-review.consts';
-import type { CodeReviewService, DiffResult } from '../common/code-review/code-review.types';
+import type { CodeReviewService, DiffResult, PostResult } from '../common/code-review/code-review.types';
 import { parsePullRequestRef } from '../common/code-review/code-review.utils';
 import { githubRepoFromRemote } from '../common/agents/workspace-tools';
 import { DEFAULT_KEYCHAIN_SERVICE } from '../common/models/models.consts';
@@ -22,7 +22,10 @@ const GIT_DIFF = ['-c', 'core.quotepath=off', '--no-pager', 'diff', '--no-color'
 /** `git diff --no-index` exits 1 when the files differ, which is the normal case here. */
 const DIFF_FOUND = 1;
 
-/** IDEA-293: read-only diffs for AI code review. Nothing here writes to the repository or calls a GitHub write API. */
+/**
+ * IDEA-293: read-only diffs for AI code review. Nothing writes to the repository; the one GitHub write is the PR comment
+ * the user asks `/bugbot` to post (IDEA-287).
+ */
 @injectable()
 export class IngotCodeReviewService implements CodeReviewService {
 
@@ -88,6 +91,40 @@ export class IngotCodeReviewService implements CodeReviewService {
             return response.ok ? { diff: body, label } : { diff: '', label, error: `GitHub returned ${response.status} for ${repo}#${pr.number}. ${PR_NO_ACCESS}` };
         } catch (error) {
             return { diff: '', label, error: redactSecrets(error instanceof Error ? error.message : String(error), [token]) };
+        }
+    }
+
+    async postPullRequestComment(root: string, ref: string, body: string): Promise<PostResult> {
+        const pr = parsePullRequestRef(ref);
+        if (!pr || !body.trim()) {
+            return { ok: false, error: PR_HELP };
+        }
+        const gh = process.env[GH_BIN_ENV] || 'gh';
+        const viaCli = await this.run(gh, ['pr', 'comment', String(pr.number), ...(pr.repo ? ['--repo', pr.repo] : []), '--body', body], root, { GH_PROMPT_DISABLED: '1', NO_COLOR: '1' })
+            .catch(() => undefined);
+        if (viaCli?.code === 0) {
+            const url = /https?:\/\/\S+/.exec(viaCli.stdout)?.[0];
+            return { ok: true, ...(url ? { url } : {}) };
+        }
+        const repo = pr.repo ?? await this.originRepo(root);
+        const token = await this.token();
+        if (!repo || !token) {
+            return { ok: false, error: PR_NO_ACCESS };
+        }
+        const api = (process.env[GITHUB_API_ENV] || GITHUB_API_URL).replace(/\/+$/, '');
+        try {
+            const response = await fetch(`${api}/repos/${repo}/issues/${pr.number}/comments`, {
+                method: 'POST',
+                headers: { accept: GITHUB_JSON_MEDIA_TYPE, authorization: `Bearer ${token}`, 'content-type': 'application/json', 'user-agent': 'Ingot IDE' },
+                body: JSON.stringify({ body }),
+                signal: AbortSignal.timeout(DIFF_TIMEOUT_MS)
+            });
+            const json = await response.json().catch(() => ({})) as { html_url?: unknown };
+            return response.ok
+                ? { ok: true, ...(typeof json.html_url === 'string' ? { url: json.html_url } : {}) }
+                : { ok: false, error: `GitHub returned ${response.status} for ${repo}#${pr.number}. ${PR_NO_ACCESS}` };
+        } catch (error) {
+            return { ok: false, error: redactSecrets(error instanceof Error ? error.message : String(error), [token]) };
         }
     }
 

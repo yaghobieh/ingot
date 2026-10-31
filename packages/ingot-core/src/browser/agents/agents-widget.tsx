@@ -238,7 +238,7 @@ export class IngotAgentsWidget extends ReactWidget {
     protected acceptSlash(item: { name: string; action?: SlashBuiltinAction }): void {
         this.slashIndex = 0;
         // IDEA-289 / IDEA-292: /browser and /goal prefix the text typed after them, like a project command.
-        if (!item.action || item.action.kind === 'goal' || item.action.kind === 'browser') {
+        if (!item.action || item.action.kind === 'goal' || item.action.kind === 'browser' || item.action.kind === 'args') {
             this.inline?.setText(`/${item.name} `);
             this.focusComposer();
             return;

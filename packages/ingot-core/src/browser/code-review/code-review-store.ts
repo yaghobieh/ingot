@@ -4,9 +4,13 @@ import URI from '@theia/core/lib/common/uri';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import { ProblemManager } from '@theia/markers/lib/browser/problem/problem-manager';
 import type { Diagnostic } from '@theia/core/shared/vscode-languageserver-protocol';
-import { NO_CHANGES_TEXT, REVIEW_BUDGET, REVIEW_DIAGNOSTIC_OWNER, REVIEW_DIAGNOSTIC_SOURCE, SEVERITY_DIAGNOSTIC } from '../../common/code-review/code-review.consts';
-import { CodeReviewService, type ReviewFinding } from '../../common/code-review/code-review.types';
-import { fixPrompt, reviewDiff } from '../../common/code-review/code-review.utils';
+import {
+    BUGBOT_TEXT, NO_CHANGES_TEXT, REVIEW_BUDGET, REVIEW_DIAGNOSTIC_OWNER, REVIEW_DIAGNOSTIC_SOURCE, SEVERITY_DIAGNOSTIC
+} from '../../common/code-review/code-review.consts';
+import { CodeReviewService, type PostResult, type ReviewFinding } from '../../common/code-review/code-review.types';
+import { bugbotCommentBody, fixPrompt, reviewDiff } from '../../common/code-review/code-review.utils';
+import { bugbotGuidance } from '../../common/project-config/bugbot.utils';
+import { ProjectConfigService } from '../project-config/project-config-service';
 import { ReviewModelProvider } from '../sandbox/review-model';
 import { AgentStore } from '../agents/agent-store';
 import { IngotAgentsContribution } from '../agents/agents-contribution';
@@ -25,6 +29,11 @@ export interface ReviewRun {
     readonly calls: number;
     readonly model?: string;
     readonly message?: string;
+    /** IDEA-287: the pull request reviewed (as typed), so the review can be posted to it. */
+    readonly pullRequest?: string;
+    readonly posting?: boolean;
+    /** Set once posted: the comment URL, or '' when GitHub did not return one. */
+    readonly postedUrl?: string;
 }
 
 /** IDEA-293: runs AI code reviews and shows the findings as editor diagnostics and in the Review panel. */
@@ -38,6 +47,7 @@ export class CodeReviewStore {
     @inject(IngotAgentsContribution) protected readonly agentsView: IngotAgentsContribution;
     @inject(ProblemManager) protected readonly problems: ProblemManager;
     @inject(WorkspaceService) protected readonly workspace: WorkspaceService;
+    @inject(ProjectConfigService) protected readonly projectConfig: ProjectConfigService;
 
     protected current?: ReviewRun;
     protected marked: URI[] = [];
@@ -52,12 +62,28 @@ export class CodeReviewStore {
         return this.current?.status === 'running';
     }
 
-    reviewLocal(): Promise<void> {
+    reviewLocal(): Promise<ReviewRun | undefined> {
         return this.review(root => this.backend.localDiff(root), 'Local changes');
     }
 
-    reviewPullRequest(ref: string): Promise<void> {
-        return this.review(root => this.backend.pullRequestDiff(root, ref), `PR ${ref.trim()}`);
+    reviewPullRequest(ref: string): Promise<ReviewRun | undefined> {
+        return this.review(root => this.backend.pullRequestDiff(root, ref), `PR ${ref.trim()}`, ref.trim());
+    }
+
+    /** IDEA-287: posts the finished pull request review as a comment on the PR (the user asked for it). */
+    async postToPullRequest(): Promise<PostResult> {
+        const run = this.current;
+        if (!run?.pullRequest || run.status !== 'done' || run.posting) {
+            return { ok: false, error: BUGBOT_TEXT.noPullRequest };
+        }
+        const posting: ReviewRun = { ...run, posting: true };
+        this.set(posting);
+        const result = await this.backend.postPullRequestComment(run.root, run.pullRequest, bugbotCommentBody(run.label, run.findings, run.reviewedFiles, run.model))
+            .catch((error: unknown): PostResult => ({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+        if (this.current === posting) {
+            this.set({ ...run, posting: false, ...(result.ok ? { postedUrl: result.url ?? '' } : {}) });
+        }
+        return result;
     }
 
     protected set(run: ReviewRun | undefined): void {
@@ -65,13 +91,18 @@ export class CodeReviewStore {
         this.onDidChangeEmitter.fire();
     }
 
-    protected async review(load: (root: string) => Promise<{ diff: string; label: string; error?: string }>, pending: string): Promise<void> {
+    protected async review(load: (root: string) => Promise<{ diff: string; label: string; error?: string }>, pending: string, pullRequest?: string): Promise<ReviewRun | undefined> {
+        await this.reviewOnce(load, pending, pullRequest);
+        return this.current;
+    }
+
+    protected async reviewOnce(load: (root: string) => Promise<{ diff: string; label: string; error?: string }>, pending: string, pullRequest?: string): Promise<void> {
         const root = this.workspace.tryGetRoots()[0]?.resource;
         const rootPath = root?.path.fsPath();
         if (this.running) {
             return;
         }
-        const empty = { findings: [], reviewedFiles: [], skippedFiles: [], calls: 0 };
+        const empty = { findings: [], reviewedFiles: [], skippedFiles: [], calls: 0, ...(pullRequest ? { pullRequest } : {}) };
         if (!root || !rootPath) {
             this.set({ ...empty, label: pending, status: 'error', root: '', message: 'Open a project first.' });
             return;
@@ -90,10 +121,12 @@ export class CodeReviewStore {
             }
             const modelId = this.reviewModels.modelFor(this.agents.resolveModel(this.agents.model));
             this.set({ ...empty, label: diff.label, status: 'running', root: rootPath, model: this.models.label(modelId) });
-            const outcome = await reviewDiff(diff.diff, diff.label, this.reviewModels.model(modelId), REVIEW_BUDGET);
+            // IDEA-287: BUGBOT.md guidelines (root, and the folders of changed files) shape every review.
+            const guidance = bugbotGuidance(await this.projectConfig.loadBugbot(root).catch(() => []), diff.diff);
+            const outcome = await reviewDiff(diff.diff, diff.label, this.reviewModels.model(modelId), REVIEW_BUDGET, guidance);
             const failed = outcome.errors.length > 0 && outcome.errors.length === outcome.calls;
             this.set({
-                label: diff.label, status: failed ? 'error' : 'done', root: rootPath, model: this.models.label(modelId),
+                label: diff.label, status: failed ? 'error' : 'done', root: rootPath, model: this.models.label(modelId), ...(pullRequest ? { pullRequest } : {}),
                 findings: outcome.findings, reviewedFiles: outcome.reviewedFiles, skippedFiles: outcome.skippedFiles, calls: outcome.calls,
                 ...(outcome.errors.length ? { message: `The review model failed: ${outcome.errors[0]}` } : {})
             });
