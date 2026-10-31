@@ -5,7 +5,7 @@ import { inject, injectable } from '@theia/core/shared/inversify';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { FileUri } from '@theia/core/lib/common/file-uri';
 import { IMPORT_HOME_ENV } from '../common/project-config/project-config.consts';
-import { EXTENSION_DIRS, latestPerId, mergeKeybindings, mergeSettings, OPENVSX_URL, OPENVSX_URL_ENV, openVsxPath, parseExtensionFolder, parseExtensionsManifest, parseJsonc, userSettingsDirs, usesUnsupportedApi } from '../common/import/editor-import';
+import { DEPLOYED_PLUGINS_DIR, EXTENSION_DIRS, latestPerId, mergeKeybindings, mergeSettings, OPENVSX_URL, OPENVSX_URL_ENV, openVsxPath, parseExtensionFolder, parseExtensionsManifest, parseJsonc, userSettingsDirs, usesUnsupportedApi } from '../common/import/editor-import';
 import type { DetectedExtension, EditorImportService, ImportSource, PreparedExtension, SettingsImportResult } from '../common/import/editor-import.types';
 
 const OPENVSX_TIMEOUT_MS = 20_000;
@@ -98,7 +98,7 @@ export class IngotEditorImportService implements EditorImportService {
         // Not on Open VSX: copy the folder into Ingot's deployed plugins (scanned on every start), and deploy it now
         // through a staging folder that only links to that copy.
         fs.rmSync(staging, { recursive: true, force: true });
-        const deployed = path.join(await this.configDir(), 'deployedPlugins', `${extension.id}-${extension.version}`);
+        const deployed = path.join(await this.configDir(), DEPLOYED_PLUGINS_DIR, `${extension.id}-${extension.version}`);
         fs.rmSync(deployed, { recursive: true, force: true });
         fs.cpSync(extension.folder, deployed, { recursive: true, dereference: true });
         const link = fs.mkdtempSync(path.join(await this.configDir(), 'import-staging-'));

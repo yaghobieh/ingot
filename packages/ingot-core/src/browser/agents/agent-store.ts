@@ -13,6 +13,7 @@ import { findModel, supportsVision } from '../../common/models/models.utils';
 import type { ComposedMessage } from '../../common/agents/composer-parts.types';
 import { reorderTabs, tabTitleFromText, togglePinOrder } from '../../common/agents/chat-tabs';
 import { BUILD_PROMPT, MAX_SUB_AGENTS, TERMINAL_CONTEXT_LINES, modeInfo } from '../../common/agents/agent-modes';
+import { modeBlockedResult, toolAllowedInMode } from '../../common/agents/mode-tools';
 import { CHATS_STORAGE_KEY, mergeWindowChats, parseChats, serializeChats, windowChats } from '../../common/agents/chat-history';
 import { SUMMARIZE_PROMPT, contextUsage, estimateTokens, usageRatio } from '../../common/agents/context-usage';
 import { DEFAULT_SCOPE, MEMORY_PROTOCOL, extractMemories, formatMemories, relevantMemories, type MemoryNote } from '../../common/memories/memories';
@@ -2241,6 +2242,16 @@ export class AgentStore {
             }
             const call = withRepoDefaults(resolved.call, this.github);
             const target = `${call.server}/${call.tool}`;
+            if (!toolAllowedInMode(session.mode, call)) {
+                const blocked = modeBlockedResult(session.mode, call);
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: ${blocked}`,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt, endedAt: Date.now() }
+                });
+                this.recordTool(session, call, rootPath, { decision: 'auto', outcome: 'error', output: blocked, startedAt });
+                this.changed();
+                continue;
+            }
             if (call.server === BUILTIN_TOOL_SERVER && call.tool === ASK_USER_TOOL) {
                 const question = typeof call.args.question === 'string' ? call.args.question.trim() : '';
                 const options = Array.isArray(call.args.options) ? call.args.options.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];

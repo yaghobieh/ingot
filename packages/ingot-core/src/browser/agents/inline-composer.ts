@@ -2,6 +2,7 @@ import { fileIconClass } from '../../common/icons/file-icon-map';
 import { chipLabel, chipPreview, type ContextChip } from '../../common/agents/context-chips';
 import type { ComposerPart, ImageChip } from '../../common/agents/composer-parts.types';
 import { normalizeParts } from '../../common/agents/composer-parts';
+import { typesCharacter } from '../../common/agents/typed-key';
 import { CHIP_ATTR, IMAGE_MIME, MAX_IMAGE_BYTES, MAX_IMAGE_SIDE } from './inline-composer.consts';
 
 export interface InlineComposerHandlers {
@@ -66,6 +67,7 @@ export class InlineComposer {
         el.setAttribute('role', 'textbox');
         el.setAttribute('aria-multiline', 'true');
         el.addEventListener('keydown', e => this.onKeyDown(e));
+        window.addEventListener('keydown', this.keepTypedCharacter, true);
         el.addEventListener('input', () => this.changed());
         el.addEventListener('blur', () => this.saveRange());
         el.addEventListener('keyup', () => this.saveRange());
@@ -202,8 +204,19 @@ export class InlineComposer {
     }
 
     dispose(): void {
+        window.removeEventListener('keydown', this.keepTypedCharacter, true);
         this.hidePreview();
     }
+
+    /**
+     * IDEA-265: the workbench matches keybindings on document keydown (capture) and cancels the key when one matches,
+     * so a binding or chord on `\` (keymaps.json, an extension) ate the character. Typed characters stop here instead.
+     */
+    protected readonly keepTypedCharacter = (e: KeyboardEvent): void => {
+        if (e.target instanceof Node && this.el.contains(e.target) && typesCharacter(e)) {
+            e.stopPropagation();
+        }
+    };
 
     /** IDEA-187: the text before the caret in its text node (the `@query` being typed). */
     textBeforeCaret(): string {

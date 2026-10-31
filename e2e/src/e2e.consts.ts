@@ -60,7 +60,11 @@ export const E2E_USER_SETTINGS = {
     // IDEA-281: fixtures with .cursor rules would otherwise show the import prompt in every spec; its own spec turns it on.
     'ingot.import.cursorRules': 'never',
     // IDEA-286: modal editing starts off even if an interrupted run left it on.
-    'ingot.editor.modalEditing': false
+    'ingot.editor.modalEditing': false,
+    // IDEA-182: an interrupted AI & Zaprex settings run must not leave the T-rex hidden, Commit with AI off or Plan as default.
+    'ingot.zaprex.showButton': true,
+    'ingot.commit.ai.enabled': true,
+    'ingot.agent.defaultMode': 'agent'
 } as const;
 /** dismissNotifications: upper bound of toasts closed in one call, and how long one close click may wait. */
 export const MAX_NOTIFICATION_CLOSES = 20;

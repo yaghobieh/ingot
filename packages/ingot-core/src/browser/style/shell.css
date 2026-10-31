@@ -965,8 +965,8 @@ body.ingot-explorer-collapsed #explorer-view-container > .lm-SplitPanel { visibi
 
 /* IDEA-98: voice dictation + context ring breakdown */
 .ingot-composer-mic { position: relative; }
-.ingot-composer-mic.listening { color: #fff; background: #E5484D; border-radius: 50%; animation: ingot-mic-pulse 1.2s ease-in-out infinite; }
-@keyframes ingot-mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #E5484D 50%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+.ingot-composer-mic.listening { color: var(--ingot-danger); background: color-mix(in srgb, var(--ingot-danger) 16%, transparent); border-radius: 50%; animation: ingot-mic-pulse 1.2s ease-in-out infinite; }
+@keyframes ingot-mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ingot-danger) 40%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
 .ingot-dictation-interim { max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-style: italic; }
 button.ingot-context-ring { border: 0; background: transparent; padding: 0; cursor: pointer; border-radius: 50%; color: inherit; }
 button.ingot-context-ring:hover, button.ingot-context-ring[aria-expanded='true'] { background: var(--theia-toolbar-hoverBackground); opacity: 1; }

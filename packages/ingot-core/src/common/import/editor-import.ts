@@ -81,6 +81,11 @@ const UNSUPPORTED_API_PROPOSALS: readonly string[] = ['resolvers'];
 export const usesUnsupportedApi = (pkg: { readonly enabledApiProposals?: unknown }): boolean =>
     Array.isArray(pkg.enabledApiProposals) && pkg.enabledApiProposals.some(p => UNSUPPORTED_API_PROPOSALS.includes(p));
 
+/** Theia scans this folder of the config dir on every start; imported local-only extensions are copied here. */
+export const DEPLOYED_PLUGINS_DIR = 'deployedPlugins';
+/** Where a deployed plugin keeps its manifest: unpacked folders at the root, unpacked .vsix files under `extension/`. */
+export const PLUGIN_MANIFEST_PATHS: readonly string[] = ['package.json', 'extension/package.json'];
+
 /** `publisher.name` → Open VSX API path. */
 export const openVsxPath = (id: string): string | undefined => {
     const dot = id.indexOf('.');
