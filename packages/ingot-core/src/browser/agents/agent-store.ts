@@ -31,6 +31,7 @@ import type { ChatMessage } from '../../common/models/models.types';
 import { Emitter, type Event } from '@theia/core/lib/common/event';
 import { ACTIVE_STATUSES, AGENT_MAX_TOKENS, DEFAULT_MODEL, NEW_AGENT_TITLE, NO_MODEL_MESSAGE, SIGN_IN_MESSAGE, STREAM_POKE_MS } from '../../common/agents/agents.consts';
 import type { AgentMessage, AgentMode, AgentSession } from '../../common/agents/agents.types';
+import type { LivePhase } from '../../common/agents/live-status.types';
 import type { ToolCallInfo } from '../../common/agents/tool-cards';
 import { hookCardInfo } from '../../common/git/hooks';
 import { AgentHooksService } from '../hooks/agent-hooks-service';
@@ -213,6 +214,8 @@ export class AgentStore {
     protected readonly autoContexts = new Map<string, AutoAttach>();
     /** Chats whose model loop is on the stack, so accepting a review does not start a second one. */
     protected readonly modelLoops = new Set<string>();
+    /** Work outside a model round or tool call (plan check, wrap-up), named on the chat's live status line. */
+    protected readonly phases = new Map<string, LivePhase>();
     /** Answers waiting on ingot/ask_user. Undefined means the user stopped. */
     protected readonly answers = new Map<string, (text: string | undefined) => void>();
     /** Messages typed while a run is in progress, delivered on the next round. */
@@ -749,6 +752,34 @@ export class AgentStore {
         return !!id && !this.cancelled.has(id) && (this.running.has(id) || this.modelLoops.has(id));
     }
 
+    /** A model reply is streaming into this chat right now. */
+    isStreaming(id: string): boolean {
+        return this.running.has(id) && !this.cancelled.has(id);
+    }
+
+    livePhase(id: string): LivePhase | undefined {
+        return this.phases.get(id);
+    }
+
+    protected setPhase(id: string, phase: LivePhase | undefined): void {
+        if (this.phases.get(id) === phase) {
+            return;
+        }
+        if (phase) {
+            this.phases.set(id, phase);
+        } else {
+            this.phases.delete(id);
+        }
+        this.changed();
+    }
+
+    /** The wrap-up after a run is over, unless a new run of the chat already started. */
+    protected endPhase(id: string): void {
+        if (!this.modelLoops.has(id)) {
+            this.setPhase(id, undefined);
+        }
+    }
+
     /** The user stopped this chat's last run (cleared when they send again). */
     wasStopped(id: string): boolean {
         return this.cancelled.has(id);
@@ -797,6 +828,7 @@ export class AgentStore {
         this.steers.delete(id);
         this.queuedSteers.take(id);
         this.browserRuns.delete(id);
+        this.phases.delete(id);
         const session = this.items.find(s => s.id === id);
         if (session) {
             session.ask = undefined;
@@ -1203,6 +1235,7 @@ export class AgentStore {
 
     protected async runModel(session: AgentSession, generation = this.generationFor(session.id)): Promise<void> {
         this.enterLoop(session.id);
+        this.phases.delete(session.id);
         try {
         if (this.stale(session.id, generation)) {
             return;
@@ -1481,11 +1514,13 @@ export class AgentStore {
                     }
                     session.status = 'idle';
                 }
+                this.setPhase(session.id, 'wrapping-up');
                 await this.waitForPieces(session);
                 if (this.stale(session.id, generation)) {
                     return;
                 }
                 if (session.status !== 'review' && this.followSteer(session, generation)) {
+                    this.setPhase(session.id, undefined);
                     continue;
                 }
                 this.attachFollowUps(session, followUps, edited);
@@ -1512,7 +1547,9 @@ export class AgentStore {
                 void this.runEventHook(session, 'stop', { status: session.status === 'error' ? 'error' : this.cancelled.has(session.id) ? 'aborted' : 'completed' });
                 this.afterGoalTurn(session, generation);
                 if (!this.stale(session.id, generation) && !this.cancelled.has(session.id) && session.goal?.state !== 'running') {
-                    void this.afterRun(session).catch(() => undefined);
+                    void this.afterRun(session).catch(() => undefined).finally(() => this.endPhase(session.id));
+                } else {
+                    this.endPhase(session.id);
                 }
             }
         }
@@ -1669,7 +1706,9 @@ export class AgentStore {
         const commands = session.messages.slice(since + 1).flatMap(m =>
             m.tool?.tool === 'run' && m.tool.state === 'done' && typeof m.tool.args.command === 'string' ? [m.tool.args.command] : []);
         const files = [...new Set(this.loopOf(session).edits.map(p => p.replace(/^\.\/+/, '')))];
-        const review = await this.planReview.review(this.rootFor(session), plan, { files, commands });
+        const phase = this.phases.get(session.id);
+        this.setPhase(session.id, 'checking-plan');
+        const review = await this.planReview.review(this.rootFor(session), plan, { files, commands }).finally(() => this.setPhase(session.id, phase));
         const detail = reviewHeadline(review);
         session.messages.push({
             role: 'system', text: `${HABIT_NOTE_TEXT.plan}: ${detail}`, planReview: review,
@@ -1991,7 +2030,11 @@ export class AgentStore {
 
     /** IDEA-302: a plan (Plan / Ask mode) that contradicts a locked decision. Keep sends it back for a revision. */
     protected async checkPlan(session: AgentSession, plan: readonly string[], root: URI | undefined): Promise<GuardChoice | undefined> {
+        if (root) {
+            this.setPhase(session.id, 'checking-plan');
+        }
         const conflicts = root ? await this.decisions.conflicts(root, { plan, edits: [], commands: [] }).catch(() => []) : [];
+        this.setPhase(session.id, undefined);
         if (!root || !conflicts.length) {
             return undefined;
         }
