@@ -99,6 +99,7 @@
           "go.toolsManagement.autoUpdate": false,
           "dart.checkForSdkUpdates": false,
           "clangd.checkUpdates": false,
+          "basedpyright.importStrategy": "useBundled",
           "[python]": {
             "editor.defaultFormatter": "charliermarsh.ruff"
           },

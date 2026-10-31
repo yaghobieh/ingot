@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { EXCLUDED_EXTENSIONS, LANGUAGE_EXTENSIONS, LANGUAGE_FEATURES, LANGUAGES, REDISTRIBUTABLE_LICENCES, TOOLCHAINS } from './languages.consts';
 import type { ToolchainId, ToolchainStatus } from './languages.types';
 import {
-    applyOverride, buildRecipeFor, bundledJavaStatus, featureReport, javaLauncher, languageExtensions, languageForFile, languageForMonacoId, languageReport, languageReports, missingToolchainMessage,
+    applyOverride, buildRecipeFor, bundledJavaStatus, featureReport, javaLauncher, languageExtensions, languageForFile, languageForMonacoId, languageReport, languageReports, missingToolchainMessage, missingToolchainSettings,
     parseOverrides, parseToolVersion, runCommandFor, runTranscriptDelta, substituteFileVariables, toolchainStatusFrom, toolchainsToPrompt, versionAtLeast
 } from './languages.utils';
 
@@ -173,6 +173,19 @@ describe('language reports', () => {
         expect(missingToolchainMessage('Go', 'go', undefined, 'mac')).toBe(`Go is not installed. ${TOOLCHAINS.go.why} Install it with: brew install go`);
         expect(missingToolchainMessage('Ruby', 'ruby', found('ruby', { version: '2.6.10', tooOld: true }), 'linux'))
             .toMatch(/^Ruby needs Ruby 3\.0 or newer \(found 2\.6\.10\)\. .* Install it with: sudo apt install ruby-full$/);
+    });
+});
+
+describe('missingToolchainSettings', () => {
+    it('quiets the extensions of missing or too old toolchains and leaves the others alone', () => {
+        const settings = new Map(missingToolchainSettings([
+            { id: 'php', found: false }, found('dotnet'), found('cargo', { tooOld: true }), { id: 'go', found: false }
+        ]));
+        expect(settings.get('phpactor.enable')).toBe(false);
+        expect(settings.get('php.validate.enable')).toBe(false);
+        expect(settings.get('rust-analyzer.notifications.cargoTomlNotFound')).toBe(false);
+        expect(settings.has('csharp.suppressDotnetInstallWarning')).toBe(false);
+        expect(missingToolchainSettings([found('php'), found('shellcheck')])).toEqual([]);
     });
 });
 

@@ -1,7 +1,7 @@
 import type { GuidePlatform } from '../debug/debug.types';
-import { LANGUAGE_EXTENSIONS, LANGUAGE_FEATURES, LANGUAGES, RUN_DELTA_ANCHOR_CHARS, TOOLCHAINS } from './languages.consts';
+import { LANGUAGE_EXTENSIONS, LANGUAGE_FEATURES, LANGUAGES, MISSING_TOOLCHAIN_SETTINGS, RUN_DELTA_ANCHOR_CHARS, TOOLCHAINS } from './languages.consts';
 import type {
-    BuildRecipe, FeatureEntry, FeatureReport, LanguageExtension, LanguageFeature, LanguageId, LanguageLevel, LanguageReport, LanguageSpec, ToolchainId,
+    BuildRecipe, ExtensionSettingValue, FeatureEntry, FeatureReport, LanguageExtension, LanguageFeature, LanguageId, LanguageLevel, LanguageReport, LanguageSpec, ToolchainId,
     ToolchainOverride, ToolchainSpec, ToolchainStatus
 } from './languages.types';
 
@@ -61,6 +61,10 @@ export const toolchainStatusFrom = (id: ToolchainId, ok: boolean, output: string
 
 /** Usable: found and new enough. */
 export const isUsable = (status: ToolchainStatus | undefined): boolean => !!status?.found && !status.tooOld;
+
+/** Extension settings to default while their toolchain is missing or too old (see MISSING_TOOLCHAIN_SETTINGS). */
+export const missingToolchainSettings = (statuses: readonly ToolchainStatus[]): [string, ExtensionSettingValue][] =>
+    statuses.filter(s => !isUsable(s)).flatMap(s => Object.entries(MISSING_TOOLCHAIN_SETTINGS[s.id] ?? {}));
 
 /** Overrides from the test seam file: unknown ids and values are dropped. */
 export const parseOverrides = (raw: string | undefined): Partial<Record<ToolchainId, ToolchainOverride>> => {

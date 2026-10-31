@@ -1,4 +1,4 @@
-import type { LanguageExtension, LanguageFeature, LanguageSpec, ToolchainId, ToolchainSpec } from './languages.types';
+import type { ExtensionSettingValue, LanguageExtension, LanguageFeature, LanguageSpec, ToolchainId, ToolchainSpec } from './languages.types';
 
 /** IDEA-313: per-language support, toolchain detection and the Settings › Languages page. */
 export const TOOLCHAIN_SERVICE_PATH = '/services/ingot-toolchains';
@@ -97,6 +97,17 @@ export const BUNDLED_JRE_EXTENSION = 'redhat.java';
 export const BUNDLED_JRE_FOLDER = 'jre';
 /** Settings that point a Java-based language server at a Java home. */
 export const JAVA_HOME_SETTINGS: readonly string[] = ['cobol-lsp.java.home', 'kotlin.java.home'];
+/**
+ * Defaults applied while a toolchain is missing, so extensions don't raise their own error toasts (Ingot's install prompt
+ * explains what to install instead). Each one turns off a part that can't work without the toolchain.
+ */
+export const MISSING_TOOLCHAIN_SETTINGS: Readonly<Partial<Record<ToolchainId, Readonly<Record<string, ExtensionSettingValue>>>>> = {
+    php: { 'phpactor.enable': false, 'php.validate.enable': false },
+    dotnet: { 'csharp.suppressDotnetInstallWarning': true, 'dotnet.server.suppressLspErrorToasts': true },
+    cargo: { 'rust-analyzer.notifications.cargoTomlNotFound': false, 'rust-analyzer.showRequestFailedErrorNotification': false },
+    shellcheck: { 'bashIde.shellcheckPath': '' },
+    shfmt: { 'bashIde.shfmt.path': '' }
+};
 
 const BREW = 'brew install';
 const APT = 'sudo apt install';

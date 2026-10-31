@@ -4,7 +4,7 @@ import { DisposableCollection } from '@theia/core/lib/common/disposable';
 import { PreferenceSchemaService } from '@theia/core/lib/common/preferences';
 import { JAVA_HOME_SETTINGS } from '../../common/languages/languages.consts';
 import { ToolchainService, type LanguageReport, type ToolchainId, type ToolchainStatus } from '../../common/languages/languages.types';
-import { languageReports } from '../../common/languages/languages.utils';
+import { languageReports, missingToolchainSettings } from '../../common/languages/languages.utils';
 
 interface LanguageState {
     readonly installed: ReadonlySet<string>;
@@ -24,6 +24,7 @@ export class LanguageSupportStore {
     protected state?: LanguageState;
     protected loading?: Promise<LanguageState>;
     protected readonly javaHomeDefaults = new DisposableCollection();
+    protected readonly missingToolchainDefaults = new DisposableCollection();
 
     get loaded(): boolean {
         return !!this.state;
@@ -64,6 +65,7 @@ export class LanguageSupportStore {
         };
         this.state = state;
         this.applyJavaHome(state.toolchains.get('jre'));
+        this.applyMissingToolchains(statuses);
         this.changed.fire();
         return state;
     }
@@ -75,6 +77,14 @@ export class LanguageSupportStore {
             for (const key of JAVA_HOME_SETTINGS) {
                 this.javaHomeDefaults.push(this.schema.registerOverride(key, undefined, jre.path));
             }
+        }
+    }
+
+    /** Missing toolchains: turn off the extension parts that would only show errors (Ingot's prompt says what to install). */
+    protected applyMissingToolchains(statuses: readonly ToolchainStatus[]): void {
+        this.missingToolchainDefaults.dispose();
+        for (const [key, value] of missingToolchainSettings(statuses)) {
+            this.missingToolchainDefaults.push(this.schema.registerOverride(key, undefined, value));
         }
     }
 }

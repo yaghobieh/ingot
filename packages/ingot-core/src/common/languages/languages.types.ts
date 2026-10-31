@@ -97,6 +97,9 @@ export interface ToolchainStatus {
     readonly path?: string;
 }
 
+/** A default Ingot gives an extension setting. */
+export type ExtensionSettingValue = boolean | string;
+
 export type FeatureState = 'ready' | 'needs-toolchain' | 'missing-extension' | 'on-demand' | 'unsupported' | 'na';
 
 export interface FeatureReport {
