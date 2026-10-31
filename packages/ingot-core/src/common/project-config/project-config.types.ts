@@ -2,7 +2,7 @@
  * Where a rule / command / skill / server came from. `global*` are loaded from the user's home for every project
  * (`~/.ingot`, and imported global folders); project sources win on name conflicts.
  */
-export type ConfigSource = 'ingot' | 'legacy' | 'external' | 'agents' | 'global' | 'global-imported';
+export type ConfigSource = 'ingot' | 'legacy' | 'external' | 'agents' | 'global' | 'global-imported' | 'team';
 
 /**
  * IDEA-287: how a rule is applied, as in Cursor. `always`: every turn. `auto`: when a file in context matches its globs.
@@ -24,6 +24,22 @@ export interface ProjectRule {
     readonly uri?: string;
     /** IDEA-287: project-relative folder of a nested rule (`packages/web`); it only applies to files under it. */
     readonly scope?: string;
+    /** IDEA-287: a team rule the user cannot turn off. */
+    readonly enforced?: boolean;
+}
+
+/** IDEA-287: a file a rule points at with `@path` (Cursor's rule references), attached with the rule. */
+export interface RuleReference {
+    readonly path: string;
+    readonly text: string;
+}
+
+/** IDEA-287: `.ingot/environment.json` (Cursor's `.cursor/environment.json`): how to set the project up and run it. */
+export interface ProjectEnvironment {
+    readonly install?: string;
+    readonly start?: string;
+    readonly terminals: readonly { readonly name: string; readonly command: string; readonly description?: string }[];
+    readonly errors: readonly string[];
 }
 
 /** IDEA-295: a rule written from the User Rules settings page. */
@@ -69,6 +85,16 @@ export interface McpServerConfig {
     readonly secretEnv?: readonly string[];
     /** HTTP headers whose values live in the OS keychain (e.g. Authorization). */
     readonly secretHeaders?: readonly string[];
+    /** IDEA-287: dotenv file (relative to the project) whose variables are added to the server's environment. */
+    readonly envFile?: string;
+}
+
+/** IDEA-287: values for `${workspaceFolder}`, `${userHome}`, `${env:NAME}` and friends in mcp.json (as in Cursor). */
+export interface McpVariables {
+    readonly workspaceFolder: string;
+    readonly userHome: string;
+    readonly pathSeparator: string;
+    readonly env: Readonly<Record<string, string | undefined>>;
 }
 
 export interface ProjectConfig {

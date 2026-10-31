@@ -262,6 +262,7 @@ export const toMcpJson = (servers: readonly McpServerConfig[]): string => JSON.s
     mcpServers: Object.fromEntries(servers.map(s => [s.name, {
         ...(s.command ? { command: s.command, args: [...(s.args ?? [])] } : {}),
         ...(s.url ? { url: s.url } : {}),
+        ...(s.envFile ? { envFile: s.envFile } : {}),
         ...(s.env || s.secretEnv ? { env: { ...(s.env ?? {}), ...Object.fromEntries((s.secretEnv ?? []).map(k => [k, KEYCHAIN_PLACEHOLDER])) } } : {}),
         ...(s.headers || s.secretHeaders ? { headers: { ...(s.headers ?? {}), ...Object.fromEntries((s.secretHeaders ?? []).map(k => [k, KEYCHAIN_PLACEHOLDER])) } } : {})
     }]))
@@ -294,6 +295,7 @@ export const parseMcpJson = (text: string, source: McpServerConfig['source']): M
             name, source,
             ...(command ? { command, args: Array.isArray(raw.args) ? raw.args.map(String) : [] } : {}),
             ...(url ? { url } : {}),
+            ...(typeof raw.envFile === 'string' && raw.envFile ? { envFile: raw.envFile } : {}),
             ...splitSecretEnv(strings(raw.env)),
             ...splitSecretHeaders(strings(raw.headers))
         };
@@ -301,11 +303,11 @@ export const parseMcpJson = (text: string, source: McpServerConfig['source']): M
     });
 };
 
-export type ScopeLabel = 'Global' | 'Project' | 'Imported';
+export type ScopeLabel = 'Global' | 'Project' | 'Imported' | 'Team';
 
-/** Scope badge for an item: Global (`~/.ingot`), Imported (other tools' folders, project or global) or Project. */
+/** Scope badge for an item: Global (`~/.ingot`), Imported (other tools' folders, project or global), Team (account) or Project. */
 export const scopeLabel = (source: ConfigSource | 'user'): ScopeLabel =>
-    source === 'global' || source === 'user' ? 'Global' : source === 'external' || source === 'global-imported' ? 'Imported' : 'Project';
+    source === 'team' ? 'Team' : source === 'global' || source === 'user' ? 'Global' : source === 'external' || source === 'global-imported' ? 'Imported' : 'Project';
 
 /** File-name slug for a new rule / command / skill. */
 export const slugify = (name: string): string => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);

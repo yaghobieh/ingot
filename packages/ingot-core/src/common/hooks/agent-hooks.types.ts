@@ -8,8 +8,10 @@ export type HookPermission = 'allow' | 'deny' | 'ask';
 export interface AgentHookCommand {
     readonly command: string;
     readonly timeoutSeconds: number;
-    /** `.ingot/hooks.json` or `.cursor/hooks.json`. */
+    /** `.ingot/hooks.json` or `.cursor/hooks.json` (or a user-level file). */
     readonly source: string;
+    /** IDEA-287: folder the command runs in; the project root when absent (user-level hooks run from their own folder). */
+    readonly cwd?: string;
 }
 
 export type AgentHooksConfig = Readonly<Partial<Record<AgentHookEvent, readonly AgentHookCommand[]>>>;
