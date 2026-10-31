@@ -110,9 +110,10 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Cycle Chat Mode', command: 'ingot.agents.cycleMode', mac: 'ctrlcmd+.', other: 'ctrl+.', when: AGENTS_FOCUS },
     { action: 'New Chat', command: 'ingot.agents.new', mac: 'ctrlcmd+alt+n', other: 'ctrl+alt+n', when: AGENTS_FOCUS },
     { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS },
-    // Rules insight (IDEA-317, IDEA-318, IDEA-321)
+    // Rules insight (IDEA-317, IDEA-318, IDEA-321, IDEA-327)
     { action: RULES_INSIGHT_COMMANDS.doctor.label, command: RULES_INSIGHT_COMMANDS.doctor.id, mac: 'ctrlcmd+alt+shift+d', other: 'ctrl+alt+shift+d' },
     { action: RULES_INSIGHT_COMMANDS.ruleHits.label, command: RULES_INSIGHT_COMMANDS.ruleHits.id, mac: 'ctrlcmd+alt+shift+r', other: 'ctrl+alt+shift+r' },
+    { action: RULES_INSIGHT_COMMANDS.effective.label, command: RULES_INSIGHT_COMMANDS.effective.id, mac: 'ctrlcmd+alt+shift+e', other: 'ctrl+alt+shift+e' },
     { action: RULES_INSIGHT_COMMANDS.globPreview.label, command: RULES_INSIGHT_COMMANDS.globPreview.id, mac: 'ctrlcmd+alt+shift+g', other: 'ctrl+alt+shift+g', when: EDITOR }
 ];
 
