@@ -48,3 +48,6 @@ export const E2E_USER_SETTINGS = {
     // IDEA-281: fixtures with .cursor rules would otherwise show the import prompt in every spec; its own spec turns it on.
     'ingot.import.cursorRules': 'never'
 } as const;
+/** dismissNotifications: upper bound of toasts closed in one call, and how long one close click may wait. */
+export const MAX_NOTIFICATION_CLOSES = 20;
+export const NOTIFICATION_CLOSE_TIMEOUT_MS = 2_000;

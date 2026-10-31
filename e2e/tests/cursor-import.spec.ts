@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { actUntilVisible, dismissNotifications, openIngot, quickOptions, runCommand } from '../src/app.utils';
+import { actUntilVisible, dismissNotifications, openIngot, runCommand } from '../src/app.utils';
 import { setAppearance, shot } from '../src/agent-tools.e2e-utils';
 import { pickModel } from '../src/chat.e2e-utils';
 import { CALC_SERVER, E2E_CONFIG_DIR } from '../src/e2e.consts';
@@ -94,10 +94,12 @@ const occurrences = (text: string, marker: string): number => text.split(marker)
 
 const ask = async (page: Page, server: FakeOllama, prompt: string, answer: string): Promise<{ system: string; user: string }> => {
     const before = server.requests.length;
+    const sent = (): FakeOllama['requests'][number] | undefined => server.requests.slice(before).find(r => r.user.includes(prompt));
     await composer(page).fill(prompt);
     await composer(page).press('Enter');
+    await expect.poll(() => Boolean(sent()), { timeout: 60_000 }).toBe(true);
     await expect(lastAnswer(page)).toHaveText(answer, { timeout: 60_000 });
-    return server.requests.slice(before).find(r => r.user.includes(prompt.split(' ')[0])) ?? server.requests[before];
+    return sent()!;
 };
 
 const appearance = async (page: Page): Promise<string> => {
@@ -157,11 +159,13 @@ const runSlashCommand = async (page: Page, server: FakeOllama): Promise<string> 
     await page.keyboard.type('/shi');
     await expect(page.locator('#ingot-slash-menu')).toContainText('/ship');
     await page.keyboard.press('Enter');
+    await expect(composer(page)).toHaveText(/^\/ship\s*$/);
     await page.keyboard.type('today');
     const before = server.requests.length;
     await page.keyboard.press('Enter');
-    await expect(lastAnswer(page)).toHaveText('Shipped.', { timeout: 60_000 });
-    return server.requests.slice(before)[0]?.user ?? '';
+    await expect.poll(() => server.requests.slice(before).some(r => r.user.includes('SHIP-COMMAND-MARKER')), { timeout: 60_000 }).toBe(true);
+    await expect(page.locator('#ingot-agents .ingot-chat-agent .ingot-md').filter({ hasText: 'Shipped.' })).toHaveCount(1);
+    return server.requests.slice(before).find(r => r.user.includes('SHIP-COMMAND-MARKER'))!.user;
 };
 
 /** Turns the project's cursor-calc server on and calls its `mode` tool, which reports CALC_MODE from the envFile. */
@@ -171,16 +175,14 @@ const checkMcp = async (page: Page, server: FakeOllama): Promise<void> => {
     const row = page.locator('.ingot-mcp #ingot-mcp-row-cursor-calc');
     await row.locator('.ingot-mcp-toggle').check({ force: true });
     await expect(row.locator('.ingot-mcp-summary')).toHaveText(/2 tools enabled/, { timeout: 20_000 });
-    await page.locator('#ingot-rs-agents').click();
     await composer(page).fill('calc mode please');
     await composer(page).press('Enter');
     await expect(page.locator('#ingot-approval-line')).toContainText('cursor-calc: mode', { timeout: 30_000 });
     await page.locator('#ingot-approval-run').click();
-    await expect(lastAnswer(page)).toHaveText('Tool done.', { timeout: 30_000 });
+    await expect(lastAnswer(page)).toHaveText('Done with cursor-calc/mode.', { timeout: 30_000 });
     expect(server.requests.find(r => r.user.startsWith('Tool result (cursor-calc/mode)'))?.user).toContain('FROM-ENVFILE');
-    await page.locator('#ingot-rs-mcp').click();
     await row.locator('.ingot-mcp-toggle').uncheck({ force: true });
-    await page.locator('#ingot-rs-agents').click();
+    await expect(row.locator('.ingot-mcp-summary')).toHaveText('Disabled');
 };
 const ingotCopies = (dir: string): string[] =>
     ['.ingot/rules', '.ingot/commands', '.ingot/mcp.json', '.ingot/hooks.json', '.ingotignore'].filter(f => fs.existsSync(path.join(dir, f)));
@@ -192,12 +194,15 @@ test.describe('IDEA-287 Cursor config: first-open import, Convert / Keep, change
     let initialAppearance: string | undefined;
 
     test.beforeEach(async () => {
+        // Team rules cached by another spec would show up in these rule lists.
+        fs.rmSync(REMOTE_CONFIG_CACHE, { force: true });
         dir = makeCursorProject();
         writeSettings({ 'ingot.import.cursorRules': 'ask' });
         initialAppearance = undefined;
         server = await startFakeOllama((_system, user) => {
-            if (user.startsWith('Tool result (')) {
-                return 'Tool done.';
+            const tool = /^Tool result \(([^)]+)\)/.exec(user);
+            if (tool) {
+                return `Done with ${tool[1]}.`;
             }
             if (user.includes('cleanup')) {
                 return '<<<TOOL ingot/run\n{"command": "rm -rf build"}\n>>>END';
@@ -246,10 +251,10 @@ test.describe('IDEA-287 Cursor config: first-open import, Convert / Keep, change
         await expect(page.locator('#ingot-agents .ingot-chat-read-list').last()).toContainText('frontend/ui');
         await shots(page, 'cursor-rule-keep-mode');
 
-        await ask(page, server, 'read private notes', 'Tool done.');
+        await ask(page, server, 'read private notes', 'Done with ingot/read_file.');
         const read = server.requests.find(r => r.user.startsWith('Tool result (ingot/read_file)'))!;
         expect(read.user).not.toContain('HIDDEN-FILE-MARKER');
-        await ask(page, server, 'run cleanup', 'Tool done.');
+        await ask(page, server, 'run cleanup', 'Done with ingot/run.');
         expect(server.requests.some(r => r.user.includes('CURSOR-HOOK-DENY'))).toBe(true);
         await expect(page.locator('#ingot-agents')).toContainText('beforeShellExecution · deny');
 
@@ -299,9 +304,9 @@ test.describe('IDEA-287 Cursor config: first-open import, Convert / Keep, change
         await expect(page.locator('#ingot-agents .ingot-chat-read-list').last()).toContainText('frontend/ui');
         await shots(page, 'cursor-rule-convert-mode');
 
-        await ask(page, server, 'read private notes', 'Tool done.');
+        await ask(page, server, 'read private notes', 'Done with ingot/read_file.');
         expect(server.requests.find(r => r.user.startsWith('Tool result (ingot/read_file)'))!.user).not.toContain('HIDDEN-FILE-MARKER');
-        await ask(page, server, 'run cleanup', 'Tool done.');
+        await ask(page, server, 'run cleanup', 'Done with ingot/run.');
         expect(server.requests.some(r => r.user.includes('CURSOR-HOOK-DENY'))).toBe(true);
 
         expect(await runSlashCommand(page, server)).toContain('SHIP-COMMAND-MARKER');
@@ -320,8 +325,9 @@ test.describe('IDEA-287 Cursor config: first-open import, Convert / Keep, change
         expect(off.system).not.toContain('CURSORRULES-MARKER');
 
         await runCommand(page, 'Cursor Config: Change Import Mode…');
-        const keep = quickOptions(page).filter({ hasText: 'Keep .cursor' }).first();
-        await expect(quickOptions(page).filter({ hasText: 'Do not use Cursor config' }).first()).toContainText('current');
+        const option = (label: string): Locator => page.locator('.quick-input-list [role="option"]').filter({ hasText: label }).first();
+        const keep = option('Keep .cursor');
+        await expect(option('Do not use Cursor config')).toContainText('current');
         await keep.click();
         await expect.poll(() => modeOf(dir)).toBe('keep');
         const kept = await ask(page, server, 'check rules again', 'Rules checked.');
@@ -338,23 +344,18 @@ test.describe('IDEA-287 team rules from the account', () => {
         ingot = await startFakeIngotServer();
         ingot.config = {
             teamRules: [
-                { name: 'team-security', body: 'TEAM-ENFORCED-MARKER: never log tokens.', enforced: true },
-                { name: 'team-style', body: 'TEAM-OPTIONAL-MARKER: prefer small functions.', alwaysApply: true }
+                { name: 'org-security', body: 'TEAM-ENFORCED-MARKER: never log tokens.', enforced: true },
+                { name: 'org-style', body: 'TEAM-OPTIONAL-MARKER: prefer small functions.', alwaysApply: true }
             ]
         };
         server = await startFakeOllama(() => 'Team checked.', { delayMs: 0 });
     });
 
-    test.afterEach(async ({ page }) => {
-        await openSettings(page);
-        const optional = page.locator('#ingot-rules-team [data-rule="team-style"] input');
-        if (await optional.isVisible().catch(() => false) && !await optional.isChecked()) {
-            await optional.check();
-        }
-        await page.locator('#ingot-settings-cancel').click();
+    test.afterEach(async () => {
+        fs.rmSync(REMOTE_CONFIG_CACHE, { force: true });
+        writeSettings({ 'ingot.rules.disabledTeamRules': [] });
         await server.close();
         await ingot.close();
-        fs.rmSync(REMOTE_CONFIG_CACHE, { force: true });
     });
 
     const openSettings = async (page: Page): Promise<void> => {
@@ -376,10 +377,10 @@ test.describe('IDEA-287 team rules from the account', () => {
 
             await openSettings(page);
             const team = page.locator('#ingot-rules-team');
-            await expect(team.locator('[data-rule="team-security"]')).toContainText('enforced');
-            await expect(team.locator('[data-rule="team-security"] input')).toBeDisabled();
-            await team.locator('[data-rule="team-style"] input').uncheck();
-            await expect(team.locator('[data-rule="team-style"] input')).not.toBeChecked();
+            await expect(team.locator('[data-rule="org-security"]')).toContainText('enforced');
+            await expect(team.locator('[data-rule="org-security"] input')).toBeDisabled();
+            await team.locator('[data-rule="org-style"] input').click();
+            await expect(team.locator('[data-rule="org-style"] input')).not.toBeChecked();
             await shot(page, 'team-rules-page.png');
             await page.locator('#ingot-settings-cancel').click();
 

@@ -47,6 +47,16 @@ export class RulesManager extends React.Component<{ service: UserRulesService },
         this.setState({ editing: undefined });
     }
 
+    /** Shows the new state at once; the preference write and the refresh after it follow. */
+    protected toggleTeamRule(rule: ProjectRule, enabled: boolean): void {
+        const list = this.state.list;
+        if (list) {
+            const rest = list.disabledTeam.filter(name => name !== rule.name);
+            this.setState({ list: { ...list, disabledTeam: enabled ? rest : [...rest, rule.name] } });
+        }
+        void this.props.service.setTeamRuleEnabled(rule, enabled);
+    }
+
     protected async add(scope: RuleScope): Promise<void> {
         const { name, kind, detail, body } = this.state;
         const error = await this.props.service.create(scope, { name, kind, body, ...(kind === 'agent' ? { description: detail } : kind === 'auto' ? { globs: detail } : {}) });
@@ -133,7 +143,7 @@ export class RulesManager extends React.Component<{ service: UserRulesService },
                 <p className='ingot-dim ingot-rules-hint'>Set by your Ingot team for every member. Enforced rules always apply; turn the others off for yourself.</p>
                 {list.team.map(r => <label key={r.path} className='ingot-rules-row' data-rule={r.name} title={r.description ?? r.name}>
                     <input type='checkbox' aria-label={`Use team rule ${r.name}`} checked={r.enforced || !list.disabledTeam.includes(r.name)} disabled={r.enforced}
-                        onChange={e => void this.props.service.setTeamRuleEnabled(r, e.currentTarget.checked)} />
+                        onChange={e => this.toggleTeamRule(r, e.currentTarget.checked)} />
                     <span className='ingot-rules-name'>{r.name}</span>
                     <span className='ingot-rules-kind'>{ruleKindLabel(r)}</span>
                     {r.enforced && <span className='ingot-rules-kind'>enforced</span>}
