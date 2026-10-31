@@ -52,6 +52,8 @@ export interface AgentMessage {
     readonly thoughtMs?: number;
     /** The silver note (Habits, Decisions, Frozen Zones): opens the habit, with Undo. Not sent to the model. */
     readonly note?: import('../habits/habits.types').HabitNoteInfo;
+    /** IDEA-306: the run's diff checked against the approved plan, drawn as a review card. */
+    readonly planReview?: import('../plan-review/plan-review.types').PlanReview;
 }
 
 /** What went into the last request of a chat (IDEA-77): shown as chips and in the usage ring. */
@@ -119,6 +121,14 @@ export interface AgentSession {
     artifactsRun?: string;
     /** IDEA-304: the run paused because it went in circles; the card offers reset or a different approach. */
     doom?: import('../doom-loop/doom-loop.types').DoomVerdict;
+    /** IDEA-307: the model the router sent this turn to (cleared on the next send). */
+    route?: import('../router/router.types').RouteDecision;
+    /** IDEA-305: the chat looks stale; offered to continue in a fresh chat from a brief. */
+    handoffOffer?: import('../fresh-context/fresh-context.types').HandoffOffer;
+    /** IDEA-305: turn count when the offer was last dismissed ("Not now"). */
+    handoffDismissedAt?: number;
+    /** IDEA-306: the plan approved with Build, reviewed against the diff when the run ends. */
+    approvedPlan?: import('../plan-review/plan-review.types').ApprovedPlan;
 }
 
 export interface ReviewPause {

@@ -48,11 +48,14 @@ export interface SavedHabit {
     readonly savedAs: string;
 }
 
-export type HabitNoteKind = 'habit' | 'decision' | 'frozen';
+export type HabitNoteKind = 'habit' | 'decision' | 'frozen' | 'handoff' | 'plan' | 'route';
+/** What a note's action button does (IDEA-305..307): open a file, or run the turn again on the original model. */
+export type HabitNoteAction = 'open-file' | 'use-original';
 
 /**
  * The one silver line in the agent chat when something is saved or decided: "Saved to Habits" (IDEA-296), "Locked in
- * Decisions", "Frozen" (IDEA-302..304). A habit note opens the habit on the Habits page.
+ * Decisions", "Frozen" (IDEA-302..304), "Fresh context - handed off", "Checked against plan", "Routed to cheaper model"
+ * (IDEA-305..307). A habit note opens the habit on the Habits page.
  */
 export interface HabitNoteInfo {
     readonly kind: HabitNoteKind;
@@ -67,6 +70,12 @@ export interface HabitNoteInfo {
     /** What Undo on a "Saved to Habits" note puts back. */
     readonly undo?: HabitUndo;
     readonly undone?: boolean;
+    /** Project-relative file the note points at (brief, plan, template). */
+    readonly path?: string;
+    readonly action?: HabitNoteAction;
+    readonly actionLabel?: string;
+    /** True once the action ran (the button hides). */
+    readonly done?: boolean;
 }
 
 export interface HabitsFile {

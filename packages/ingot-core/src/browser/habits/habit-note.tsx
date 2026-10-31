@@ -10,13 +10,16 @@ export interface HabitNoteProps {
     /** Undo label ("Undo", "Unlock", "Unfreeze"); the link shows while the note is not undone. */
     readonly undoLabel?: string;
     readonly onUndo?: () => void;
+    /** The note's action ("Open brief", "Use <model>"); the button hides once the note is done. */
+    readonly onAction?: () => void;
 }
 
 /**
  * The one small silver note in the agent chat when something is saved or decided: "Saved to Habits" (IDEA-296),
- * "Locked in Decisions", "Frozen" (IDEA-302..304). Opens the habit on the Habits page, with Undo.
+ * "Locked in Decisions", "Frozen" (IDEA-302..304), "Fresh context - handed off", "Checked against plan", "Routed to
+ * cheaper model" (IDEA-305..307). Opens the habit on the Habits page, with Undo or the note's action.
  */
-export const HabitNote = ({ note, id, onOpen, undoLabel, onUndo }: HabitNoteProps): React.ReactElement => {
+export const HabitNote = ({ note, id, onOpen, undoLabel, onUndo, onAction }: HabitNoteProps): React.ReactElement => {
     const removed = note.undone && note.kind === 'habit';
     const text = removed ? HABIT_NOTE_LABELS.undone : note.text ?? HABIT_NOTE_TEXT[note.kind];
     const body = <>
@@ -31,5 +34,6 @@ export const HabitNote = ({ note, id, onOpen, undoLabel, onUndo }: HabitNoteProp
             ? <button type='button' className='ingot-habit-note-open' title={`${HABIT_NOTE_LABELS.open}: ${note.detail ?? text}`} onClick={onOpen}>{body}</button>
             : <span className='ingot-habit-note-open' title={title}>{body}</span>}
         {undoLabel && onUndo && !note.undone && <button type='button' className='ingot-habit-note-undo' onClick={onUndo}>{undoLabel}</button>}
+        {note.actionLabel && onAction && !note.done && <button type='button' className='ingot-habit-note-action' onClick={onAction}>{note.actionLabel}</button>}
     </div>;
 };

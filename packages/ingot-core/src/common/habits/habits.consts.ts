@@ -43,10 +43,15 @@ export const HABIT_KIND_LABELS = { instruction: 'Instruction', command: 'Command
 /** The silver note in the chat when something lands in Habits. */
 export const SAVED_TO_HABITS = 'Saved to Habits';
 /** The undo link of a silver note: a decision, a frozen zone, or a learned / saved habit. */
-export const NOTE_UNDO_LABELS: Readonly<Record<HabitNoteKind, string>> = { decision: 'Unlock', frozen: 'Unfreeze', habit: 'Undo' };
+export const NOTE_UNDO_LABELS: Readonly<Partial<Record<HabitNoteKind, string>>> = { decision: 'Unlock', frozen: 'Unfreeze', habit: 'Undo' };
 /** Default text and icon of each silver note kind. */
-export const HABIT_NOTE_TEXT: Readonly<Record<HabitNoteKind, string>> = { habit: SAVED_TO_HABITS, decision: 'Locked in Decisions', frozen: 'Frozen' };
-export const HABIT_NOTE_ICONS: Readonly<Record<HabitNoteKind, string>> = { habit: 'checklist', decision: 'lock', frozen: 'snowflake' };
+export const HABIT_NOTE_TEXT: Readonly<Record<HabitNoteKind, string>> = {
+    habit: SAVED_TO_HABITS, decision: 'Locked in Decisions', frozen: 'Frozen',
+    handoff: 'Fresh context - handed off', plan: 'Checked against plan', route: 'Routed to cheaper model'
+};
+export const HABIT_NOTE_ICONS: Readonly<Record<HabitNoteKind, string>> = {
+    habit: 'checklist', decision: 'lock', frozen: 'snowflake', handoff: 'debug-restart', plan: 'checklist', route: 'arrow-swap'
+};
 export const HABIT_NOTE_UNDONE_ICON = 'discard';
 export const HABIT_STATUS_LABELS = { learning: 'learning', proposed: 'suggested', accepted: 'saved', dismissed: 'dismissed' } as const;
 /** Settings page and Find Action command for the Habits panel. */

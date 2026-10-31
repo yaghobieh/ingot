@@ -79,7 +79,7 @@
 .ingot-playbook-editor .codicon-checklist { color: var(--ingot-accent); }
 .ingot-playbook-summary, .ingot-playbook-warning { font-size: 11px; color: var(--ingot-text-muted); }
 
-/* The one silver note in the agent chat ("Saved to Habits", "Locked in Decisions", "Frozen"): opens the habit, with Undo. */
+/* The one silver note in the agent chat (Habits, Decisions, Frozen Zones, handoff, plan check, router): opens the habit, with Undo or an action. */
 .ingot-habit-note {
     display: flex; align-items: center; gap: 2px; width: fit-content; max-width: 100%; margin: 4px 0; padding: 0 2px 0 0;
     border: 1px solid var(--ingot-silver-line); border-radius: 999px;
@@ -89,24 +89,24 @@
 .ingot-habit-note-open { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 0 6px 0 7px; border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; text-align: left; }
 button.ingot-habit-note-open { cursor: pointer; }
 button.ingot-habit-note-open:hover .ingot-habit-note-text { color: var(--ingot-text); }
-.ingot-habit-note-open:focus-visible, .ingot-habit-note-undo:focus-visible { outline: 1px solid var(--ingot-focus-ring); outline-offset: 1px; }
+.ingot-habit-note-open:focus-visible, .ingot-habit-note-undo:focus-visible, .ingot-habit-note-action:focus-visible { outline: 1px solid var(--ingot-focus-ring); outline-offset: 1px; }
 :is(#ingot-agents, .ingot-agents-root) .ingot-habit-note .codicon { font-size: 11px; color: var(--ingot-silver); }
 .ingot-habit-note-text { font-weight: 500; white-space: nowrap; }
 .ingot-habit-note-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ingot-silver); }
 .ingot-habit-note-detail::before { content: '·'; margin-right: 5px; }
-.ingot-habit-note-undo { flex: none; padding: 0 6px; border: 0; border-left: 1px solid var(--ingot-silver-line); background: transparent; color: var(--ingot-text-muted); font: inherit; cursor: pointer; }
-.ingot-habit-note-undo:hover { color: var(--ingot-text); }
+.ingot-habit-note-undo, .ingot-habit-note-action { flex: none; padding: 0 6px; border: 0; border-left: 1px solid var(--ingot-silver-line); background: transparent; color: var(--ingot-text-muted); font: inherit; cursor: pointer; }
+.ingot-habit-note-undo:hover, .ingot-habit-note-action:hover { color: var(--ingot-text); }
 .ingot-habit-note.undone { opacity: 0.7; }
 .ingot-habit-note.undone .ingot-habit-note-detail { text-decoration: line-through; }
 
 /* A row opened from a "Saved to Habits" note: a silver ring that settles to a faint outline. */
-.ingot-habit-row.ingot-habit-highlight, .ingot-playbook-row.ingot-habit-highlight {
+.ingot-habit-row.ingot-habit-highlight, .ingot-playbook-row.ingot-habit-highlight, .ingot-learned-row.ingot-habit-highlight {
     border-color: color-mix(in srgb, var(--ingot-text-muted) 60%, transparent);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--ingot-text-muted) 18%, transparent);
     animation: ingot-habit-reveal 2.4s ease-out 1;
 }
 @keyframes ingot-habit-reveal { from { background: color-mix(in srgb, var(--ingot-text-muted) 16%, transparent); } to { background: transparent; } }
-@media (prefers-reduced-motion: reduce) { .ingot-habit-row.ingot-habit-highlight, .ingot-playbook-row.ingot-habit-highlight { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ingot-habit-row.ingot-habit-highlight, .ingot-playbook-row.ingot-habit-highlight, .ingot-learned-row.ingot-habit-highlight { animation: none; } }
 
 .ingot-habits-page { display: flex; flex-direction: column; gap: var(--ingot-space-3); }
 .ingot-playbooks { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }

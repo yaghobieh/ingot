@@ -9,10 +9,15 @@ import { blankDraft, playbookFileText } from '../../common/habits/playbook.utils
 import type { HabitStore } from './habit-store';
 import type { PlaybookService } from './playbook-service';
 import { PlaybookEditor } from './playbook-editor';
+import type { LearnedHabitStore } from './learned-store';
+import { LearnedPreferences } from './learned-preferences';
 
 interface HabitsManagerProps {
     readonly store: HabitStore;
     readonly playbooks: PlaybookService;
+    /** IDEA-305/306/307: preferences learned from your choices (handoff point, plan templates, models). */
+    readonly learned?: LearnedHabitStore;
+    readonly modelLabel?: (id: string) => string;
 }
 
 interface HabitsManagerState {
@@ -223,6 +228,7 @@ export class HabitsManager extends React.Component<HabitsManagerProps, HabitsMan
         return <div className='ingot-habits-page' id='ingot-habits-page' ref={el => { this.root = el; }}>
             {this.renderPlaybooks()}
             {this.renderLearned()}
+            {this.props.learned && <LearnedPreferences store={this.props.learned} modelLabel={this.props.modelLabel ?? (id => id)} highlight={this.state.highlight} />}
         </div>;
     }
 }

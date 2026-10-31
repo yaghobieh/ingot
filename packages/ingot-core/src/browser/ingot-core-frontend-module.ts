@@ -160,6 +160,14 @@ import { DecisionsContribution } from './decisions/decisions-contribution';
 import { FrozenStore } from './frozen/frozen-store';
 import { FrozenContribution } from './frozen/frozen-contribution';
 import { AntiHabitStore } from './doom-loop/anti-habit-store';
+import { LearnedHabitStore } from './habits/learned-store';
+import { FreshContextService } from './fresh-context/fresh-context-service';
+import { freshContextPreferenceSchema } from './fresh-context/fresh-context-preferences';
+import { PlanReviewService } from './plan-review/plan-review-service';
+import { ModelRouter } from './router/model-router';
+import { routerPreferenceSchema } from './router/router-preferences';
+import { AgentAutopilotContribution } from './router/agent-autopilot-contribution';
+import { CostForecastService } from './cost/cost-forecast';
 import { AgentHooksGate } from './hooks/hooks-contribution';
 import { hooksPreferenceSchema } from './hooks/hooks-preferences';
 import { AGENT_AUDIT_SERVICE_PATH } from '../common/audit/agent-audit.consts';
@@ -318,6 +326,18 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(CommandContribution).toService(FrozenContribution);
     bind(MenuContribution).toService(FrozenContribution);
     bind(AntiHabitStore).toSelf().inSingletonScope();
+    // IDEA-305/306/307: learned habits, fresh-context handoff, plan-diff review, cost forecast and the model router.
+    bind(LearnedHabitStore).toSelf().inSingletonScope();
+    bind(FreshContextService).toSelf().inSingletonScope();
+    bind(PlanReviewService).toSelf().inSingletonScope();
+    bind(ModelRouter).toSelf().inSingletonScope();
+    bind(CostForecastService).toSelf().inSingletonScope();
+    bind(PreferenceContribution).toConstantValue({ schema: freshContextPreferenceSchema });
+    bind(PreferenceContribution).toConstantValue({ schema: routerPreferenceSchema });
+    bind(AgentAutopilotContribution).toSelf().inSingletonScope();
+    for (const id of [FrontendApplicationContribution, CommandContribution, KeybindingContribution]) {
+        bind(id).toService(AgentAutopilotContribution);
+    }
     bind(FrontendApplicationContribution).toService(InitAgentsContribution);
     bind(AgentHooksGate).toSelf().inSingletonScope();
     bind(CommandContribution).toService(AgentHooksGate);

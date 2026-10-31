@@ -23,6 +23,8 @@ import { DecisionLedger } from '../decisions/decision-ledger';
 import { DecisionsManager } from '../decisions/decisions-manager';
 import { FrozenStore } from '../frozen/frozen-store';
 import { FrozenManager } from '../frozen/frozen-manager';
+import { LearnedHabitStore } from '../habits/learned-store';
+import { findModel } from '../../common/models/models.utils';
 import { PlaybookService } from '../habits/playbook-service';
 import { IngotAccountService } from '../account/account-service';
 import { AccountAvatar } from '../account/account-avatar';
@@ -46,6 +48,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
     @inject(PlaybookService) protected readonly playbookService: PlaybookService;
     @inject(DecisionLedger) protected readonly decisionLedger: DecisionLedger;
     @inject(FrozenStore) protected readonly frozenStore: FrozenStore;
+    @inject(LearnedHabitStore) protected readonly learnedStore: LearnedHabitStore;
     @inject(IngotAccountService) protected readonly accounts: IngotAccountService;
 
     protected query = '';
@@ -234,7 +237,7 @@ export class IngotSettingsDialog extends ReactDialog<void> {
             {page.custom === 'approvals' && this.renderAlwaysRun()}
             {page.custom === 'account' && this.renderAccount()}
             {page.custom === 'rules' && <RulesManager service={this.userRules} />}
-            {page.custom === 'habits' && <HabitsManager store={this.habitStore} playbooks={this.playbookService} />}
+            {page.custom === 'habits' && <HabitsManager store={this.habitStore} playbooks={this.playbookService} learned={this.learnedStore} modelLabel={id => findModel(id)?.label ?? id} />}
             {page.custom === 'decisions' && <DecisionsManager ledger={this.decisionLedger} />}
             {page.custom === 'frozen' && <FrozenManager store={this.frozenStore} runCommand={id => { this.close(); void this.commands.executeCommand(id); }} />}
             {page.custom === 'memories' && <section className='ingot-settings-card ingot-settings-memories'><MemoriesManager store={this.memoryStore} /></section>}
