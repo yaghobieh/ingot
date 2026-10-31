@@ -119,6 +119,9 @@ import { AiCommitService } from './commit/ai-commit-service';
 import { AgentHooksService } from './hooks/agent-hooks-service';
 import { AgentHooksGate } from './hooks/hooks-contribution';
 import { hooksPreferenceSchema } from './hooks/hooks-preferences';
+import { AGENT_AUDIT_SERVICE_PATH } from '../common/audit/agent-audit.consts';
+import { AgentAuditService } from '../common/audit/agent-audit.types';
+import { AgentAuditLog } from './policy/agent-audit-log';
 import { CommitWindow } from './commit/commit-window';
 import { CommitWindowContribution } from './commit/commit-window-contribution';
 import { DiffUndoRedoHandler } from './commit/diff-undo-redo-handler';
@@ -227,6 +230,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(AgentHooksGate).toSelf().inSingletonScope();
     bind(CommandContribution).toService(AgentHooksGate);
     bind(PreferenceContribution).toConstantValue({ schema: hooksPreferenceSchema });
+    // IDEA-263 / IDEA-325: the agent audit log (policy violations are recorded here)
+    bind(AgentAuditService).toDynamicValue(ctx => ServiceConnectionProvider.createProxy<AgentAuditService>(ctx.container, AGENT_AUDIT_SERVICE_PATH)).inSingletonScope();
+    bind(AgentAuditLog).toSelf().inSingletonScope();
     bind(CommitWindow).toSelf().inSingletonScope();
     bind(CommitWindowContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(CommitWindowContribution);

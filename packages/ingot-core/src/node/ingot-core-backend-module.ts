@@ -44,6 +44,9 @@ import { BackendApplicationContribution } from '@theia/core/lib/node/backend-app
 import { IngotAccountBackend } from './account/ingot-account-backend';
 import { AccountDeepLinkEndpoint } from './account/account-deeplink-endpoint';
 import { ACCOUNT_SERVICE_PATH, AccountBackend, type AccountClient } from '../common/account/account-protocol';
+import { IngotAgentAuditService } from './ingot-agent-audit-service';
+import { AGENT_AUDIT_SERVICE_PATH } from '../common/audit/agent-audit.consts';
+import { AgentAuditService } from '../common/audit/agent-audit.types';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     // Dev preview only: keep secrets in a 0600 file instead of the OS keychain (no keychain prompt after each rebuild).
@@ -105,4 +108,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bind(IngotDebugToolsService).toSelf().inSingletonScope();
     bind(DebugToolsService).toService(IngotDebugToolsService);
     bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(DEBUG_TOOLS_SERVICE_PATH, () => ctx.container.get<DebugToolsService>(DebugToolsService))).inSingletonScope();
+    bind(IngotAgentAuditService).toSelf().inSingletonScope();
+    bind(AgentAuditService).toService(IngotAgentAuditService);
+    bind(ConnectionHandler).toDynamicValue(ctx => new RpcConnectionHandler(AGENT_AUDIT_SERVICE_PATH, () => ctx.container.get<AgentAuditService>(AgentAuditService))).inSingletonScope();
 });
