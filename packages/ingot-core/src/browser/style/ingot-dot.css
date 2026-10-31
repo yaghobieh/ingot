@@ -1,0 +1,73 @@
+/* IDEA-316 ".ingot beyond Cursor": Specs, Rule Packs and Policy views. Colors come from design tokens only. */
+.ingot-specs, .ingot-rule-packs, .ingot-policy { overflow: auto; color: var(--ingot-text); background: var(--ingot-panel); font-size: 12.5px; }
+.ingot-specs:focus, .ingot-rule-packs:focus, .ingot-policy:focus { outline: none; }
+.ingot-specs-root, .ingot-rule-packs-root, .ingot-policy-root { display: flex; flex-direction: column; gap: var(--ingot-space-2); padding: var(--ingot-space-2) var(--ingot-space-3); }
+
+.ingot-dot-toolbar { display: flex; align-items: center; gap: var(--ingot-space-1); min-height: 28px; }
+.ingot-dot-title { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ingot-text-muted); }
+.ingot-dot-spacer { flex: 1; }
+.ingot-beta-pill { display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--ingot-border); color: var(--ingot-accent); font-size: 10px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
+
+.ingot-dot-button { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 1px solid var(--ingot-border); border-radius: 6px; background: var(--ingot-surface); color: var(--ingot-text); font: inherit; cursor: pointer; }
+.ingot-dot-button:hover:not(:disabled) { border-color: var(--ingot-primary); }
+.ingot-dot-button.primary { background: var(--ingot-primary); border-color: var(--ingot-primary); color: var(--ingot-primary-text); }
+.ingot-dot-button.primary:hover:not(:disabled) { background: var(--ingot-primary-hover); }
+.ingot-dot-button:disabled { opacity: .5; cursor: default; }
+.ingot-dot-iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--ingot-text-muted); cursor: pointer; }
+.ingot-dot-iconbtn:hover:not(:disabled) { background: var(--ingot-selection); color: var(--ingot-text); }
+.ingot-dot-iconbtn:disabled { opacity: .4; cursor: default; }
+.ingot-dot-iconbtn.danger:hover:not(:disabled) { color: var(--ingot-danger); }
+.ingot-dot-button:focus-visible, .ingot-dot-iconbtn:focus-visible, .ingot-dot-link:focus-visible, .ingot-spec-doc:focus-visible { outline: 2px solid var(--ingot-focus-ring); outline-offset: 1px; }
+.ingot-dot-link { padding: 0; border: 0; background: none; color: var(--ingot-primary); font: inherit; cursor: pointer; text-decoration: underline; }
+
+.ingot-dot-card { border: 1px solid var(--ingot-border); border-radius: 8px; background: var(--ingot-surface); padding: var(--ingot-space-2) var(--ingot-space-3); }
+.ingot-dot-card-title { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--ingot-text-muted); }
+.ingot-dot-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ingot-space-1); }
+.ingot-dot-badge { display: inline-flex; align-items: center; gap: 3px; height: 16px; padding: 0 6px; border-radius: 8px; background: var(--ingot-selection); color: var(--ingot-text); font-size: 10.5px; }
+.ingot-dot-empty { padding: var(--ingot-space-3); border: 1px dashed var(--ingot-border); border-radius: 8px; color: var(--ingot-text-muted); line-height: 1.5; }
+.ingot-dot-muted { color: var(--ingot-text-muted); }
+.ingot-dot-ok { color: var(--ingot-success); }
+.ingot-dot-error { color: var(--ingot-danger); }
+
+/* Specs (IDEA-324) */
+.ingot-spec { border: 1px solid var(--ingot-border); border-radius: 8px; background: var(--ingot-surface); }
+.ingot-spec-header { display: flex; align-items: center; gap: 4px; padding: 6px 8px 4px 4px; }
+.ingot-spec-title { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-spec-count { color: var(--ingot-text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ingot-spec-progress { height: 3px; margin: 0 8px 6px; border-radius: 2px; background: var(--ingot-selection); overflow: hidden; }
+.ingot-spec-progress > span { display: block; height: 100%; background: var(--ingot-success); }
+.ingot-spec-docs { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 8px 6px; }
+.ingot-spec-doc { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 6px; border: 1px solid var(--ingot-border); border-radius: 4px; background: transparent; color: var(--ingot-text); font: inherit; font-size: 11.5px; cursor: pointer; }
+.ingot-spec-doc:hover { border-color: var(--ingot-primary); }
+.ingot-spec-doc.missing { color: var(--ingot-text-muted); border-style: dashed; }
+.ingot-spec-tasks { list-style: none; margin: 0; padding: 0 4px 4px; }
+.ingot-spec-task { display: flex; align-items: center; gap: 6px; min-height: 24px; border-radius: 4px; }
+.ingot-spec-task:hover { background: var(--ingot-selection); }
+.ingot-spec-task input { margin: 0; accent-color: var(--ingot-primary); }
+.ingot-spec-task-id { color: var(--ingot-text-muted); font-variant-numeric: tabular-nums; }
+.ingot-spec-task-title { flex: 1; min-width: 0; }
+.ingot-spec-task.done .ingot-spec-task-title { color: var(--ingot-text-muted); text-decoration: line-through; }
+.ingot-spec-task-req { color: var(--ingot-text-muted); font-size: 11px; }
+.ingot-spec-task-run { visibility: hidden; }
+.ingot-spec-task:hover .ingot-spec-task-run, .ingot-spec-task-run:focus-visible { visibility: visible; }
+.ingot-spec-footer { display: flex; align-items: center; gap: 6px; padding: 4px 8px 8px; }
+
+/* Rule packs (IDEA-322) */
+.ingot-pack { border: 1px solid var(--ingot-border); border-radius: 8px; background: var(--ingot-surface); }
+.ingot-pack.enforced { border-color: var(--ingot-warning); }
+.ingot-pack-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 4px; min-height: 30px; }
+.ingot-pack-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ingot-pack-version { color: var(--ingot-text-muted); font-variant-numeric: tabular-nums; }
+.ingot-pack .ingot-dot-badge.enforced { background: transparent; border: 1px solid var(--ingot-warning); color: var(--ingot-warning); }
+.ingot-pack-files { list-style: none; margin: 0; padding: 0 8px 6px 32px; color: var(--ingot-text-muted); font-size: 11.5px; }
+
+/* Policy (IDEA-325 / IDEA-326) */
+.ingot-policy-grid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; }
+.ingot-policy-grid dt { color: var(--ingot-text-muted); }
+.ingot-policy-grid dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ingot-policy-file { display: flex; align-items: center; gap: 6px; min-height: 22px; color: var(--ingot-text-muted); }
+.ingot-policy-file.active { color: var(--ingot-text); font-weight: 600; }
+.ingot-policy-violation { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; border-bottom: 1px solid var(--ingot-border); }
+.ingot-policy-violation:last-child { border-bottom: 0; }
+.ingot-policy-rule { color: var(--ingot-danger); font-weight: 600; font-size: 11.5px; }
+.ingot-policy-message { overflow-wrap: anywhere; }

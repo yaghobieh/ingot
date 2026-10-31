@@ -23,6 +23,7 @@ const EDITOR = 'editorTextFocus';
 const IN_DEBUG = 'inDebugMode';
 /** Focus is inside the Agents tool window (chat). */
 const AGENTS_FOCUS = 'ingotAgentsFocus';
+const SPECS_FOCUS = 'ingotSpecsFocus';
 const EDITOR_NOT_REVIEWING = `${EDITOR} && ${NOT_REVIEWING}`;
 
 /**
@@ -108,7 +109,14 @@ export const INGOT_KEYMAP: readonly KeymapEntry[] = [
     { action: 'Add Selection to Agent Chat', command: 'ingot.agents.addSelectionToChat', mac: 'ctrlcmd+shift+l', other: 'ctrl+l', when: EDITOR },
     { action: 'Cycle Chat Mode', command: 'ingot.agents.cycleMode', mac: 'ctrlcmd+.', other: 'ctrl+.', when: AGENTS_FOCUS },
     { action: 'New Chat', command: 'ingot.agents.new', mac: 'ctrlcmd+alt+n', other: 'ctrl+alt+n', when: AGENTS_FOCUS },
-    { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS }
+    { action: 'Chat History', command: 'ingot.agents.history', mac: 'ctrlcmd+alt+y', other: 'ctrl+alt+y', when: AGENTS_FOCUS },
+    // .ingot beyond Cursor (IDEA-316): specs, rule packs, policy
+    { action: 'Specs', command: 'ingot.specs.toggle', mac: 'ctrlcmd+alt+shift+y', other: 'ctrl+alt+shift+y' },
+    { action: 'Create Spec…', command: 'ingot.specs.create', mac: 'ctrlcmd+alt+n', other: 'ctrl+alt+n', when: SPECS_FOCUS },
+    { action: 'Rule Packs', command: 'ingot.rulePacks.toggle', mac: 'ctrlcmd+alt+shift+l', other: 'ctrl+alt+shift+l' },
+    { action: 'Add Rule Pack…', command: 'ingot.rulePacks.add', mac: 'ctrlcmd+alt+shift+q', other: 'ctrl+alt+shift+q' },
+    { action: 'Policy', command: 'ingot.ingotPolicy.toggle', mac: 'ctrlcmd+alt+shift+u', other: 'ctrl+alt+shift+u' },
+    { action: 'Create Folder Policy…', command: 'ingot.ingotPolicy.folder', mac: 'ctrlcmd+alt+shift+f', other: 'ctrl+alt+shift+f' }
 ];
 
 export const KEYMAP_PREFERENCE = 'ingot.keymap';

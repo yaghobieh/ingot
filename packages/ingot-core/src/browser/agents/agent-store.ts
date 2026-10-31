@@ -14,6 +14,10 @@ import type { ComposedMessage } from '../../common/agents/composer-parts.types';
 import { reorderTabs, tabTitleFromText, togglePinOrder } from '../../common/agents/chat-tabs';
 import { BUILD_PROMPT, MAX_SUB_AGENTS, TERMINAL_CONTEXT_LINES, modeInfo } from '../../common/agents/agent-modes';
 import { CHATS_STORAGE_KEY, parseChats, serializeChats } from '../../common/agents/chat-history';
+import { SPEC_TASK_TOOL } from '../../common/ingot-kit/ingot-kit.consts';
+import { SpecsService } from '../specs/specs-service';
+import { AgentPolicyGate } from '../ingot-policy/agent-policy-gate';
+import { POLICY_PROTOCOL, POLICY_TEXT } from '../ingot-policy/ingot-policy.consts';
 import { SUMMARIZE_PROMPT, contextUsage, estimateTokens } from '../../common/agents/context-usage';
 import { MEMORY_PROTOCOL, extractMemories, formatMemories, relevantMemories } from '../../common/memories/memories';
 import { MemoryStore } from './memory-store';
@@ -148,6 +152,8 @@ export class AgentStore {
     @inject(MemoryStore) protected readonly memoryStore: MemoryStore;
     @inject(AgentHooksService) protected readonly hooks: AgentHooksService;
     @inject(TerminalService) protected readonly terminals: TerminalService;
+    @inject(SpecsService) protected readonly specs: SpecsService;
+    @inject(AgentPolicyGate) protected readonly policyGate: AgentPolicyGate;
     protected persistTimer?: ReturnType<typeof setTimeout>;
     /** Remove the auto-attached open file from the next new chat. */
 
@@ -771,7 +777,9 @@ export class AgentStore {
         };
         if (root) {
             for (const mention of parseMentions(prompt).filter(isSafeRelativePath)) {
-                await add(root.resolve(mention));
+                if (await this.policyGate.canRead(session.id, root, mention)) {
+                    await add(root.resolve(mention));
+                }
             }
         }
         let text = files.length ? `Project files for context:\n\n${formatContextFiles(files)}` : '';
@@ -871,12 +879,13 @@ export class AgentStore {
         const active = this.editors.currentEditor?.editor.uri;
         const activePath = active && root?.isEqualOrParent(active) ? root.relative(active)?.toString() : undefined;
         const rules = applicableRules(config.rules, activePath ? [...context.paths, activePath] : context.paths);
+        await this.applyPolicy(session, root, activePath ? [...context.paths, activePath] : context.paths);
         const info = modeInfo(session.mode);
         const tools = info.canUseTools ? this.mcp.connectedTools : [];
         const memories = relevantMemories(await this.memoryStore.load(root).catch(() => []), prompt);
         const workspace = await this.workspaceInfo(root);
         this.github = workspace.github;
-        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : ''].filter(Boolean).join('\n\n');
+        const base = [AGENT_SYSTEM_PROMPTS[session.mode], info.canEdit ? AGENT_PROTOCOL : '', info.canEdit && root ? WORK_LOOP_PROTOCOL : '', root ? workspaceProtocol(workspace) : '', toolProtocol(tools), info.canUseTools ? builtinToolProtocol({ terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }) : '', this.memoryStore.generate ? MEMORY_PROTOCOL : '', this.policyGate.hasPolicy(session.id) ? POLICY_PROTOCOL : ''].filter(Boolean).join('\n\n');
         const rulesText = formatRules(rules);
         const memoriesText = formatMemories(memories);
         const system = [base, rulesText, memoriesText, context.text].filter(Boolean).join('\n\n');
@@ -907,6 +916,14 @@ export class AgentStore {
                 if (this.gaveUp(session, generation)) {
                     return;
                 }
+                const overBudget = this.policyGate.beforeRound(session.id, [{ role: 'system', content: system }, ...this.historyFor(session)]);
+                if (overBudget) {
+                    session.messages.push({ role: 'system', text: `${POLICY_TEXT.budgetStopped}${overBudget}` });
+                    session.status = 'idle';
+                    session.updatedAt = Date.now();
+                    this.changed();
+                    return;
+                }
                 const parsed = await this.streamRound(session, system);
                 if (this.stale(session.id, generation)) {
                     return;
@@ -920,6 +937,7 @@ export class AgentStore {
                 }
                 const agentIndex = session.messages.map(m => m.role).lastIndexOf('agent');
                 const agentText = session.messages[agentIndex]?.text ?? '';
+                this.policyGate.afterRound(session.id, session.messages[agentIndex]?.expanded ?? agentText);
                 const asked = lastUser?.m.text ?? prompt;
                 const echoed = isPromptEcho(agentText, prompt) || isPromptEcho(agentText, asked);
                 const scaffold = parseLibraryPrompt(asked) ?? parseLibraryPrompt(prompt);
@@ -1112,7 +1130,7 @@ export class AgentStore {
                 ? BUILTIN_TOOLS.filter(tool => builtinToolEnabled(tool.name, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled }))
                     .map(tool => ({ name: tool.name, description: tool.description }))
                 : [];
-            const stream = this.models.stream(this.resolveModel(session.model), [{ role: 'system', content: system }, ...history], text => {
+            const stream = this.models.stream(this.resolveModel(session.model), this.policyGate.redactMessages(session.id, [{ role: 'system', content: system }, ...history]), text => {
                 if (!live() || !session.messages[index]) {
                     return;
                 }
@@ -1203,6 +1221,15 @@ export class AgentStore {
                 this.changed();
                 continue;
             }
+            const violation = await this.policyGate.check(session.id, call, root);
+            if (violation) {
+                session.messages.push({
+                    role: 'tool', from: target, text: `Error: blocked by policy. ${violation.message}`,
+                    tool: { server: call.server, tool: call.tool, args: call.args, state: 'error', startedAt: Date.now(), endedAt: Date.now() }
+                });
+                this.changed();
+                continue;
+            }
             const asked = [...session.messages].reverse().find(message => message.role === 'user' && !message.hidden)?.text ?? '';
             if (isRemoteCodeFetch(call) && !userAskedForRemote(asked)) {
                 session.messages.push({
@@ -1225,7 +1252,9 @@ export class AgentStore {
             // IDEA-133: a tool turned off in Settings › Agent tools is refused at once, without a card.
             const turnedOff = call.server === BUILTIN_TOOL_SERVER
                 && !builtinToolEnabled(call.tool, { terminal: this.runSettings.enabled, browser: browserToolSettings(key => this.preferences.get(key)).enabled });
-            if (action && !turnedOff && requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)) {
+            // IDEA-326: the nearest .ingot/policy.yaml autoApprove level runs an action without the card, or always asks.
+            const verdict = action ? this.policyGate.approval(session.id, action.kind) : 'default';
+            if (action && !turnedOff && verdict !== 'auto' && (verdict === 'ask' || (requireRun && needsApproval(action, rootPath ?? '', this.alwaysRun, requireGit, this.alwaysRunCommands)))) {
                 const choice = await this.askApproval(session, action);
                 if (choice.stopped) {
                     return false;
@@ -1280,9 +1309,10 @@ export class AgentStore {
             const tool: ToolCallInfo = { server: call.server, tool: call.tool, args: call.args, state: 'running', startedAt: Date.now() };
             const at = session.messages.push({ role: 'tool', from: target, text: '', tool }) - 1;
             this.changed();
-            const result: AgentActionResult & { images?: ImageChip[] } = await (isBrowser ? this.runBrowser(session, call)
+            const output: AgentActionResult & { images?: ImageChip[] } = await (isBrowser ? this.runBrowser(session, call)
                 : call.server === BUILTIN_TOOL_SERVER ? this.runBuiltin(session, this.withMadeWithTrailer(session, call), root, hooksRan) : this.mcp.callTool(call.server, call.tool, call.args))
                 .catch((error: unknown) => ({ text: error instanceof Error ? error.message : String(error), isError: true }));
+            const result: AgentActionResult & { images?: ImageChip[] } = { ...output, ...this.policyGate.filterResult(session.id, call, output) };
             session.steps = session.steps.map(s => s.kind === 'run' && s.target === target && !s.done ? { ...s, done: true } : s);
             const done: AgentMessage = {
                 role: 'tool', from: target, text: `${result.isError ? 'Error: ' : ''}${result.text}`, ...(result.images?.length ? { images: result.images } : {}),
@@ -1588,6 +1618,7 @@ export class AgentStore {
                     const stopped = await this.processes.service.stop(str(call.args.id));
                     return stopped ? { text: `Stopped ${str(call.args.id)}.`, isError: false } : { text: `Process "${str(call.args.id)}" is not running.`, isError: true };
                 }
+                case SPEC_TASK_TOOL: return await this.specs.toolCall(root, call.args);
                 case 'web_search': return await this.actions.search(str(call.args.query));
                 case 'web_fetch': return await this.actions.fetchUrl(str(call.args.url));
                 case 'delete': {
@@ -1878,7 +1909,23 @@ export class AgentStore {
     }
 
     /** Drops edits that delete or skip tests unless the user asked for that. */
-    protected async editsAllowed(session: AgentSession, edits: readonly AgentEdit[], root: URI | undefined): Promise<AgentEdit[]> {
+    /** IDEA-325 / IDEA-326: the run's policy; the nearest .ingot/policy.yaml `model` replaces the chat's model. */
+    protected async applyPolicy(session: AgentSession, root: URI | undefined, paths: readonly string[]): Promise<void> {
+        await this.policyGate.prepareRun(session.id, root, paths, findModel(this.resolveModel(session.model))?.cost);
+        const wanted = this.policyGate.modelFor(session.id);
+        if (!wanted || wanted.model === session.model) {
+            return;
+        }
+        const model = findModel(wanted.model);
+        session.messages.push({ role: 'system', text: model ? `${POLICY_TEXT.modelFrom} ${wanted.file}: ${model.label}.` : `${wanted.model} (${wanted.file}) ${POLICY_TEXT.modelMissing} ${session.model}.` });
+        if (model) {
+            session.model = model.id;
+        }
+    }
+
+    protected async editsAllowed(session: AgentSession, proposed: readonly AgentEdit[], root: URI | undefined): Promise<AgentEdit[]> {
+        const { kept: edits, refused } = await this.policyGate.filterEdits(session.id, proposed, root);
+        refused.forEach(text => session.messages.push({ role: 'system', text }));
         const loop = this.loopOf(session);
         if (!loop.wants || !root || userAllowsWeakerTests(loop.prompt)) {
             return [...edits];

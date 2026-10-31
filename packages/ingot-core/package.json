@@ -63,6 +63,10 @@
       "frontend": "lib/browser/workbench/ingot-workbench-frontend-module"
     },
     {
+      "frontend": "lib/browser/ingot-dot/ingot-dot-frontend-module",
+      "backend": "lib/node/ingot-dot-backend-module"
+    },
+    {
       "frontendElectron": "lib/electron-browser/ingot-workbench-electron-module"
     }
   ]
