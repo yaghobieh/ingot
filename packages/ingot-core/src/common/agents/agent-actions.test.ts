@@ -12,6 +12,7 @@ describe('IDEA-109 agent actions', () => {
         expect(describeAction(git({ op: 'push', branch: 'main', remote: 'up' }))?.detail).toBe('main → up');
         expect(describeAction(git({ op: 'status' }))).toBeUndefined();
         expect(describeAction({ server: 'ingot', tool: 'web_search', args: { query: 'Mantine components list' } })).toEqual({ kind: 'web', label: 'Search web', detail: 'Mantine components list' });
+        expect(describeAction({ server: 'ingot', tool: 'deep_research', args: { question: 'Is SQLite fine in production?' } })).toEqual({ kind: 'web', label: 'Deep research', detail: 'Is SQLite fine in production?' });
         expect(describeAction({ server: 'files', tool: 'read', args: { path: 'a.ts' } })).toEqual({ kind: 'mcp', label: 'files: read', detail: 'a.ts' });
     });
 

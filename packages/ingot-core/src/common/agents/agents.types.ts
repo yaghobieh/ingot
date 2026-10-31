@@ -1,5 +1,5 @@
 export type AgentStatus = 'idle' | 'thinking' | 'editing' | 'review' | 'paused' | 'approval' | 'done' | 'error';
-export type AgentMode = 'agent' | 'multi' | 'ask' | 'plan' | 'debug';
+export type AgentMode = 'agent' | 'multi' | 'ask' | 'plan' | 'debug' | 'research';
 export type PlanState = 'done' | 'active' | 'todo';
 export type StepKind = 'read' | 'edit' | 'run' | 'search';
 
@@ -44,6 +44,8 @@ export interface AgentMessage {
     /** When a think block opened, and how long it lasted once it closed. */
     readonly thoughtStarted?: number;
     readonly thoughtMs?: number;
+    /** IDEA-314: a Deep research run (live progress, then the cited answer in `text`). */
+    readonly research?: import('../research/research.types').ResearchView;
 }
 
 /** What went into the last request of a chat (IDEA-77): shown as chips and in the usage ring. */
